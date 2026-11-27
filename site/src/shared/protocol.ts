@@ -773,7 +773,17 @@ export type DramaView = {
     quiet?: boolean;
     /** quiet because an actor left the table mid-act */
     left?: boolean;
+    /** 当场识破: right guesses locked in during the act (one more point each), earliest first; `at`: ms into the act */
+    early?: { pid: string; at: number }[];
   } | null;
+  /**
+   * 台下喊一嗓子, this act (everyone sees who called what): `again`, whoever just spoke says it again
+   * another way; `mood`, the actor `to` plays on in `MOODS[mood]` (data/drama.ts).
+   */
+  calls?: { by: string; kind: "again" | "mood"; to: string | null; mood: number; at: number }[];
+  /** 当场识破: how many watching have locked in their guess (never whom), and this phone's own */
+  locked?: number;
+  myLock?: string | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
   awards: Record<string, number>;

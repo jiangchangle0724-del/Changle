@@ -1,4 +1,4 @@
-import { ANY_SECRETS, ANY_TWISTS, GROUPS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaGroup, type DramaLevel, type DramaScene } from "../../../data/drama";
+import { ANY_SECRETS, ANY_TWISTS, GROUPS, MOODS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaGroup, type DramaLevel, type DramaScene } from "../../../data/drama";
 import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dramaClassics";
 import { READ_KINDS, READ_PASS, READINGS, readKind, type ReadKind, type ReadPiece, type ReadSet } from "../../../data/dramaReadings";
 import type { T } from "../../../i18n";
@@ -41,6 +41,14 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * The penalty: the actor(s) with the fewest stars, plus the culprit if caught, or else everyone
  * the culprit fooled. Best actor (most stars) takes a trophy.
  *
+ * While a scene plays, the audience isn't just waiting for the vote (Steve on Nov 26: borrow from
+ * the open-source party games). From improv's "New choice!" and its emotional calls, anyone
+ * watching can call out twice an act (`call`): 换个说法, and whoever just spoke says it again
+ * another way, or a mood for one actor to play on in (哭着演, 突然暴怒...). From Spyfall's
+ * accusation, anyone watching can lock in their guess mid-scene, once (`lock`): it is their vote's
+ * guess, no changing it after the twist, and if it's right it scores one more. The big screen shows
+ * how many have locked in, never whom.
+ *
  * Players can write scenes too: one written at the table is played next (its writer on stage, so
  * they never guess their own story); the host's phone also brings scenes from the public library
  * (written by players, approved by the site's owner), which mix in with the built-in ones.
@@ -50,6 +58,7 @@ type Mode = "show" | "pk" | "classic" | "read";
 type Pen = "drink" | "move" | "prank";
 type Want = "act" | "watch";
 type Vote = { guess: string | null; stars: Record<string, number> };
+type Call = NonNullable<DramaView["calls"]>[number];
 /** A scene a player wrote: here at the table (`by` is their seat) or for the public library (`credit`). */
 type Written = { id: string; scene: DramaScene; by: string | null; credit: string };
 type S = {
@@ -108,6 +117,10 @@ type S = {
   twistAt: number;
   twisted: boolean;
   votes: Record<string, Vote>;
+  /** 台下喊一嗓子: what the audience has called out this act (`mood` indexes `MOODS`) */
+  calls: Call[];
+  /** 当场识破: guesses locked in during the act (`at`: how far into it), binding at the vote */
+  locks: Record<string, { guess: string; at: number }>;
   result: DramaView["result"];
   scores: Record<string, number>;
   acted: Record<string, number>;
@@ -128,6 +141,9 @@ const PK_MS = 300_000;
 const CLASSIC_MS = 300_000;
 const READ_MS = 180_000;
 const VOTE_MS = 50_000;
+/** 台下喊一嗓子: each person watching calls out this many times an act, never on top of the last call */
+export const CALLS_EACH = 2;
+export const CALL_GAP = 8_000;
 /** the most on stage at once */
 export const MAX_CAST = 8;
 
@@ -346,6 +362,8 @@ function rolesForClassic(c: ClassicScene, k: number, api: Api): number[] {
 
 function newRound(s: S, api: Api) {
   s.votes = {};
+  s.calls = [];
+  s.locks = {};
   s.ready = [];
   s.result = null;
   s.twisted = false;
@@ -566,6 +584,7 @@ function reveal(s: S, api: Api) {
 
   let caught = false;
   let right: string[] = [];
+  let early: { pid: string; at: number }[] = [];
   const losers = new Set(worst);
   if (s.mode === "show" && s.culprit) {
     // the culprit (in a monologue, the actor's real secret) is caught by the most votes; the
@@ -575,6 +594,9 @@ function reveal(s: S, api: Api) {
     caught = top > 0 && counts[target] === top;
     right = vs.filter((pid) => s.votes[pid]?.guess === target);
     for (const pid of right) add(pid, 1);
+    // 当场识破: right, and locked in while the scene was still playing: one more, earliest first
+    early = right.filter((pid) => s.locks[pid]?.guess === target).map((pid) => ({ pid, at: s.locks[pid].at })).sort((a, b) => a.at - b.at);
+    for (const e of early) add(e.pid, 1);
     if (caught) losers.add(s.culprit);
     else {
       add(s.culprit, 3);
@@ -589,7 +611,7 @@ function reveal(s: S, api: Api) {
     if (c) cards[pid] = c;
   }
   const say = losers.size ? penaltyText(s, api) : null;
-  s.result = { culprit: s.culprit, caught, counts, stars, cards, best, losers: [...losers], right, penalty: say, gained, answer: answerOf(s) };
+  s.result = { culprit: s.culprit, caught, counts, stars, cards, best, losers: [...losers], right, penalty: say, gained, answer: answerOf(s), ...(early.length ? { early } : {}) };
   s.phase = "reveal";
   api.fx(caught || s.mode !== "show" ? "reveal" : "wrong", s.culprit ?? undefined);
   if (best.length) api.fx("award", best[0]);
@@ -695,6 +717,8 @@ export const drama: GameDef<S> = {
       twistAt: 0,
       twisted: false,
       votes: {},
+      calls: [],
+      locks: {},
       result: null,
       stamp: null,
       scores: {},
@@ -716,6 +740,8 @@ export const drama: GameDef<S> = {
     s.read ??= null;
     s.plan ??= s.total;
     s.stamp ??= null;
+    s.calls ??= [];
+    s.locks ??= {};
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
@@ -773,14 +799,45 @@ export const drama: GameDef<S> = {
           const n = intIn(raw[c], 1, 5);
           if (n !== null && raw[c] !== undefined) stars[c] = n;
         }
-        // a suspect (never yourself), or in a monologue one of the three secrets
+        // a suspect (never yourself), or in a monologue one of the three secrets; one locked in
+        // during the act is the guess (unless that actor has left since)
         const solo = s.order.length > 0;
+        const held = s.mode === "show" ? s.locks[pid]?.guess : undefined;
         const guess =
-          s.mode !== "show" || typeof g.guess !== "string" ? null : solo ? (/^\d$/.test(g.guess) && Number(g.guess) < s.order.length ? g.guess : null) : others.includes(g.guess) ? g.guess : null;
+          held && (solo || others.includes(held))
+            ? held
+            : s.mode !== "show" || typeof g.guess !== "string" ? null : solo ? (/^\d$/.test(g.guess) && Number(g.guess) < s.order.length ? g.guess : null) : others.includes(g.guess) ? g.guess : null;
         if (s.mode === "show" && !guess) return;
         if (Object.keys(stars).length !== others.length) return;
         s.votes[pid] = { guess, stars };
         if (everyoneVoted(s, api)) reveal(s, api);
+        return;
+      }
+      case "call": {
+        // 台下喊一嗓子: someone watching calls out mid-scene, twice an act, not on top of the last call
+        if (s.phase !== "act" || s.mode !== "show" || !api.has(pid) || s.cast.includes(pid)) return;
+        if (s.calls.filter((c) => c.by === pid).length >= CALLS_EACH) return;
+        const last = s.calls[s.calls.length - 1];
+        if (last && api.now - last.at < CALL_GAP) return;
+        if (g.kind === "again") s.calls.push({ by: pid, kind: "again", to: null, mood: 0, at: api.now });
+        else if (g.kind === "mood") {
+          const to = typeof g.to === "string" && s.cast.includes(g.to) && api.has(g.to) ? g.to : null;
+          const mood = typeof g.mood === "number" && Number.isInteger(g.mood) && g.mood >= 0 && g.mood < MOODS.length ? g.mood : null;
+          if (!to || mood === null) return;
+          s.calls.push({ by: pid, kind: "mood", to, mood, at: api.now });
+        } else return;
+        // nothing to keep if the room went down a moment later: a shout, not a score
+        api.light();
+        return;
+      }
+      case "lock": {
+        // 当场识破: someone watching names the culprit (a monologue: the real secret) before the
+        // scene is over, once; it becomes their vote's guess
+        if (s.phase !== "act" || s.mode !== "show" || !s.culprit || !api.has(pid) || s.cast.includes(pid) || s.locks[pid]) return;
+        const solo = s.order.length > 0;
+        const guess = typeof g.guess !== "string" ? null : solo ? (/^\d$/.test(g.guess) && Number(g.guess) < s.order.length ? g.guess : null) : s.cast.includes(g.guess) && api.has(g.guess) ? g.guess : null;
+        if (!guess) return;
+        s.locks[pid] = { guess, at: Math.max(0, api.now - (s.endsAt - s.actMs)) };
         return;
       }
       case "reveal": {
@@ -825,7 +882,7 @@ export const drama: GameDef<S> = {
         // acts count again from the number the host picks
         if (!host || (s.phase !== "reveal" && s.phase !== "end") || !stampSettled(s, api)) return;
         for (const k of ["brief", "act", "twist", "vote"]) api.clear(k);
-        Object.assign(s, { phase: "setup", round: 0, total: s.plan, scene: null, cur: null, cast: [], roles: [], order: [], classic: null, read: null, culprit: null, tasks: {}, pk: null, ready: [], endsAt: 0, actMs: 0, twistAt: 0, twisted: false, votes: {}, result: null } satisfies Partial<S>);
+        Object.assign(s, { phase: "setup", round: 0, total: s.plan, scene: null, cur: null, cast: [], roles: [], order: [], classic: null, read: null, culprit: null, tasks: {}, pk: null, ready: [], endsAt: 0, actMs: 0, twistAt: 0, twisted: false, votes: {}, calls: [], locks: {}, result: null } satisfies Partial<S>);
         return;
       }
       case "write": {
@@ -884,6 +941,10 @@ export const drama: GameDef<S> = {
 
   leave(s, pid, api) {
     delete s.votes[pid];
+    if (s.locks) {
+      delete s.locks[pid];
+      for (const [k, l] of Object.entries(s.locks)) if (l.guess === pid) delete s.locks[k];
+    }
     // an actor walked out mid-act: with the culprit, a duelist or the whole cast gone the act can't
     // be judged, so the cards turn over and nothing counts; otherwise the rest play on, and nobody
     // has to star the one who left
@@ -941,6 +1002,10 @@ export const drama: GameDef<S> = {
       twist: scene && (s.twisted || s.phase === "vote" || s.phase === "reveal") ? twistOf(s, scene) : null,
       voted: Object.keys(s.votes),
       myVote: s.votes[pid] ?? null,
+      // 台下喊一嗓子 (everyone sees who called what); 当场识破: how many, never whom, and this phone's own
+      calls: s.phase === "act" ? (s.calls ?? []) : [],
+      locked: s.phase === "act" || s.phase === "vote" ? Object.keys(s.locks ?? {}).length : 0,
+      myLock: s.locks?.[pid]?.guess ?? null,
       result: s.phase === "reveal" ? s.result : null,
       stampAt: s.stamp ? s.stamp.at : 0,
       scores: s.scores,

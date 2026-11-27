@@ -1,5 +1,5 @@
 import { DramaAction } from "./ShellActions";
-import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Film, Mic, Sparkles, Star, VenetianMask } from "lucide-react";
+import { Clapperboard, Drama as DramaIcon, ExternalLink, Eye, Feather, Film, Lock, Mic, Sparkles, Star, VenetianMask } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GROUPS, KINDS, PK_DEMO, pkSeeUrl, pkStyle, SCENES, type DramaKind, type PkStyle } from "../../data/drama";
 import { DRAWN_ART } from "../../data/dramaArt";
@@ -133,7 +133,7 @@ export function Curtain({ open, sound = true }: { open: boolean; sound?: boolean
  * plaque for the role. `body` is the standing figure; `face` a round face at any size.
  */
 export type Actor = { pid: string; role: T; name: string; face: (size: number) => ReactNode; body: ReactNode };
-export function Cast({ actors, culprit, best }: { actors: Actor[]; culprit?: string | null; best?: string[] }) {
+export function Cast({ actors, culprit, best, tags }: { actors: Actor[]; culprit?: string | null; best?: string[]; tags?: Record<string, ReactNode> }) {
   const { lang } = useStore();
   return (
     <div className={`dm-cast n${actors.length}`}>
@@ -145,6 +145,11 @@ export function Cast({ actors, culprit, best }: { actors: Actor[]; culprit?: str
             <span className="dm-actor-spot" aria-hidden="true" />
             <span className="dm-actor-figure">
               {a.body}
+              {tags?.[a.pid] && (
+                <span className="dm-actor-tag" key={String(tags[a.pid])}>
+                  {tags[a.pid]}
+                </span>
+              )}
               {isCulprit && (
                 <span className="dm-actor-mask" aria-hidden="true">
                   <MaskArt culprit />
@@ -698,6 +703,17 @@ export function useStampDue(stampAt: number | undefined, now: () => number): boo
 }
 
 /** A clock's time left: minutes and seconds (5:00) while there's a minute or more, then seconds. */
+/** 当场识破 at the reveal: who locked in the right guess while the scene played, and when. */
+export function eagleLine(early: { pid: string; at: number }[], nameOf: (pid: string) => string, zh: boolean): string {
+  const when = (ms: number) => {
+    const s = Math.round(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  const who = early.map((e) => (zh ? `${nameOf(e.pid)}（开演 ${when(e.at)}）` : `${nameOf(e.pid)} (${when(e.at)} in)`)).join(zh ? "、" : ", ");
+  const each = early.length > 1;
+  return zh ? `火眼金睛：${who}当场识破，${each ? "每人" : ""}再 +1` : `Eagle eyes: ${who} called it early, +1 more${each ? " each" : ""}`;
+}
+
 export function clockText(secs: number): string {
   return secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : String(secs);
 }
@@ -778,9 +794,17 @@ export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }:
   const zh = lang === "zh";
   const actors = me ? all.filter((a) => a.pid !== me) : all;
   const tx = (x: T) => (zh ? x.zh : x.en);
-  const [guess, setGuess] = useState<string | null>(submitted?.guess ?? null);
-  const [stars, setStars] = useState<Record<string, number>>(submitted?.stars ?? {});
   const show = v.mode === "show";
+  // 当场识破: a guess locked in while the scene played is the guess, for good
+  const held = show ? (v.myLock ?? null) : null;
+  const [guess, setGuess] = useState<string | null>(held ?? submitted?.guess ?? null);
+  const [stars, setStars] = useState<Record<string, number>>(submitted?.stars ?? {});
+  const heldNote = held && (
+    <p className="dm-house-locked">
+      <Lock size={15} aria-hidden="true" />
+      <span>{zh ? "这是你开演时锁定的，不能改了" : "You locked this in during the scene: it stays"}</span>
+    </p>
+  );
   const options = show ? v.options ?? null : null;
   const complete = (!show || !!guess) && actors.every((a) => stars[a.pid]);
   return (
@@ -798,6 +822,7 @@ export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }:
                 type="button"
                 role="radio"
                 aria-checked={guess === String(i)}
+                disabled={!!held && held !== String(i)}
                 className={`dm-secret ${guess === String(i) ? "is-on" : ""}`}
                 onClick={() => {
                   setGuess(String(i));
@@ -812,6 +837,7 @@ export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }:
               </button>
             ))}
           </div>
+          {heldNote}
         </section>
       )}
       {show && !options && v.scene && (
@@ -827,6 +853,7 @@ export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }:
                 type="button"
                 className={`dm-suspect ${guess === a.pid ? "is-on" : ""}`}
                 aria-pressed={guess === a.pid}
+                disabled={!!held && held !== a.pid}
                 onClick={() => {
                   setGuess(a.pid);
                   sfx.tap();
@@ -846,6 +873,7 @@ export function BallotForm({ v, actors: all, onSubmit, submitted, inShell, me }:
               </button>
             ))}
           </div>
+          {heldNote}
         </section>
       )}
       <section>
@@ -939,7 +967,7 @@ export function readBar(stars: number, zh: boolean): string {
  * The truth, in four beats: a drum roll; the culprit's mask comes down (or they get away with it);
  * every card turns over; the stars count up and the best actor takes the trophy.
  */
-export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[]; me?: string; face: Face }) {
+export function Reveal({ v, actors, me, face, nameOf }: { v: DramaView; actors: Actor[]; me?: string; face: Face; nameOf?: (pid: string) => string }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const r = v.result!;
@@ -1114,6 +1142,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
               {!r.caught && (options ? (zh ? "；秘密没被猜中，演员 +3" : "; the secret stayed hidden: +3 to the actor") : zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
             </p>
           )}
+          {v.mode === "show" && !r.quiet && !!r.early?.length && nameOf && <p className="dm-eagle">{eagleLine(r.early, nameOf, zh)}</p>}
           {v.mode === "read" && readStars > 0 && <p className="hint">{readBar(readStars, zh)}</p>}
           {r.losers.length > 0 && r.penalty && (
             <p className="dm-penalty-line">
@@ -1333,8 +1362,10 @@ export function Rules() {
       <p>每一幕开始前，每个人选「我要上台」「都行」或「我只看」。剧本按上台的人数来分，一个人到八个人都有；没人报名时，从选「都行」的人里随机抽几个上台。</p>
       <p>每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。一个人上台时是独角戏：台上的人藏着三个秘密里的一个，观众猜是哪一个。</p>
       <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。没人当观众时，演员互相猜、互相打星，不能投自己。</p>
+      <p>台下也有事做：演的时候，每个观众每一幕能喊两次。「换个说法！」：刚才说话的人把那句话换个说法再来一遍；「换情绪」：点一个演员和一种情绪（哭着演、突然暴怒、喝高了……），他接下来 20 秒就这样演。大屏和手机上都看得到是谁喊的。</p>
+      <p>当场识破：觉得已经看出谁是坏人，可以在演完之前就锁定，锁了就不能改，投票时就是它。猜对了除了 +1，再多 +1；大屏只显示有几个人锁定了，不显示锁的是谁。</p>
       <p>人少也能玩：桌上不到三个人时，每一幕都是独角戏，一个人演，其他人猜。只有一个人时只演独角戏和朗读，屋里的人一起喊答案，主人点揭晓，不计分。</p>
-      <p>计分：猜对 +1；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
+      <p>计分：猜对 +1（当场识破再 +1）；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
       <p>剧本背景：主人可以选几个人群（中国、加拿大、南亚、菲律宾……），选了的人群的剧本先演，不够时用通用的补。</p>
       <p>名场面：主人选中文影视还是英文影视，上台的人照着有名的电影、电视剧片段演。牌上写着你演谁、怎么演、开口第一句，还能点开原片看看。观众打星，分低的受罚。</p>
@@ -1345,8 +1376,10 @@ export function Rules() {
       <p>Before each act, everyone picks “I'll act”, “Either way” or “Just watching”. The scene fits however many go up, from one to eight; with no volunteers, a few of the “Either way” crowd go up at random.</p>
       <p>Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did. With one on stage, it's a monologue: the actor is hiding one of three secrets, and the audience guesses which.</p>
       <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars. With nobody watching, the actors guess and rate each other, never themselves.</p>
+      <p>The audience joins in too: while a scene plays, everyone watching can call out twice an act. “New choice!”: whoever just spoke says that line again, another way. “Change a mood”: pick an actor and a mood (in tears, suddenly furious, tipsy...), and they play the next 20 seconds that way. The big screen and every phone show who called it.</p>
+      <p>Call it early: if you think you know the culprit before the scene ends, lock it in. It can't change after that and becomes your vote's guess. Right, and it's +1 more on top of the usual point. The big screen only shows how many have locked in, never whom.</p>
       <p>A small table works too: with fewer than three, every act is a monologue, one acting and the rest guessing. On your own you play monologues and readings: the room shouts its guesses, the host reveals the answer, and nobody scores.</p>
-      <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
+      <p>Points: a right guess +1 (+1 more if locked in early); a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
       <p>Whose stories: the host can pick some of the communities (Chinese, Canadian, South Asian, Filipino...). Their scenes come first, and everyone's fill in when they run out.</p>
       <p>Famous scenes: the host picks Chinese or English film and TV, and the actors play a famous moment from it. Your card says who you play, how to play them and the line to open with, with a link to watch the original. The audience gives stars; the lowest score pays.</p>
