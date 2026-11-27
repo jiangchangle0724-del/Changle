@@ -39,7 +39,8 @@ export type Route =
   | { kind: "figure" }
   | { kind: "emailCancel" }
   | { kind: "admin" }
-  | { kind: "member" }
+  /** `paid`: the Checkout session Stripe sent the buyer back with (worker/stripe.ts) */
+  | { kind: "member"; paid?: string }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
   | { kind: "tv"; code?: string; game?: GameId }
@@ -103,7 +104,10 @@ export function parse(pathname: string, search = ""): Route {
   if (p === "/me/figure") return { kind: "figure" };
   if (p === "/me/email-cancel") return { kind: "emailCancel" };
   if (p === "/admin") return { kind: "admin" };
-  if (p === "/member") return { kind: "member" };
+  if (p === "/member") {
+    const paid = new URLSearchParams(search).get("paid");
+    return paid && /^cs_(test|live)_\w{10,200}$/.test(paid) ? { kind: "member", paid } : { kind: "member" };
+  }
   if ((m = new RegExp(`^/u/${USER}$`).exec(p))) return { kind: "user", id: m[1] };
   if ((m = new RegExp(`^/chat/${USER}$`).exec(p))) return { kind: "chat", id: m[1] };
   if ((m = /^\/tv(?:\/([A-Za-z0-9]{4}))?$/i.exec(p))) {
@@ -141,7 +145,7 @@ export function pathOf(r: Route): string {
     case "admin":
       return "/admin";
     case "member":
-      return "/member";
+      return r.paid ? `/member?paid=${r.paid}` : "/member";
     case "user":
       return `/u/${r.id}`;
     case "chat":

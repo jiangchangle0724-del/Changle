@@ -3,6 +3,7 @@
  * by side and nothing is said in only one. `{n}`, `{who}`, `{amount}` and the like are filled in
  * by say().
  */
+import type { Category } from "./categories";
 import type { Lang, T } from "../i18n";
 
 export const W = {
@@ -265,6 +266,7 @@ export const W = {
   lostAdd: { zh: "加人：{who}", en: "New person: {who}" },
   lostRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
   lostRemove: { zh: "去掉：{who}", en: "Removed: {who}" },
+  lostPay: { zh: "收款方式：{who}", en: "Payment details: {who}" },
   lostOther: { zh: "一处别的改动", en: "Another change" },
   lostMore: { zh: "还有 {n} 处", en: "and {n} more" },
   gotIt: { zh: "知道了", en: "Got it" },
@@ -287,6 +289,28 @@ export const W = {
   historyRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
   historyRenameSomeone: { zh: "改名：改成 {name}", en: "Renamed someone {name}" },
   historyRemove: { zh: "去掉了一个人：{who}", en: "Removed: {who}" },
+  historyCategory: { zh: "分类改成 {kind}", en: "category now {kind}" },
+  historyCategoryGone: { zh: "去掉了分类", en: "category taken off" },
+  // 退款 (2026-11-26): money that came back, in the record
+  historyRefund: { zh: "记了一笔退款：{what}", en: "New refund: {what}" },
+  historyRefundOn: { zh: "改成退款", en: "now a refund" },
+  historyRefundOff: { zh: "改成花销", en: "now an expense" },
+  // 分类 (2026-11-26): the seven kinds of spending (categories.ts)
+  catFood: { zh: "餐饮", en: "Food & drink" },
+  catGroceries: { zh: "超市", en: "Groceries" },
+  catTransport: { zh: "交通", en: "Transport" },
+  catLodging: { zh: "住宿", en: "Lodging" },
+  catFun: { zh: "玩乐", en: "Fun" },
+  catShopping: { zh: "购物", en: "Shopping" },
+  catOther: { zh: "其他", en: "Other" },
+  // 分类 on the screens: picked in 详情, on each row, summed up in 总结 (2026-11-26)
+  category: { zh: "分类", en: "Category" },
+  categoryGuess: { zh: "不选的话，按备注和名称算作{kind}。", en: "Unless you pick one, it counts as {kind}, from its note and name." },
+  categoryNone: { zh: "不选的话，算作{kind}。", en: "Unless you pick one, it counts as {kind}." },
+  categoryUnpick: { zh: "再点一下就不选了。", en: "Tap it again to unpick it." },
+  byKind: { zh: "按分类", en: "By category" },
+  historyPay: { zh: "填了{who}的收款方式", en: "Payment details set: {who}" },
+  historyPayOff: { zh: "去掉了{who}的收款方式", en: "Payment details removed: {who}" },
   historyRemoveSomeone: { zh: "去掉了一个人", en: "Removed someone" },
   historyTitle: { zh: "改了账本名：{name}", en: "Ledger renamed: {name}" },
   historyLock: { zh: "锁上了账本", en: "Locked the ledger" },
@@ -460,6 +484,17 @@ export const W = {
   markPaid: { zh: "标成已转", en: "Mark as paid" },
   undoPaid: { zh: "撤销已转", en: "Undo paid" },
   copyAmount: { zh: "复制金额", en: "Copy the amount" },
+  // 收款方式 (2026-11-26): how someone takes money, for whoever pays them
+  payLabel: { zh: "收款方式", en: "Payment details" },
+  payHint: { zh: "e-Transfer 邮箱或电话", en: "e-Transfer email or phone" },
+  payNote: { zh: "转钱给 TA 的人在结清页一点就能复制。\n查看链接看不到。", en: "Whoever pays them can copy it on Settle up.\nView links don't show it." },
+  payOf: { zh: "{who}的收款方式", en: "{who}'s payment details" },
+  payOfYou: { zh: "你的收款方式", en: "Your payment details" },
+  payMissing: { zh: "{who}还没填收款方式。", en: "{who} hasn't added payment details." },
+  payAddMine: { zh: "填上你的收款方式，转钱给你的人一点就能复制。", en: "Add your payment details so whoever pays you can copy them." },
+  paySave: { zh: "存上", en: "Save" },
+  copyPay: { zh: "复制", en: "Copy" },
+  planPay: { zh: "{who}的收款方式：{pay}", en: "Pay {who} at {pay}" },
   copied: { zh: "复制好了", en: "Copied" },
   copyFailed: { zh: "没复制上，再点一次", en: "That didn't copy. Tap again" },
   // (on a button half the width of the screen)
@@ -579,3 +614,17 @@ export function say(lang: Lang, key: Word, fill?: Record<string, string | number
   if (fill) for (const [k, v] of Object.entries(fill)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
+
+/**
+ * Not lines to show: the words a note or a business's name uses for each kind of spending
+ * (categories.ts), in both languages, first match wins (kinds.ts, guessed). A hotel comes before
+ * the 酒 of a bar, a coffee shop before a shop, a restaurant's own name says nothing.
+ */
+export const KIND_SAYS: [Category, RegExp][] = [
+  ["lodging", /hotel|motel|\binn\b|airbnb|hostel|resort|lodge|hilton|marriott|hyatt|westin|sheraton|fairmont|best western|travelodge|住宿|酒店|宾馆|民宿|旅馆|房费/i],
+  ["transport", /\buber\b(?! ?eats)|\blyft\b|taxi|\bcab\b|\bgas\b|petro|\besso\b|\bshell\b|chevron|husky|parking|impark|easypark|paybyphone|ferr(y|ies)|skytrain|translink|compass card|\bbus\b|\btrain\b|flight|air canada|westjet|car rental|rental car|\bhertz\b|\bavis\b|\btoll\b|加油|油费|停车|打车|出租|地铁|公交|机票|火车|渡轮|租车|过路费|车费/i],
+  ["groceries", /costco|walmart|\bt ?& ?t\b|safeway|save[- ]?on|superstore|no frills|whole foods|h ?mart|london drugs|shoppers|pharmac|drug ?store|7-?eleven|grocer|supermarket|liquor|\bbcl\b|超市|买菜|菜市场|大统华|便利店|药店|药房|日用/i],
+  ["fun", /ticket|cinema|movie|theat(re|er)|museum|aquarium|\bzoo\b|lift pass|\bski\b|golf|karaoke|\bktv\b|bowling|arcade|concert|门票|电影|演唱会|滑雪|唱歌|景点|游乐|球票/i],
+  ["food", /restaurant|\bcafe\b|café|coffee|starbucks|tim hortons|mcdonald|a ?& ?w|wendy|burger|pizza|sushi|ramen|noodle|\bpho\b|\bbbq\b|\bbar\b|\bpub\b|bistro|kitchen|grill|diner|bakery|\btea\b|boba|dim sum|hot ?pot|breakfast|brunch|lunch|dinner|supper|\bmeal|snack|take ?out|uber ?eats|doordash|skip the dishes|饭|餐|吃|面|粉|火锅|烧烤|茶|咖啡|夜宵|宵夜|点心|寿司|喝酒|酒吧/i],
+  ["shopping", /\bmall\b|\bstore\b|\bshop\b|amazon|ikea|uniqlo|\bh ?& ?m\b|\bzara\b|gift|souvenir|clothes|outlet|购物|衣服|礼物|纪念品|商场/i],
+];

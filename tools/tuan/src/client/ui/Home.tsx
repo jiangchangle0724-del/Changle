@@ -12,7 +12,8 @@ import { getHome, myOrders, photoUrl } from "../api";
 import { leftText, t, whenText, type Key } from "../i18n";
 import { IconNext, money, TopBar, useLang, useTitle } from "./common";
 
-const KINDS: Record<ShopKind, Key> = { leader: "kindLeader", kitchen: "kindKitchen", farm: "kindFarm" };
+// (home kitchens first: they and group buys are what this is for)
+const KINDS: Record<ShopKind, Key> = { kitchen: "kindKitchen", leader: "kindLeader", farm: "kindFarm" };
 const DAY = 24 * 60 * 60 * 1000;
 
 /** Whether what's typed is in any of these words (case and width set aside, as a buyer types). */
@@ -24,6 +25,8 @@ export function Home() {
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<ShopKind | null>(null);
+  // finding an order by its code: a link until it's wanted
+  const [finding, setFinding] = useState(false);
   const hero = useRef<HTMLElement>(null);
   /** Searching from further down: back up to where what's found begins, under the search. */
   const toFound = () => {
@@ -129,11 +132,7 @@ export function Home() {
         ) : q || kind ? (
           <p class="hint home-none">{t("homeNothing")}</p>
         ) : (
-          <div class="home-empty">
-            <IconBasket />
-            <strong>{t("homeEmptyTitle")}</strong>
-            <p class="hint">{page.shops.length ? t("homeEmptyShops") : t("homeEmptyBody")}</p>
-          </div>
+          <p class="hint home-none">{t(page.shops.length ? "homeNoneShops" : "homeNone")}</p>
         )}
       </section>
 
@@ -153,15 +152,23 @@ export function Home() {
       <section class="panel home-cta">
         <h2 class="panel-title">{t("homeCta")}</h2>
         <p>{t("homeCtaLine")}</p>
-        <a class="btn btn-primary" href={`${BASE}/my`}>
-          {t("homeCtaButton")}
-        </a>
-        <a class="link-btn" href={`${BASE}/my`}>
-          {t("myLink")}
-        </a>
+        <div class="row">
+          <a class="btn btn-primary" href={`${BASE}/my`}>
+            {t("homeCtaButton")}
+          </a>
+          <a class="link-btn" href={`${BASE}/my`}>
+            {t("myLink")}
+          </a>
+        </div>
       </section>
 
-      <FindOrder />
+      {finding ? (
+        <FindOrder />
+      ) : (
+        <button type="button" class="link-btn home-find" onClick={() => setFinding(true)}>
+          {t("findOrder")}
+        </button>
+      )}
 
       <p class="foot">{t("footMoney")}</p>
     </div>
@@ -259,6 +266,9 @@ function Mine() {
 function FindOrder() {
   const [code, setCode] = useState("");
   const tidy = tidyOrderCode(code);
+  const field = useRef<HTMLInputElement>(null);
+  // (asked for just now: the field is ready to type in)
+  useEffect(() => field.current?.focus(), []);
   return (
     <form
       class="panel"
@@ -270,23 +280,13 @@ function FindOrder() {
       <h2 class="panel-title">{t("findOrder")}</h2>
       <label class="field">
         <span class="field-label">{t("codeLabel")}</span>
-        <input type="text" name="code" maxLength={8} autocomplete="off" autocapitalize="characters" class="code-input" value={code} onInput={(event) => setCode(event.currentTarget.value)} />
+        <input ref={field} type="text" name="code" maxLength={8} autocomplete="off" autocapitalize="characters" class="code-input" value={code} onInput={(event) => setCode(event.currentTarget.value)} />
         <span class="hint">{t("findHint")}</span>
       </label>
       <button type="submit" class="btn btn-quiet" disabled={!ORDER_RE.test(tidy)}>
         {t("open")}
       </button>
     </form>
-  );
-}
-
-function IconBasket() {
-  return (
-    <svg class="home-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M6 10l3-6M18 10l-3-6" />
-      <path d="M3 10h18l-1.8 8.4A2 2 0 0 1 17.2 20H6.8a2 2 0 0 1-2-1.6z" />
-      <path d="M9 14v2.5M12 14v2.5M15 14v2.5" />
-    </svg>
   );
 }
 

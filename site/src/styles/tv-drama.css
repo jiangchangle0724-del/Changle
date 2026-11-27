@@ -720,3 +720,36 @@ li.is-ready .tvd-roster-state {
     animation: none;
   }
 }
+
+/* from the house (Nov 26): the newest call, a mood over its actor, and how many have locked in */
+.tvd .dm-call {
+  /* across the valance: under the room's own notices, over the twist's place */
+  top: calc(-1 * var(--space-4));
+  left: 50%;
+  max-width: 40%;
+  padding: var(--space-3) var(--space-6);
+  border-left-width: var(--space-2);
+  translate: -50% 0;
+}
+.tvd .dm-call-label {
+  font-size: var(--text-2xl);
+}
+.tvd .dm-call small {
+  margin-top: var(--space-2);
+  font-size: var(--text-lg);
+}
+.tvd .dm-actor-tag {
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-xl);
+}
+.tvd-locked {
+  color: var(--moon);
+}
+.tvd-locked svg {
+  flex: none;
+  color: var(--gel);
+}
+.tvd-eagle {
+  color: var(--gel);
+}

@@ -18,6 +18,8 @@ import { readKind } from "../../data/dramaReadings";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, useStampDue, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
 import { useSettle } from "./ShellActions";
 import { StageCall } from "./StageCall";
+import { CallBanner, FromTheHouse, lockedText, moodTags, useLiveCalls } from "./calls";
+import { Prompter, ScriptBook, scriptFor } from "./script";
 import { dramaSfx } from "./sound";
 
 export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) {
@@ -110,16 +112,24 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
     </HostRow>
   );
 
+  // 台下喊一嗓子: the calls still up (a mood stays on its actor a while), the newest on its banner
+  const { live, fresh } = useLiveCalls(v.calls, now);
+  // 新手: this actor's lines, under the card and then on the prompter
+  const myRole = v.cast.find((c) => c.pid === me);
+  const myScript = scriptFor(v, myRole?.role);
+  const solo = !!v.options;
+  const book = myScript && v.scene ? <ScriptBook sceneId={v.scene.id} script={myScript} culprit={!!v.me?.culprit} solo={solo} /> : undefined;
   const audience = players.filter((s) => !v.cast.some((c) => c.pid === s.id)).length;
   // the audience votes; with nobody watching, the actors do, on each other
   const voter = player && (v.peer ? acting : !acting);
   const voters = v.peer ? v.cast.length : audience;
-  const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
+  const stage = (open: boolean, lit: boolean, extra?: ReactNode) => (
     <div className="dm-stagebox">
-      <Backdrop {...stageOf(v)} live={live}>
-        <Cast actors={actors} />
+      <Backdrop {...stageOf(v)} live={lit}>
+        <Cast actors={actors} tags={v.phase === "act" ? moodTags(live, zh) : undefined} />
         <Curtain open={open} />
         {extra}
+        {v.phase === "act" && <CallBanner call={fresh} nameOf={nameOf} me={me} acting={acting} sound={sound && !screen} />}
       </Backdrop>
     </div>
   );
@@ -212,6 +222,8 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                   sceneId={v.scene?.id}
                   first={v.cast.find((c) => c.pid === me)!.first ?? null}
                   see={v.classic ?? null}
+                  book={book}
+                  script={myScript}
                   onDone={() => g("ready")}
                   doneLabel={zh ? "记住了，准备开演" : "Got it. Ready"}
                 />
@@ -222,7 +234,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
                 <Waiting>{zh ? `演员在偷偷看身份牌（${v.ready.length}/${v.cast.length}）` : `The actors are reading their cards (${v.ready.length}/${v.cast.length})`}</Waiting>
               </>
             )}
-            {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} />}
+            {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} starter={v.mode === "show" && v.diff === "starter"} />}
             <HostRow>
               <HostButton onClick={settle(() => g("go"))}>
                 <Clapperboard size={14} />
@@ -272,6 +284,11 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
               </>
             ))}
             <TwistBanner twist={v.twist} />
+            {v.mode === "show" && player && !acting && (
+              <FromTheHouse v={v} actors={actors.filter((a) => !!seat(a.pid))} me={me} now={now} onCall={(c) => g("call", c)} onLock={(guess) => g("lock", { guess })} />
+            )}
+            {v.mode === "show" && acting && (v.locked ?? 0) > 0 && <p className="dm-wait-note">{lockedText(v.locked ?? 0, zh, true)}</p>}
+            {acting && myScript && <Prompter v={v} script={myScript} culprit={!!v.me?.culprit} solo={solo} now={now} />}
             <Playbill v={v} credit={credit} />
             {acting && v.me && (
               <>
@@ -359,7 +376,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
 
         {v.phase === "reveal" && v.result && (
           <>
-            <Reveal v={v} actors={actors} me={me} face={face} />
+            <Reveal v={v} actors={actors} me={me} face={face} nameOf={nameOf} />
             {isHost ? (
               <>
                 <button type="button" className="btn btn-primary btn-lg btn-block" disabled={(v.round < v.total && blocked) || stampDue} onClick={settle(() => g("next"))}>

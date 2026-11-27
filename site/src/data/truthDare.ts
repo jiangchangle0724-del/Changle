@@ -276,3 +276,109 @@ export const DARES: Prompt[] = [
   spicy("挑一个愿意的人，摆出《泰坦尼克号》船头的经典姿势，坚持 10 秒。", "Pick someone who's up for it and do the Titanic “I'm flying” pose together for 10 seconds."),
   spicy("大家指定一个人，你用一句话约 TA，TA 当场答应或拒绝。", "Everyone picks someone. Ask them out in one line. They say yes or no on the spot."),
 ];
+
+/**
+ * 悄悄话 (whispers, the party game Paranoia): the one picked reads a question no one else sees, about
+ * the people at the table, and answers out loud with just a name. A coin decides whether the table
+ * gets to hear the question. Each one is answered with someone at the table, so it asks 在座谁 /
+ * "Who here". Mild ones stay off love lives except gently; spicy ones are flirty, never explicit,
+ * and none mentions drinking.
+ */
+export const SECRETS: Prompt[] = [
+  mild("在座谁最可能在群里潜水，从来不说话？", "Who here lurks in the group chat and never says a word?"),
+  mild("在座谁最可能迟到一个小时，还发“快到了”？", "Who here is most likely to be an hour late and still text “almost there”?"),
+  mild("在座谁最可能半夜三点还在刷手机？", "Who here is most likely still scrolling at 3 a.m.?"),
+  mild("在座谁最会装淡定？", "Who here is best at looking calm while panicking inside?"),
+  mild("在座谁最可能看动画片看哭？", "Who here is most likely to cry at a cartoon?"),
+  mild("在座谁最可能为了打折买一堆用不上的东西？", "Who here is most likely to buy a pile of stuff they don't need because it was on sale?"),
+  mild("在座谁去 KTV 最可能抢麦不放？", "Who here hogs the mic at karaoke?"),
+  mild("在座谁最可能忘记好朋友的生日？", "Who here is most likely to forget a best friend's birthday?"),
+  mild("在座谁最适合去当演员？", "Who here missed their calling as an actor?"),
+  mild("在座谁在荒岛上能活最久？", "Who here would last the longest on a desert island?"),
+  mild("在座谁说的话你最不敢全信？", "Who here would you trust least to tell it straight?"),
+  mild("在座谁最可能突然辞职去环游世界？", "Who here is most likely to quit their job and travel the world?"),
+  mild("在座谁最可能一不小心成了网红？", "Who here is most likely to go viral by accident?"),
+  mild("在座谁最可能把自己锁在门外？", "Who here is most likely to lock themselves out?"),
+  mild("在座谁最可能开会开着开着睡着？", "Who here is most likely to nod off in a meeting?"),
+  mild("在座谁最怕鬼？", "Who here is the most scared of ghosts?"),
+  mild("在座谁砍价最狠？", "Who here is the toughest haggler?"),
+  mild("在座谁能一个人吃完一整个披萨？", "Who here could finish a whole pizza alone?"),
+  mild("在座谁最可能把秘密说漏嘴？", "Who here is most likely to let a secret slip?"),
+  mild("在座谁以后最可能当老板？", "Who here is most likely to end up the boss?"),
+  mild("在座谁最可能老了养一屋子猫？", "Who here is most likely to end up with a house full of cats?"),
+  mild("在座谁最爱发又长又深沉的朋友圈？", "Who here posts the longest, deepest captions?"),
+  mild("在座谁最可能在旅行时把护照弄丢？", "Who here is most likely to lose their passport on a trip?"),
+  mild("在座谁最记仇？", "Who here holds a grudge the longest?"),
+  mild("在座谁做饭最好吃？猜的也算。", "Who here is the best cook? A guess counts."),
+  mild("在座谁最可能在家偷偷练舞？", "Who here secretly practises dance moves at home?"),
+  mild("在座谁最可能明天就把今晚的事讲给所有人听？", "Who here will have told everyone about tonight by tomorrow?"),
+  mild("在座谁最可能去参加真人秀？", "Who here is most likely to go on a reality show?"),
+  mild("在座谁最可能在超市试吃区吃饱？", "Who here is most likely to make a meal out of free samples?"),
+  mild("在座谁看恐怖片最可能一直捂着眼睛？", "Who here watches horror movies through their fingers?"),
+  mild("在座谁的笑点最低？", "Who here laughs at literally anything?"),
+  mild("在座谁最可能手机屏幕碎了还接着用一年？", "Who here would keep using a cracked phone screen for a year?"),
+  mild("在座谁最可能和陌生人聊成朋友？", "Who here could make friends with any stranger?"),
+  mild("在座谁最可能半夜突然想吃火锅？", "Who here is most likely to crave hot pot at midnight?"),
+  mild("在座谁最可能最早结婚？", "Who here will get married first?"),
+  mild("在座谁在婚礼上最可能扑过去抢捧花？", "Who here would dive for the bouquet at a wedding?"),
+
+  spicy("在座谁最可能和前任复合？", "Who here is most likely to get back with an ex?"),
+  spicy("在座谁最可能有一段谁都不知道的感情？", "Who here most likely has a relationship nobody knows about?"),
+  spicy("在座谁最会说情话？", "Who here is the smoothest talker when it comes to romance?"),
+  spicy("在座谁最可能第一次约会就去了对方家？", "Who here is most likely to go home with someone after a first date?"),
+  spicy("在座谁最可能偷偷喜欢过在座的人？", "Who here has most likely had a crush on someone at this table?"),
+  spicy("在座谁最可能半夜给前任发消息？", "Who here is most likely to text an ex at midnight?"),
+  spicy("在座谁最可能在交友软件上同时聊好几个？", "Who here is most likely juggling several dating-app chats at once?"),
+  spicy("在座谁最可能先说“我爱你”？", "Who here is most likely to say “I love you” first?"),
+  spicy("在座谁的恋爱史最精彩？", "Who here has the wildest love life?"),
+  spicy("在座谁最可能和同事谈恋爱？", "Who here is most likely to date a coworker?"),
+  spicy("在座谁最可能为了爱情搬去另一个城市？", "Who here would move to another city for love?"),
+  spicy("在座谁最可能被前任拉黑过？", "Who here has most likely been blocked by an ex?"),
+  spicy("在座谁最可能有过一夜情？", "Who here has most likely had a one-night stand?"),
+  spicy("在座谁今天穿得最性感？", "Who here is dressed the sexiest tonight?"),
+  spicy("如果要和在座一个人被困在电梯里一整晚，你选谁？", "If you had to be stuck in an elevator overnight with someone here, who would it be?"),
+  spicy("在座谁最可能偷看对象的手机？", "Who here is most likely to go through their partner's phone?"),
+  spicy("在座谁最常被搭讪？", "Who here gets hit on the most?"),
+  spicy("在座谁最可能和刚认识的人亲上？", "Who here is most likely to kiss someone they just met?"),
+  spicy("在座谁的眼神最勾人？", "Who here has the most dangerous eyes?"),
+  spicy("在座谁最可能在别人看不到的地方有纹身？", "Who here most likely has a tattoo where no one can see it?"),
+  spicy("在座谁最可能把暧昧对象说成“普通朋友”？", "Who here is most likely to call a situationship “just a friend”?"),
+  spicy("在座谁的约会翻车故事你最想听？", "Whose worst-date story do you most want to hear?"),
+  spicy("在座谁最可能在派对上和陌生人贴身跳舞？", "Who here is most likely to dance up close with a stranger at a party?"),
+  spicy("在座谁分手后最可能马上无缝衔接？", "Who here is most likely to jump straight into the next relationship after a breakup?"),
+  spicy("在座谁最可能整晚被对象查岗？", "Whose partner is most likely checking up on them all night?"),
+  spicy("在座谁最可能还留着前任送的东西？", "Who here most likely still keeps something an ex gave them?"),
+  spicy("在座你最想看谁谈恋爱的样子？", "Who here would you most like to see head over heels?"),
+  spicy("在座谁最可能主动追人？", "Who here is most likely to make the first move?"),
+  spicy("在座谁的前任最多？", "Who here has the most exes?"),
+  spicy("在座谁的身材你最羡慕？", "Whose body here are you most jealous of?"),
+  spicy("在座谁最可能先提分手？", "Who here is most likely to be the one who ends it?"),
+  spicy("在座谁最可能有过一段说不出口的暗恋？", "Who here has most likely had a crush they could never tell anyone about?"),
+];
+
+/**
+ * A player's own limits (每人底线): cards they'd rather skip. `mild` deals them mild cards even at a
+ * spicy table; the others are read off a card's words, so a card the table writes itself is
+ * checked the same way.
+ */
+export type Limit = "touch" | "phone" | "love" | "mild";
+export const LIMITS: Limit[] = ["touch", "phone", "love", "mild"];
+
+/** A dare that touches someone else asks for someone willing; a slow dance and drawing on an arm do too. */
+const TOUCH = /愿意|慢舞|手臂上画|拥抱|亲一下|牵手|按摩|坐在.{0,4}腿上|\b(kiss|hug|cuddle|lap|massage|hold hands|slow dance|touch)/i;
+/** Showing, reading out or sending something from your phone. */
+const PHONE = /手机|相册|微信|朋友圈|通讯录|锁屏|自拍|聊天|社交软件|搜索记录|表情包|发一[条句]|发消息|给[^，。]{0,10}打电话|语音|备注|动态|网购|\b(phone|text|selfie|camera roll|photos?|instagram|wechat|screen time|post)\b/i;
+/** A truth only uses the phone when it says to show it or read from it. */
+const SHOW = /给大家看|念出来|打开/;
+/** Love lives: exes, crushes, dates, kisses, flirting and what goes with them. */
+const LOVE =
+  /前任|初恋|初吻|暗恋|恋爱|感情|爱情|爱你|约会|相亲|表白|情话|情诗|情侣|对象|伴侣|现任|下一任|亲热|亲你|亲过|亲谁|亲上|亲嘴|亲一下|接吻|吻|一夜情|暧昧|劈.?腿|出轨|吊着|主动追|贴身|看不到的地方|困在电梯|海王|性感|撩|勾人|心动|下头|有感觉|过夜|第一次|白月光|备胎|开放式|越界|在一起|分手|复合|喜欢过|喜欢你|求婚|脱单|交友软件|网友|搭讪|下手|不该有的想法|梦到|一起回家|身材|穿什么|亲密|溜走|魅力|求偶|大腿舞|脱衣|壁咚|脸红|最好看|结婚|捧花|约 TA|\b(ex|exes|crush|date|dating|kiss|flirt|sexy|romance|romantic|relationship|hook up|one-night|in love)\b/i;
+
+/** Which limits a card runs into. Built-in cards are read in Chinese; the table's own in whatever it wrote. */
+export function limitsOf(text: string, kind: "truth" | "dare" | "secret"): Limit[] {
+  const out: Limit[] = [];
+  if (kind === "dare" && TOUCH.test(text)) out.push("touch");
+  if (kind !== "secret" && PHONE.test(text) && (kind === "dare" || SHOW.test(text))) out.push("phone");
+  if (LOVE.test(text)) out.push("love");
+  return out;
+}

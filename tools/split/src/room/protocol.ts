@@ -70,6 +70,8 @@
 // stands, not its changes since) and nothing else: no changes, no files, no invitations, no reading
 // receipts, no live connection ("key", 403, like any key that doesn't open the ledger). A locked
 // ledger can have one (it isn't a change to the ledger). The owner changing the key lets it go too.
+// What it reads is the ledger without anyone's 收款方式 (a member's `pay`): that is for the people
+// paying them, not for everyone a link reaches (2026-11-26).
 //
 // Inviting a friend: whoever holds the key, signed in, can invite someone who is their friend on
 // changle.ca (the rooms server says so; "friends", 403, when it doesn't), at most INVITES_PER_DAY a

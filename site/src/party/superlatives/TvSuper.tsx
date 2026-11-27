@@ -12,6 +12,8 @@ import { useSeatMemory } from "./seats";
 import "../../styles/tv-superlatives.css";
 
 const VOTE_MS = 45_000;
+const ASK_MS = 60_000;
+const DARE_MS = 45_000;
 
 /**
  * 最佳称号 on the big screen: an awards night. The award on a gold plaque, everyone standing on
@@ -27,9 +29,17 @@ export default function TvSuper({ v, sound }: TvViewProps<SuperView>) {
     </RoundTag>
   );
   return (
-    <TvShow game="superlatives" className="tvs" phase={v.phase} round={tag} clock={v.phase === "vote" ? <TvClock endsAt={v.endsAt} total={VOTE_MS} sound={sound} /> : null} set={<Glitter />}>
+    <TvShow
+      game="superlatives"
+      className="tvs"
+      phase={v.phase}
+      round={tag}
+      clock={v.phase === "vote" ? <TvClock endsAt={v.endsAt} total={VOTE_MS} sound={sound} /> : v.phase === "ask" ? <TvClock endsAt={v.endsAt} total={ASK_MS} sound={false} /> : v.phase === "dare" ? <TvClock endsAt={v.endsAt} total={DARE_MS} sound={sound} /> : null}
+      set={<Glitter />}
+    >
       {v.phase === "setup" && <Setup v={v} />}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
+      {(v.phase === "ask" || v.phase === "dare" || v.phase === "peek") && <Whisper v={v} sound={sound} />}
       {v.phase === "reveal" && <Reveal v={v} sound={sound} />}
       {v.phase === "ceremony" && <Ceremony v={v} sound={sound} />}
     </TvShow>
@@ -123,6 +133,71 @@ function Plaque({ v, sound }: { v: SuperView; sound: boolean }) {
           <Bi t={v.title} />
         )}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ paranoia */
+
+/**
+ * One person reading the title alone (the plaque shows "？？？" here: the screen is never told), the
+ * name they call out, and whether the one named paid to see it.
+ */
+function Whisper({ v, sound }: { v: SuperView; sound: boolean }) {
+  const { zh } = useLang();
+  const { players } = useSeats();
+  const { seat, name } = useSeatMemory();
+  const root = useRef<HTMLDivElement>(null);
+  const burst = useConfetti();
+  const named = v.named ? seat(v.named) : null;
+  // the name called out: a beat, like the reveal's, when it lands
+  useBeat(
+    (tl, q) => {
+      if (v.phase !== "dare") return;
+      if (sound) tl.call(() => sfx.drumroll(0.6), [], 0);
+      tl.fromTo(q(".tvs-says"), { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4 }, 0);
+      tl.fromTo(q(".tvs-named"), { scale: 0.3, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0, duration: 0.7, ease: "back.out(1.9)" }, 0.6);
+      tl.call(() => burst({ x: 0.5, y: 0.5, count: 120, spread: 90, power: 20 }), [], 0.65);
+      if (sound) tl.call(() => sfx.crown(), [], 0.65);
+    },
+    root,
+    [v.phase === "dare" ? `${v.round}:${v.named}` : ""],
+  );
+  const state = (id: string): "voted" | "idle" => (id === v.asker || id === v.named ? "voted" : "idle");
+  return (
+    <div className="tvs-vote tvs-whisper" ref={root}>
+      <Plaque v={v} sound={sound} />
+      {v.phase === "ask" && (
+        <p className="tvs-ask">
+          <span>{zh ? `${name(v.asker ?? "")} 在偷偷看题，等TA当众点名` : `${name(v.asker ?? "")} is reading the title. Who will they name?`}</span>
+        </p>
+      )}
+      {v.phase !== "ask" && (
+        <div className="tvs-dare">
+          <p className="tvs-says">{zh ? `${name(v.asker ?? "")} 说：` : `${name(v.asker ?? "")} says:`}</p>
+          <p className="tvs-named">
+            {named && <SeatFace seat={named} size={96} />}
+            <span>{name(v.named ?? "")}!</span>
+          </p>
+          <p className="tvs-ask">
+            <span>
+              {v.phase === "dare"
+                ? zh
+                  ? "喝一口看题，还是不看？"
+                  : "Drink to see it, or pass?"
+                : v.seen
+                  ? zh
+                    ? "喝了一口，看了题。想知道？问TA"
+                    : "Drank and saw it. Want to know? Ask them"
+                  : zh
+                    ? "不想知道。这题到颁奖典礼才揭晓"
+                    : "Would rather not know. It comes out at the ceremony"}
+            </span>
+          </p>
+        </div>
+      )}
+      {/* (the name called out takes the room: the figures stand smaller under it) */}
+      <TvLineup people={players.map((s) => ({ seat: s, state: state(s.id), badge: s.id === v.asker ? <DoneBadge /> : undefined }))} big={v.phase === "ask" ? 200 : 150} />
     </div>
   );
 }

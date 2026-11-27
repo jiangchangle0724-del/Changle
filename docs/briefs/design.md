@@ -70,6 +70,7 @@
 - 扫码入座（2026-11-25，#804）：联机开一桌那一行，钥匙旁边加了扫码按钮，打开「扫码入座」：相机画面放在方框里，每秒读几次中间那块，读到桌子的链接（changle.ca/t/桌号，或者只有桌号）就进那一桌；别的 changle.ca 链接照样打开；别的网站的码不认（`online/scan.ts`，测试 `tests/scan.test.ts`）。解码用 qr（Paul Miller，MIT/Apache，没有依赖，17 KB），跟扫码页一起下载。相机被拒或没有相机时说清楚，主按钮变成输入桌号；扫码页一关相机就停；电脑自己的摄像头画面是镜像的。设置页改成第一次打开时才下载（闲下来先取好），首页回到 123.1 KB。
 - 会员方案（2026-11-25）：Steve 要的会员方案写成了 Claude 文档「changle.ca 会员方案（草案，等 Steve 审核）」https://claude.ai/artifact/6a6eF3biYmpGMqTQbh1TyZ ：四个工具每个账号各送 3 次，跟一单开店要会员；月 C$5.20、年 C$52、终身 C$520 只卖 5 个；Stripe 收钱；10 条要他定的事。他批之前不动代码。 11-26 Steve 通过，十条都照建议。
 - 会员第 1 步（2026-11-26，平台部分）：准绳写进了 docs/membership.md（定了的事、四步、给工具的门怎么用）。hub 里有 `members`、`uses` 两张表（`worker/membership.ts`），每次使用查完再记一步做完；给别的 Worker 的具名入口 `Member`（`worker/member.ts`：`use`、`status`）；接口 `GET /api/member`、`GET /api/me/member`、后台 `/api/admin/members`。网页：changle.ca/member（`src/member/`，琥珀色，三档、终身还剩几个、怎么算次数、规则，付款写着很快开通）；我的主页一行会员或还剩几次（`account/MemberRow.tsx`）；头像旁边的小皇冠（`account/MemberMark.tsx`，首页右上、我的和别人的主页）；后台「会员」一节按邮箱送一个月、一年或终身，能结束（`account/AdminMembers.tsx`）。hub 测试 7 条。工具还没接，各自对话去接（下面交给别的对话）。
+- 会员第 2 步 Stripe（2026-11-26）：Steve 给了 Stripe 的上手请求（Payments、Tax）。装了 Stripe CLI 和插件，CLI 连的是他的沙盒「Changle sandbox」；Stripe 的规划器（`stripe tools plan`）定的路子：托管 Checkout 收订阅，Customer Portal 自助管理，税现在不收、只开免费的门槛监控。代码 `worker/stripe.ts`（`Pay`），细节全在 docs/membership.md「已经有的（第 2 步）」。要点：只要一把钥匙 `STRIPE_SECRET_KEY`，后台「设置付款」自己在 Stripe 建价格（按 lookup key 找回）、账单页设置和 webhook（签名密钥存在 hub 的 `stripe_kv`，不显示）；沙盒钥匙时只有站长和管理员看得见按钮；终身付款时先占名额；退款、争议、账号删除、后台结束都会停掉订阅。上线前用 CLI 在沙盒里把每种请求的参数试过（价格和产品就是那次建的，「设置付款」会认出来；沙盒默认的账单页设置也是那次建的，名字 changle.ca membership）。hub 测试加了 17 条（假 Stripe，真签名）。
 
 ## 还剩什么
 
@@ -91,7 +92,7 @@
 - 藏在人群里：11-04 交出去后那个对话没开起来，11-11 Steve 定由这里修（只动 `games/hide-crowd`、它在网站上的接入 `site/src/party/hide/` 和 `site/scripts/hide_test.py` 的那几行）。#365 修地面、镜头、背景、双击放大，加只横屏和 iPhone 主屏幕引导；#374 换 3D 骨骼人物；#384 照 Steam 上那款原作做细节（路人像人、渡轮鸣笛和锣、打击感、声音、称号、眼睛）；#401 优化和升级（一个人只画一次，站厅的街头艺人跳舞，围观倒地，结束时亮名字、赢家跳舞，音乐开关）；#404 iPhone 全屏提示；#451 新场地列治文夜市（支线尝遍四样、烟花）；#456 开局镜头、赢家特写和彩带、分心；#469 庭院的一起出拳（台上喊三二一全场出拳）、分心时镜头转过去、出拳弧光、眩晕星星、跑步扬尘；#479 夜市扔鞭炮（路人躲开，玩家不躲被炸倒）、被打中的人炸出彩带；#501 练习先选场地（四张带图的卡），每局 3 分钟、先到 5 分；11-18 Steve 要从建模动画到规则体验大升级，分五块做，#616 第一块人物（会变表情的脸、12 种打扮、高矮不同）。还剩真手机上看帧数、听声音，进度和细节都在 hide-crowd.md。
 
 ## 交给别的对话
-- 会员（2026-11-26，Steve 定了，全文 docs/membership.md「各个对话要做的」）：两清开新账本前问 `MEMBER.use`；随便先换成主站账号再在开桌前问；跟一单开店要会员、现有的店免费 30 天、到期暂停接单；MoneyLens 内测不计次；账号对话知会。每个对话的 status 里加了一行。第 2 步要 Steve 先注册 Stripe、把 `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET` 粘进 changle-rooms。
+- 会员（2026-11-26，Steve 定了，全文 docs/membership.md「各个对话要做的」）：两清开新账本前问 `MEMBER.use`；随便先换成主站账号再在开桌前问；跟一单开店要会员、现有的店免费 30 天、到期暂停接单；MoneyLens 内测不计次；账号对话知会。每个对话的 status 里加了一行。第 2 步代码做了：只要 `STRIPE_SECRET_KEY` 一把钥匙，其余在后台点「设置付款」。
 - CI（2026-11-26）：`site / visual` 和截图机器人里装中文字体那一步（`sudo apt-get update && sudo apt-get install -y fonts-noto-cjk`）三次卡住超过 8 分钟被取消（11-24 两次、11-26 一次），重跑就过。建议给这一步加超时和重试，或者把字体缓存起来，别让一个慢镜像拖住每个 PR。
 - 房间与联机（2026-11-23，#765，知会）：`shared/engine/room.ts` 加了 `claim()`：有人带着新手机进来，名字跟一个掉线的座位一样（`nameKey`：全角、大小写、空格都不算）或者是同一个账号，就把那个座位还给他。`worker/index.ts` 的 hello 先问 `claim`，有就发 `{ t: "adopt", pid }`，手机换成那个 pid 重连（`RoomContext.tsx`；`config.ts` 的 `tablePid`、`keepTablePid` 按桌号记住自己的座位，存在 `changle.seats`）。主人的 `kick` 不再拉黑，被请出的人能重新入座；`adminKick` 照旧拉黑。`tests/engine.test.ts` 有对应的测试。
 - 所有做游戏的对话（2026-11-23，#768，知会）：游戏顶栏现在有中 | EN。用 GameShell 或 NetFrame 的游戏自动有；自己画 GameHeader 的传 `onLang`，自己画 TopBar 的用 `left={<LangSwitch …/>}`（最后一张的开始页那样）。
@@ -191,3 +192,5 @@
 - 2026-11-25 藏在人群里 #793：最后 30 秒约一半路人离场，手机和大屏一条「最后 30 秒：路人开始散场」（门的图标）。细节在 hide-crowd.md。
 - 2026-11-25 藏在人群里 #803：站厅电闸。手机上站到电闸旁「关灯」键从「分心」上面冒出来（琥珀色、深色字、带次数）；3D 里路牌上的灰箱子、红拉杆、绿灯变红。细节在 hide-crowd.md。
 - 2026-11-25 藏在人群里 #805：每个场地都有副任务。手机上的任务条换成场地自己的标题和图标（新画了桥、山、水上飞机、帆顶、车门、灯笼六个图标），颜色沿用夜市四个摊子的四色。细节在 hide-crowd.md。
+- 2026-11-26 藏在人群里 #856：英文语音播报，每个播报一段 mp3（Kokoro 合成加音效），大屏说全部、手机说自己的。细节在 hide-crowd.md。
+- 2026-11-26 藏在人群里 #866：晋级赛。积分榜实时按名次排，琥珀色虚线「晋级线」；结果表每个名字旁「晋级」（薄荷绿底深色字）/「淘汰」（红字暗底）章；超过 5 人时积分榜每行变小。细节在 hide-crowd.md。

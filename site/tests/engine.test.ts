@@ -21,6 +21,7 @@ import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dr
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
 import { DRAWN_ART as DRAMA_DRAWN_ART } from "../src/data/dramaArt";
+import { INNOCENT as DRAMA_INNOCENT, SCRIPTS as DRAMA_SCRIPTS } from "../src/data/dramaScripts";
 import { READ_KINDS as DRAMA_READ_KINDS, READ_PASS as DRAMA_READ_PASS, READ_TIPS as DRAMA_READ_TIPS, READINGS as DRAMA_READINGS, RSET_NAME as DRAMA_RSET_NAME } from "../src/data/dramaReadings";
 import { CLASSIC_MOOD as DRAMA_CLASSIC_MOOD, MOODS as DRAMA_MOODS, READ_MOOD as DRAMA_READ_MOOD, SCENE_MOOD as DRAMA_SCENE_MOOD } from "../src/data/dramaMusic";
 import { actPiece as dramaActPiece, compose as dramaCompose, seedOf as dramaSeedOf, THEME as DRAMA_THEME } from "../src/party/drama/compose";
@@ -31,8 +32,8 @@ import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { deckFor, TITLES as SUPER_TITLES } from "../src/data/superlatives";
 import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
-import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
-import { SLIP_MAX } from "../src/shared/engine/games/truth";
+import { DARES, limitsOf, promptText, SECRETS, TRUTHS } from "../src/data/truthDare";
+import { FLIP_MS, SLIP_MAX } from "../src/shared/engine/games/truth";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -464,18 +465,22 @@ test("truth: spin, choose, pass", () => {
 test("truth: each heat deals only its own cards", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "truth" });
-  const decks = () => t.eng.d.game!.s as { tDeck: number[]; dDeck: number[] };
+  const decks = () => (t.eng.d.game!.s as { decks: Record<string, number[]> }).decks;
   const heats = (deck: number[], list: { heat: number }[]) => [...new Set(deck.map((i) => list[i].heat))].join();
   const count = (list: { heat: number }[], heat: number) => list.filter((p) => p.heat === heat).length;
-  ok(heats(decks().tDeck, TRUTHS) === "1" && heats(decks().dDeck, DARES) === "1", "mild: only mild cards");
-  ok(decks().tDeck.length === count(TRUTHS, 1) && decks().dDeck.length === count(DARES, 1), "mild: every mild card");
+  ok(heats(decks().truth1, TRUTHS) === "1" && heats(decks().dare1, DARES) === "1", "mild: only mild cards");
+  ok(decks().truth1.length === count(TRUTHS, 1) && decks().dare1.length === count(DARES, 1), "mild: every mild card");
   t.g("p0", "heat", { heat: 2 });
-  ok(heats(decks().tDeck, TRUTHS) === "2" && heats(decks().dDeck, DARES) === "2", "spicy: only spicy cards");
-  ok(decks().tDeck.length === count(TRUTHS, 2) && decks().dDeck.length === count(DARES, 2), "spicy: every spicy card");
-  for (const [name, list] of [["truths", TRUTHS], ["dares", DARES]] as const) {
+  ok(heats(decks().truth2, TRUTHS) === "2" && heats(decks().dare2, DARES) === "2", "spicy: only spicy cards");
+  ok(decks().truth2.length === count(TRUTHS, 2) && decks().dare2.length === count(DARES, 2), "spicy: every spicy card");
+  for (const [name, list, least] of [["truths", TRUTHS, 45], ["dares", DARES, 45], ["whispers", SECRETS, 30]] as const) {
     ok(new Set(list.map((p) => p.zh)).size === list.length && new Set(list.map((p) => p.en)).size === list.length, `no two ${name} alike`);
-    ok(count(list, 1) >= 45 && count(list, 2) >= 45, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
+    ok(count(list, 1) >= least && count(list, 2) >= least, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
   }
+  // a whisper is answered with someone at the table, and no truth asks the same thing
+  ok(SECRETS.every((p) => /谁/.test(p.zh) && /\b(who|whose)\b/i.test(p.en)), "every whisper asks who");
+  ok(!SECRETS.some((p) => /喝|酒|干杯/.test(p.zh)), "no whisper mentions drinking");
+  ok(!SECRETS.some((p) => TRUTHS.some((q) => q.zh === p.zh)), "no whisper is also a truth");
 });
 
 test("truth: the bottle keeps count, chance picks, one swap a game", () => {
@@ -551,6 +556,131 @@ test("truth: the table's own cards", () => {
   ok(t.view<TV>("p0").slips!.truth === 0 && t.view<TV>("p0").slips!.dare === 0, "the host empties it");
   const words = (t.eng.d.game!.s as { slips: { text: string }[] }).slips;
   ok(words.length === 0, "nothing left behind");
+  ({ seed, clock } = was);
+});
+
+test("truth: 悄悄话, a whisper answered with a name and a coin", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p1", "pick", { kind: "secret" });
+  let v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.kind === "secret" && !!v.prompt && /谁/.test(v.prompt.zh), `the one picked reads a whisper (${v.prompt?.zh})`);
+  const question = v.prompt!.zh;
+  ok(t.view<TV>("p2").prompt === null && !JSON.stringify(t.view<TV>("p2")).includes(question), "nobody else gets its words");
+  t.g("p1", "done");
+  ok(t.view<TV>("p1").phase === "card", "not done before naming anyone");
+  t.g("p2", "name", { who: "p3" });
+  ok(t.view<TV>("p1").named === null, "only the one picked names someone");
+  t.g("p1", "name", { who: "nobody" });
+  ok(t.view<TV>("p1").named === null, "a name has to be someone at the table");
+  t.g("p1", "name", { who: "p3" });
+  v = t.view<TV>("p2");
+  ok(v.named === "p3" && (v.coin === "open" || v.coin === "hidden") && v.flipAt === clock + FLIP_MS, `p3 named, the coin tossed (${v.coin})`);
+  t.g("p1", "pass");
+  ok(t.view<TV>("p1").phase === "card", "no passing once the name is out");
+  const coin = v.coin;
+  if (coin === "open") ok(t.view<TV>("p2").prompt?.zh === question, "heads: everyone gets the question");
+  else {
+    ok(t.view<TV>("p2").prompt === null, "tails: it stays with the one who read it");
+    t.g("p2", "peek");
+    ok(t.view<TV>("p2").coin === "hidden", "only the one named can pay to hear it");
+    t.g("p3", "peek");
+    ok(t.view<TV>("p3").coin === "hidden", "not before the coin has landed");
+    clock += FLIP_MS;
+    t.g("p3", "peek");
+    ok(t.view<TV>("p2").coin === "open" && t.view<TV>("p2").prompt?.zh === question && t.pens().some((p) => p.who.includes("p3")), "the one named pays, and everyone hears it");
+  }
+  t.g("p1", "done");
+  v = t.view<TV>("p0");
+  ok(v.phase === "spin" && v.spinner === "p1" && v.named === null && v.coin === null, "back to the bottle, the one picked spins");
+  ok(v.tally?.p1?.s === 1 && v.tally?.p3?.n === 1, `the tally keeps who answered a whisper and who was named (${JSON.stringify(v.tally)})`);
+  // the coin falls both ways over a night
+  const faces = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    t.act("p1", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p2", "pick", { kind: "secret" });
+    t.g("p2", "name", { who: "p0" });
+    faces.add(String(t.view<TV>("p0").coin));
+    t.g("p2", "done");
+    t.act("p2", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: "truth" });
+    t.g("p1", "done");
+  }
+  ok(faces.has("open") && faces.has("hidden"), `the coin lands both ways (${[...faces]})`);
+  ({ seed, clock } = was);
+});
+
+test("truth: each player's own limits, and the tally", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  t.g("p0", "heat", { heat: 2 });
+  t.g("p1", "limits", { list: ["touch", "phone", "love", "nonsense"] });
+  ok(JSON.stringify(t.view<TV>("p1").limits) === JSON.stringify(["touch", "phone", "love"]), "a player sets their own limits");
+  ok(JSON.stringify(t.view<TV>("p2").limits) === "[]", "and nobody else sees them");
+  // p1 never gets a dare that touches, uses the phone or asks about their love life
+  let spinner = "p0";
+  for (let i = 0; i < 30; i++) {
+    t.act(spinner, { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: i % 3 === 2 ? "secret" : i % 2 ? "truth" : "dare" });
+    const v = t.view<TV>("p1");
+    const hit = limitsOf(v.prompt!.zh, v.kind!).filter((l) => l !== "mild");
+    ok(hit.length === 0, `p1's ${v.kind} keeps to their limits: ${v.prompt!.zh} ${hit}`);
+    if (v.kind === "secret") t.g("p1", "name", { who: "p2" });
+    t.g("p1", "done");
+    spinner = "p1";
+    t.act("p1", { a: "spin", scope: "truth", index: 0, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p0", "pick", { kind: "dare" });
+    t.g("p0", i % 5 ? "done" : "pass");
+    spinner = "p0";
+  }
+  // mild only: mild cards at a spicy table
+  t.g("p1", "limits", { list: ["mild"] });
+  for (let i = 0; i < 12; i++) {
+    t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: i % 2 ? "truth" : "dare" });
+    const v = t.view<TV>("p1");
+    const list = v.kind === "truth" ? TRUTHS : DARES;
+    ok(list.find((p) => promptText(p, false).zh === v.prompt!.zh)?.heat === 1, `mild only: ${v.prompt!.zh}`);
+    t.g("p1", "done");
+    t.act("p1", { a: "spin", scope: "truth", index: 0, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p0", "pick", { kind: "truth" });
+    t.g("p0", "done");
+  }
+  ok(t.view<TV>("p2").heat === 2, "the table is still spicy");
+  const tally = t.view<TV>("p2").tally!;
+  ok((tally.p1.t ?? 0) + (tally.p1.d ?? 0) + (tally.p1.s ?? 0) === 42 && (tally.p0.p ?? 0) === 6, `the tally counts every card and pass (${JSON.stringify(tally)})`);
+  ({ seed, clock } = was);
+});
+
+test("truth: a room from before whispers and limits plays on", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  const st = t.eng.d.game!.s as Record<string, unknown>;
+  const old = (st.decks as Record<string, number[]>).truth1;
+  st.tDeck = old;
+  st.dDeck = (st.decks as Record<string, number[]>).dare1;
+  for (const k of ["decks", "named", "coin", "flipAt", "limits", "tally"]) delete st[k];
+  const next = TRUTHS[old[old.length - 1]].zh;
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p1", "pick", { kind: "truth" });
+  const v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.prompt?.zh === next, `its decks carry on where they were (${v.prompt?.zh})`);
+  ok(!("tDeck" in st) && !!(st.decks as Record<string, number[]>).truth1, "and move to the new place");
   ({ seed, clock } = was);
 });
 
@@ -1510,6 +1640,72 @@ test("superlatives: the same winner award after award counts a streak; another w
   ok(v.streak === 3 && v.hits.p0 === 3 && v.hits.p2 === 3 && !v.hits.p1, "three in a row for p1; p0 and p2 called every one");
   ok(round("p2").streak === 1, "p2 wins: the streak starts over");
   ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
+}));
+
+test("superlatives: paranoia, one person reads the title and names someone, who pays a sip to see it or passes", ownDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "config", { mode: "whisper", total: 5 });
+  ok(t.view<V<"superlatives">>("p1").mode === "whisper", "the host picks paranoia");
+  t.g("p0", "start");
+  let v = t.view<V<"superlatives">>("p0");
+  const title = v.title;
+  ok(v.phase === "ask" && v.asker === "p0" && v.title.zh !== "？？？", "the host asks first and reads the title");
+  ok(t.view<V<"superlatives">>("p1").title.zh === "？？？" && t.view<V<"superlatives">>("p1").asker === "p0", "the others see who is reading, not what");
+  ok(nothing(t.g("p1", "name", { target: "p2" })) || t.view<V<"superlatives">>("p0").phase === "ask", "only the asker names");
+  t.g("p0", "name", { target: "p0" });
+  ok(t.view<V<"superlatives">>("p0").phase === "ask", "not themselves");
+  t.g("p0", "name", { target: "p2" });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "dare" && v.named === "p2" && v.title.zh === "？？？" && v.awards.p2?.length === 1, "p2 is named: on the spot, title still hidden, the award on p2's shelf");
+  ok(t.view<V<"superlatives">>("p0").title.zh === title.zh, "the asker still reads it");
+  t.g("p1", "peek", { yes: true });
+  ok(t.view<V<"superlatives">>("p0").phase === "dare", "only the one named answers");
+  t.g("p2", "peek", { yes: true });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "peek" && v.seen === true && v.title.zh === title.zh, "p2 pays: now p2 reads it");
+  ok(t.view<V<"superlatives">>("p3").title.zh === "？？？", "p3 still doesn't");
+  ok(v.stampAt === clock + 600, "the sip lands 0.6 s in");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "peek", "the host can't move on under the sip");
+  t.advance(700);
+  const pen = t.pens().slice(-1)[0];
+  ok(pen && pen.who.join() === "p2" && pen.kind === "sip" && pen.note?.zh !== title.zh, "p2 drinks; the stamp doesn't give the title away");
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "ask" && v.round === 2 && v.asker === "p2" && v.title.zh !== "？？？", "round 2: the one named asks, and reads");
+  ok(t.view<V<"superlatives">>("p0").title.zh === "？？？", "the host no longer reads it");
+  // the asker swaps the title, then names p3, who passes
+  const swapped = v.title.zh;
+  t.g("p2", "skip");
+  ok(t.view<V<"superlatives">>("p2").title.zh !== swapped && t.view<V<"superlatives">>("p2").phase === "ask", "the asker can swap the title");
+  t.g("p2", "name", { target: "p3" });
+  t.g("p3", "peek", { yes: false });
+  v = t.view<V<"superlatives">>("p3");
+  ok(v.phase === "peek" && v.seen === false && v.title.zh === "？？？" && v.stampAt === 0 && v.awards.p3?.length === 1, "p3 passes: still in the dark, no sip, the title on the shelf all the same");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").asker === "p3" && t.view<V<"superlatives">>("p0").round === 3, "round 3: p3 asks");
+  // an asker who sits on it: the next seat asks; someone named who doesn't answer: passes
+  t.advance(60_100);
+  ok(t.view<V<"superlatives">>("p0").asker === "p0" && t.view<V<"superlatives">>("p0").phase === "ask", "a minute on: the next seat reads the title");
+  t.g("p0", "name", { target: "p1" });
+  t.advance(45_100);
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "no answer in 45 s: passed");
+  // the one named leaves mid-dare: passed; the ceremony shows every title
+  t.g("p0", "next");
+  t.g("p1", "name", { target: "p2" });
+  t.act("p2", { a: "leave" });
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "the one named left: passed");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "ask" && t.view<V<"superlatives">>("p0").round === 5 && t.view<V<"superlatives">>("p0").asker !== "p2", "round 5, with someone still here asking");
+  const asker = t.view<V<"superlatives">>("p0").asker!;
+  const other = ["p0", "p1", "p3"].find((x) => x !== asker)!;
+  t.g(asker, "name", { target: other });
+  t.g(other, "peek", { yes: false });
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "ceremony" && Object.values(v.awards).flat().length === 5 && Object.values(v.awards).flat().every((a) => a.zh !== "？？？"), "after five: the ceremony, every title on the shelves, none hidden");
 }));
 
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
@@ -3305,6 +3501,146 @@ test("drama: an actor walking out mid-act: without the culprit, a duelist or any
   ({ t, s } = open(3, "read"));
   t.act(s.cast[0], { a: "leave" });
   ok(!!t.view<V>("p0").result?.left, "nobody left to read: it stops");
+});
+
+test("drama: from the audience: calls out mid-scene, twice each and not on top of each other; a guess locked in early binds the vote and, if right, scores one more", () => {
+  type V = V<"drama">;
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { total: 2 });
+  // two on stage, four watching
+  for (const id of t.ids) t.g(id, "want", { want: id === "p1" || id === "p2" ? "act" : "watch" });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string };
+  const actors = s.cast;
+  const watchers = t.ids.filter((id) => !actors.includes(id));
+  const innocent = actors.find((a) => a !== s.culprit)!;
+  ok(actors.length === 2 && watchers.length === 4, "two acting, four watching");
+  t.g(watchers[0], "call", { kind: "again" });
+  t.g(watchers[0], "lock", { guess: s.culprit });
+  ok(!t.view<V>("p0").calls?.length && !t.view<V>(watchers[0]).myLock, "nothing to call out or lock in while the cards are read");
+  for (const a of actors) t.g(a, "ready");
+  ok(t.view<V>("p0").phase === "act", "the scene plays");
+
+  // 台下喊一嗓子
+  t.g(actors[0], "call", { kind: "again" });
+  ok(!t.view<V>("p0").calls?.length, "actors don't call out at their own scene");
+  t.g(watchers[0], "call", { kind: "again" });
+  let calls = t.view<V>(actors[1]).calls ?? [];
+  ok(calls.length === 1 && calls[0].by === watchers[0] && calls[0].kind === "again" && calls[0].to === null, "换个说法 reaches every phone, with who called it");
+  t.g(watchers[1], "call", { kind: "again" });
+  ok((t.view<V>("p0").calls ?? []).length === 1, "not on top of the last call");
+  t.advance(8_100);
+  t.g(watchers[1], "call", { kind: "mood", to: watchers[2], mood: 1 });
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0], mood: 99 });
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0] });
+  t.g(watchers[1], "call", { kind: "shout" });
+  ok((t.view<V>("p0").calls ?? []).length === 1, "a mood needs an actor on stage and one of the moods");
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0], mood: 1 });
+  calls = t.view<V>("p0").calls ?? [];
+  ok(calls.length === 2 && calls[1].kind === "mood" && calls[1].to === actors[0] && calls[1].mood === 1, "a mood for one actor");
+  t.advance(8_100);
+  t.g(watchers[0], "call", { kind: "again" });
+  t.advance(8_100);
+  t.g(watchers[0], "call", { kind: "again" });
+  ok((t.view<V>("p0").calls ?? []).filter((c) => c.by === watchers[0]).length === 2, "twice an act each");
+
+  // 当场识破
+  t.g(actors[0], "lock", { guess: actors[1] });
+  ok(t.view<V>("p0").locked === 0, "actors don't lock in on their own scene");
+  t.g(watchers[0], "lock", { guess: watchers[1] });
+  ok(t.view<V>("p0").locked === 0, "only someone on stage can be named");
+  t.g(watchers[0], "lock", { guess: s.culprit });
+  t.g(watchers[0], "lock", { guess: innocent });
+  ok(t.view<V>(watchers[0]).myLock === s.culprit, "locked in once, for good");
+  t.advance(30_000);
+  t.g(watchers[1], "lock", { guess: innocent });
+  ok(t.view<V>(actors[0]).locked === 2 && t.view<V>(actors[0]).myLock === null && t.view<V>(watchers[2]).myLock === null, "everyone sees how many have locked in, only the guesser sees whom");
+  t.advance(400_000);
+  let v = t.view<V>("p0");
+  ok(v.phase === "vote" && !v.calls?.length && v.locked === 2, "the vote: the calls are over, the locks still hold");
+  const stars = Object.fromEntries(actors.map((a) => [a, 4]));
+  t.g(watchers[0], "vote", { guess: innocent, stars });
+  t.g(watchers[1], "vote", { guess: s.culprit, stars });
+  ok(t.view<V>(watchers[0]).myVote?.guess === s.culprit && t.view<V>(watchers[1]).myVote?.guess === innocent, "a locked-in guess is the vote's guess, whatever is sent later");
+  for (const w of watchers.slice(2)) t.g(w, "vote", { guess: s.culprit, stars });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.caught, "the reveal");
+  const early = v.result!.early ?? [];
+  ok(early.length === 1 && early[0].pid === watchers[0] && early[0].at > 0 && early[0].at < 60_000, "eagle eyes: the right guess locked in early, and when");
+  ok(v.result!.gained[watchers[0]] === 2 && v.result!.gained[watchers[2]] === 1 && !v.result!.gained[watchers[1]], "a right guess is a point, locked in early one more; a wrong lock-in is just wrong");
+
+  // the next act starts clean; a lock on an actor who walks out is let go
+  t.advance(8_100);
+  t.g("p0", "next");
+  v = t.view<V>(watchers[0]);
+  ok(v.phase === "brief" && v.locked === 0 && v.myLock === null && !v.calls?.length, "the next act starts clean");
+  const s2 = t.eng.d.game!.s as { cast: string[]; culprit: string };
+  for (const a of s2.cast) t.g(a, "ready");
+  const watcher = t.ids.find((id) => !s2.cast.includes(id))!;
+  const bystander = s2.cast.find((a) => a !== s2.culprit);
+  if (bystander && s2.cast.length > 2) {
+    t.g(watcher, "lock", { guess: bystander });
+    ok(t.view<V>(watcher).myLock === bystander, "locked in on an actor");
+    t.act(bystander, { a: "leave" });
+    ok(t.view<V>(watcher).myLock === null && t.view<V>("p0").phase === "act", "they walk out: the lock is let go, the scene plays on");
+  }
+});
+
+test("drama: 新手 scripts: one per role, four steps each, both languages, short enough to read mid-scene, and never naming a role that may be off stage", () => {
+  const cjk = /[一-鿿]/;
+  const fine = (x: { zh: string; en: string }, most: number) => !!x.zh.trim() && !!x.en.trim() && cjk.test(x.zh) && !cjk.test(x.en) && [...x.zh].length <= most && x.en.length <= most * 3;
+  const ids = Object.keys(DRAMA_SCRIPTS);
+  ok(ids.length >= 10, `${ids.length} scenes have a 新手 script`);
+  ok(DRAMA_INNOCENT.length === 2 && DRAMA_INNOCENT.every((x) => fine(x, 60)), "and two things for everyone innocent, in both languages");
+  for (const id of ids) {
+    const sc = DRAMA_SCENES.find((x) => x.id === id);
+    const sp = DRAMA_SCRIPTS[id];
+    ok(!!sc, `${id}: a built-in scene`);
+    if (!sc) continue;
+    ok(sp.roles.length === sc.roles.length, `${id}: a script for each of its ${sc.roles.length} roles`);
+    const beats = DRAMA_GUIDES[id]?.beats.length ?? 0;
+    ok(sp.roles.every((r) => r.steps.length === 4 && beats === 4), `${id}: four steps, one for each beat of its guide`);
+    ok(sp.roles.every((r) => fine(r.trait, 50) && r.steps.every((st) => fine(st.say, 50) && fine(st.ask, 50))), `${id}: every line in Chinese and in English, short enough to read off a phone`);
+    ok(sp.culprit.length === 2 && sp.culprit.every((x) => fine(x, 60)), `${id}: two things for the culprit, in both languages`);
+    // the first `min` roles are always on stage; the rest only with more actors
+    const min = sc.min ?? sc.roles.length;
+    const maybe = sc.roles.slice(min).map((r) => r.name.zh);
+    const names = sp.roles.slice(0, min).flatMap((r) => [r.trait, ...r.steps.flatMap((st) => [st.say, st.ask])]).map((x) => x.zh);
+    ok(maybe.every((n) => names.every((line) => !line.includes(n))), `${id}: the roles always on stage never name one that may not be`);
+  }
+});
+
+test("drama: three levels: a new table starts on 新手 and plays the scenes with lines first, then the easy ones; 进阶 and 高手 as before", () => {
+  type V = V<"drama">;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p0").diff === "starter", "a new table starts on 新手");
+  t.g("p0", "config", { total: 8 });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { scene: number | null; cast: string[] };
+  const seen: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const sc = DRAMA_SCENES[s.scene!];
+    seen.push(sc.id);
+    t.g("p0", "skip");
+  }
+  // four at the table: two act; three scenes for two have lines, then the easy ones fill in
+  const withLines = DRAMA_SCENES.filter((x) => x.id in DRAMA_SCRIPTS && x.roles.length === s.cast.length).length;
+  ok(withLines >= 2 && seen.slice(0, withLines).every((id) => id in DRAMA_SCRIPTS), `新手: the scenes with lines come first (${seen.join(", ")})`);
+  ok(seen.slice(withLines).every((id) => DRAMA_SCENES.find((x) => x.id === id)!.diff === "easy"), "then the easy ones");
+  t.g("p0", "config", { diff: "easy" });
+  ok(t.view<V>("p0").diff === "starter", "the level is set before the show, not in the middle of it");
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { diff: "easy" });
+  ok(u.view<V>("p0").diff === "easy", "进阶");
+  u.g("p0", "config", { diff: "expert" });
+  ok(u.view<V>("p0").diff === "easy", "only the three levels");
+  u.g("p0", "config", { diff: "hard" });
+  u.g("p0", "start");
+  const us = u.eng.d.game!.s as { scene: number | null };
+  ok(DRAMA_SCENES[us.scene!].diff === "hard", "高手 plays the hard scenes");
 });
 
 test("drama: a scene written for every number of actors, at every table", () => {
@@ -6770,6 +7106,90 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   ok(rv().reshuffled && rv().log!.length === 1 && rv().log![0].by === d4, "a new deck's log starts with its first card");
   ok(Object.keys(rv().tally!).length <= 1 && Object.values(rv().tally!).every((n) => n === 1), "and a new tally (at most the first card's own penalty)");
   ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
+});
+
+test("rogue: 每张牌可换玩法 (Steve, 11-26): the host picks a rank's way; the card then plays that way (everyone, both sides, a judged round, the 10's cousins); the card up waits; a held power goes back when its rank changes; the classic choice clears the entry", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[]; phase: string };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  const last = () => t.pens()[t.pens().length - 1];
+  // a guest can't; the host can; an unknown way is ignored
+  t.g("p1", "house", { rank: "A", id: "waterfall" });
+  ok(!rv().house?.A, "a guest's choice changes nothing");
+  t.g("p0", "house", { rank: "A", id: "tsunami" });
+  ok(!rv().house?.A, "nor does a way that doesn't exist");
+  t.g("p0", "house", { rank: "A", id: "waterfall" });
+  ok(rv().house?.A === "waterfall", "the host picks the waterfall for aces");
+  // the ace: everyone drinks, on the card's line and in the tally
+  s.deck.push(0);
+  let d = rv().turn;
+  const before = t.pens().length;
+  t.g(d, "draw");
+  t.advance(1200); // (the card's own penalty lands once the card has turned over)
+  ok(rv().phase === "done" && t.pens().length === before + 1 && last().kind === "everyone" && last().who.length === 4, "an ace is a waterfall: everyone, at once");
+  ok(rv().log![rv().log!.length - 1].hit.length === 4 && t.ids.every((id) => rv().tally![id] === 1), "everyone on the ace's line and in the tally");
+  t.g(d, "next");
+  // 8 as both sides
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  s.deck.push(7);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.advance(1200);
+  ok(last().who.length === 2 && !last().who.includes(d) && rv().holders.wc === undefined, "an 8 hits both neighbours and hands out no pass");
+  t.g(d, "next");
+  // 9 as a judged round: the drawer names the loser, or nobody
+  t.g("p0", "house", { rank: "9", id: "rhyme" });
+  s.deck.push(8);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().phase === "judge", "a rhyme round waits for the drawer's verdict");
+  const loser = t.ids.find((id) => id !== d && id !== "p0")!; // (a guest: the host may judge too)
+  const n = t.pens().length;
+  t.g(loser, "judge", { target: d });
+  ok(rv().phase === "judge" && t.pens().length === n, "only the drawer (or the host) judges");
+  t.g(d, "judge", { target: loser });
+  ok(rv().phase === "done" && last().who.join() === loser && last().note?.zh === "押韵", "the loser drinks under the round's name");
+  t.g(d, "next");
+  s.deck.push(21); // the nine of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  const m = t.pens().length;
+  t.g(d, "judge", {});
+  ok(rv().phase === "done" && t.pens().length === m, "nobody lost: no penalty");
+  t.g(d, "next");
+  // the 10 as the question master: the same held card, its own line
+  t.g("p0", "house", { rank: "10", id: "question" });
+  s.deck.push(9);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.trouble === d, "the question master is held like the troublemaker");
+  t.g(d, "next");
+  const victim = t.ids.find((id) => id !== d)!;
+  t.g(d, "trouble", { target: victim });
+  ok(last().who.join() === victim && last().note?.zh.startsWith("问题大师"), "and its penalty carries the question master's line");
+  // switching the 10 back to the troublemaker keeps the held card (the same power); to a non-power way it goes
+  t.g("p0", "house", { rank: "10", id: "trouble" });
+  ok(rv().house?.["10"] === undefined && rv().holders.trouble === d, "back to the classic way: the entry clears, the card stays (same power)");
+  t.g("p0", "house", { rank: "8", id: "wc" });
+  s.deck.push(20); // the eight of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.wc === d, "an 8 hands out the pass again");
+  t.g(d, "next");
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  ok(rv().holders.wc === undefined, "the pass goes back in when the 8 stops handing it out");
+  // the card up waits: a 3 in its garden can't change way mid-round
+  t.g("p0", "house", { rank: "3", id: "gardens" });
+  s.deck.push(2);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.g(d, "garden", { kind: 1 });
+  ok(rv().phase === "garden", "a garden is on");
+  t.g("p0", "house", { rank: "3", id: "me" });
+  ok(rv().house?.["3"] === undefined, "the 3's way waits for the round to end");
+  t.g("p0", "house", { rank: "4", id: "floor" });
+  ok(rv().house?.["4"] === "floor", "another rank's way changes any time");
 });
 
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {

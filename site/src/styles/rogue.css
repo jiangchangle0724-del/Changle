@@ -405,6 +405,51 @@ button.rg-pile .rg-pile-count {
   flex: 1;
 }
 
+/* ---------- the rules sheet, where a rank's way of playing is switched (每张牌可换玩法) ---------- */
+.rg-house-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.rg-house-pick {
+  display: block;
+  margin-top: var(--space-2);
+}
+.rg-house-pick .ui-tabs-segmented {
+  background: var(--color-surface);
+}
+.rg-house-pick .ui-tab {
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.rg-house-locked {
+  display: inline-block;
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+}
+
+/* shake to shuffle: the line under the empty deck and under the recap, or the tap that allows the sensor first */
+.rg-shake-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+.rg-shake-hint svg {
+  flex: none;
+}
+
 /* the deck runs out: the pile comes back and the deck shuffles, each card flying out to a side and back, bottom first (游戏编排, longer than a token) */
 @media (prefers-reduced-motion: no-preference) {
   .rg-deck.is-shuffling .rg-under,

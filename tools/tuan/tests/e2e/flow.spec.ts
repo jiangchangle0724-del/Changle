@@ -268,6 +268,9 @@ test("change an order, open it from another phone with the last four digits, can
   // …and by its code from home, typed loosely
   await other.goto("/tuan/");
   await expect(other.locator(".again li")).toHaveCount(1);
+  // (the lookup is a link until it's wanted, and then the field is ready to type in)
+  await other.getByRole("button", { name: "用订单号查单" }).click();
+  await expect(other.locator('input[name="code"]')).toBeFocused();
   await other.fill('input[name="code"]', ` ${code.slice(0, 3).toLowerCase()} ${code.slice(3)} `);
   await other.getByRole("button", { name: "打开" }).click();
   await expect(other.locator("h1 .code")).toHaveText(code);
@@ -428,7 +431,7 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
   }
   const res = await page.goto("/tuan/");
   expect(res?.headers()["x-robots-tag"]).toBeUndefined();
-  await expect(page.locator(".hero h1")).toHaveText("今天跟哪一团？");
+  await expect(page.locator(".hero h1")).toHaveText("大温私厨 · 团购");
   await expect(page.getByRole("link", { name: "商家入口：我的团" })).toHaveAttribute("href", "/tuan/my");
   // every other page stays out of search engines
   expect((await page.goto(url))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
@@ -446,7 +449,7 @@ test("home: the group buys open now, found by a word or a kind of shop, each car
 
   const page = await phone(browser);
   await page.goto("/tuan/");
-  await expect(page.locator(".hero h1")).toHaveText("今天跟哪一团？");
+  await expect(page.locator(".hero h1")).toHaveText("大温私厨 · 团购");
   const search = page.getByRole("searchbox", { name: "搜团、店或者商品" });
   const cards = page.locator(".deck > li");
   const titles = page.locator(".deck .deal-title");

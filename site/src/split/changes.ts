@@ -26,12 +26,18 @@
  *    paid stays the same (ops.ts, ExpenseEdit).
  *  - An expense's date is the day it was spent ("2026-11-15"), read off its receipt or picked; one
  *    without it was spent the day it was recorded. A change that doesn't mention it leaves it.
+ *  - An expense's kind (分类: food, transport...) is one of categories.ts's, read off its receipt or
+ *    picked. A change that doesn't mention it leaves it; null takes it off; a kind this side doesn't
+ *    know is as good as unsaid.
+ *  - Someone's 收款方式 (an e-Transfer email or phone) is a line of words on them, set or taken
+ *    off by anyone in the ledger, like their name. A 查看链接 never gets it (the server keeps it back).
  *  - Where it was bought and how it was paid are lines of words (the business, the place, what
  *    paid: "McDonald's", "Aldergrove, BC", "Mastercard"), read off its receipt or typed. A change
  *    that doesn't mention one leaves it; one that says none (null or nothing) takes it off.
  */
+import { isCategory } from "./categories";
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
-import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
+import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, PAY_MAX, putBack, removeMember, renameLedger, renameMember, setPay, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
@@ -56,6 +62,8 @@ export type Change =
   | { do: "member"; member: Member }
   /** someone renamed */
   | { do: "rename"; member: string; name: string }
+  /** someone's 收款方式 set, or taken off (nothing) */
+  | { do: "pay"; member: string; pay: string }
   /** someone no entry names taken off the roster */
   | { do: "remove"; member: string }
   /** the ledger renamed */
@@ -88,13 +96,16 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
       const kept: Expense = { kind: "expense", id: e.id, at: e.at, payer: e.payer, amount: e.amount, note: tidy(e.note, NOTE_MAX), split: e.split, rot: e.rot };
       if (e.paidIn) kept.paidIn = { currency: e.paidIn.currency, amount: e.paidIn.amount, rate: e.paidIn.rate };
       if (e.files?.length) kept.files = [...e.files];
-      if (e.tip) kept.tip = e.tip;
-      if (e.tax) kept.tax = e.tax;
+      // (a refund keeps no tip or tax: it is money that came back)
+      if (e.tip && !e.refund) kept.tip = e.tip;
+      if (e.tax && !e.refund) kept.tax = e.tax;
       if (e.date) kept.date = e.date;
       for (const k of DETAILS) {
         const v = tidy(e[k] ?? "", DETAIL_MAX);
         if (v) kept[k] = v;
       }
+      if (isCategory(e.category)) kept.category = e.category;
+      if (e.refund === true) kept.refund = true;
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -121,6 +132,10 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
     case "rename": {
       const was = l.members.find((m) => m.id === c.member);
       return was && tidy(c.name, NAME_MAX) !== was.name ? moved(renameMember(l, c.member, c.name)) : null;
+    }
+    case "pay": {
+      const was = l.members.find((m) => m.id === c.member);
+      return was && tidy(c.pay, PAY_MAX) !== (was.pay ?? "") ? moved(setPay(l, c.member, c.pay)) : null;
     }
     case "remove":
       return l.members.some((m) => m.id === c.member) ? moved(removeMember(l, c.member)) : null;
@@ -253,6 +268,12 @@ function asEdit(x: unknown): Edit | null {
       edit = { ...edit, [k]: x[k] };
     }
   }
+  // (its kind: one there is, or null for none; a kind this side doesn't know is as good as unsaid)
+  if (x.category === null) edit = { ...edit, category: null };
+  else if (isCategory(x.category)) edit = { ...edit, category: x.category };
+  // (a refund or not: true, or null for an expense; anything else isn't a change, since it turns money around)
+  if (x.refund === true || x.refund === null) edit = { ...edit, refund: x.refund };
+  else if (x.refund !== undefined) return null;
   return edit;
 }
 
@@ -285,6 +306,9 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
     const v = tidy(x[k], DETAIL_MAX);
     if (v) expense = { ...expense, [k]: v };
   }
+  if (isCategory(x.category)) expense = { ...expense, category: x.category };
+  if (x.refund === true) expense = { ...expense, refund: true };
+  else if (x.refund !== undefined) return null;
   return expense;
 }
 
@@ -312,6 +336,8 @@ function asChange(x: Record<string, unknown>): Change | null {
     }
     case "rename":
       return isId(x.member) && isText(x.name) ? { do: "rename", member: x.member, name: x.name } : null;
+    case "pay":
+      return isId(x.member) && isText(x.pay) ? { do: "pay", member: x.member, pay: x.pay } : null;
     case "remove":
       return isId(x.member) ? { do: "remove", member: x.member } : null;
     case "title":

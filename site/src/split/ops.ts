@@ -7,11 +7,14 @@
  * so the odd cents of the entries after it stay where they were (core/ledger.ts, nextRot).
  */
 import { MAX_MEMBERS, nextRot, problem, soundTransfer, type Entry, type Expense, type Ledger, type Member, type Transfer } from "./core";
+import { isCategory } from "./categories";
 
 /** The longest a person's name, a ledger's name and a note can be. */
 export const NAME_MAX = 20;
 export const LEDGER_NAME_MAX = 30;
 export const NOTE_MAX = 40;
+/** As long as someone's 收款方式 may be: an email address fits. */
+export const PAY_MAX = 80;
 /** As long as an expense's business, place or what paid it may be (the same as a note). */
 export const DETAIL_MAX = 40;
 /** An expense's lines about where it was bought and how it was paid (core/types.ts). */
@@ -76,6 +79,10 @@ export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> &
   merchant?: string | null;
   place?: string | null;
   payment?: string | null;
+  // (its kind, said the same way: one of categories.ts's; null for none; or not at all, and it stays)
+  category?: Expense["category"] | null;
+  // (a refund: true; null for an expense; or not at all, and it stays as it is)
+  refund?: true | null;
 };
 
 /**
@@ -115,6 +122,7 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   const tip = to.tip === undefined ? (samePaid ? e.tip : undefined) : to.tip || undefined;
   const tax = to.tax === undefined ? (samePaid ? e.tax : undefined) : to.tax || undefined;
   const date = to.date === undefined ? e.date : (to.date ?? undefined);
+  const refund = to.refund === undefined ? e.refund : (to.refund ?? undefined);
   if (!soundExtras({ amount: to.amount, paidIn, tip, tax }) || (date !== undefined && !isDay(date))) return null;
   // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
   const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
@@ -122,9 +130,10 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   else delete next.paidIn;
   if (files?.length) next.files = [...files];
   else delete next.files;
-  if (tip) next.tip = tip;
+  // (a refund keeps no tip or tax: it is money that came back)
+  if (tip && !refund) next.tip = tip;
   else delete next.tip;
-  if (tax) next.tax = tax;
+  if (tax && !refund) next.tax = tax;
   else delete next.tax;
   if (date) next.date = date;
   else delete next.date;
@@ -133,6 +142,13 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
     if (v) next[k] = v;
     else delete next[k];
   }
+  // (a kind this side doesn't know is as good as unsaid, as changes.ts reads one off the network)
+  const said = to.category === null || isCategory(to.category) ? to.category : undefined;
+  const category = said === undefined ? e.category : (said ?? undefined);
+  if (category && isCategory(category)) next.category = category;
+  else delete next.category;
+  if (refund === true) next.refund = true;
+  else delete next.refund;
   return next;
 }
 
@@ -214,6 +230,13 @@ export function renameMember(l: Ledger, id: string, to: string): Ledger {
   const name = tidy(to, NAME_MAX);
   if (!name || nameTaken(l, name, id)) return l;
   return { ...l, members: l.members.map((m) => (m.id === id ? { ...m, name } : m)) };
+}
+
+/** Someone's 收款方式 set (tidied), or taken off (nothing left once tidied). Someone not in the ledger changes nothing. */
+export function setPay(l: Ledger, id: string, to: string): Ledger {
+  if (!l.members.some((m) => m.id === id)) return l;
+  const pay = tidy(to, PAY_MAX);
+  return { ...l, members: l.members.map((m) => (m.id !== id ? m : pay ? { ...m, pay } : { id: m.id, name: m.name })) };
 }
 
 /** Does any entry, even one taken out, name this person? */

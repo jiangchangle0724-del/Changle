@@ -23,6 +23,7 @@ T.OUT = OUT
 NAMES = ["小明", "Ann", "Ben", "欧阳娜娜子", "Bartholomew"]
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(NAMES)]
 fails = []
+TV = None
 
 
 def ok(cond, msg):
@@ -71,9 +72,11 @@ def seat_at(pg, n):
 
 def clear_of_dock(pg, box):
     """In sight and not under the bottom buttons (on a phone on its side they sit in the right-hand column)."""
-    dock = pg.locator(".game-actions").bounding_box()
     if not box or box["y"] < 0:
         return False
+    if pg.locator(".game-actions").count() == 0:
+        return box["y"] + box["height"] <= pg.viewport_size["height"]
+    dock = pg.locator(".game-actions").bounding_box()
     beside = box["x"] + box["width"] <= dock["x"] + 1 or box["x"] >= dock["x"] + dock["width"] - 1
     return beside and box["y"] + box["height"] <= pg.viewport_size["height"] or box["y"] + box["height"] <= dock["y"] + 4
 
@@ -90,6 +93,39 @@ def lift(pg):
 
 def card_text(pg):
     return pg.locator(".prompt-text").inner_text().strip()
+
+
+def whisper_single(pg, who):
+    """悄悄话 on one phone: read alone, cover, the name, the coin; tails, the one named pays to see."""
+    pg.get_by_role("button", name="悄悄话").click()
+    pg.wait_for_selector(".card-flow")
+    ok(pg.locator(".kind-tag.secret").count() == 1 and f"把手机给 {who}" in pg.locator(".whisper-hint").inner_text(), "悄悄话: hand the phone to whoever was picked")
+    ok(pg.get_by_role("button", name=f"只给 {who} 看").count() == 1, "the lid says whose eyes only")
+    lift(pg)
+    question = card_text(pg)
+    ok("谁" in question, f"a question about the table ({question})")
+    shot(pg, "single-whisper-read")
+    pg.get_by_role("button", name="盖上，说名字").click()
+    pg.wait_for_timeout(700)
+    ok(not pg.locator(".prompt-text").is_visible(), "covered again before anyone else looks")
+    pg.locator(".cloche-dome").click()
+    pg.wait_for_timeout(500)
+    ok(not pg.locator(".prompt-text").is_visible(), "and a tap on the cover doesn't give it away")
+    chips = pg.locator(".whisper-chips .btn")
+    ok(chips.count() == pg.locator(".game-roster [role=listitem]").count(), f"every name to tap ({chips.count()})")
+    named = chips.nth(2).inner_text().strip()
+    chips.nth(2).click()
+    ok("抛硬币" in pg.locator(".whisper-coin-says").inner_text(), "the coin is in the air")
+    pg.wait_for_timeout(2000)
+    says = pg.locator(".whisper-coin-says").inner_text()
+    ok("正面" in says or "反面" in says, f"the coin lands: {says}")
+    shot(pg, "single-whisper-coin")
+    if "反面" in says:
+        ok(not pg.locator(".prompt-text").is_visible(), "tails: the question stays covered")
+        pg.get_by_role("button", name=f"{named} 认罚看题").click()
+        T.clear_stamps([pg])
+        pg.wait_for_timeout(900)
+    ok(pg.locator(".prompt-text").is_visible() and card_text(pg) == question, "then everyone sees the question")
 
 
 def single(browser):
@@ -146,12 +182,13 @@ def single(browser):
             lift(pg)
             ok(card_text(pg) != first, f"swapped: {first} → {card_text(pg)}")
             ok(pg.get_by_role("button", name=re.compile("换一张")).count() == 0, "no second swap for them this game")
+        elif rnd == 1:
+            whisper_single(pg, who)
         else:
             pg.locator(".game-actions .btn-porcelain").click()
             pg.wait_for_selector(".card-flow")
             lift(pg)
-        done = "答完了" if pg.locator(".kind-tag.truth").count() else "做完了"
-        before = bottle_angle(pg)
+        done = "下一轮" if pg.locator(".kind-tag.secret").count() else "答完了" if pg.locator(".kind-tag.truth").count() else "做完了"
         pg.get_by_role("button", name=done).click()
         pg.wait_for_selector(".bottle-svg")
         pg.wait_for_timeout(500)
@@ -179,6 +216,29 @@ def single(browser):
     lift(pg)
     ok(card_text(pg).startswith("学猫叫三声") and pg.locator(".turn-line .ui-pill", has_text="你们出的").count() == 1, f"the table's own card comes first ({card_text(pg)})")
     shot(pg, "single-own-card")
+
+    # 每人底线 from the menu: switch some on for a player, and the phone remembers them
+    pg.locator(".ui-game-menu-trigger").click()
+    pg.get_by_role("button", name="每人底线").click()
+    pg.wait_for_selector(".limits-form")
+    rows = pg.locator(".limits-row")
+    ok(rows.count() == len(NAMES), f"a row of limits for each player ({rows.count()})")
+    rows.nth(1).get_by_role("button", name="不碰身体").click()
+    rows.nth(1).get_by_role("button", name="只要温和").click()
+    ok(rows.nth(1).get_by_role("button", name="不碰身体").get_attribute("aria-pressed") == "true", "a limit switches on")
+    shot(pg, "single-limits")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(400)
+    kept_limits = json.loads(pg.evaluate("() => localStorage.getItem('changle.truth.limits.v1')") or "{}")
+    ok(sorted(kept_limits.get("p1", [])) == ["mild", "touch"], f"the phone keeps them ({kept_limits})")
+    # 这局小结 in the tally that ‹ opens
+    pg.locator(".ui-game-header button").first.click()
+    pg.wait_for_selector(".truth-recap")
+    recap = pg.locator(".truth-recap").inner_text()
+    ok("被瓶子指到最多" in recap and "真心话答得最多" in recap, f"the tally has the game's titles: {recap[:80]}")
+    shot(pg, "single-recap")
+    pg.get_by_role("button", name="继续这局").click()
+    pg.wait_for_timeout(500)
 
     # a reload picks the game up where it was, the swap and the bottle's memory with it
     pg.reload(wait_until="networkidle")
@@ -229,9 +289,51 @@ def screens(browser):
         ctx.close()
 
 
+def whisper_online(everyone, pg, chosen):
+    """悄悄话 online: only the one picked reads it; a name; the coin lands on every phone together."""
+    pg.get_by_role("button", name="悄悄话").click()
+    ok(T.until(lambda: (T.view(pg) or {}).get("kind") == "secret"), "悄悄话: a whisper")
+    others = [g for g in everyone if g is not pg]
+    question = T.view(pg)["prompt"]["zh"]
+    ok(all((T.view(g) or {}).get("prompt") is None for g in others), "only the one picked gets its words")
+    ok(all(question not in g.content() for g in others), "and no other phone shows them")
+    ok(T.until(lambda: "只有 TA 看得到" in others[0].locator(".card-flow").inner_text()), "the others wait for a name")
+    ok(T.until(lambda: "悄悄话" in TV.locator(".tvtd-tag").inner_text(), 4000), "the big screen says it's a whisper")
+    ok(question not in TV.content(), "and shows nothing of it")
+    TV.wait_for_timeout(800)
+    TV.screenshot(path=os.path.join(OUT, "online-whisper-tv.png"))
+    lift(pg)
+    target = others[1]
+    target_id = T.me(target)
+    target_name = T.room(pg)["seats"][[x["id"] for x in T.room(pg)["seats"]].index(target_id)]["name"]
+    pg.locator(".whisper-chips .btn", has_text=target_name).click()
+    ok(T.until(lambda: all((T.view(g) or {}).get("named") == target_id for g in everyone)), f"{target_name} named on every phone")
+    T.shot(others[0], "online-whisper-coin")
+    ok(T.until(lambda: all(("正面" in g.locator(".whisper-coin-says").inner_text() or "反面" in g.locator(".whisper-coin-says").inner_text()) for g in everyone), 5000), "the coin lands on every phone")
+    coin = T.view(pg)["coin"]
+    if coin == "hidden":
+        ok(all((T.view(g) or {}).get("prompt") is None for g in others), "tails: still nobody else has the words")
+        ok(T.until(lambda: target.get_by_role("button", name="认罚看题").count() == 1, 3000), "the one named can pay to see it")
+        ok(all(g.get_by_role("button", name="认罚看题").count() == 0 for g in everyone if g is not target), "nobody else can")
+        target.get_by_role("button", name="认罚看题").click()
+        T.clear_stamps(everyone)
+    ok(T.until(lambda: all(g.locator(".prompt-text", has_text=question).count() == 1 for g in everyone), 6000), f"{coin}: then every phone shows the question")
+    T.shot(others[0], "online-whisper-open")
+    pg.get_by_role("button", name="下一轮").click()
+    ok(T.until(lambda: (T.view(pg) or {}).get("phase") == "spin"), "back to the bottle")
+    pg.wait_for_timeout(400)
+
+
 def online(browser):
     host, guests, code = T.seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
     everyone = [host] + guests
+    # the big screen watches the same table
+    global TV
+    TV = browser.new_context(viewport={"width": 1366, "height": 768}).new_page()
+    TV._errs = []
+    TV._name = "tv"
+    TV.on("pageerror", lambda e: TV._errs.append(str(e)))
+    TV.goto(BASE + f"/#/tv/{code}", wait_until="networkidle")
     T.start_game(host, everyone, "truth")
     by = {T.me(g): g for g in everyone}
     v = T.view(host)
@@ -272,6 +374,9 @@ def online(browser):
         ok(len(set(angles)) == 1, f"round {rnd + 1}: every phone's bottle points the same way {angles}")
         if rnd == 0:
             pg.get_by_role("button", name="听天由命").click()
+        elif rnd == 2:
+            whisper_online(everyone, pg, chosen)
+            continue
         else:
             pg.locator(".choose-box .btn-gold").click()
         ok(T.until(lambda: (T.view(host) or {}).get("phase") == "card"), f"round {rnd + 1}: a card")
@@ -303,8 +408,47 @@ def online(browser):
     counts = [picks.count(T.me(g)) for g in everyone]
     ok(max(counts) - min(counts) <= 2, f"nobody far ahead: {counts}")
     T.shot(host, "online-end")
-    errs = [(g._name, e) for g in everyone for e in g._errs if "favicon" not in e and "WebSocket" not in e]
+
+    # my limits: on my own phone, kept for next time, seen by nobody else
+    mia.get_by_role("button", name=re.compile("我的底线")).click()
+    mia.wait_for_selector(".limits-form")
+    mia.locator(".limits-row").get_by_role("button", name="不动手机").click()
+    ok(T.until(lambda: (T.view(mia) or {}).get("limits") == ["phone"]), "Mia's limit reaches the table")
+    ok(all((T.view(g) or {}).get("limits") == [] for g in everyone if g is not mia), "and nobody else sees it")
+    T.shot(mia, "online-limits")
+    mia.keyboard.press("Escape")
+    mia.wait_for_timeout(400)
+    # the recap, for everyone
+    host.get_by_role("button", name="这局小结").click()
+    host.wait_for_selector(".truth-recap")
+    recap = host.locator(".truth-recap").inner_text()
+    ok("被瓶子指到最多" in recap and "悄悄话里被点名最多" in recap, f"the recap: {recap[:90]}")
+    T.shot(host, "online-recap")
+    host.keyboard.press("Escape")
+    errs = [(g._name, e) for g in everyone + [TV] for e in g._errs if "favicon" not in e and "WebSocket" not in e]
     ok(not errs, f"no page errors {errs[:3]}")
+
+
+def whisper_small(browser):
+    """A whisper on a small phone and on its side: the names to tap and the coin stay in sight."""
+    for lang, w, h in (("zh", 320, 568), ("en", 844, 390)):
+        ctx, pg = phone(browser, lang, w, h, PLAYERS[:4])
+        open_single(pg)
+        spin_until_choose(pg)
+        pg.wait_for_timeout(600)
+        pg.get_by_role("button", name=re.compile("悄悄话|Whisper")).click()
+        pg.wait_for_selector(".card-flow")
+        lift(pg)
+        pg.get_by_role("button", name=re.compile("盖上，说名字|Cover it, say a name")).click()
+        pg.wait_for_timeout(900)
+        ok(clear_of_dock(pg, pg.locator(".whisper-chips").bounding_box()), f"{lang} {w}x{h}: the names to tap, in sight")
+        shot(pg, f"whisper-{lang}-{w}x{h}-names")
+        pg.locator(".whisper-chips .btn").first.click()
+        pg.wait_for_timeout(2300)
+        ok(clear_of_dock(pg, pg.locator(".whisper-coin-wrap").bounding_box()), f"{lang} {w}x{h}: the coin, in sight")
+        shot(pg, f"whisper-{lang}-{w}x{h}-coin")
+        ok(not pg._errs, f"{lang} {w}x{h}: no page errors {pg._errs[:3]}")
+        ctx.close()
 
 
 def english(browser):
@@ -312,6 +456,7 @@ def english(browser):
     ctx, pg = phone(browser, "en", 320, 568)
     open_single(pg)
     spin_until_choose(pg)
+    pg.wait_for_timeout(900)
     shot(pg, "en-320-choose")
     pg.get_by_role("button", name="Surprise me").click()
     pg.wait_for_selector(".card-flow")
@@ -341,6 +486,7 @@ if __name__ == "__main__":
             single(browser)
         if "screens" in ONLY:
             screens(browser)
+            whisper_small(browser)
             english(browser)
         if "online" in ONLY:
             online(browser)

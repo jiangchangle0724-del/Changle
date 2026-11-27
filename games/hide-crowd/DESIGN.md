@@ -597,7 +597,8 @@ find yourself" and moves its marker.
 
 The Steam original plays several places in a row to a points total; so does this, unless the host
 turns it off in the lobby (`settings.match`, on by default; practice is always one place at a time).
-A match is three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
+With four or more players it's a knockout instead (next section); with two or three, a match of
+three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
 order from the room's seed. Each round is a round as ever (first to five, three minutes, its
 penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
 
@@ -608,6 +609,39 @@ penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
 * After the last: the match's winner as the title (你赢了整场！), the crown on them, the match's
   titles instead of the round's (the round's titles worked out over everything done in the match,
   `matchAwards`), and New match.
+
+## The knockout (晋级赛)
+
+Steve, 2026-11-26: rounds felt short; with eight players, five go through, then three, then one
+wins. With the whole-match switch on and four or more players at the start, the game is a knockout
+(`RoomState.knockout`, `KNOCKOUT_FROM`); the lobby's switch says its road (晋级赛：8 → 5 → 3 → 1).
+
+* **The road** (`knockoutCut`, `knockoutPath`): about three in five of a stage's players go through;
+  with three or fewer it's the final and one wins. 8 → 5 → 3 → 1, 7 → 4 → 2 → 1, 6 → 4 → 2 → 1,
+  5 → 3 → 1, 4 → 2 → 1. A place per stage: the lobby's pick, then ones it hasn't been to.
+* **A stage** is a round that runs its whole three minutes (`createMatch` with `scoreToWin: null`: no
+  first to five), points from zero, the rules as ever (tags, the side quest, the penalty). Its order
+  (`stageRanking`): the most points, then the least spotted, then whoever got their last point first,
+  then a coin flip from the round's seed. Steve picked points over hiding (2026-11-26).
+* **The floor stays the size it is** (Steve's pick): a full room has fewer passers-by instead
+  (`crowdFor`: 18 up to four players, 14 with eight), in every round, knockout or not.
+* **On screen while it's on**: the title's second line says 第 1 关 · 前 5 名晋级 (决赛 · 只有一人胜出
+  in the final); the standings stand in their live order with a dashed 晋级线 under the last one going
+  through (numbers, no pips: no target). With more than five players the rows shrink so eight fit
+  above a phone's buttons, and the big screen shows at most four titles.
+* **After a stage**: 第 1 关结束, this phone's lot as the title (你晋级了！ / 你被淘汰了; the big screen:
+  前 5 名晋级), the table in the stage's order with 晋级 / 淘汰 stamped by each name and the dashed line
+  under the last one through, no titles (who's through is the news), 下一关：温哥华交通站厅，5 人 (决赛：
+  ... in front of the final), and the host's 下一关 / 开始决赛. The stage's crown is its best, if they
+  scored.
+* **Out** means watching: a phone that went out sees the rest on its own screen (你在第 1 关被淘汰了，看他们打完);
+  one that joined during the knockout plays the next one (晋级赛进行中，下一场你再上). One who leaves is out;
+  if one is left, they win it.
+* **After the final**: 冠军：Ann (你是冠军！ on hers), the crown and a 冠军 stamp, the knockout's titles
+  (worked out over every stage, `matchAwards`), and 再来一场晋级赛.
+* **The announcer**: "Final round!" as the final starts (the big screen and the finalists' phones);
+  as a stage's results come up, each phone hears its own lot ("Qualified!", "Eliminated!",
+  "Champion!") and after the final the big screen says "Champion!".
 
 ## The announcer
 
@@ -625,6 +659,17 @@ big in the player's language and small in the other, and a stab that grows with 
 
 Getting tagged ends your run. Naming who made a call tells nobody anything new: everyone sees the
 score go up. The best row of the round is a title of its own (双杀 to 五杀), ahead of the others.
+
+**The voice** (Steve, 2026-11-26: "like League of Legends", in English on every screen). Each call is
+said by an announcer: an original English line spoken by the open Kokoro speech model (Apache 2.0,
+voice am_onyx, the deep one Steve picked, pitched down a semitone), compressed, doubled and echoed round a stadium, over a
+stinger made with it (a riser, a hit, a sub drop, a brass stab whose chord climbs with the tier, a choir
+and a crash at the top), the stinger ducking under the words. `tools/voice/make.py` makes them (the
+model is downloaded beside it, never committed); they ship as `art/voice/*.mp3` (twelve, about 370 KB:
+the eight calls, and Final Round, Qualified, Eliminated, Champion for the knockout), fetched once the
+sound is unlocked (`loadVoices`, `say`). The big screen says every call; a phone says the calls about
+it (its tags, or a tag on it), or every call when the room has no big screen. Until the files have
+loaded, the synthesised stab plays instead.
 
 ## The crowd leaves at the end
 
@@ -673,6 +718,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts`, `src/client/ui/shake.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the blows' bursts, the dizzy stars, the dust and the bangs' smoke; the camera's shake. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
+| `tools/voice/make.py` | The announcer's calls: Kokoro speech, made big, over a stinger, to `art/voice/*.mp3` (model files downloaded beside it, never committed). |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |
 | `src/client/i18n.ts` | Every word, in Chinese and English (`tests/strings.test.ts` checks both exist, no em dashes, no curly quotes). |
 
@@ -687,6 +733,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
 | `courtyard-dressing.glb` | 354 KB | The courtyard's 3D set: stage, pavilion, curtains, lanterns | The same script | ours |
+| `voice/*.mp3` | 26 to 33 KB each, 370 KB in all | The announcer's twelve English calls, each with its stinger | **AI-made**: spoken by the open Kokoro speech model (kokoro-v1.0, voice am_onyx), then pitched, echoed and given stingers synthesised by `tools/voice/make.py`; no recordings from any game | Kokoro is Apache 2.0; the calls are ours |
 | `market-dressing.glb` | 100 KB | The night market's 3D set: four stalls and their snacks, string lights, lanterns, tables | The same script (as the `bpy` module, which can't compress meshes: glTF-Transform's meshopt does, through npx) | ours |
 | `fonts/unbounded.woff2`, `fonts/figtree.woff2` | 30 KB, 23 KB | Unbounded and Figtree, Latin subsets | Google Fonts, via `games/been-there` | SIL Open Font License 1.1 |
 

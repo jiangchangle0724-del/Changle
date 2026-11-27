@@ -5,7 +5,7 @@ import type { OfferError } from "./engine/offer";
 import type { RefusalCode } from "./engine/order";
 import type { ShopError } from "./engine/shop";
 import type { Summary } from "./engine/summary";
-import type { DeliveryRule, How, Item, Offer, OfferStatus, Order, OrderLine, OrderStatus, PickupPoint, Roster, Shop, ShopKind, ShopStatus, Unit } from "./engine/types";
+import type { Arrived, DeliveryRule, How, Item, Offer, OfferStatus, Order, OrderLine, OrderStatus, PickupPoint, Roster, Shop, ShopKind, ShopStatus, Unit } from "./engine/types";
 
 /** The last four digits of the buyer's phone number ride in this header: with the order's code, they open the order. */
 export const TAIL_HEADER = "x-tail";
@@ -89,7 +89,7 @@ export interface RosterRow {
 
 export interface OfferPage {
   shop: ShopCard;
-  offer: { id: string; title: string; note: string; closesAt: number; state: OfferState; roster: Roster };
+  offer: { id: string; title: string; note: string; closesAt: number; state: OfferState; roster: Roster; arrived: Arrived | null };
   items: PublicItem[];
   points: PickupPoint[];
   rules: DeliveryRule[];
@@ -194,7 +194,7 @@ export interface BuyerOrder {
 
 export interface OrderPage {
   order: BuyerOrder;
-  offer: { id: string; title: string; closesAt: number; state: OfferState };
+  offer: { id: string; title: string; closesAt: number; state: OfferState; arrived: Arrived | null };
   shop: Pick<ShopCard, "slug" | "name" | "contact" | "pay">;
   point: PickupPoint | null;
   rule: DeliveryRule | null;
@@ -294,7 +294,8 @@ export type OrderMove =
   | { do: "weigh"; lines: { itemId: string; actual: number | null }[] };
 
 /** What a merchant does to a group buy. */
-export type OfferMove = { do: "open" } | { do: "close" };
+/** What a merchant does to a group buy: open it, close it, say the goods are in (with a line on when and where), or take that back. */
+export type OfferMove = { do: "open" } | { do: "close" } | { do: "arrived"; note: string } | { do: "unarrived" };
 
 /** A new group buy's id, or a shop's address. */
 export interface Made {

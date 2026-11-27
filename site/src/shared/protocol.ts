@@ -140,7 +140,7 @@ export type RoomEvent =
 
 /* ---------- per-game views (what one phone is allowed to see) ---------- */
 
-export type RoguePhase = "draw" | "pick" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
+export type RoguePhase = "draw" | "pick" | "judge" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
 export type RogueHolders = { buddy?: string; camera?: string; nose?: string; wc?: string; trouble?: string };
 export type RogueView = {
   id: "rogue";
@@ -160,6 +160,8 @@ export type RogueView = {
   log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
   /** this deck's penalties by player, the powers' included (the recap when the deck runs out) */
   tally?: Record<string, number>;
+  /** 每张牌可换玩法: the host's choice for each rank, by variant id (a rank left out plays the classic way) */
+  house?: Partial<Record<Rank, string>>;
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
@@ -167,6 +169,10 @@ export type RogueView = {
   interrupt: { kind: "camera"; by: string; phase: "freeze" | "judge"; endsAt: number } | { kind: "nose"; by: string; endsAt: number; tapped: string[] } | null;
 };
 
+/** 悄悄话: how long the coin spins before everyone sees how it landed (ms). */
+export const TRUTH_FLIP_MS = 1600;
+/** Truth or dare, this game so far, per player: truths answered, dares done, whispers answered, passes, times named in a whisper. */
+export type TruthTally = { t?: number; d?: number; s?: number; p?: number; n?: number };
 export type TruthView = {
   id: "truth";
   heat: 1 | 2;
@@ -174,7 +180,9 @@ export type TruthView = {
   spinner: string;
   chosen: string | null;
   revealAt: number;
-  kind: "truth" | "dare" | null;
+  /** secret: 悄悄话, a question only the one picked reads, answered with a name */
+  kind: "truth" | "dare" | "secret" | null;
+  /** null for a whisper this phone may not read (yet) */
   prompt: T | null;
   /** how often the bottle has picked each player this game: the spinning phone evens it out */
   picked?: Record<string, number>;
@@ -186,6 +194,14 @@ export type TruthView = {
   slips?: { truth: number; dare: number; mine: number };
   /** this phone's player still has their one free swap */
   swapLeft?: boolean;
+  /** 悄悄话: whom the one picked named, how the coin landed (open: everyone sees the question), and when everyone may see it land */
+  named?: string | null;
+  coin?: "open" | "hidden" | null;
+  flipAt?: number;
+  /** this phone's own limits (每人底线); nobody else's */
+  limits?: ("touch" | "phone" | "love" | "mild")[];
+  /** this game so far, by player */
+  tally?: Record<string, TruthTally>;
 };
 
 export type UcRole = "civ" | "uc" | "blank";
@@ -314,12 +330,23 @@ export type WheelView = {
 
 export type SuperView = {
   id: "superlatives";
-  /** setup: the host picks the packs and how many awards, then starts */
-  phase: "setup" | "vote" | "reveal" | "ceremony";
+  /**
+   * setup: the host picks the packs, how many awards and the mode, then starts. The vote: vote,
+   * reveal. Paranoia (偷偷问): ask (the asker alone reads the title), dare (someone was named: they
+   * pay a sip to see it, or pass), peek (they did or didn't). Then the ceremony.
+   */
+  phase: "setup" | "vote" | "reveal" | "ceremony" | "ask" | "dare" | "peek";
   round: number;
   total: number;
   /** the packs of titles in play (data/superlatives.ts PACKS); empty: every title */
   packs: string[];
+  /** the vote, or paranoia */
+  mode: "vote" | "whisper";
+  /** paranoia: who reads the title this round, whom they named, whether the one named paid to see it */
+  asker: string | null;
+  named: string | null;
+  seen: boolean | null;
+  /** the title; in paranoia "？？？" to everyone who isn't to see it */
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;
@@ -719,7 +746,8 @@ export type DramaView = {
   /** a scene with a hidden culprit, a quick acting duel, a famous film or TV moment, or one person reading a piece aloud */
   mode: "show" | "pk" | "classic" | "read";
   level: "all" | "spicy";
-  diff: "easy" | "hard";
+  /** the table's level: 新手 (lines to read), 进阶 (hints, your own words), 高手 (a role and a secret) */
+  diff: "starter" | "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
   pen: "drink" | "move" | "prank";
   round: number;
@@ -760,7 +788,17 @@ export type DramaView = {
     quiet?: boolean;
     /** quiet because an actor left the table mid-act */
     left?: boolean;
+    /** 当场识破: right guesses locked in during the act (one more point each), earliest first; `at`: ms into the act */
+    early?: { pid: string; at: number }[];
   } | null;
+  /**
+   * 台下喊一嗓子, this act (everyone sees who called what): `again`, whoever just spoke says it again
+   * another way; `mood`, the actor `to` plays on in `MOODS[mood]` (data/drama.ts).
+   */
+  calls?: { by: string; kind: "again" | "mood"; to: string | null; mood: number; at: number }[];
+  /** 当场识破: how many watching have locked in their guess (never whom), and this phone's own */
+  locked?: number;
+  myLock?: string | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
   awards: Record<string, number>;

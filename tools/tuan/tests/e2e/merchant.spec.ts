@@ -6,6 +6,8 @@
 // buy by hand or from a file. A phone that is signed in has the session the site would have left
 // in its storage.
 import { readFile } from "node:fs/promises";
+import { encode } from "uqr";
+import { QR_OPTIONS, qrPath } from "../../src/client/ui/qr.ts";
 import { expect, test } from "@playwright/test";
 import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
@@ -245,6 +247,93 @@ test("the link to share, closing a group buy and opening it again, and a draft",
   await page.getByRole("button", { name: "开始接单" }).click();
   await expect(page.locator(".state")).toContainText("接单中");
   expect((await offerOf(request, draft.id)).offer.state).toBe("open");
+});
+
+test("the goods are in: the merchant says so with a line, buyers see it on the group buy and on their order, and it can be taken back", async ({ browser, request, baseURL }) => {
+  const { id, url } = await start(request);
+  const placed = await order(request, id, { name: "小林", phone: "604-555-0188" }, [["五常大米", 1000]]);
+  const merchant = await phone(browser, { session: SESSION.leader });
+  await catchCopies(merchant);
+  await merchant.goto(`/tuan/my/t/${id}`);
+  await merchant.getByRole("button", { name: "货到了", exact: true }).click();
+  const sheet = merchant.getByRole("dialog", { name: "告诉买家货到了" });
+  await sheet.locator('textarea[name="arrived-note"]').fill("周六下午 2 点以后，到各自的自提点取");
+  await sheet.getByRole("button", { name: "告诉买家" }).click();
+  await expect(merchant.locator(".sheet")).toHaveCount(0);
+  const said = merchant.locator(".arrived");
+  await expect(said.locator("strong")).toHaveText(/^已告诉买家货到了 · /);
+  await expect(said.locator(".arrived-note")).toHaveText("周六下午 2 点以后，到各自的自提点取");
+  await expect(merchant.getByRole("button", { name: "货到了", exact: true })).toHaveCount(0);
+  await said.getByRole("button", { name: "复制群通知" }).click();
+  expect(await copied(merchant)).toBe(`【大米团（测试）】本周大米团 · 周五到货\n货到了！\n周六下午 2 点以后，到各自的自提点取\n开团页：${baseURL}/tuan/t/${id}`);
+
+  // a buyer: on the group buy's page, and on their order's, opened from another phone
+  const buyer = await phone(browser);
+  await buyer.goto(url);
+  await expect(buyer.locator(".arrived strong")).toHaveText("货到了");
+  await expect(buyer.locator(".arrived .arrived-note")).toHaveText("周六下午 2 点以后，到各自的自提点取");
+  await buyer.goto(`/tuan/o/${placed.order.code}`);
+  await buyer.fill('input[name="tail"]', "0188");
+  await buyer.getByRole("button", { name: "打开" }).click();
+  await expect(buyer.locator(".arrived strong")).toHaveText("货到了，可以来取了");
+  await fits(buyer, "an order whose goods are in");
+
+  // changed, then taken back
+  await said.getByRole("button", { name: "改说明" }).click();
+  await expect(sheet.locator('textarea[name="arrived-note"]')).toHaveValue("周六下午 2 点以后，到各自的自提点取");
+  await sheet.locator('textarea[name="arrived-note"]').fill("周日上午 10 点以后");
+  await sheet.getByRole("button", { name: "告诉买家" }).click();
+  await expect(said.locator(".arrived-note")).toHaveText("周日上午 10 点以后");
+  await said.getByRole("button", { name: "撤回" }).click();
+  await expect(merchant.locator(".arrived")).toHaveCount(0);
+  await expect(merchant.getByRole("button", { name: "货到了", exact: true })).toBeVisible();
+  await buyer.goto(url);
+  await expect(buyer.locator(".hero h1")).toHaveText("本周大米团 · 周五到货");
+  await expect(buyer.locator(".arrived")).toHaveCount(0);
+});
+
+test("picking up: the buyer's pickup code opens their order on the merchant's page, to hand it over; an order is found by its phone's last digits too", async ({ browser, request, baseURL }) => {
+  const { id } = await start(request);
+  const placed = await order(request, id, { name: "小林", phone: "604-555-0188" }, [["五常大米", 1000]]);
+  await order(request, id, { name: "老张", phone: "778-555-0123" }, [["土鸡蛋", 1000]]);
+  // the buyer's order page: a QR code of the order's place on the merchant's page
+  const buyer = await phone(browser);
+  await buyer.goto(`/tuan/o/${placed.order.code}`);
+  await buyer.fill('input[name="tail"]', "0188");
+  await buyer.getByRole("button", { name: "打开" }).click();
+  await expect(buyer.locator("h1 .code")).toHaveText(placed.order.code);
+  const link = `${baseURL}/tuan/my/t/${id}?pick=${placed.order.code}`;
+  await expect(buyer.getByRole("img", { name: "取货码" }).locator("svg path")).toHaveAttribute("d", qrPath(encode(link, QR_OPTIONS).data));
+  await fits(buyer, "an order with its pickup code");
+
+  // the merchant scans it: the page opens on that order, and the address forgets it
+  const merchant = await phone(browser, { session: SESSION.leader });
+  await merchant.goto(link.slice(baseURL!.length));
+  const sheet = merchant.getByRole("dialog", { name: "取货核销" });
+  await expect(sheet.locator('input[name="pick"]')).toHaveValue(placed.order.code);
+  await expect(merchant).toHaveURL(new RegExp(`/tuan/my/t/${id}$`));
+  await expect(sheet.locator(".order")).toHaveCount(1);
+  await expect(sheet.locator(".order")).toContainText("小林");
+  await sheet.getByRole("button", { name: "已取货" }).click();
+  await expect(sheet.getByRole("button", { name: "已取货" })).toHaveAttribute("aria-pressed", "true");
+  await sheet.getByRole("button", { name: "关闭" }).click();
+  await expect(merchant.locator(".sheet")).toHaveCount(0);
+  await merchant.reload();
+  await expect(merchant.locator(".sheet")).toHaveCount(0);
+
+  // by the phone's last four digits, and nothing for a number that isn't there
+  await merchant.getByRole("button", { name: "取货核销" }).click();
+  await sheet.locator('input[name="pick"]').fill("0123");
+  await expect(sheet.locator(".order")).toHaveCount(1);
+  await expect(sheet.locator(".order")).toContainText("老张");
+  await sheet.locator('input[name="pick"]').fill("9999");
+  await expect(sheet.locator(".order")).toHaveCount(0);
+  await expect(sheet.getByText("没有找到这一单。")).toBeVisible();
+
+  // handed over: the buyer's page (this phone remembers the order now) has no code to show
+  await buyer.reload();
+  await expect(buyer.locator("h1 .code")).toHaveText(placed.order.code);
+  await expect(buyer.locator(".pickup-code")).toHaveCount(0);
 });
 
 test("signing in right on the merchant's page: a code by email, a wrong one, then in; an email with no account yet goes to the site", async ({ browser, request }) => {

@@ -7,6 +7,7 @@
  */
 import { parseSent, type Sent, type Took } from "./changes";
 import type { Entry, Ledger, Member, Split } from "./core";
+import { isCategory, type Category } from "./categories";
 import { DETAILS, isDay } from "./ops";
 import type { Logged } from "./history";
 import type { Held, Pushed, Snapshot } from "./sync";
@@ -48,14 +49,29 @@ function isEntry(x: unknown): x is Entry {
   return x.kind === "expense" && isText(x.payer) && isText(x.note) && isCount(x.rot) && isSplit(x.split);
 }
 
+/** An expense of a kind this phone doesn't know (one a later page added) is kept, without the kind. */
+const knownKind = (e: Entry): Entry => {
+  if (e.kind !== "expense") return e;
+  // (a refund is said by true alone; anything else in its place is as good as nothing)
+  if (e.refund !== undefined && e.refund !== true) {
+    const { refund: _unknown, ...rest } = e;
+    return knownKind(rest);
+  }
+  if (e.category === undefined || isCategory(e.category)) return e;
+  const { category: _unknown, ...rest } = e;
+  return rest;
+};
+
 const isMember = (x: unknown): x is Member => isRecord(x) && isText(x.id) && isText(x.name);
+/** A member as kept: their id and name, and their 收款方式 when it is a line of words. */
+const asMember = (m: Member): Member => (typeof m.pay === "string" && m.pay ? { id: m.id, name: m.name, pay: m.pay } : { id: m.id, name: m.name });
 
 /** A ledger, with anything that isn't the shape of a member or an entry left out; null when it isn't a ledger, or has nobody in it. */
 export function asLedger(x: unknown): Ledger | null {
   if (!isRecord(x) || !isText(x.id) || !isText(x.name) || !isText(x.currency) || !Array.isArray(x.members) || !Array.isArray(x.entries)) return null;
-  const members = x.members.filter(isMember);
+  const members = x.members.filter(isMember).map(asMember);
   if (!members.length) return null;
-  const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry) };
+  const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry).map(knownKind) };
   if (isCount(x.locked)) ledger.locked = x.locked;
   return ledger;
 }
@@ -152,7 +168,7 @@ export function asInvitations(x: unknown): Invitation[] | null {
 }
 
 /** What was read off a receipt (tools/split/src/server/read.ts, Read): the total as digits with a dot, its currency when it could be told, the shop, the tip and tax in the total, and the day it was spent. */
-export type Reading = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null; time?: string };
+export type Reading = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null; time?: string; category?: Category };
 /** The server's answer to reading a receipt: what was read, or nothing (`read` null); null when the answer isn't that. */
 /** A sum as a reading writes one: digits, and a dot before at most two more. */
 const SUM = /^\d{1,10}(\.\d{1,2})?$/;
@@ -168,7 +184,7 @@ export function asReadReply(x: unknown): { read: Reading | null } | null {
   const part = (x: unknown) => (isText(x) && SUM.test(x) ? x : null);
   // (the time printed, "21:05", only when read: it tells a receipt and its card slip apart, twins.ts)
   const time = isText(r.time) && /^([01]\d|2[0-3]):[0-5]\d$/.test(r.time) ? r.time : null;
-  return { read: { total: r.total, currency, merchant: line(r.merchant), tip: part(r.tip), tax: part(r.tax), date: isDay(r.date) ? r.date : null, place: line(r.place), payment: line(r.payment), ...(time ? { time } : {}) } };
+  return { read: { total: r.total, currency, merchant: line(r.merchant), tip: part(r.tip), tax: part(r.tax), date: isDay(r.date) ? r.date : null, place: line(r.place), payment: line(r.payment), ...(time ? { time } : {}), ...(isCategory(r.category) ? { category: r.category } : {}) } };
 }
 
 /** What came of inviting a friend: an invitation now waits for them, the same one already did, or the ledger is theirs already. */

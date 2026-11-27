@@ -21,12 +21,12 @@ buy is for the people its link was sent to.
 
 | Address | What |
 | --- | --- |
-| `/tuan/` | Home, laid out like a food-ordering app's: a search (titles, shops, goods) and the kinds of shop, staying at the top; the orders placed from this phone, sideways; the group buys open now, soonest to close first, as cards with the first picture of their goods (or a strip with the shop's first character), when they close, how many orders are in, what they sell, their pickup points and delivery areas, and badges for closing within the day and free delivery; the shops; the way in for merchants; opening an order by its code. Only shops that chose to be shown (all, unless they say not). The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
+| `/tuan/` | Home, for Greater Vancouver's home kitchens and group buys (its title, line, and the page's description for search engines and link previews say so), laid out like a food-ordering app's: a search (titles, shops, goods) and the kinds of shop, staying at the top; the orders placed from this phone, sideways; the group buys open now, soonest to close first, as cards with the first picture of their goods (or a strip with the shop's first character), when they close, how many orders are in, what they sell, their pickup points and delivery areas, and badges for closing within the day and free delivery; the shops; the way in for a kitchen or a group buy; opening an order by its code, folded into a link until it's wanted. Nothing open: one quiet line. Only shops that chose to be shown (all, unless they say not). The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
-| `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
+| `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. For an order to pick up, until it's handed over, a pickup code: a QR code of the order's place on the merchant's page (`/tuan/my/t/<group buy>?pick=<code>`), which the merchant scans with their phone's camera; drawn with `uqr`, fetched only for it (`src/client/ui/qr.ts`). |
 | `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. An account that runs no shop asks for one here; a shop it asked for says where the asking stands (waiting, sent back with a word on what to change, turned down). The site's owner gets the applications to answer at the top, and the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
-| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). Two ways to send it on: the 接龙 text for a group chat to copy (what it is, when it closes, the link, what can still be had, and the orders so far, with names only when the group buy's page shows them: `src/engine/chain.ts`), and a poster (`src/client/ui/poster.ts`: drawn on the phone, 1080 by 1440, the first goods that fit and a QR code of the link, made with `uqr`; fetched only when asked for; in WeChat it's saved or sent by a long press, elsewhere also by a button). The new-order mail's button leads here. |
+| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). Two ways to send it on: the 接龙 text for a group chat to copy (what it is, when it closes, the link, what can still be had, and the orders so far, with names only when the group buy's page shows them: `src/engine/chain.ts`), and a poster (`src/client/ui/poster.ts`: drawn on the phone, 1080 by 1440, the first goods that fit and a QR code of the link, made with `uqr`; fetched only when asked for; in WeChat it's saved or sent by a long press, elsewhere also by a button). The new-order mail's button leads here. At the pickup point, 取货核销 finds an order by its code or its phone's last digits and shows its card, to mark it paid and handed over; a scanned pickup code opens it on that order, and the address forgets the code. |
 | `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
 | `/tuan/my/s/<shop>` | What a shop says about itself, for its merchant to change: its name, what kind it is, the introduction, how to reach it, how to pay, the permit, and whether home shows the shop and its open group buys. Its address and who runs it stay with the site's owner. |
@@ -58,6 +58,14 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
 ### The pages
+
+Bright, unlike the rest of changle.ca (Steve's call on 2026-11-26: clean and light, the way Uber
+Eats looks). `styles.css` maps the site's tokens on `:root`: paper for the page and sheets, greys
+mixed from paper and ink for cards, chips and fields, ink for text, and `--press` (ink) for the
+thing to press, with paper on it. The tools' amber is kept for what wants noticing (what closes
+soon, what a case still wants, the shop's dot, a new order), and as text in a deeper mix that reads
+on paper (`--gel-ink`, and the same for success and danger). Headings are in the text face. The
+pickup code is paper and ink whatever the page is.
 
 One HTML file for every page; the address decides what shows. A buyer's pages are one script
 (`src/client/main.tsx`, with what it shares with the merchant's in a chunk); the merchant's pages
@@ -153,7 +161,14 @@ they agree after a crowd of orders, changes and cancellations at once.
   close first) at the live shops that are shown there, and those shops (60 at most, newest
   first). A shop is shown unless its own people untick it on its page (`shops.listed`,
   `migrations/0006_listed.sql`, which keeps the test shop of 2026-11-13 off it: its group buy is
-  for those given its link); its links work either way. A card says only what the group
+  for those given its link); its links work either way.
+- **The goods are in**: a merchant says so on the group buy's page (货到了), with a line on when
+  and where if they like (200 characters at most; `offers.arrived_at`, `arrived_note`,
+  `migrations/0008_arrived.sql`). The group buy's page shows it at the top, and each order's page
+  too (come and pick yours up, or it's on its way), but not once the order is handed over or if it
+  was cancelled. The merchant's page has a note to copy for the group (the group buy, the line, the
+  link), a way to change the line, and one to take it all back. Nobody is messaged: buyers learn it
+  from the group and the pages. A card says only what the group
   buy's own page already shows: the order count is left out where the list of who's in is off.
   The search and the kinds of shop work on the phone, over what came.
 - **A buyer** signs in to nothing. An order opens with its 6-character code and the last four

@@ -79,7 +79,8 @@ export const transfersOf = (l: Ledger): Transfer[] => {
 export const portionsOf = (e: Expense, l: Ledger) => portions(e.amount, e.split, e.rot, rosterOf(l));
 
 /** Everything spent, in smallest units. */
-export const spent = (l: Ledger) => expensesOf(l).reduce((a, e) => a + e.amount, 0);
+/** What was spent in all: the expenses, less the refunds (types.ts, refund). */
+export const spent = (l: Ledger) => expensesOf(l).reduce((a, e) => a + (e.refund ? -e.amount : e.amount), 0);
 
 /**
  * Whose turn it is for the odd cents on the next expense: one place on for every odd cent any
@@ -102,8 +103,10 @@ function netsOf(l: Ledger, withTransfers: boolean): number[] {
   const at = new Map(roster.map((id, i) => [id, i]));
   const nets = roster.map(() => 0);
   for (const e of expensesOf(l)) {
-    nets[at.get(e.payer)!] += e.amount;
-    for (const [id, part] of Object.entries(portionsOf(e, l))) nets[at.get(id)!] -= part;
+    // (a refund the other way round: whoever got it holds everyone's part of it)
+    const way = e.refund ? -1 : 1;
+    nets[at.get(e.payer)!] += way * e.amount;
+    for (const [id, part] of Object.entries(portionsOf(e, l))) nets[at.get(id)!] -= way * part;
   }
   if (withTransfers)
     for (const t of transfersOf(l)) {

@@ -352,7 +352,8 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
       else if (roll < 0.75) change = { do: "transfer", transfer: { id: `t${seed}-${step}`, at: step, from: who(), to: who(), amount: 1 + Math.floor(r() * 5000) } };
       else if (roll < 0.8) change = { do: "member", member: { id: `n${step}`, name: pick(["Ann", "Bo", "Cy", "Di"]) } };
       else if (roll < 0.84) change = { do: "rename", member: who(), name: pick(["Ann", "Bo", "Eve", "Fay"]) };
-      else if (roll < 0.92) (p.signal.on ? p.away : p.back)();
+      else if (roll < 0.88) change = { do: "pay", member: who(), pay: pick(["ann@example.com", "604 555 0101", " ", "bo@example.com"]) };
+      else if (roll < 0.94) (p.signal.on ? p.away : p.back)();
       else p.signal.loseAnswers = 1;
       if (change) p.s.do(change);
       done++;
@@ -445,6 +446,32 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, false, true, true, false],
     "the day: done when the ledger has the day the change said, none when it has none, and whatever it has when the change says nothing",
   );
+  // and one with its kind (分类)
+  const kinded: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, category: "food" }] };
+  const as = (category?: Expense["category"] | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(category === undefined ? {} : { category }) } });
+  eq(
+    [holds(kinded, as("food")), holds(kinded, as("fun")), holds(kinded, as(null)), holds(kinded, as()), holds(plainAt, as(null)), holds(plainAt, as("food"))],
+    [true, false, false, true, true, false],
+    "the kind: done when the ledger has the kind the change said, none when it has none, and whatever it has when the change says nothing",
+  );
+  // and a refund (退款)
+  const refunded: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, refund: true }] };
+  const back = (refund?: true | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(refund === undefined ? {} : { refund }) } });
+  eq(
+    [holds(refunded, back(true)), holds(refunded, back(null)), holds(refunded, back()), holds(plainAt, back(null)), holds(plainAt, back(true))],
+    [true, false, true, true, false],
+    "a refund: done when the ledger says it is one, or isn't when the change says null, and whatever it is when the change says nothing",
+  );
+  {
+    // someone's 收款方式: held once the ledger says it, tidied; taken off once it says none
+    const l0 = startLedger("h", "周末", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
+    const withPay = { ...l0, members: [{ id: "a", name: "A", pay: "a@example.com" }, l0.members[1]] };
+    eq(
+      [holds(withPay, { do: "pay", member: "a", pay: " a@example.com " }), holds(withPay, { do: "pay", member: "a", pay: "b@example.com" }), holds(l0, { do: "pay", member: "a", pay: "  " }), holds(withPay, { do: "pay", member: "a", pay: "" })],
+      [true, false, true, false],
+      "收款方式: held when the ledger says it (tidied), or says none when none was set",
+    );
+  }
 }
 
 // ---------- 7. when the phone can't go on ----------

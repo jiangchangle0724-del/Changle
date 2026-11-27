@@ -14,8 +14,10 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { Backdrop, Cast, clockText, Curtain, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { Backdrop, Cast, clockText, Curtain, diffName, eagleLine, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
 import { useDramaMusic } from "./score";
+import { CallBanner, lockedText, moodTags, useLiveCalls } from "./calls";
+import { stepAt } from "./script";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
 import "../../styles/tv-drama.css";
@@ -125,15 +127,23 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
   const open = v.phase === "act" || reveal;
+  // 台下喊一嗓子: a mood stays on its actor a while, the newest call on its banner; 当场识破: how many
+  const { zh } = useLang();
+  const { name } = useSeats();
+  const { now } = useRoom();
+  const { live, fresh } = useLiveCalls(v.calls, now);
+  const acting = v.phase === "act";
   return (
     <div className={`tvd-theatre is-${v.phase}`}>
-      <Backdrop {...stageOf(v)} live={v.phase === "act" || reveal}>
+      <Backdrop {...stageOf(v)} live={acting || reveal}>
         {reveal && <div className={`dm-spot-culprit ${step >= 1 && show ? "is-on" : ""}`} aria-hidden="true" />}
-        <Cast actors={actors} culprit={reveal && step >= 1 && show ? r!.culprit : null} best={reveal && step >= 3 ? r!.best : []} />
+        <Cast actors={actors} culprit={reveal && step >= 1 && show ? r!.culprit : null} best={reveal && step >= 3 ? r!.best : []} tags={acting ? moodTags(live, zh) : undefined} />
         <Curtain open={open} sound={sound} />
-        {v.phase === "act" && <Slate key={v.round} sound={sound} />}
-        {v.phase === "act" && <TwistBanner twist={v.twist} sound={sound} />}
+        {acting && <Slate key={v.round} sound={sound} />}
+        {acting && <TwistBanner twist={v.twist} sound={sound} />}
       </Backdrop>
+      {/* above the set, clear of the actors and the twist */}
+      {acting && <CallBanner call={fresh} nameOf={name} sound={sound} />}
       {reveal && r && <Verdict v={v} actors={actors} step={step} />}
     </div>
   );
@@ -229,7 +239,7 @@ function Setup({ v }: { v: DramaView }) {
             </li>
           )}
           <li>{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</li>
-          {v.mode !== "classic" && v.mode !== "read" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
+          {v.mode === "show" && <li>{diffName(v.diff, zh)}</li>}
           {v.mode === "show" && (v.groups ?? []).length > 0 && <li>{GROUPS.filter((x) => v.groups!.includes(x.key)).map((x) => (zh ? x.name.zh : x.name.en)).join(zh ? "、" : ", ")}</li>}
           <li>{zh ? `${v.total} 幕` : `${v.total} acts`}</li>
           <li>{v.pen === "drink" ? (pen.isCustom ? pen.text : zh ? "输了喝" : "Losers drink") : v.pen === "move" ? (zh ? "输了运动" : "Losers exercise") : zh ? "输了整蛊" : "Losers do a forfeit"}</li>
@@ -442,6 +452,12 @@ function Script({ v }: { v: DramaView }) {
           </small>
         )}
         {credit && <small>{zh ? `编剧：${credit}` : `by ${credit}`}</small>}
+        {v.mode === "show" && (v.locked ?? 0) > 0 && (
+          <small className="tvd-locked" key={v.locked}>
+            <Eye size={22} aria-hidden="true" />
+            {lockedText(v.locked ?? 0, zh, false, true)}
+          </small>
+        )}
       </p>
       <ol className="tvd-script-steps" aria-hidden="true">
         {beats.map((_, i) => (
@@ -455,16 +471,6 @@ function Script({ v }: { v: DramaView }) {
       </p>
     </div>
   );
-}
-
-/**
- * Which step the story should be at, `f` of the way through the scene: a scene's four steps put the
- * third at the twist (half time); otherwise the steps share the time equally.
- */
-function stepAt(f: number, n: number, twist: boolean): number {
-  const x = Math.min(1, Math.max(0, f));
-  if (twist && n === 4) return x < 0.2 ? 0 : x < 0.5 ? 1 : x < 0.85 ? 2 : 3;
-  return Math.min(n - 1, Math.floor(x * n));
 }
 
 /**
@@ -693,6 +699,7 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
 
 function Outcome({ v, actors }: { v: DramaView; actors: Actor[] }) {
   const { zh, tr } = useLang();
+  const { name } = useSeats();
   const r = v.result!;
   const best = actors.filter((a) => r.best.includes(a.pid));
   const lines: ReactNode[] = [];
@@ -715,6 +722,12 @@ function Outcome({ v, actors }: { v: DramaView; actors: Actor[] }) {
       <p key="right" className="tvd-note">
         {r.right.length ? (zh ? `猜对的 ${r.right.length} 人，每人 +1` : `${r.right.length} guessed right: +1 each`) : zh ? "没有人猜对" : "Nobody guessed right"}
         {!r.caught && (zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
+      </p>,
+    );
+  if (!r.quiet && v.mode === "show" && r.early?.length)
+    lines.push(
+      <p key="eagle" className="tvd-note tvd-eagle">
+        {eagleLine(r.early, name, zh)}
       </p>,
     );
   const readStars = v.mode === "read" ? (r.stars[v.cast[0]?.pid ?? ""] ?? 0) : 0;

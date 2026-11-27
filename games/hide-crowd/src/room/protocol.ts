@@ -47,6 +47,14 @@ export interface PlayerView {
   tagged: number;
   /** in a match: points so far (once a round is over, with that round's) */
   total?: number;
+  /**
+   * in a knockout's stage: where they stand (1 the best; live while it's on), and whether that goes
+   * through (once it's over, whether it did)
+   */
+  rank?: number;
+  through?: boolean;
+  /** in a knockout: the stage they went out in */
+  out?: number;
 }
 
 /**
@@ -148,7 +156,8 @@ export interface GameView {
   drift: { x: number; y: number };
   endsAt: number;
   remainingMs: number;
-  scoreToWin: number;
+  /** the points that end the round early (null: it runs its whole time, a knockout's stage) */
+  scoreToWin: number | null;
   /** the crowd is thinning now: the round's last THIN_MS, in a round long enough (engine leavesAt) */
   thinning: boolean;
   avatars: AvatarView[];
@@ -199,6 +208,22 @@ export interface ResultView {
   mine?: { by: TallyView[]; got: TallyView[] } | null;
   /** in a match: the place this was, the next one (null after the last), and, after the last, who won it and its titles */
   match?: { index: number; of: number; next: ArenaId | null; done: boolean; winner: string | null; youWon: boolean; awards: AwardView[] } | null;
+  /**
+   * in a knockout: the stage just played (and whether it was the final), how many went through, this
+   * phone's lot (through, out, or champion; null on the big screen or for someone watching), the next
+   * stage's place and players, and once it's won, the champion and the knockout's titles
+   */
+  knockout?: {
+    stage: number;
+    final: boolean;
+    through: number;
+    you: "through" | "out" | "champion" | null;
+    next: ArenaId | null;
+    nextPlayers: number;
+    done: boolean;
+    champion: string | null;
+    awards: AwardView[];
+  } | null;
 }
 
 export interface RoomView {
@@ -222,6 +247,11 @@ export interface RoomView {
   };
   /** a match under way: which place this round is (1 the first) of how many */
   match: { index: number; of: number } | null;
+  /**
+   * a knockout under way or just won: the stage on or just played (1 the first) of how many, how many
+   * go through from it (1 in the final), the road (8, 5, 3, 1), and this phone: out in which stage, if it is
+   */
+  knockout: { stage: number; stages: number; through: number; final: boolean; path: number[]; out: number | null; done: boolean } | null;
   game: GameView | null;
   result: ResultView | null;
   /** the host took everyone back to the table: every page goes there */

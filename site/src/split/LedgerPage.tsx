@@ -29,8 +29,9 @@ import { localDay, money } from "./format";
 import { keyFrom } from "./invite";
 import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
-import { byDay, dayLabel, extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
-import { Bar, Rolling } from "./parts";
+import { categoryOf } from "./kinds";
+import { byDay, CATEGORY_WORD, dayLabel, extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
+import { Bar, KindMark, Rolling } from "./parts";
 import { PhotoPicker } from "./Photos";
 import { PictureSheet } from "./PictureSheet";
 import { Receipts, RECEIPTS_MAX } from "./Receipts";
@@ -512,13 +513,16 @@ export function ExpenseList({
         }
       />
     );
-  const row = (e: Expense, paid = paidInOf(e, ledger), extras = extrasText(e.tip, e.tax, e.paidIn?.currency ?? ledger.currency, lang)) => (
+  const row = (e: Expense, paid = paidInOf(e, ledger), extras = extrasText(e.tip, e.tax, e.paidIn?.currency ?? ledger.currency, lang), kind = categoryOf(e)) => (
     <>
+      {/* its kind of spending: picked, read off its receipt, or what its words say (kinds.ts) */}
+      <KindMark kind={kind} />
       <span className="split-row-text">
         {/* (what it was for; with no note, where: the business its receipt named) */}
         <strong className={e.note || e.merchant ? undefined : "is-quiet"}>{e.note || e.merchant || say(lang, "noNote")}</strong>
         <span>
           {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
+          <span className="ui-visually-hidden"> · {say(lang, CATEGORY_WORD[kind])}</span>
           {/* with receipt photos: a clip, which opening the expense shows */}
           {!!e.files?.length && (
             <>

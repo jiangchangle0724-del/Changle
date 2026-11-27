@@ -6,8 +6,13 @@
  * yen (money.ts).
  */
 
-/** One person in a ledger. The order of `Ledger.members` is the roster's order, and never changes. */
-export type Member = { id: string; name: string };
+/**
+ * One person in a ledger. The order of `Ledger.members` is the roster's order, and never changes.
+ * `pay` is how they take money (收款方式, 2026-11-26: an e-Transfer email or phone, as they typed
+ * it), shown to whoever pays them; one line, and a member without one has none. A 查看链接 never
+ * gets it (tools/split/src/room/ledger.ts, look).
+ */
+export type Member = { id: string; name: string; pay?: string };
 
 /** Who an expense is shared between, and how. The ids are members' ids. */
 export type Split =
@@ -67,6 +72,18 @@ export type Expense = {
   merchant?: string;
   place?: string;
   payment?: string;
+  /**
+   * what kind of spending it was (categories.ts): read off its receipt, or picked. Without one, its
+   * words are guessed from. Shown and summed up, and nothing more.
+   */
+  category?: "food" | "groceries" | "transport" | "lodging" | "fun" | "shopping" | "other";
+  /**
+   * 退款 (2026-11-26, as Tricount's money received): money that came back to the people sharing it
+   * (a refund, a deposit returned) rather than money paid out. `payer` is who got it; it is shared
+   * as an expense is, the other way round: each one's part of it comes off what they bear, and
+   * whoever got it holds it for them (ledger.ts, netsOf). Never with a tip or tax.
+   */
+  refund?: true;
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };

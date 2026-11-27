@@ -17,9 +17,9 @@
  *     anyone's share; a change that doesn't mention them keeps them while what was paid stays.
  * 12. The day an expense was spent: a day the calendar has; a change that doesn't mention it leaves it.
  */
-import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
+import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, settlement, spent, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
-import { addExpense, startLedger } from "../src/split/ops";
+import { addExpense, PAY_MAX, removeMember, renameMember, startLedger } from "../src/split/ops";
 import { asLedger } from "../src/split/shape";
 import { randomLedger, rng } from "./split/ledgers";
 
@@ -557,6 +557,83 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq([lines(served.ledger), served.took], [shop, ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
   eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], payment: 5 }] })?.entries, [], "a ledger with a number for what paid leaves that entry out");
+}
+
+// ---------- 收款方式: someone's way of being paid, set, changed, taken off ----------
+{
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }]);
+  const set = applyChange(start, { do: "pay", member: "s", pay: "  steve@example.com  " });
+  eq(set?.members[0], { id: "s", name: "Steve", pay: "steve@example.com" }, "set for someone, tidied");
+  eq([applyChange(set!, { do: "pay", member: "s", pay: "steve@example.com " }), applyChange(start, { do: "pay", member: "zz", pay: "x" }), applyChange(start, { do: "pay", member: "w", pay: "  " })], [null, null, null], "nothing changes: the same again, someone who isn't there, nothing to take off");
+  eq(applyChange(set!, { do: "pay", member: "s", pay: "604 555 0101" })?.members[0].pay, "604 555 0101", "changed: a phone number");
+  const off = applyChange(set!, { do: "pay", member: "s", pay: " " });
+  eq([off?.members[0], "pay" in (off?.members[0] ?? {})], [{ id: "s", name: "Steve" }, false], "nothing left once tidied: taken off, not left empty");
+  eq(applyChange(start, { do: "pay", member: "s", pay: "a".repeat(200) })?.members[0].pay?.length, PAY_MAX, `at most ${PAY_MAX} characters kept`);
+  eq([renameMember(set!, "s", "Steve J").members[0].pay, removeMember(set!, "s").members.map((m) => m.id)], ["steve@example.com", ["w", "m"]], "renamed, it stays with them; taken off the roster, it goes with them");
+  eq(balances(set!), balances(start), "it changes nobody's money");
+  // sent and taken by the server, and read back by a phone
+  const served = serve(start, [sent({ do: "pay", member: "s", pay: "steve@example.com" }), sent({ do: "pay", member: "s", pay: "steve@example.com" })]);
+  eq([served.ledger.members[0].pay, served.took], ["steve@example.com", ["new", "nothing"]], "the server takes it once; the same again is nothing");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.members[0], { id: "s", name: "Steve", pay: "steve@example.com" }, "and a phone reads it back");
+  eq(asLedger({ ...served.ledger, members: [{ id: "s", name: "Steve", pay: 5 }, ...served.ledger.members.slice(1)] })?.members[0], { id: "s", name: "Steve" }, "a 收款方式 that isn't words is let go, and the person kept");
+  const good = { id: "c-pay", at: 1, change: { do: "pay", member: "s", pay: "x@y.z" } };
+  eq(parseSent(good)?.change, { do: "pay", member: "s", pay: "x@y.z" }, "read off the network");
+  eq([parseSent({ ...good, change: { do: "pay", member: "s" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: 5 } }), parseSent({ ...good, change: { do: "pay", member: "s s", pay: "x" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: "x".repeat(401) } })], [null, null, null, null], "not without one, not a number, not a made-up member id, not past what is read at all");
+}
+
+// ---------- 分类: an expense's kind, kept, changed, taken off ----------
+{
+  const start = startLedger("k", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const gas: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 5800, note: "", merchant: "Petro-Canada", split: { how: "equal", among: ["s", "w"] }, rot: 0, category: "transport" };
+  const kept = applyChange(start, { do: "expense", expense: gas });
+  eq((kept?.entries[0] as Expense).category, "transport", "recorded with a kind: kept");
+  eq("category" in (applyChange(start, { do: "expense", expense: { ...gas, category: "petrol" as Expense["category"] } })?.entries[0] ?? {}), false, "a kind there isn't: the expense is kept, without it");
+  const said = { payer: "s", amount: 5800, note: "", split: gas.split };
+  eq((applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: "fun" } })?.entries[0] as Expense).category, "fun", "an edit to another kind changes it");
+  eq("category" in (applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: null } })?.entries[0] ?? {}), false, "null takes it off");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, merchant: "Petro-Canada" } }), null, "an edit that doesn't mention it (and changes nothing else) changes nothing: it stays");
+  eq((applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, amount: 6000 } })?.entries[0] as Expense).category, "transport", "an edit about something else leaves it");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: "petrol" as Expense["category"] } }), null, "an edit to a kind there isn't: as unsaid, so it stays (and nothing changed)");
+  eq(balances(kept!), balances(applyChange(start, { do: "expense", expense: { ...gas, category: undefined } })!), "it changes nobody's share");
+  // over the network: a kind there is goes through; one there isn't is as good as unsaid
+  const good = { id: "c-k", at: 1, change: { do: "expense", expense: { ...gas } } };
+  eq((parseSent(good)?.change as { expense: Expense }).expense.category, "transport", "read off the network with it");
+  eq("category" in (parseSent({ ...good, change: { do: "expense", expense: { ...gas, category: "petrol" } } })?.change as { expense: Expense }).expense, false, "a kind this side doesn't know: the expense comes through without it");
+  eq([(parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e1", to: { ...said, category: null } } })?.change as { to: Record<string, unknown> }).to.category === null, "category" in (parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e1", to: { ...said, category: "petrol" } } })?.change as { to: Record<string, unknown> }).to], [true, false], "an edit: null comes through to take it off; a kind it doesn't know, as unsaid");
+  const served = serve(start, [sent({ do: "expense", expense: gas })]);
+  eq((asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0] as Expense).category, "transport", "the server keeps it, and a phone reads it back");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], category: "spaceflight" }] })?.entries.map((e) => [e.id, "category" in e]), [["e1", false]], "a ledger saying a kind this phone doesn't know: the expense kept, without it");
+}
+
+// ---------- 退款: money that came back, shared the other way round ----------
+{
+  const start = startLedger("r", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }]);
+  const three = { how: "equal" as const, among: ["s", "w", "m"] };
+  const hotel: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 30000, note: "酒店", split: three, rot: 0 };
+  const back: Expense = { kind: "expense", id: "e2", at: 2, payer: "s", amount: 9000, note: "退了一晚", split: three, rot: 1, refund: true };
+  const alone = applyChange(start, { do: "expense", expense: back })!;
+  eq([(alone.entries[0] as Expense).refund, balances(alone), spent(alone)], [true, { s: -6000, w: 3000, m: 3000 }, -9000], "a refund alone: Steve got $90 back, so he holds each one's $30 of it, $60 that isn't his");
+  const both = applyChange(applyChange(start, { do: "expense", expense: hotel })!, { do: "expense", expense: back })!;
+  const cheaper = applyChange(start, { do: "expense", expense: { ...hotel, amount: 21000 } })!;
+  eq([balances(both), spent(both), settlement(both).steps], [balances(cheaper), 21000, settlement(cheaper).steps], "a $300 hotel and $90 of it back: everyone stands as if the hotel was $210, and the plan is the same");
+  const tipped = applyChange(start, { do: "expense", expense: { ...back, tip: 500, tax: 300 } })!;
+  eq(["tip" in tipped.entries[0], "tax" in tipped.entries[0]], [false, false], "a refund keeps no tip or tax");
+  // an edit turns one into the other, or leaves it
+  const said = { payer: "s", amount: 9000, note: "退了一晚", split: three };
+  const asExpense = applyChange(both, { do: "edit", entry: "e2", to: { ...said, refund: null } })!;
+  eq(["refund" in asExpense.entries[1], balances(asExpense)], [false, balances(applyChange(applyChange(start, { do: "expense", expense: hotel })!, { do: "expense", expense: { ...back, refund: undefined } })!)], "null: an expense again, and everyone stands as one");
+  const tippedLunch = applyChange(start, { do: "expense", expense: { ...hotel, tip: 1500 } })!;
+  const turned = applyChange(tippedLunch, { do: "edit", entry: "e1", to: { payer: "s", amount: 30000, note: "酒店", split: three, refund: true } })!;
+  eq([(turned.entries[0] as Expense).refund, "tip" in turned.entries[0]], [true, false], "true: a refund, and its tip goes");
+  eq((applyChange(both, { do: "edit", entry: "e2", to: { ...said, note: "退了一晚房费" } })!.entries[1] as Expense).refund, true, "an edit that doesn't say: it stays a refund");
+  // over the network: true, or (for an edit) null; anything else isn't a change at all
+  const sentBack = (refund: unknown) => parseSent({ id: "c-r", at: 1, change: { do: "expense", expense: { ...back, refund } } });
+  eq([(sentBack(true)?.change as { expense: Expense }).expense.refund, sentBack("yes"), sentBack(false), sentBack(1), "refund" in ((sentBack(undefined)?.change as { expense: Expense }).expense)], [true, null, null, null, false], "a new one: refund true goes through; yes, false or 1 make it no change; none, an expense");
+  const sentEdit = (refund: unknown) => parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e2", to: { ...said, refund } } });
+  eq([(sentEdit(true)?.change as { to: Record<string, unknown> }).to.refund, (sentEdit(null)?.change as { to: Record<string, unknown> }).to.refund === null, sentEdit("no"), "refund" in (sentEdit(undefined)?.change as { to: Record<string, unknown> }).to], [true, true, null, false], "an edit: true or null go through; anything else isn't a change");
+  const served = serve(start, [sent({ do: "expense", expense: hotel }), sent({ do: "expense", expense: back })]);
+  eq(balances(asLedger(JSON.parse(JSON.stringify(served.ledger)))!), balances(both), "the server keeps it, and a phone reads it back the same");
+  eq(asLedger({ ...served.ledger, entries: [served.ledger.entries[0], { ...served.ledger.entries[1], refund: "yes" }] })?.entries.map((e) => "refund" in e), [false, false], "a ledger saying refund some other way: nothing this phone reads as one");
 }
 
 if (failed) {

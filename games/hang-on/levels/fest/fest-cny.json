@@ -1,0 +1,155 @@
+{
+  "id": "fest-cny",
+  "fest": "cny",
+  "world": "kitchen",
+  "tier": 0,
+  "name": {
+    "zh": "新春蒸笼宴",
+    "en": "New Year Steamer Banquet"
+  },
+  "teaches": "steam",
+  "w": 2560,
+  "h": 720,
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/fest-cny.json",
+  "spawn": {
+    "x": 100,
+    "y": 646
+  },
+  "goal": {
+    "x": 2440,
+    "y": 60,
+    "w": 120,
+    "h": 220
+  },
+  "checkpoints": [
+    {
+      "x": 1270,
+      "y": 408
+    },
+    {
+      "x": 2140,
+      "y": 276
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 618,
+      "y": 272
+    },
+    {
+      "x": 1963,
+      "y": 312
+    },
+    {
+      "x": 2350,
+      "y": 261
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 680,
+      "w": 340,
+      "h": 40,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 350,
+      "y": 630,
+      "w": 300,
+      "h": 90,
+      "material": "bamboo"
+    },
+    {
+      "kind": "ground",
+      "x": 660,
+      "y": 530,
+      "w": 420,
+      "h": 190,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1150,
+      "y": 480,
+      "w": 250,
+      "h": 240,
+      "material": "bamboo"
+    },
+    {
+      "kind": "ground",
+      "x": 1440,
+      "y": 410,
+      "w": 160,
+      "h": 310,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1640,
+      "y": 360,
+      "w": 300,
+      "h": 360,
+      "material": "bamboo"
+    },
+    {
+      "kind": "ground",
+      "x": 1980,
+      "y": 340,
+      "w": 80,
+      "h": 380,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2110,
+      "y": 320,
+      "w": 220,
+      "h": 400,
+      "material": "bamboo"
+    },
+    {
+      "kind": "ground",
+      "x": 2360,
+      "y": 280,
+      "w": 200,
+      "h": 440,
+      "material": "bamboo"
+    }
+  ],
+  "vents": [
+    {
+      "x": 530,
+      "y": 594,
+      "w": 100,
+      "h": 36,
+      "reach": 320,
+      "on": 1.6,
+      "off": 2.8,
+      "power": 0.8
+    },
+    {
+      "x": 1290,
+      "y": 444,
+      "w": 100,
+      "h": 36,
+      "reach": 320,
+      "on": 1.6,
+      "off": 3.6,
+      "power": 0.8
+    }
+  ]
+}

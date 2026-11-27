@@ -26,6 +26,9 @@ export const GENERIC_BEATS: T[] = [
   t("最后每人说一句话，让观众相信你。", "To finish, one line each to convince the audience."),
 ];
 
+/** On a 新手 table the first tip says to read the script, not to make it up. */
+export const STARTER_TIP: T = t("台词本上的话照着念就行，念错了也没关系；念完了想多说一句，就用自己的话。", "Just read your script out; stumbles are fine. Once you've read a line, add one of your own if you like.");
+
 /** Five things that make anyone's scene work, for a first-timer. */
 export const FIRST_TIME_TIPS: T[] = [
   t("不用背台词，用自己的话说，说错了也没关系。", "No lines to learn. Say it your own way; nobody minds a stumble."),

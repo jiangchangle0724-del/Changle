@@ -32,7 +32,7 @@ import { asAmountText, MAX_TERMS, press, totalOf, type Key } from "../src/split/
 import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
-import { byDay, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, personLine, personStands, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
+import { byDay, CATEGORY_WORD, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, personLine, personStands, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
 import { inLedger, summaryOf } from "../src/split/summary";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
@@ -42,9 +42,11 @@ import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
 import { peopleOf, statementOf } from "../src/split/people";
+import { CATEGORIES, isCategory } from "../src/split/categories";
+import { byKind, categoryOf, guessed } from "../src/split/kinds";
 import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
-import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
+import { asDone, asMine, asPushed, asReadReply, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
@@ -338,9 +340,9 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
 
   // what is said to the ledger
-  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
   eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
-  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
 
   // opened again
   const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, date, merchant, place, payment, ...said }) => ({ ...said, ...(date ? { date } : {}), ...(merchant ? { merchant } : {}), ...(place ? { place } : {}), ...(payment ? { payment } : {}) }))(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
@@ -886,7 +888,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null, category: null, refund: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -1100,18 +1102,18 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const csv = csvOf(l, "zh");
   eq([csv.charCodeAt(0), csv.endsWith("\r\n"), csv.split("\r\n").length], [0xfeff, true, 6], "a byte-order mark first (so Excel reads Chinese), and every line ends CR LF");
   eq(rows(csv), [
-    "日期,类型,备注,谁付的,金额,货币,Steve,小王,阿美,Jason,小李",
-    "2026-11-13,花销,晚饭,小王,186.00,CAD,-37.20,148.80,-37.20,-37.20,-37.20",
-    "2026-11-14,花销,油费,Steve,120.00,CAD,96.00,-24.00,-24.00,-24.00,-24.00",
-    "2026-11-14,花销,早餐,阿美,81.50,CAD,-16.30,-16.30,65.20,-16.30,-16.30",
-    ",合计,,,387.50,CAD,42.50,108.50,4.00,-77.50,-77.50",
-  ], "the plan's weekend: a row for each expense (the day it was spent: the day it was recorded, when it says none), a column for each person, and the totals: where everyone stands");
+    "日期,类型,备注,分类,谁付的,金额,货币,Steve,小王,阿美,Jason,小李",
+    "2026-11-13,花销,晚饭,餐饮,小王,186.00,CAD,-37.20,148.80,-37.20,-37.20,-37.20",
+    "2026-11-14,花销,油费,交通,Steve,120.00,CAD,96.00,-24.00,-24.00,-24.00,-24.00",
+    "2026-11-14,花销,早餐,餐饮,阿美,81.50,CAD,-16.30,-16.30,65.20,-16.30,-16.30",
+    ",合计,,,,387.50,CAD,42.50,108.50,4.00,-77.50,-77.50",
+  ], "the plan's weekend: a row for each expense (the day it was spent: the day it was recorded, when it says none), its kind of spending, a column for each person, and the totals: where everyone stands");
 
   // a payment, one taken out, and each column adding up to where its person stands
   const paid = takeOut(addTransfer(spend(l, "e4", at(14, 11, 0), "j", 999, "咖啡"), { id: "t1", at: at(14, 12, 0), from: "j", to: "w", amount: 7750 }), "e4", at(14, 11, 5));
   const lines = rows(csvOf(paid, "zh"));
-  eq([lines.length, lines[4], lines.at(-1)], [6, "2026-11-14,转账,Jason 给 小王,Jason,77.50,CAD,0.00,-77.50,0.00,77.50,0.00", ",合计,,,387.50,CAD,42.50,31.00,4.00,0.00,-77.50"], "a payment: for the one who made it, against the one paid; a deleted expense isn't there");
-  const nums = (line: string) => line.split(",").slice(6).map((x) => Math.round(Number(x) * 100));
+  eq([lines.length, lines[4], lines.at(-1)], [6, "2026-11-14,转账,Jason 给 小王,,Jason,77.50,CAD,0.00,-77.50,0.00,77.50,0.00", ",合计,,,,387.50,CAD,42.50,31.00,4.00,0.00,-77.50"], "a payment: for the one who made it, against the one paid; a deleted expense isn't there");
+  const nums = (line: string) => line.split(",").slice(7).map((x) => Math.round(Number(x) * 100));
   const body = lines.slice(1, -1).map(nums);
   ok(body.every((r) => r.reduce((a, b) => a + b, 0) === 0), "every row adds up to nothing across the people");
   eq(everyone.map((_, i) => body.reduce((a, r) => a + r[i], 0)), everyone.map((id) => balances(paid)[id]), "and each person's column adds up to where they stand");
@@ -1121,33 +1123,33 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const away = spend(spend(l, "e5", at(14, 13, 0), "s", 4200, "租车", { paidIn: { currency: "USD", amount: 3000, rate: "1.4" } }), "e6", at(14, 14, 0), "w", 2730, "拉面", { paidIn: { currency: "JPY", amount: 3000, rate: "0.0091" } });
   const abroad = rows(csvOf(away, "en"));
   eq([abroad[0], abroad[1], abroad[4], abroad[5]], [
-    "Date,Type,Note,Paid by,Amount,Currency,Paid in,Amount paid,Rate,Steve,小王,阿美,Jason,小李",
-    "2026-11-13,Expense,晚饭,小王,186.00,CAD,,,,-37.20,148.80,-37.20,-37.20,-37.20",
-    "2026-11-14,Expense,租车,Steve,42.00,CAD,USD,30.00,1.4,33.60,-8.40,-8.40,-8.40,-8.40",
-    "2026-11-14,Expense,拉面,小王,27.30,CAD,JPY,3000,0.0091,-5.46,21.84,-5.46,-5.46,-5.46",
+    "Date,Type,Note,Category,Paid by,Amount,Currency,Paid in,Amount paid,Rate,Steve,小王,阿美,Jason,小李",
+    "2026-11-13,Expense,晚饭,Food & drink,小王,186.00,CAD,,,,-37.20,148.80,-37.20,-37.20,-37.20",
+    "2026-11-14,Expense,租车,Transport,Steve,42.00,CAD,USD,30.00,1.4,33.60,-8.40,-8.40,-8.40,-8.40",
+    "2026-11-14,Expense,拉面,Food & drink,小王,27.30,CAD,JPY,3000,0.0091,-5.46,21.84,-5.46,-5.46,-5.46",
   ], "in English; paid in another currency: what was paid, in that currency's own units, and at what rate");
 
   // the day it says it was spent; and the tips and tax, in the ledger's currency, in a ledger that has any
   const tipped = spend(spend(l, "e7", at(15, 9, 0), "s", 12300, "Joe's", { tip: 1800, tax: 525, date: "2026-11-12" }), "e8", at(15, 10, 0), "w", 4000, "Lunch", { paidIn: { currency: "USD", amount: 3000, rate: "1.3333" }, tip: 450 });
   const withExtras = rows(csvOf(tipped, "zh"));
   eq([withExtras[0], withExtras[4], withExtras[5], withExtras.at(-1)], [
-    "日期,类型,备注,谁付的,金额,货币,原来付的货币,原来付了多少,汇率,小费,税,Steve,小王,阿美,Jason,小李",
-    "2026-11-12,花销,Joe's,Steve,123.00,CAD,,,,18.00,5.25,98.40,-24.60,-24.60,-24.60,-24.60",
-    "2026-11-15,花销,Lunch,小王,40.00,CAD,USD,30.00,1.3333,6.00,,-8.00,32.00,-8.00,-8.00,-8.00",
-    ",合计,,,550.50,CAD,,,,24.00,5.25,132.90,115.90,-28.60,-110.10,-110.10",
+    "日期,类型,备注,分类,谁付的,金额,货币,原来付的货币,原来付了多少,汇率,小费,税,Steve,小王,阿美,Jason,小李",
+    "2026-11-12,花销,Joe's,其他,Steve,123.00,CAD,,,,18.00,5.25,98.40,-24.60,-24.60,-24.60,-24.60",
+    "2026-11-15,花销,Lunch,餐饮,小王,40.00,CAD,USD,30.00,1.3333,6.00,,-8.00,32.00,-8.00,-8.00,-8.00",
+    ",合计,,,,550.50,CAD,,,,24.00,5.25,132.90,115.90,-28.60,-110.10,-110.10",
   ], "the day an expense says it was spent; tips and tax, the other currency's at its own rate, and their totals");
   const shopped = rows(csvOf(spend(spend(l, "e9", at(15, 9, 0), "s", 2000, "", { merchant: "McDonald's", place: "Aldergrove, BC", payment: "Mastercard" }), "e10", at(15, 10, 0), "w", 1000, "茶", { payment: "现金" }), "en"));
   eq([shopped[0], shopped[4], shopped[5], shopped.at(-1)], [
-    "Date,Type,Note,Name,Place,Paid with,Paid by,Amount,Currency,Steve,小王,阿美,Jason,小李",
-    "2026-11-15,Expense,,McDonald's,\"Aldergrove, BC\",Mastercard,Steve,20.00,CAD,16.00,-4.00,-4.00,-4.00,-4.00",
-    "2026-11-15,Expense,茶,,,现金,小王,10.00,CAD,-2.00,8.00,-2.00,-2.00,-2.00",
-    ",Total,,,,,,417.50,CAD,56.50,112.50,-2.00,-83.50,-83.50",
+    "Date,Type,Note,Category,Name,Place,Paid with,Paid by,Amount,Currency,Steve,小王,阿美,Jason,小李",
+    "2026-11-15,Expense,,Food & drink,McDonald's,\"Aldergrove, BC\",Mastercard,Steve,20.00,CAD,16.00,-4.00,-4.00,-4.00,-4.00",
+    "2026-11-15,Expense,茶,Food & drink,,,现金,小王,10.00,CAD,-2.00,8.00,-2.00,-2.00,-2.00",
+    ",Total,,,,,,,417.50,CAD,56.50,112.50,-2.00,-83.50,-83.50",
   ], "where it was bought and how it was paid: three columns after the note, in a ledger that has any, blank where an expense says none");
 
   // what someone typed: quoted where CSV needs it, and never taken for a formula
   const odd = addExpense(startLedger("o", "o", "JPY", [{ id: "a", name: "=A" }, { id: "b", name: "B,C" }]), { id: "x", at: at(14, 8, 0), payer: "b", amount: 3001, note: '晚饭, "大"餐', split: { how: "equal", among: ["a", "b"] } });
   const oddRows = csvOf(odd, "zh").slice(1).split("\r\n");
-  eq([oddRows[0], oddRows[1]], ["日期,类型,备注,谁付的,金额,货币,'=A,\"B,C\"", "2026-11-14,花销,\"晚饭, \"\"大\"\"餐\",\"B,C\",3001,JPY,-1501,1501"], "a comma or a quote: in quotes; a name like a formula: shown, not run; yen in whole yen, the odd one to whose turn it is");
+  eq([oddRows[0], oddRows[1]], ["日期,类型,备注,分类,谁付的,金额,货币,'=A,\"B,C\"", "2026-11-14,花销,\"晚饭, \"\"大\"\"餐\",餐饮,\"B,C\",3001,JPY,-1501,1501"], "a comma or a quote: in quotes; a name like a formula: shown, not run; yen in whole yen, the odd one to whose turn it is");
   const formulas = ["=1+1", "+1", "-1", "@x"].map((note, i) => rows(csvOf(spend(five, `f${i}`, at(14, 8, 0), "s", 500, note), "zh"))[1].split(",")[2]);
   eq(formulas, ["'=1+1", "'+1", "'-1", "'@x"], "a note that starts like a formula gets a ' in front");
   eq(rows(csvOf(five, "zh")).length, 2, "nothing recorded: the headings and the totals");
@@ -1466,6 +1468,139 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     }
   }
   ok(!bad, `200 random ledgers: nothing typed finds all, and each expense's own note and own amount find it${bad ? ` (${bad})` : ""}`);
+}
+
+// ---------- 23. 收款方式 in the record, and when it didn't stick ----------
+{
+  {
+    // the plan copied as text: how each one still to be paid takes money, a line each, after the transfers
+    const people = [{ id: "s", name: "Steve", pay: "steve@example.com" }, { id: "w", name: "小王" }, { id: "m", name: "阿美", pay: "604 555 0101" }];
+    const l: Ledger = { ...startLedger("X", "周末", "CAD", people), members: people };
+    const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 9000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 };
+    const lunch: Expense = { ...dinner, id: "e2", payer: "m", amount: 6000, split: { how: "equal", among: ["w"] } };
+    const withBoth: Ledger = { ...l, entries: [dinner, lunch] };
+    const text = planText(withBoth, settlement(withBoth), "zh").split("\n");
+    eq(text.slice(-2), ["Steve的收款方式：steve@example.com", "阿美的收款方式：604 555 0101"], "each one to be paid, with how they take money, after the transfers");
+    eq(planText(withBoth, settlement(withBoth), "en").split("\n").slice(-2), ["Pay Steve at steve@example.com", "Pay 阿美 at 604 555 0101"], "in English");
+    const plainText = planText({ ...withBoth, members: people.map(({ id, name }) => ({ id, name })) }, settlement(withBoth), "zh");
+    eq(plainText.includes("收款方式"), false, "nobody has said: nothing more than the transfers");
+  }
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const steps: Change[] = [{ do: "pay", member: "s", pay: "steve@example.com" }, { do: "pay", member: "s", pay: " " }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `p${i}`, at: 1000 + i, change, by: "w" } };
+  });
+  eq(historyOf(now, log, [], "s", "zh", 5000).map((l) => l.text), ["去掉了Steve的收款方式", "填了Steve的收款方式"], "the record says it was set, and taken off, and not what it said");
+  eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.text), ["Payment details removed: Steve", "Payment details set: Steve"], "in English");
+  eq(historyOf(now, log, [], "s", "zh", 5000).some((l) => l.action), false, "and offers nothing to change back");
+  eq([lostLine(start, { id: "x", at: 1, change: steps[0] }, "zh"), lostLine(start, { id: "x", at: 1, change: { do: "pay", member: "zz", pay: "x" } }, "en")], ["收款方式：Steve", "Another change"], "one that didn't stick: whose it was");
+}
+
+// ---------- 24. 分类: what an expense's words say it was, and the record ----------
+{
+  const said = (note: string, merchant?: string) => guessed({ note, merchant });
+  eq(
+    [said("", "Petro-Canada"), said("加油"), said("", "Uber"), said("停车费"), said("", "BC Ferries"), said("机票")],
+    ["transport", "transport", "transport", "transport", "transport", "transport"],
+    "transport: a gas station, filling up, a ride, parking, a ferry, a flight",
+  );
+  eq([said("", "Hilton Whistler"), said("酒店"), said("", "Airbnb")], ["lodging", "lodging", "lodging"], "lodging: a hotel (酒店 isn't drink), a rental");
+  eq([said("", "Costco Wholesale"), said("", "T&T Supermarket"), said("超市买菜"), said("", "BC Liquor Store"), said("", "Shoppers Drug Mart"), said("药店")], ["groceries", "groceries", "groceries", "groceries", "groceries", "groceries"], "groceries: Costco, T&T, 超市, a liquor store, a pharmacy");
+  eq([said("", "Deer Garden Signature"), said("晚饭"), said("", "Tim Hortons"), said("", "Starbucks Coffee Shop"), said("火锅"), said("", "McDonald's")], [null, "food", "food", "food", "food", "food"], "food: dinner, Tim Hortons, a coffee shop (not a shop), 火锅, McDonald's; a restaurant's name alone says nothing");
+  eq([said("门票"), said("", "Cineplex Cinemas"), said("", "Whistler Lift Pass")], ["fun", "fun", "fun"], "fun: tickets, a cinema, a lift pass");
+  eq([said("", "Uniqlo"), said("纪念品"), said("", "Metrotown Mall")], ["shopping", "shopping", "shopping"], "shopping: clothes, souvenirs, a mall");
+  eq([said("还钱"), said("", "Joe's"), said("")], [null, null, null], "words that say no kind: none");
+  eq([categoryOf({ note: "晚饭", category: "fun" }), categoryOf({ note: "晚饭" }), categoryOf({ note: "还钱" })], ["fun", "food", "other"], "the kind it keeps first, then its words, then 其他");
+  eq([CATEGORIES.length, CATEGORIES.every(isCategory), isCategory("petrol"), isCategory(undefined)], [7, true, false, false], "seven kinds, and nothing else is one");
+  // the record: an edit says the kind it changed to, and changing it back brings the old one back
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const start = startLedger("k", "周末", "CAD", people);
+  const gas: Expense = { kind: "expense", id: "e1", at: 1000, payer: "s", amount: 5800, note: "油费", split: { how: "equal", among: ["s", "w"] }, rot: 0, category: "transport" };
+  const to = { payer: "s", amount: 5800, note: "油费", split: gas.split };
+  const steps: Change[] = [{ do: "expense", expense: gas }, { do: "edit", entry: "e1", to: { ...to, category: "fun" } }, { do: "edit", entry: "e1", to: { ...to, category: null } }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `k${i}`, at: 1000 + i, change, by: "s" } };
+  });
+  const lines = historyOf(now, log, [], "s", "zh", 5000);
+  eq(lines.map((l) => l.detail ?? ""), ["去掉了分类", "分类改成 玩乐", ""], "the record says the kind it changed to, or that it was taken off");
+  eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.detail ?? ""), ["Category taken off", "Category now Fun", ""], "in English");
+  const back = lines[0].action?.change;
+  eq(back && (applyChange(now, back)?.entries[0] as Expense).category, "fun", "changing the last edit back brings the kind back");
+}
+
+// ---------- 24b. 退款 in the record ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const start = startLedger("k", "周末", "CAD", people);
+  const back: Expense = { kind: "expense", id: "e1", at: 1000, payer: "s", amount: 6000, note: "押金", split: { how: "equal", among: ["s", "w"] }, rot: 0, refund: true };
+  const to = { payer: "s", amount: 6000, note: "押金", split: back.split };
+  const steps: Change[] = [{ do: "expense", expense: back }, { do: "edit", entry: "e1", to: { ...to, refund: null } }, { do: "edit", entry: "e1", to: { ...to, refund: true } }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `r${i}`, at: 1000 + i, change, by: "s" } };
+  });
+  const lines = historyOf(now, log, [], "s", "zh", 5000);
+  eq(lines.map((l) => [l.text, l.detail ?? ""]), [["改了一笔：押金 $60.00", "改成退款"], ["改了一笔：押金 $60.00", "改成花销"], ["记了一笔退款：押金 $60.00", ""]], "the record: a refund recorded says so, and an edit says which way it turned");
+  eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.detail ?? ""), ["Now a refund", "Now an expense", ""], "in English");
+  const undo = lines[0].action?.change;
+  eq(undo && (applyChange(now, undo)?.entries[0] as Expense).refund, undefined, "changing the last edit back makes it an expense again");
+}
+
+// ---------- 25. 分类 on the screens: picked or read into the draft, summed up, exported, searched ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }];
+  const everyone = people.map((m) => m.id);
+  const start = startLedger("k", "周末", "CAD", people);
+  const spend = (l: Ledger, id: string, amount: number, note: string, more: Partial<Expense> = {}) => addExpense(l, { id, at: 1000 + l.entries.length, payer: "s", amount, note, split: { how: "equal", among: everyone }, ...more });
+  const l = spend(spend(spend(spend(spend(start, "e1", 18600, "晚饭"), "e2", 5800, "", { merchant: "Petro-Canada" }), "e3", 4500, "早餐"), "e4", 24000, "还钱"), "e5", 9000, "晚饭", { category: "fun" });
+  eq(
+    byKind(l).map((k) => [k.kind, k.amount, k.count]),
+    [["food", 23100, 2], ["fun", 9000, 1], ["transport", 5800, 1], ["other", 24000, 1]],
+    "按分类: what each kind came to and how many, the most first and 其他 last (however much it is); a kind picked counts, not what its words say",
+  );
+  eq(byKind(start), [], "nothing spent: no kinds");
+  eq(byKind(takeOut(l, "e5", 2000)).map((k) => k.kind), ["food", "transport", "other"], "one taken out counts for nothing");
+  let bad = "";
+  for (let seed = 1; seed <= 300 && !bad; seed++) {
+    const r = randomLedger(seed);
+    const kinds = byKind(r);
+    const order = kinds.map((k) => k.kind);
+    if (kinds.reduce((a, k) => a + k.amount, 0) !== spent(r)) bad = `seed ${seed}: the kinds don't come to what was spent`;
+    else if (kinds.reduce((a, k) => a + k.count, 0) !== expensesOf(r).length) bad = `seed ${seed}: the kinds don't count every expense`;
+    else if (new Set(order).size !== order.length || kinds.some((k) => k.amount <= 0 || k.count <= 0)) bad = `seed ${seed}: a kind twice, or one with nothing`;
+    else if (order.includes("other") && order.at(-1) !== "other") bad = `seed ${seed}: 其他 isn't last`;
+    else if (kinds.some((k, i) => i > 0 && k.kind !== "other" && kinds[i - 1].amount < k.amount)) bad = `seed ${seed}: not the most first`;
+  }
+  eq(bad, "", "300 random ledgers: the kinds come to what was spent and count every expense, each once, the most first and 其他 last");
+
+  // the export: each expense's kind after its note, as it counts (a payment's is blank)
+  const csv = csvOf(l, "en").slice(1).split("\r\n");
+  eq([csv[0].split(",")[3], csv.slice(1, 6).map((r) => r.split(",")[3])], ["Category", ["Food & drink", "Transport", "Food & drink", "Other", "Fun"]], "the export: a kind for each expense, a picked one before what its words say");
+
+  // 搜索账目 finds an expense by its kind's name, in either language, as it counts
+  const found = (typed: string) => expensesOf(l).filter((e) => matches(e, l, typed, "s", "zh")).map((e) => e.id);
+  eq([found("交通"), found("Transport"), found("food"), found("玩乐"), found("其他")], [["e2"], ["e2"], ["e1", "e3"], ["e5"], ["e4"]], "search: 交通 and transport find the gas station; food what its words say; 玩乐 the one picked");
+
+  // the draft: a kind picked stays, one read fills it when none is, and it is always said (none takes it off)
+  const draft = blankDraft(l, "s", 5000);
+  const read = { total: "58.00", currency: null, merchant: "Petro-Canada", tip: null, tax: null, date: null, place: null, payment: null, category: "transport" as const };
+  eq([draft.category, readInto(draft, read, l, null, 5000)?.category, readInto({ ...draft, category: "fun" }, read, l, null, 5000)?.category, readInto(draft, { ...read, category: undefined }, l, null, 5000)?.category], [null, "transport", "fun", null], "a new draft has none; a receipt's fills it; one picked stays; a receipt saying none leaves none");
+  const gas = expensesOf(l).find((e) => e.id === "e5")!;
+  eq([draftOf(gas, l).category, saying(draftOf(gas, l), l)?.category, saying({ ...draftOf(gas, l), category: null }, l)?.category, saying({ ...draft, text: "12" }, l)?.category], ["fun", "fun", null, null], "opened, it has its kind; saved, it says it; unpicked, it says none, so an edit takes it off");
+  eq([joinBill({ ...draft, category: null }, { ...draft, category: "food" }).category, joinBill({ ...draft, category: "lodging" }, { ...draft, category: "food" }).category], ["food", "lodging"], "a receipt and its card slip as one: the first's kind, else the other's");
+
+  // read off the network: a kind the phone knows, or none
+  const reply = (category: unknown) => asReadReply({ read: { total: "58.00", currency: "CAD", merchant: "Esso", category } })?.read?.category;
+  eq([reply("transport"), reply("spaceflight"), reply(null), reply(7)], ["transport", undefined, undefined, undefined], "a reading's kind: kept when it is one of the seven, else none");
+
+  // words a note or a business goes by, beside the ones in section 24
+  eq([guessed({ note: "", merchant: "Uber Eats" }), guessed({ note: "", merchant: "Uber" }), guessed({ note: "Lunch" }), guessed({ note: "茶" }), guessed({ note: "", merchant: "DoorDash" })], ["food", "transport", "food", "food", "food"], "Uber Eats is food, an Uber a ride; lunch, 茶 and DoorDash are food");
+  eq(CATEGORIES.map((k) => say("zh", CATEGORY_WORD[k])), ["餐饮", "超市", "交通", "住宿", "玩乐", "购物", "其他"], "the seven kinds' names, in the order they are picked from");
 }
 
 if (failed) {

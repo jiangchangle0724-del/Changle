@@ -1938,3 +1938,415 @@ li.is-ready .dm-roster-state {
   right: auto;
   flex-shrink: 0;
 }
+
+/* ------------------------------------------------------------------ from the house (Nov 26) */
+
+/*
+ * 台下喊一嗓子: the newest call, a director's card slapped on the set (moonlight, so it never
+ * reads as the plot twist); and a mood over the actor it's for, a little while.
+ */
+.dm-call {
+  position: absolute;
+  z-index: 7;
+  top: var(--space-3);
+  left: var(--space-3);
+  /* clear of the clock in the top right corner */
+  max-width: 68%;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  border-left: var(--space-1) solid var(--gel);
+  border-radius: var(--r-field);
+  background: var(--moon);
+  color: var(--night);
+  box-shadow: var(--shadow-float);
+  transform: rotate(2deg);
+  pointer-events: none;
+}
+.dm-call-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.dm-call small {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+.dm-actor-tag {
+  position: absolute;
+  z-index: 3;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  translate: -50% 0;
+  animation: dm-tag-in var(--dur-emphasis) var(--ease-pop) both;
+}
+@keyframes dm-tag-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+/* the audience's part while a scene plays: call out, and lock in a guess */
+.dm-house {
+  display: grid;
+  gap: var(--space-3);
+}
+.dm-house-box {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+}
+.dm-house-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+}
+.dm-house-head svg {
+  flex: none;
+  color: var(--gel);
+}
+.dm-house-left {
+  margin-left: auto;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+.dm-house-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.dm-house-btn {
+  gap: var(--space-1);
+  min-height: var(--tap-crowded);
+  padding-inline: var(--space-2);
+}
+.dm-house-btn.is-on {
+  outline: 2px solid var(--gel);
+  outline-offset: -2px;
+}
+.dm-house-note {
+  margin: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-house-pick {
+  display: grid;
+  gap: var(--space-2);
+}
+.dm-house-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dm-house-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-crowded);
+  padding: 0 var(--space-3) 0 var(--space-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-pill);
+  background: var(--dusk-3);
+  color: var(--moon);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.dm-house-chip.is-on {
+  border-color: var(--gel);
+  background: color-mix(in oklab, var(--gel) 20%, var(--dusk-3));
+}
+.dm-house-moods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.dm-house-mood {
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--r-field);
+  background: var(--gel);
+  color: var(--on-gel);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  cursor: pointer;
+}
+.dm-house-mood:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dm-house-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--moon);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-house-locked svg {
+  flex: none;
+  margin-top: 0.2em;
+  color: var(--gel);
+}
+.dm-eagle {
+  margin: 0;
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-actor-tag {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ 新手台词本 (Nov 26) */
+
+.dm-diff-note {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-1);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+/* under the card: the lines, step by step */
+.dm-book {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+}
+.dm-book-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: var(--space-2);
+  margin: 0;
+}
+.dm-book-head svg {
+  color: var(--gel);
+}
+.dm-book-head strong {
+  font-size: var(--text-lg);
+}
+.dm-book-head span {
+  grid-column: 1 / -1;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-book-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dm-book-steps li {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-soft);
+}
+.dm-book-beat {
+  margin: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-book-n {
+  margin-right: var(--space-2);
+  color: var(--gel);
+  font-weight: 800;
+}
+.dm-book-say,
+.dm-book-ask {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  line-height: var(--leading);
+}
+.dm-book-say svg,
+.dm-book-ask svg {
+  flex: none;
+  margin-top: 0.3em;
+  color: var(--gel);
+}
+.dm-book-say strong,
+.dm-book-ask strong {
+  margin-right: var(--space-1);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.dm-book-say {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.dm-book-ask {
+  font-size: var(--text-sm);
+}
+.dm-book-extra {
+  padding: var(--space-3);
+  border: 1px dashed var(--gel);
+  border-radius: var(--r-field);
+}
+.dm-book-extra-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  color: var(--gel);
+  font-weight: 800;
+}
+.dm-book-extra ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-book-extra strong {
+  margin-right: var(--space-2);
+}
+
+/* during the scene: this step's lines, big, following the clock */
+.dm-prompt {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-radius: var(--r-panel);
+  background: var(--moon);
+  color: var(--night);
+}
+.dm-prompt-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.dm-prompt-title {
+  font-weight: 800;
+}
+.dm-prompt-tabs {
+  display: flex;
+  gap: var(--space-1);
+}
+.dm-prompt-tabs button {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--night) 10%, transparent);
+  color: var(--night);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dm-prompt-tabs button.is-now {
+  outline: 2px solid var(--night);
+  outline-offset: -2px;
+}
+.dm-prompt-tabs button.is-on {
+  background: var(--night);
+  color: var(--moon);
+}
+.dm-prompt-beat {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  opacity: 0.75;
+}
+.dm-prompt-say,
+.dm-prompt-ask {
+  margin: 0;
+  line-height: var(--leading);
+}
+.dm-prompt-say span,
+.dm-prompt-ask span {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  opacity: 0.7;
+}
+.dm-prompt-say {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+.dm-prompt-ask {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.dm-prompt-extra {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--night);
+  color: var(--moon);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-prompt-extra svg {
+  flex: none;
+  margin-top: 0.2em;
+  color: var(--gel);
+}
+.dm-prompt-trait {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  opacity: 0.75;
+}
+.dm-prompt-cast {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dm-prompt-cast li {
+  display: grid;
+  gap: var(--space-1);
+  line-height: var(--leading);
+}
+.dm-prompt-cast strong {
+  font-size: var(--text-sm);
+}
+.dm-prompt-cast span {
+  font-size: var(--text-md);
+  font-weight: 700;
+}

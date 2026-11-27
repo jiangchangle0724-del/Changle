@@ -433,6 +433,34 @@ describe("opening and closing", () => {
   });
 });
 
+describe("the goods are in", () => {
+  it("is the merchant's word, with a line on when and where, on the group buy's page and the buyer's order; taken back, it's gone", async () => {
+    const at = await start();
+    const { code } = (await place(at, [["五常大米", 1000]])).data.order;
+    const word = async () => (await page(at)).offer.arrived;
+    const say = (body: unknown, session: string = SESSION.leader) => post<MyOfferPage>(`/my/offers/${at.id}`, body, { session });
+    expect(await word()).toBeNull();
+    await say({ do: "close" });
+    const told = await say({ do: "arrived", note: "  周六下午 2 点以后\n到各自的自提点取  " });
+    expect(said(told)).toBe("ok");
+    expect(told.data.offer.arrived).toEqual({ at: expect.any(Number), note: "周六下午 2 点以后\n到各自的自提点取" });
+    expect(told.data.offer.status).toBe("closed");
+    expect(await word()).toEqual(told.data.offer.arrived);
+    expect((await get<OrderPage>(`/orders/${code}`, { tail: "0134" })).data.offer.arrived).toEqual(told.data.offer.arrived);
+    // a new line replaces the old; a long one is cut short; none is none
+    expect((await say({ do: "arrived", note: "取".repeat(300) })).data.offer.arrived?.note).toBe("取".repeat(200));
+    expect((await say({ do: "arrived" })).data.offer.arrived?.note).toBe("");
+    // only its own people say it, and only in words
+    expect(said(await say({ do: "arrived", note: "x" }, SESSION.visitor))).toBe("403 forbidden");
+    expect(said(await say({ do: "arrived", note: 3 }))).toBe("400 bad");
+    expect(said(await say({ do: "landed" }))).toBe("400 bad");
+    // taken back
+    expect((await say({ do: "unarrived" })).data.offer.arrived).toBeNull();
+    expect(await word()).toBeNull();
+    expect((await get<OrderPage>(`/orders/${code}`, { tail: "0134" })).data.offer.arrived).toBeNull();
+  });
+});
+
 describe("a shop's own page", () => {
   it("shows who the shop is and its group buys, the one that closes last first; no drafts", async () => {
     const at = await start();
@@ -992,7 +1020,7 @@ describe("the pages", () => {
     expect(titleOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
     expect(cardOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
     // home keeps its own name
-    expect(titleOf((await open("/tuan/")).html)).toBe("跟一单 · Count Me In");
+    expect(titleOf((await open("/tuan/")).html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
 
     // whatever a merchant types is text on the page, never markup
     const odd = await start({ title: `<script>alert(1)</script> "米" & 面` });
@@ -1010,7 +1038,7 @@ describe("the pages", () => {
     expect(said(plain.html)).toBe("五常大米 10kg、东北珍珠米 15lb、黄小米 2lb、土鸡蛋 30 枚、手切羊肉片");
     expect(pictureOf(plain.html)).toBeUndefined();
     // home keeps its own words
-    expect(said((await open("/tuan/")).html)).toMatch(/^团长开团，你跟一单/);
+    expect(said((await open("/tuan/")).html)).toMatch(/^大温哥华的私厨和团购/);
 
     // more than six goods: six and "…"; the first picture, wherever it is; a name as text
     const form = new FormData();
@@ -1035,7 +1063,7 @@ describe("the pages", () => {
       const res = await open(path);
       expect([path, res.status]).toEqual([path, 404]);
       expect(res.html).toContain('<div id="app"></div>');
-      expect(titleOf(res.html)).toBe("跟一单 · Count Me In");
+      expect(titleOf(res.html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
       expect(res.headers.get("cache-control")).toBe("no-store");
     }
     // once it's open, it has its page
@@ -1062,7 +1090,7 @@ describe("the pages", () => {
     expect(real.html).toBe(none.html);
     expect(real.html).not.toContain("本周大米团");
     expect(real.html).not.toContain(mine.code);
-    expect(titleOf(real.html)).toBe("跟一单 · Count Me In");
+    expect(titleOf(real.html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
     // a shop's page: its name in the title; none for a shop that isn't there
     const shopPage = await open(`/tuan/s/${at.slug}`);
     expect(shopPage.status).toBe(200);

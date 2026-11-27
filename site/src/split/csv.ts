@@ -2,7 +2,7 @@
  * 导出账目: a ledger as a CSV file, to open in a spreadsheet (docs/split.md: "export the expenses as
  * CSV"; "people can export their own data"). One row per expense or payment still in the ledger,
  * in the order they were recorded: the day (an expense's, the day it was spent; a payment's, the day
- * it was recorded), which kind, the note, who paid, how much (in the ledger's currency, and in the
+ * it was recorded), which kind, the note, its kind of spending (kinds.ts), who paid, how much (in the ledger's currency, and in the
  * one it was paid in, if another), the tip and the tax (in the ledger's currency, at the expense's
  * own rate; only in a ledger that has any), then a column for each person: what that row does to where they
  * stand (what they paid, less their part of it; a payment counts for the one who made it and against
@@ -19,7 +19,8 @@
 import type { Lang } from "../i18n";
 import { balances, fromMinor, portionsOf, spent, type Ledger } from "./core";
 import { decimalsOf, localDay } from "./format";
-import { spentOn } from "./lines";
+import { categoryOf } from "./kinds";
+import { CATEGORY_WORD, spentOn } from "./lines";
 import { inLedger } from "./summary";
 import { say } from "./words";
 
@@ -51,6 +52,7 @@ export function csvOf(l: Ledger, lang: Lang): string {
       say(lang, "csvWhen"),
       say(lang, "csvKind"),
       say(lang, "csvNote"),
+      say(lang, "category"),
       ...(shopped ? [say(lang, "merchant"), say(lang, "place"), say(lang, "paidWith")] : []),
       say(lang, "csvPaidBy"),
       say(lang, "csvAmount"),
@@ -72,15 +74,15 @@ export function csvOf(l: Ledger, lang: Lang): string {
       const tax = e.tax ? inLedger(e.tax, e) : 0;
       tips += tip;
       taxes += tax;
-      row = [spentOn(e), say(lang, "csvExpense"), text(e.note), ...(shopped ? [text(e.merchant ?? ""), text(e.place ?? ""), text(e.payment ?? "")] : []), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
+      row = [spentOn(e), say(lang, "csvExpense"), text(e.note), say(lang, CATEGORY_WORD[categoryOf(e)]), ...(shopped ? [text(e.merchant ?? ""), text(e.place ?? ""), text(e.payment ?? "")] : []), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
     } else {
       add(e.from, e.amount);
       add(e.to, -e.amount);
-      row = [localDay(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), ...(shopped ? blanks(3) : []), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? ["", ""] : [])];
+      row = [localDay(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), "", ...(shopped ? blanks(3) : []), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? ["", ""] : [])];
     }
     rows.push([...row, ...l.members.map((m) => plain(parts.get(m.id) ?? 0))]);
   }
   const stand = balances(l);
-  rows.push(["", say(lang, "csvTotal"), "", ...(shopped ? blanks(3) : []), "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? [plain(tips), plain(taxes)] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
+  rows.push(["", say(lang, "csvTotal"), "", "", ...(shopped ? blanks(3) : []), "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? [plain(tips), plain(taxes)] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
   return BOM + rows.map((r) => r.map(field).join(",")).join("\r\n") + "\r\n";
 }

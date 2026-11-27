@@ -140,6 +140,22 @@ test("an expense paid in another currency keeps both amounts, and a change to it
   assert.deepEqual(now(room.push("key", [edit({ amount: 9000, paidIn: { currency: "USD", amount: 5, rate: "0" } })], NOW)), ["nothing", 4170, null], "one with no rate changes nothing, the amount included");
 });
 
+test("退款: money that came back is kept as a refund, and refund said any other way isn't a change", () => {
+  const { room } = make();
+  const refundOf = (got: ReturnType<typeof room.push>) => (got.ok ? got.ledger.entries.map((e) => (e as Expense).refund ?? null) : got.error);
+  assert.deepEqual(refundOf(room.push("key", [expense("e1", { amount: 9000, refund: true, tip: 500 })], NOW)), [true], "a refund goes in as one");
+  assert.ok(!("tip" in (room.snapshot()!.ledger.entries[0] as Expense)), "and keeps no tip");
+  for (const refund of ["yes", false, 1]) {
+    assert.deepEqual(room.push("key", JSON.parse(JSON.stringify([expense("e2", { refund: refund as true })])), NOW), { ok: false, error: "bad" }, `refund: ${JSON.stringify(refund)} isn't a change`);
+  }
+  const said = { payer: "s", amount: 9000, note: "", split: { how: "equal" as const, among: ["s", "w", "m"] } };
+  const edit = (to: Record<string, unknown>): unknown => ({ id: `c${++n}`, at: NOW, change: { do: "edit", entry: "e1", to: { ...said, ...to } } });
+  assert.deepEqual(refundOf(room.push("key", [edit({ refund: null })], NOW)), [null], "an edit saying null makes it an expense");
+  assert.deepEqual(refundOf(room.push("key", [edit({ refund: true })], NOW)), [true], "and true a refund again");
+  assert.deepEqual(refundOf(room.push("key", [edit({ note: "押金" })], NOW)), [true], "an edit that doesn't say leaves it");
+  assert.deepEqual(room.push("key", [edit({ refund: "no" })], NOW), { ok: false, error: "bad" }, "and one saying anything else isn't a change");
+});
+
 test("a request with anything in it that isn't a change is turned away whole", () => {
   const { room, store } = make();
   const good = expense("e1");
@@ -296,6 +312,26 @@ test("a 查看链接: its key lets people look, and does nothing else", () => {
   assert.deepEqual(room.look("view3"), { ok: false, error: "key" }, "the key changed: the old 查看链接 is turned away");
   assert.deepEqual(room.view("key", "view4"), { ok: false, error: "key" }, "and the old key makes no new one");
   assert.ok(room.view("key2", "view4").ok && room.look("view4").ok, "the new key makes the next");
+});
+
+test("收款方式: set by the ledger's people, kept, and never read through a 查看链接", () => {
+  const { room, store } = make();
+  const pay = (id: string, member: string, to: string): Sent => ({ id, at: NOW, change: { do: "pay", member, pay: to } });
+  const set = room.push("key", [pay("p1", "s", "  steve@example.com "), pay("p2", "nobody", "x@y.z")], NOW + 1);
+  assert.ok(set.ok && set.took.join() === "new,nothing", "set for someone in the ledger, tidied; not for someone who isn't");
+  const mine = room.read("key");
+  assert.ok(mine.ok && mine.ledger.members.find((m) => m.id === "s")?.pay === "steve@example.com", "the ledger's people read it");
+  assert.deepEqual(room.push("key", [pay("p3", "s", "steve@example.com")], NOW + 2).ok && room.snapshot()!.seq, 1, "the same again changes nothing");
+  room.view("key", "view");
+  const seen = room.look("view");
+  assert.ok(seen.ok && seen.ledger.members.length === 3 && seen.ledger.members.every((m) => !("pay" in m)), "a 查看链接 reads the people, and nobody's 收款方式");
+  assert.ok(seen.ok && JSON.stringify(seen.ledger.entries) === JSON.stringify(mine.ok && mine.ledger.entries), "and the rest as it is");
+  const own = room.look("key");
+  assert.ok(own.ok && own.ledger.members.find((m) => m.id === "s")?.pay === "steve@example.com", "the ledger's own key, looking, still reads it");
+  assert.deepEqual(room.push("view", [pay("p4", "s", "thief@example.com")], NOW + 3), { ok: false, error: "key" }, "a 查看链接 can't change it");
+  assert.ok(new LedgerRoom(store).read("key").ok && new LedgerRoom(store).snapshot()!.ledger.members[0].pay === "steve@example.com", "it survives a restart");
+  const off = room.push("key", [pay("p5", "s", "   ")], NOW + 4);
+  assert.ok(off.ok && !("pay" in room.snapshot()!.ledger.members[0]), "nothing left once tidied: taken off");
 });
 
 test("a locked ledger with its key changed: both hold", () => {
@@ -635,7 +671,12 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(extras("10.50", "80", "3200", "JPY"), [null, "80"], "a tip in yen with cents: none");
   assert.equal(read({ receipt: true, total: "9.99" })?.tip, null, "an answer that doesn't mention them: none");
   assert.ok(String(asked.contents[0].parts[0].text).includes("suggested tip"), "and the words say a suggested tip is no tip");
-  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time"], "they are asked for in the shape given");
+  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time", "category"], "they are asked for in the shape given");
+  // its kind (2026-11-26): one of the seven, asked for by name, and kept only when it is one
+  assert.deepEqual((asked.generationConfig.responseSchema as { properties: Record<string, { enum?: string[] }> }).properties.category.enum, ["food", "groceries", "transport", "lodging", "fun", "shopping", "other"], "the kinds are the only answers it may give");
+  assert.ok(String(asked.contents[0].parts[0].text).includes("what kind of spending"), "and the words say what each kind takes in");
+  assert.deepEqual(["food", "lodging", "Food", "restaurant", "", null, 3].map((category) => shop({ category })?.category), ["food", "lodging", undefined, undefined, undefined, undefined, undefined], "a kind there is: kept; anything else: none");
+  assert.ok(!("category" in (shop({}) ?? {})), "none read: the reading says nothing of it (as one from before it)");
 
   // the day it was spent: one the calendar has, from 2000, no later than tomorrow
   const noon = Date.UTC(2026, 10, 15, 12);
@@ -663,6 +704,8 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   const placed = fake("receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard tax=1.38");
   assert.deepEqual(placed.ok && [placed.read?.merchant, placed.read?.place, placed.read?.payment, placed.read?.tax], ["McDonald's", "Aldergrove, BC", "Mastercard", "1.38"], "and a place and what paid (a _ for a space), out of the shop's name");
   assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: null, place: null, payment: null }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");
+  const kinded = fake("receipt:58.00 CAD Petro-Canada kind=transport paid=Visa");
+  assert.deepEqual(kinded.ok && [kinded.read?.merchant, kinded.read?.category, kinded.read?.payment], ["Petro-Canada", "transport", "Visa"], "and a kind, out of the shop's name");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

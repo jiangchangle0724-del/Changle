@@ -1,0 +1,129 @@
+{
+  "id": "fest-midautumn",
+  "fest": "midautumn",
+  "world": "space",
+  "tier": 0,
+  "name": {
+    "zh": "中秋月兔阶",
+    "en": "Moon Rabbit Steps"
+  },
+  "teaches": "float",
+  "w": 2560,
+  "h": 1600,
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 1780,
+  "par": {
+    "seconds": 150,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/fest-midautumn.json",
+  "spawn": {
+    "x": 110,
+    "y": 1486
+  },
+  "goal": {
+    "x": 2350,
+    "y": 70,
+    "w": 210,
+    "h": 220
+  },
+  "checkpoints": [
+    {
+      "x": 1000,
+      "y": 1476
+    },
+    {
+      "x": 1250,
+      "y": 976
+    },
+    {
+      "x": 2100,
+      "y": 346
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 1195,
+      "y": 1163
+    },
+    {
+      "x": 1676,
+      "y": 417
+    },
+    {
+      "x": 2013,
+      "y": 199
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1520,
+      "w": 1200,
+      "h": 80,
+      "material": "hull"
+    },
+    {
+      "kind": "ground",
+      "x": 1130,
+      "y": 1020,
+      "w": 330,
+      "h": 38,
+      "material": "hull"
+    },
+    {
+      "kind": "ground",
+      "x": 1680,
+      "y": 560,
+      "w": 330,
+      "h": 38,
+      "material": "hull"
+    },
+    {
+      "kind": "ground",
+      "x": 2280,
+      "y": 320,
+      "w": 280,
+      "h": 38,
+      "material": "hull"
+    },
+    {
+      "kind": "ground",
+      "x": 870,
+      "y": 1230,
+      "w": 100,
+      "h": 20,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1450,
+      "y": 790,
+      "w": 100,
+      "h": 20,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2040,
+      "y": 390,
+      "w": 330,
+      "h": 20,
+      "material": "metal"
+    }
+  ],
+  "zerog": [
+    {
+      "x": 300,
+      "y": 40,
+      "w": 2260,
+      "h": 1560
+    }
+  ]
+}
