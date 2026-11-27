@@ -68,6 +68,8 @@ export type Draft = {
   category: Category | null;
   /** 退款: money that came back rather than money paid out (core/types.ts, refund); then it has no tip or tax */
   refund: boolean;
+  /** 几个人一起付: what each typed they paid, in the ledger's currency ("100", "86"); null when `payer` paid it all */
+  payers: Record<string, string> | null;
 };
 
 /**
@@ -100,6 +102,7 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     payment: "",
     category: null,
     refund: false,
+    payers: null,
   };
 }
 
@@ -131,6 +134,7 @@ export function draftOf(e: Expense, l: Ledger): Draft {
     payment: e.payment ?? "",
     category: e.category ?? null,
     refund: !!e.refund,
+    payers: e.payers ? Object.fromEntries(Object.entries(e.payers).map(([id, n]) => [id, fromMinor(n, decimalsOf(l.currency))])) : null,
   };
 }
 
@@ -269,12 +273,39 @@ export function shareBy(d: Draft, how: How, l: Ledger, decimals: Decimals, rot =
  * nothing in the ledger's currency (one yen at 0.009 is less than a cent) or to more than an entry
  * can be.
  */
-export function draftProblem(d: Draft, l: Ledger): Problem | null {
+export function draftProblem(d: Draft, l: Ledger): Problem | PaidProblem | null {
   if (!paidOf(d)) return { what: "amount" };
   if (abroad(d, l) && !settled(d.rate)) return { what: "rate" };
   const amount = amountOf(d, l);
   if (!amount || !isAmount(amount)) return { what: "amount" };
-  return problem({ payer: d.payer, amount, split: splitOf(d, decimalsOf(l.currency)) }, l.members.map((m) => m.id));
+  return problem({ payer: d.payer, amount, split: splitOf(d, decimalsOf(l.currency)) }, l.members.map((m) => m.id)) ?? payersProblem(d, l);
+}
+
+/** Several who paid, in smallest units (those above nothing), in the roster's order; null when one paid it all. */
+export function payersOf(d: Pick<Draft, "payers">, l: Ledger): Record<string, number> | null {
+  if (!d.payers) return null;
+  const decimals = decimalsOf(l.currency);
+  const out: Record<string, number> = {};
+  for (const m of l.members) {
+    const n = toMinor(d.payers[m.id] ?? "", decimals);
+    if (n) out[m.id] = n;
+  }
+  return out;
+}
+
+/** Of several who paid, the one who paid the most (of two the same, the first on the roster): the expense's `payer`. */
+export const mostPaid = (p: Record<string, number>): string => Object.entries(p).reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+
+/** What can be wrong with several who paid: paid in another currency, fewer than two, or not adding up to it (`off`: still to pay, above zero; too much, below). */
+export type PaidProblem = { what: "paidAbroad" } | { what: "paidFew" } | { what: "paidOff"; off: number };
+export function payersProblem(d: Draft, l: Ledger): PaidProblem | null {
+  const p = payersOf(d, l);
+  if (!p) return null;
+  if (abroad(d, l)) return { what: "paidAbroad" };
+  if (Object.keys(p).length < 2) return { what: "paidFew" };
+  const amount = amountOf(d, l);
+  const off = (amount ?? 0) - Object.values(p).reduce((a, n) => a + n, 0);
+  return amount && off ? { what: "paidOff", off } : null;
 }
 
 /**
@@ -285,8 +316,11 @@ export function draftProblem(d: Draft, l: Ledger): Problem | null {
  */
 export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
   if (draftProblem(d, l)) return null;
+  const several = payersOf(d, l);
   const said = {
-    payer: d.payer,
+    // (of several, the one who paid the most; always said, so an edit says one alone with null)
+    payer: several ? mostPaid(several) : d.payer,
+    payers: several,
     amount: amountOf(d, l) ?? 0,
     note: d.note,
     split: splitOf(d, decimalsOf(l.currency)),

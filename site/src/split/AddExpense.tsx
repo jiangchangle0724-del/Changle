@@ -21,11 +21,11 @@ import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { MAX_FILES } from "./changes";
-import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
+import { fromMinor, MAX_SHARES, nextRot, portions, toMinor, type Decimals, type Expense, type Ledger, type Member } from "./core";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payersOf, payersProblem, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, totalOf, type Key } from "./input";
-import { CATEGORY_WORD, dayLabel, extrasText, nameFor, spentOn } from "./lines";
+import { CATEGORY_WORD, dayLabel, extrasText, nameFor, namesOf, spentOn } from "./lines";
 import { DETAIL_MAX, DETAILS, isDay, NOTE_MAX, type Detail } from "./ops";
 import { CATEGORIES, type Category } from "./categories";
 import { guessed } from "./kinds";
@@ -364,6 +364,17 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       : say(lang, draft.how === "shares" ? "byShares" : "byAmounts", { n: who.length });
   // why 记好了 can't be pressed yet, when it is the sharing that is off (an empty amount explains itself):
   // said on the 分给谁 line, which is where it is put right
+  // several who paid: who they are, and what is wrong with what they paid, said on the payer's line
+  const paidSeveral = payersOf(draft, ledger);
+  const paidWrong = payersProblem(draft, ledger);
+  const paidOff =
+    paidWrong?.what === "paidAbroad"
+      ? say(lang, "paidAbroad")
+      : paidWrong?.what === "paidFew"
+        ? say(lang, "paidFew")
+        : paidWrong?.what === "paidOff"
+          ? say(lang, paidWrong.off > 0 ? "paidLeft" : "over", { amount: money(Math.abs(paidWrong.off), ledger.currency, lang) })
+          : "";
   const off =
     amount && wrong?.what === "sum" ? say(lang, wrong.off > 0 ? "left" : "over", { amount: money(wrong.off, ledger.currency, lang) }) : amount && wrong?.what === "nobody" ? say(lang, "nobody") : "";
 
@@ -451,7 +462,11 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         <div className="split-fields">
           <button type="button" className="split-field" onClick={() => setSheet("payer")}>
             <span>{say(lang, draft.refund ? "payerRefund" : "payer")}</span>
-            <strong>{nameFor(ledger, draft.payer, me, lang)}</strong>
+            {/* several who paid: their names, or what is wrong with what they paid (as the line under it says what is wrong with the shares) */}
+            <strong>
+              {paidOff && <CircleAlert aria-hidden="true" />}
+              {paidOff || (paidSeveral ? namesOf(ledger, paidSeveral, me, lang).replace(/^./, (c) => c.toUpperCase()) || say(lang, "nobody") : nameFor(ledger, draft.payer, me, lang))}
+            </strong>
             <ChevronRight aria-hidden="true" />
           </button>
           <button type="button" className="split-field" onClick={() => setSheet("share")}>
@@ -488,7 +503,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           {say(lang, editing ? "saveChanges" : "done")}
         </Button>
       </div>
-      <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} title={say(lang, draft.refund ? "payerRefund" : "payer")} value={draft.payer} onPick={(payer) => setDraft({ ...draft, payer })} />
+      <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} title={say(lang, draft.refund ? "payerRefund" : "payer")} draft={draft} onChange={setDraft} />
       <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} />
       <CurrencySheet open={sheet === "currency"} onClose={() => setSheet(null)} ledger={ledger} lang={lang} value={draft.currency} onPick={(currency) => setDraft((d) => payIn(d, currency, ledger, fx?.rates, Date.now()))} />
       <RateSheet open={sheet === "rate" && away} onClose={() => setSheet(null)} ledger={ledger} lang={lang} draft={draft} fx={fx} onChange={setDraft} />
@@ -825,33 +840,108 @@ function DetailsSheet({
 const LINE_WORDS: Record<Detail, [Word, Word]> = { merchant: ["merchant", "merchantHint"], place: ["place", "placeHint"], payment: ["paidWith", "paidWithHint"] };
 
 /** Who paid: one tap picks and closes. */
-function PayerSheet({ open, onClose, ledger, me, lang, title, value, onPick }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; title: string; value: string; onPick: (id: string) => void }) {
+/**
+ * Who paid (or got it back): one, picked with a tap that closes the sheet; or 几个人, each with
+ * what they paid typed (in the ledger's currency), and a line saying whether that comes to it.
+ */
+function PayerSheet({ open, onClose, ledger, me, lang, title, draft, onChange }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; title: string; draft: Draft; onChange: (d: Draft) => void }) {
+  const several = !!draft.payers;
+  const decimals = decimalsOf(ledger.currency);
+  const amount = amountOf(draft, ledger);
+  const wrong = payersProblem(draft, ledger);
+  const status = !several
+    ? ""
+    : wrong?.what === "paidAbroad"
+      ? say(lang, "paidAbroad")
+      : !amount
+        ? say(lang, "payTypeFirst")
+        : wrong?.what === "paidFew"
+          ? say(lang, "paidFew")
+          : wrong?.what === "paidOff"
+            ? say(lang, wrong.off > 0 ? "paidLeft" : "over", { amount: money(Math.abs(wrong.off), ledger.currency, lang) })
+            : say(lang, "addsUp");
+  const label = (m: Member) => (
+    <span className="split-person-name">
+      {m.name}
+      {m.id === me && <small>{say(lang, "you")}</small>}
+    </span>
+  );
   return (
-    <Sheet open={open} onClose={onClose} lang={lang} category="tool" title={title}>
-      <div className="split-people" role="radiogroup" aria-label={title}>
-        {ledger.members.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className="split-person"
-            role="radio"
-            aria-checked={m.id === value}
-            onClick={() => {
-              onPick(m.id);
-              onClose();
-            }}
-          >
-            <Face name={m.name} />
-            <span className="split-person-name">
-              {m.name}
-              {m.id === me && <small>{say(lang, "you")}</small>}
-            </span>
-            <span className="split-check" aria-hidden="true">
-              <Check />
-            </span>
-          </button>
-        ))}
-      </div>
+    <Sheet
+      open={open}
+      onClose={onClose}
+      lang={lang}
+      category="tool"
+      title={title}
+      footer={
+        several && (
+          <Button block onClick={onClose}>
+            {say(lang, "ok")}
+          </Button>
+        )
+      }
+    >
+      <Tabs<"one" | "several">
+        variant="segmented"
+        label={title}
+        value={several ? "several" : "one"}
+        // (several to start with: whoever paid, the whole of it; one again: whoever it was before)
+        onChange={(way) => onChange({ ...draft, payers: way === "several" ? { [draft.payer]: abroad(draft, ledger) ? "" : fromMinor(amount ?? 0, decimals).replace(/^0(\.0+)?$/, "") } : null })}
+        items={[
+          { key: "one", label: say(lang, "payOne") },
+          { key: "several", label: say(lang, "paySeveral") },
+        ]}
+      />
+      {several ? (
+        <>
+          <ul className="split-people">
+            {ledger.members.map((m) => (
+              <li key={m.id} className={`split-person${toMinor(draft.payers?.[m.id] ?? "", decimals) ? "" : " is-out"}`}>
+                <Face name={m.name} />
+                {label(m)}
+                <span className="field split-person-field">
+                  <input
+                    inputMode={decimals ? "decimal" : "numeric"}
+                    value={draft.payers?.[m.id] ?? ""}
+                    onChange={(e) => onChange({ ...draft, payers: { ...draft.payers, [m.id]: asAmountText(e.target.value, decimals) } })}
+                    onKeyDown={doneLeaves}
+                    placeholder="0"
+                    aria-label={say(lang, "paidFor", { who: m.name })}
+                    autoComplete="off"
+                    enterKeyHint="done"
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={`split-note${!amount || wrong?.what === "paidAbroad" ? "" : wrong ? " is-off" : " is-good"}`} role="status">
+            {amount && !wrong && <Check aria-hidden="true" />}
+            {status}
+          </p>
+        </>
+      ) : (
+        <div className="split-people" role="radiogroup" aria-label={title}>
+          {ledger.members.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="split-person"
+              role="radio"
+              aria-checked={m.id === draft.payer}
+              onClick={() => {
+                onChange({ ...draft, payer: m.id });
+                onClose();
+              }}
+            >
+              <Face name={m.name} />
+              {label(m)}
+              <span className="split-check" aria-hidden="true">
+                <Check />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </Sheet>
   );
 }

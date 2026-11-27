@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -4116,6 +4116,92 @@ async function refunding() {
   await a.close();
 }
 
+// ---------- payers: 几个人一起付 ----------
+/**
+ * 几个人一起付 (2026-11-27): the payer sheet's 几个人, what each paid typed; the payer's line says who,
+ * or what doesn't add up (and 记好了 waits); the row says who paid together; one person again.
+ */
+async function paying2() {
+  if (!local) {
+    console.log("payers: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "一起付", ["阿甲", "阿乙"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const synced = () => pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const sheet = pa.getByRole("dialog");
+  const payerLine = pa.locator(".split-field", { hasText: t("payer") }).first();
+  const paid = (who: string) => sheet.getByRole("textbox", { name: say("zh", "paidFor", { who }) });
+  const status = () => sheet.locator(".split-note[role=status]").innerText();
+  await button(pa, "addExpense").click();
+  await type(pa, "186");
+  await payerLine.click();
+  await sheet.getByRole("radio", { name: t("paySeveral"), exact: true }).click();
+  ok((await paid("我").inputValue()) === "186.00" && (await status()) === t("paidFew"), "几个人: whoever paid starts with all of it, and it says two or more have to pay");
+  await paid("我").fill("100");
+  await paid("阿甲").fill("80");
+  ok((await status()) === say("zh", "paidLeft", { amount: "$6.00" }), "$100 and $80 of $186: still $6.00 to pay");
+  await paid("阿甲").fill("90");
+  ok((await status()) === say("zh", "over", { amount: "$4.00" }), "$100 and $90: $4.00 too much");
+  await paid("阿甲").fill("86");
+  ok((await status()) === t("addsUp"), "$100 and $86: it adds up");
+  const tall = await sheet.locator(".split-person-field input").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  ok(tall.every((h) => h >= 44), `each amount a target big enough to press (${tall.map(Math.round).join(", ")})`);
+  await pa.screenshot({ path: join(out, "payers-sheet-zh-390x664.png") });
+  await sheet.getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(pa);
+  ok((await payerLine.innerText()).includes("你、阿甲"), "the payer's line says who: 你、阿甲");
+  await setNote(pa, "晚饭");
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  const row = pa.locator("#split-list .split-row", { hasText: "晚饭" });
+  ok((await row.innerText()).includes(say("zh", "paidByMany", { who: "你、阿甲" })), "its row: 你、阿甲一起付");
+  ok((await pa.locator(".split-standing").innerText()).includes("$38.00"), "and I'm owed what I paid less my $62: $38.00");
+  await pa.screenshot({ path: join(out, "payers-list-zh-390x664.png") });
+  await synced();
+  // opened again: what doesn't add up is said on the payer's line, and 保存 waits
+  await row.click();
+  await payerLine.click();
+  ok((await paid("阿甲").inputValue()) === "86.00", "opened again: what each paid is there");
+  await paid("阿甲").fill("80");
+  await sheet.getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(pa);
+  ok((await payerLine.innerText()).includes(say("zh", "paidLeft", { amount: "$6.00" })) && (await button(pa, "saveChanges").isDisabled()), "not adding up: the payer's line says $6.00 still to pay, and 保存 can't be pressed");
+  await pa.screenshot({ path: join(out, "payers-off-zh-390x664.png") });
+  // one person again: 阿乙
+  await payerLine.click();
+  await sheet.getByRole("radio", { name: t("payOne"), exact: true }).click();
+  await sheet.getByRole("radio", { name: re("阿乙") }).click();
+  await closed(pa);
+  ok((await payerLine.innerText()).includes("阿乙") && !(await button(pa, "saveChanges").isDisabled()), "一个人 again: 阿乙, and it can be saved");
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await row.innerText()).includes(say("zh", "paidBy", { who: "阿乙" })), "its row: 阿乙付");
+  await synced();
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("history")) }).click();
+  await sheet.getByText(say("zh", "historyPayer", { who: "阿乙" })).waitFor({ timeout: 10_000 });
+  ok(true, "改动记录 says it is 阿乙's again");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // in English, on the narrowest phone
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  await row.click();
+  await pa.locator(".split-field", { hasText: say("en", "payer") }).first().click();
+  await sheet.getByRole("radio", { name: say("en", "paySeveral"), exact: true }).click();
+  await pa.screenshot({ path: join(out, "payers-sheet-en-320x568.png") });
+  const fits = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll("dialog[open] .split-person, dialog[open] .split-people ~ *, dialog[open] [role=radiogroup] [role=radio]")].every((e) => e.getBoundingClientRect().right <= window.innerWidth + 0.5));
+  ok(fits, "in English on a 320 phone: the two ways and each one's amount fit");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -4131,6 +4217,7 @@ if (what === "all" || what === "search") await searching();
 if (what === "all" || what === "pay") await paying();
 if (what === "all" || what === "kinds") await kinding();
 if (what === "all" || what === "refund") await refunding();
+if (what === "all" || what === "payers") await paying2();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

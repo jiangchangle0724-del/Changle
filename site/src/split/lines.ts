@@ -112,15 +112,30 @@ export function standing(l: Ledger, me: string | undefined, lang: Lang): string 
 }
 
 /** Who paid an expense, for its row: "你付", "小王付". */
-export const paidBy = (e: Expense, l: Ledger, me: string | undefined, lang: Lang) =>
+/** Several of the ledger's people by name, in the roster's order, "you" for you: "Steve, you". */
+export const namesOf = (l: Ledger, ids: Record<string, unknown>, me: string | undefined, lang: Lang) =>
+  l.members
+    .filter((m) => m.id in ids)
+    .map((m) => (m.id === me ? say(lang, "youInList") : nameOf(l, m.id)))
+    .join(say(lang, "nameAnd"));
+
+/** A line as a sentence starts: its first letter a capital ("You, 小王 paid"). */
+const asSentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export function paidBy(e: Expense, l: Ledger, me: string | undefined, lang: Lang): string {
+  // (several who paid, or got it back: their names, 你 for you, in the roster's order)
+  if (e.payers) {
+    return asSentence(say(lang, e.refund ? "receivedBy" : "paidByMany", { who: namesOf(l, e.payers, me, lang) }));
+  }
   // (a refund: who got it back)
-  e.refund
+  return e.refund
     ? e.payer === me
       ? say(lang, "receivedByYou")
       : say(lang, "receivedBy", { who: nameOf(l, e.payer) })
     : e.payer === me
       ? say(lang, "paidByYou")
       : say(lang, "paidBy", { who: nameOf(l, e.payer) });
+}
 
 /** How an expense was shared, in a few words for its row. */
 export function sharedHow(e: Expense, l: Ledger, me: string | undefined, lang: Lang): string {
