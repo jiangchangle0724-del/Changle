@@ -95,6 +95,12 @@ test("parameters from the server are checked: a count under the floor is not use
     { ...byPassphrase(), v: "1" },
     { ...byPassphrase(), salt: SALT.slice(0, -2) },
     { ...byPassphrase(), salt: `${SALT}AA` },
+    // (well-formed, and not 32 bytes)
+    { ...byPassphrase(), salt: base64url(new Uint8Array(16)) },
+    { ...byPassphrase(), salt: base64url(new Uint8Array(31)) },
+    { ...byPassphrase(), salt: base64url(new Uint8Array(33)) },
+    { ...byPassphrase(), salt: "" },
+    { ...byRecovery(), salt: base64url(new Uint8Array(16)) },
     { ...byPassphrase(), salt: 5 },
     { ...byPassphrase(), salt: "not base64 at all !!" },
     { ...byPassphrase(), kind: "passkey" },

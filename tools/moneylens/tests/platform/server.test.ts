@@ -369,6 +369,9 @@ test("devices sync through it, and what it stores holds none of what they wrote 
     const shut = await two.sync(early);
     assert.deepEqual([shut.ok, !shut.ok && shut.why, early.locked, early.signedOut], [false, "offline", true, null]);
     assert.equal((await unlockAs(listed, laptop.jar, vault.id)).status, 200);
+    // (and once it has unlocked, the same way to the server says so no longer)
+    assert.ok((await two.sync(early)).ok);
+    assert.equal(early.locked, false);
     const ids = Array.from({ length: 40 }, () => newId());
     ids.forEach((id, i) => assert.deepEqual(one.add("txn", "t/2026-10", { id, description: `${MARKER} ${i}`, amount: -450 - i, posted: "2026-10-02" }), { ok: true }));
     const first = await one.sync(remoteFor(listed, phone.jar));
@@ -440,6 +443,9 @@ test("a second device opens the vault: the parameters, its proof, the wrapper, t
     const asked = (await (await send(open, "/api/vault/way", JSON.stringify({ kind: "passphrase" }), laptop.jar)).json()) as { id: string; params: unknown };
     assert.ok(isProofParams(asked.params));
     assert.equal(JSON.stringify([seen, asked]).includes(created.wrappers[0].wrapped), false);
+    // what is no proof at all goes no further, and is not counted as a guess
+    assert.deepEqual(await said(await send(open, "/api/vault/unlock", JSON.stringify({ id: asked.id, proof: "short" }), laptop.jar)), [400, "bad-request"]);
+    assert.deepEqual(await said(await send(open, "/api/vault/unlock", JSON.stringify({ id: asked.id }), laptop.jar)), [400, "bad-request"]);
     // a wrong passphrase makes a proof like any other, and the server says no; nothing is handed over
     const wrong = await send(open, "/api/vault/unlock", JSON.stringify({ id: asked.id, proof: await proofOf(seen.vault, asked.params, { kind: "passphrase", passphrase: "seven tidal marmots in a kayak" }) }), laptop.jar);
     assert.deepEqual([wrong.status, await wrong.json()], [422, { ok: false, why: "wrong-secret", left: 9 }]);

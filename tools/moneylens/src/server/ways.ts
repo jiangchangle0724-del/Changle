@@ -41,7 +41,7 @@ export type Kind = (typeof KINDS)[number];
 const isTime = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
 const isHash = (x: unknown): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{43}$/.test(x);
 const isKind = (x: unknown): x is Kind => typeof x === "string" && (KINDS as readonly string[]).includes(x);
-const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null;
 
 export function wayTables(db: Db): void {
   db.sql.exec(`CREATE TABLE IF NOT EXISTS ways (id TEXT PRIMARY KEY, kind TEXT NOT NULL, wrapper TEXT NOT NULL, params TEXT NOT NULL, verifier TEXT NOT NULL, made INTEGER NOT NULL)`);
@@ -75,7 +75,7 @@ function fits(vault: string, way: NewWay): { id: string; kind: Kind; wrapper: st
  * vault that already has ways in keeps them, whoever asks.
  */
 export function startWays(db: Db, vault: string, ways: unknown, now: number): boolean {
-  if (!isId(vault) || !Array.isArray(ways) || ways.length !== KINDS.length || !isTime(now)) return false;
+  if (!isId(vault) || !Array.isArray(ways) || !isTime(now)) return false;
   if (Number(db.sql.exec(`SELECT COUNT(*) AS n FROM ways`).toArray()[0]?.n ?? 0) !== 0) return false;
   const fit = ways.map((way) => fits(vault, way as NewWay));
   if (fit.some((way) => way === null)) return false;

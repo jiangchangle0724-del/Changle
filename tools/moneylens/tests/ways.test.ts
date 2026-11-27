@@ -56,6 +56,9 @@ test("a vault's ways in are kept as they came, one by passphrase and one by reco
     ["no ways", []],
     ["one way", [good[0]]],
     ["three ways", [...good, ...(await hashed([way(vault, "passphrase")]))]],
+    ["the two, and one of a kind there is none of yet", [...good, ...(await hashed([way(vault, "passkey")]))]],
+    ["the two, and something that is no way in", [...good, null]],
+    ["the two, and a wrapper with nothing in it", [...good, { wrapper: {}, params: {}, verifier: good[0]!.verifier }]],
     ["two by passphrase", await hashed([way(vault, "passphrase"), way(vault, "passphrase")])],
     ["two by recovery code", await hashed([way(vault, "recovery"), way(vault, "recovery")])],
     ["a kind there is none of yet", await hashed([way(vault, "passphrase"), way(vault, "passkey")])],
@@ -133,6 +136,16 @@ test("a proof's parameters are for any session that asks; the wrapper is for the
 
   // another device: signed in, and not unlocked
   const laptop = await device(db, T0 + MINUTE);
+  // (and a vault whose ways in are refused is not started at all: nothing kept, nobody unlocked, nothing noted)
+  const blank = sqlite();
+  const first = await device(blank, T0);
+  const fresh = newId();
+  for (const ways of [[], [way(fresh, "passphrase")], [way(fresh, "passphrase"), way(newId(), "recovery")], [way(fresh, "passphrase"), { ...way(fresh, "recovery"), proof: "short" }]]) {
+    assert.deepEqual(why(await ask(blank, first.hash, "vault/start", T0, { vault: fresh, ways })), [400, "bad-request"], JSON.stringify(ways));
+    assert.deepEqual((await ask(blank, first.hash, "vault", T0)).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: cfg.limits.vaultBytes, writesPerDay: cfg.limits.writesPerDay } });
+    assert.deepEqual(await kinds(blank, first.hash, T0), ["sign-in"]);
+  }
+  assert.equal((await ask(blank, first.hash, "vault/start", T0, { vault: fresh, ways: pair(fresh) })).status, 200);
   const now = T0 + 2 * MINUTE;
   assert.equal((await ask(db, laptop.hash, "vault", now)).json!.unlocked, false);
   // the parameters, by kind or by id, and nothing of the wrapper or the proof with them
