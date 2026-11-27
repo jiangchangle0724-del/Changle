@@ -51,7 +51,13 @@ function isEntry(x: unknown): x is Entry {
 
 /** An expense of a kind this phone doesn't know (one a later page added) is kept, without the kind. */
 const knownKind = (e: Entry): Entry => {
-  if (e.kind !== "expense" || e.category === undefined || isCategory(e.category)) return e;
+  if (e.kind !== "expense") return e;
+  // (a refund is said by true alone; anything else in its place is as good as nothing)
+  if (e.refund !== undefined && e.refund !== true) {
+    const { refund: _unknown, ...rest } = e;
+    return knownKind(rest);
+  }
+  if (e.category === undefined || isCategory(e.category)) return e;
   const { category: _unknown, ...rest } = e;
   return rest;
 };

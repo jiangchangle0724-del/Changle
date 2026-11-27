@@ -77,6 +77,13 @@ export type Expense = {
    * words are guessed from. Shown and summed up, and nothing more.
    */
   category?: "food" | "groceries" | "transport" | "lodging" | "fun" | "shopping" | "other";
+  /**
+   * 退款 (2026-11-26, as Tricount's money received): money that came back to the people sharing it
+   * (a refund, a deposit returned) rather than money paid out. `payer` is who got it; it is shared
+   * as an expense is, the other way round: each one's part of it comes off what they bear, and
+   * whoever got it holds it for them (ledger.ts, netsOf). Never with a tip or tax.
+   */
+  refund?: true;
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };

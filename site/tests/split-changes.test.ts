@@ -17,7 +17,7 @@
  *     anyone's share; a change that doesn't mention them keeps them while what was paid stays.
  * 12. The day an expense was spent: a day the calendar has; a change that doesn't mention it leaves it.
  */
-import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
+import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, settlement, spent, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
 import { addExpense, PAY_MAX, removeMember, renameMember, startLedger } from "../src/split/ops";
 import { asLedger } from "../src/split/shape";
@@ -603,6 +603,37 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   const served = serve(start, [sent({ do: "expense", expense: gas })]);
   eq((asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0] as Expense).category, "transport", "the server keeps it, and a phone reads it back");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], category: "spaceflight" }] })?.entries.map((e) => [e.id, "category" in e]), [["e1", false]], "a ledger saying a kind this phone doesn't know: the expense kept, without it");
+}
+
+// ---------- 退款: money that came back, shared the other way round ----------
+{
+  const start = startLedger("r", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }]);
+  const three = { how: "equal" as const, among: ["s", "w", "m"] };
+  const hotel: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 30000, note: "酒店", split: three, rot: 0 };
+  const back: Expense = { kind: "expense", id: "e2", at: 2, payer: "s", amount: 9000, note: "退了一晚", split: three, rot: 1, refund: true };
+  const alone = applyChange(start, { do: "expense", expense: back })!;
+  eq([(alone.entries[0] as Expense).refund, balances(alone), spent(alone)], [true, { s: -6000, w: 3000, m: 3000 }, -9000], "a refund alone: Steve got $90 back, so he holds each one's $30 of it, $60 that isn't his");
+  const both = applyChange(applyChange(start, { do: "expense", expense: hotel })!, { do: "expense", expense: back })!;
+  const cheaper = applyChange(start, { do: "expense", expense: { ...hotel, amount: 21000 } })!;
+  eq([balances(both), spent(both), settlement(both).steps], [balances(cheaper), 21000, settlement(cheaper).steps], "a $300 hotel and $90 of it back: everyone stands as if the hotel was $210, and the plan is the same");
+  const tipped = applyChange(start, { do: "expense", expense: { ...back, tip: 500, tax: 300 } })!;
+  eq(["tip" in tipped.entries[0], "tax" in tipped.entries[0]], [false, false], "a refund keeps no tip or tax");
+  // an edit turns one into the other, or leaves it
+  const said = { payer: "s", amount: 9000, note: "退了一晚", split: three };
+  const asExpense = applyChange(both, { do: "edit", entry: "e2", to: { ...said, refund: null } })!;
+  eq(["refund" in asExpense.entries[1], balances(asExpense)], [false, balances(applyChange(applyChange(start, { do: "expense", expense: hotel })!, { do: "expense", expense: { ...back, refund: undefined } })!)], "null: an expense again, and everyone stands as one");
+  const tippedLunch = applyChange(start, { do: "expense", expense: { ...hotel, tip: 1500 } })!;
+  const turned = applyChange(tippedLunch, { do: "edit", entry: "e1", to: { payer: "s", amount: 30000, note: "酒店", split: three, refund: true } })!;
+  eq([(turned.entries[0] as Expense).refund, "tip" in turned.entries[0]], [true, false], "true: a refund, and its tip goes");
+  eq((applyChange(both, { do: "edit", entry: "e2", to: { ...said, note: "退了一晚房费" } })!.entries[1] as Expense).refund, true, "an edit that doesn't say: it stays a refund");
+  // over the network: true, or (for an edit) null; anything else isn't a change at all
+  const sentBack = (refund: unknown) => parseSent({ id: "c-r", at: 1, change: { do: "expense", expense: { ...back, refund } } });
+  eq([(sentBack(true)?.change as { expense: Expense }).expense.refund, sentBack("yes"), sentBack(false), sentBack(1), "refund" in ((sentBack(undefined)?.change as { expense: Expense }).expense)], [true, null, null, null, false], "a new one: refund true goes through; yes, false or 1 make it no change; none, an expense");
+  const sentEdit = (refund: unknown) => parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e2", to: { ...said, refund } } });
+  eq([(sentEdit(true)?.change as { to: Record<string, unknown> }).to.refund, (sentEdit(null)?.change as { to: Record<string, unknown> }).to.refund === null, sentEdit("no"), "refund" in (sentEdit(undefined)?.change as { to: Record<string, unknown> }).to], [true, true, null, false], "an edit: true or null go through; anything else isn't a change");
+  const served = serve(start, [sent({ do: "expense", expense: hotel }), sent({ do: "expense", expense: back })]);
+  eq(balances(asLedger(JSON.parse(JSON.stringify(served.ledger)))!), balances(both), "the server keeps it, and a phone reads it back the same");
+  eq(asLedger({ ...served.ledger, entries: [served.ledger.entries[0], { ...served.ledger.entries[1], refund: "yes" }] })?.entries.map((e) => "refund" in e), [false, false], "a ledger saying refund some other way: nothing this phone reads as one");
 }
 
 if (failed) {

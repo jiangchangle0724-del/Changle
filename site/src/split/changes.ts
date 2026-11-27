@@ -96,14 +96,16 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
       const kept: Expense = { kind: "expense", id: e.id, at: e.at, payer: e.payer, amount: e.amount, note: tidy(e.note, NOTE_MAX), split: e.split, rot: e.rot };
       if (e.paidIn) kept.paidIn = { currency: e.paidIn.currency, amount: e.paidIn.amount, rate: e.paidIn.rate };
       if (e.files?.length) kept.files = [...e.files];
-      if (e.tip) kept.tip = e.tip;
-      if (e.tax) kept.tax = e.tax;
+      // (a refund keeps no tip or tax: it is money that came back)
+      if (e.tip && !e.refund) kept.tip = e.tip;
+      if (e.tax && !e.refund) kept.tax = e.tax;
       if (e.date) kept.date = e.date;
       for (const k of DETAILS) {
         const v = tidy(e[k] ?? "", DETAIL_MAX);
         if (v) kept[k] = v;
       }
       if (isCategory(e.category)) kept.category = e.category;
+      if (e.refund === true) kept.refund = true;
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -269,6 +271,9 @@ function asEdit(x: unknown): Edit | null {
   // (its kind: one there is, or null for none; a kind this side doesn't know is as good as unsaid)
   if (x.category === null) edit = { ...edit, category: null };
   else if (isCategory(x.category)) edit = { ...edit, category: x.category };
+  // (a refund or not: true, or null for an expense; anything else isn't a change, since it turns money around)
+  if (x.refund === true || x.refund === null) edit = { ...edit, refund: x.refund };
+  else if (x.refund !== undefined) return null;
   return edit;
 }
 
@@ -302,6 +307,8 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
     if (v) expense = { ...expense, [k]: v };
   }
   if (isCategory(x.category)) expense = { ...expense, category: x.category };
+  if (x.refund === true) expense = { ...expense, refund: true };
+  else if (x.refund !== undefined) return null;
   return expense;
 }
 

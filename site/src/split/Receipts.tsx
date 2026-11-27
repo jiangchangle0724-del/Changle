@@ -138,7 +138,7 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
       if (!to || !r.file) return;
       // (with the photos of the rows of its bill it took in, unless an amount was typed back into one)
       const photos = [r.file, ...(r.with ?? []).flatMap((n) => (rows[n].draft.text ? [] : [rows[n].file ?? ""]))].filter((f): f is string => !!f);
-      const { paidIn, files: _unsaid, tip, tax, date, merchant, place, payment, category, ...said } = to;
+      const { paidIn, files: _unsaid, tip, tax, date, merchant, place, payment, category, refund, ...said } = to;
       const id = newId();
       // (one after another, in the order chosen, each with the turn for its odd cents)
       const change: Change = {
@@ -157,7 +157,7 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
           ...(merchant ? { merchant } : {}),
           ...(place ? { place } : {}),
           ...(payment ? { payment } : {}),
-          ...(category ? { category } : {}),
+          ...(category ? { category } : {}), ...(refund ? { refund } : {}),
         },
       };
       if (!record(ledger.id, change)) return;

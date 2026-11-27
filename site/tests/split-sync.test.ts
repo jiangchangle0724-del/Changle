@@ -454,6 +454,14 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, false, true, true, false],
     "the kind: done when the ledger has the kind the change said, none when it has none, and whatever it has when the change says nothing",
   );
+  // and a refund (退款)
+  const refunded: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, refund: true }] };
+  const back = (refund?: true | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(refund === undefined ? {} : { refund }) } });
+  eq(
+    [holds(refunded, back(true)), holds(refunded, back(null)), holds(refunded, back()), holds(plainAt, back(null)), holds(plainAt, back(true))],
+    [true, false, true, true, false],
+    "a refund: done when the ledger says it is one, or isn't when the change says null, and whatever it is when the change says nothing",
+  );
   {
     // someone's 收款方式: held once the ledger says it, tidied; taken off once it says none
     const l0 = startLedger("h", "周末", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
