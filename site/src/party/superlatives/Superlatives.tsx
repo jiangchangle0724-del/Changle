@@ -1,4 +1,4 @@
-import { Check, ImageDown, PenLine, Shuffle } from "lucide-react";
+import { Check, Eye, EyeOff, ImageDown, PenLine, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_PACKS, deckFor, PACKS, TITLES, type Pack } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
@@ -8,6 +8,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
+import { HIDDEN } from "../../shared/engine/games/superlatives";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { flavorOf, mindReader } from "./flavor";
@@ -22,8 +23,25 @@ import "../../styles/party.css";
 const STAMP_MS = 2900;
 const TOAST_MS = 3200;
 
-type Mode = "secret" | "point";
-type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
+type Mode = "secret" | "point" | "whisper";
+/**
+ * The vote: pass (the curtain), ballot, reveal. Pointing together: point, reveal. Paranoia (偷偷问):
+ * whisper-pass (the curtain, to the asker), ask (the asker alone reads the title and names someone),
+ * dare (out loud: the one named drinks to see it, or passes), peek-pass (the curtain, to the one who
+ * paid), peek (they read it, or the table hears they passed). `i` is the asker's seat.
+ */
+type Phase =
+  | { k: "setup" }
+  | { k: "pass"; i: number }
+  | { k: "ballot"; i: number }
+  | { k: "point" }
+  | { k: "reveal"; winners: string[]; counts: Record<string, number> }
+  | { k: "whisper-pass"; i: number }
+  | { k: "ask"; i: number }
+  | { k: "dare"; i: number; named: string }
+  | { k: "peek-pass"; i: number; named: string }
+  | { k: "peek"; i: number; named: string; seen: boolean }
+  | { k: "ceremony" };
 type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; packs?: Pack[]; hits?: Record<string, number>; streak?: { id: string; n: number } | null; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
 
 /** One phone: pass it round for a secret ballot, or count fingers and tap the winner. */
@@ -71,12 +89,12 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const ownPenalty = pen.isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
-  // Hide private ballots again: a game picked up later starts that voter at the hand-over.
-  const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i } : phase;
+  // Hide private ballots (and titles) again: a game picked up later starts that person at the hand-over.
+  const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i } : phase.k === "ask" ? { k: "whisper-pass", i: phase.i } : phase.k === "peek" && phase.seen ? { k: "peek-pass", i: phase.i, named: phase.named } : phase;
   useKeepProgress<Kept>({ mode, total, round, title, written, packs, hits, streak, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
 
   // each moment of the game starts at the top of the screen, and its first 350 ms belong to the moment before
-  const moment = phase.k === "pass" || phase.k === "ballot" ? `${phase.k}:${phase.i}` : phase.k;
+  const moment = "i" in phase ? `${phase.k}:${phase.i}` : phase.k;
   const body = useRef<HTMLDivElement>(null);
   useTopOfMoment(moment, body);
   const { fresh, guard } = useFreshTapGuard(moment);
@@ -87,7 +105,40 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setVotes({});
     setPick(null);
     setPicked([]);
-    setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
+    setPhase(mode === "secret" ? { k: "pass", i: 0 } : mode === "whisper" ? { k: "whisper-pass", i: 0 } : { k: "point" });
+  };
+
+  /** Paranoia: the asker named someone out loud; the title goes on that shelf, seen or not. */
+  const nameOut = (i: number, named: string) => {
+    setAwards((a) => ({ ...a, [named]: [...(a[named] ?? []), title] }));
+    setPick(null);
+    setPhase({ k: "dare", i, named });
+  };
+
+  /** Paranoia: the one named drinks to see the title (the phone goes to them after the stamp), or passes. */
+  const peek = (i: number, named: string, yes: boolean) => {
+    if (!yes) {
+      setPhase({ k: "peek", i, named, seen: false });
+      return;
+    }
+    penalty.show({ who: [name[named] ?? "?"], kind: "sip", note: pen.line({ zh: "偷偷问：喝一口看题", en: "Paranoia: a sip to see it" }, { zh: "偷偷问：受罚才能看题", en: "Paranoia: the penalty buys a look" }) }, () => setPhase({ k: "peek-pass", i, named }));
+  };
+
+  /** Paranoia: on to the next title, the one named asking (or the ceremony after the last). */
+  const nextAsk = (named: string) => {
+    if (round >= total) {
+      setPhase({ k: "ceremony" });
+      sfx.win();
+      stampLater(toast(), TOAST_MS);
+      return;
+    }
+    setRound((r) => r + 1);
+    draw();
+    setPaid(false);
+    setAdvance(false);
+    setPick(null);
+    const i = Math.max(0, players.findIndex((p) => p.id === named));
+    setPhase({ k: "whisper-pass", i });
   };
 
   /** Other packs at the setup: a new deck from them, and a new first title on the card. */
@@ -200,6 +251,12 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     startRound();
   };
 
+  // paranoia: whose phone it is, and what the card shows (the title only to whoever is to read it)
+  const asker = "i" in phase && phase.k !== "pass" && phase.k !== "ballot" ? players[phase.i] : null;
+  const named = phase.k === "dare" || phase.k === "peek-pass" || phase.k === "peek" ? players.find((p) => p.id === phase.named) : null;
+  const reads = phase.k === "ask" || (phase.k === "peek" && phase.seen);
+  const whisperPhase = phase.k === "whisper-pass" || phase.k === "ask" || phase.k === "dare" || phase.k === "peek-pass" || phase.k === "peek";
+
   // Replay only the waiting step, never an award or a penalty that already landed.
   const advanced = useRef(false);
   useEffect(() => {
@@ -216,6 +273,10 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const rules = (
     <p>
+      {zh
+        ? "偷偷问的玩法：每轮一个人自己看题，当众说一个名字；被点名的人喝一口才能看题，不看就一直猜。被点名的人问下一题。颁奖典礼揭晓所有的题。"
+        : "Paranoia: one person reads the title alone and names someone out loud. The one named drinks to see what it was, or stays curious, and asks the next one. The ceremony shows every title."}
+      <br />
       {ownPenalty
         ? zh
           ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人受罚，平票一起受罚。最后开颁奖典礼。称号不合适可以换一个，也可以自己出。"
@@ -228,8 +289,8 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const voter = phase.k === "pass" || phase.k === "ballot" ? players[phase.i] : null;
   const lastVoter = phase.k === "ballot" && phase.i + 1 >= players.length;
-  // the title can still change until the first vote is in (or, pointing together, until the award)
-  const titleOpen = (phase.k === "pass" && Object.keys(votes).length === 0) || phase.k === "point";
+  // the title can still change until the first vote is in (or, pointing together, until the award; in paranoia, while the asker reads it)
+  const titleOpen = (phase.k === "pass" && Object.keys(votes).length === 0) || phase.k === "point" || phase.k === "ask";
 
   // (every button here is guarded: the slot keeps its place from one moment to the next, and a
   // quick second tap meant for the button before must not press the one that took its place)
@@ -254,6 +315,31 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(next)}>
         {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
       </button>
+    ) : phase.k === "whisper-pass" && asker ? (
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => setPhase({ k: "ask", i: phase.i }))}>
+        {zh ? `我是 ${asker.name}` : `I'm ${asker.name}`}
+      </button>
+    ) : phase.k === "ask" && asker ? (
+      <button type="button" className="btn btn-primary btn-lg" disabled={!pick} aria-disabled={fresh} onClick={guard(() => pick && nameOut(phase.i, pick))}>
+        {pick ? (zh ? `说出来了，就是 ${name[pick]}` : `Said it: ${name[pick]}`) : zh ? "先点一个人" : "Pick someone first"}
+      </button>
+    ) : phase.k === "dare" && named ? (
+      <>
+        <button type="button" className="btn btn-ghost btn-lg" aria-disabled={fresh} onClick={guard(() => peek(phase.i, phase.named, false))}>
+          <EyeOff size={16} /> {zh ? "不看" : "Pass"}
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => peek(phase.i, phase.named, true))}>
+          <Eye size={16} /> {zh ? "喝一口看题" : "Drink, see it"}
+        </button>
+      </>
+    ) : phase.k === "peek-pass" && named ? (
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => setPhase({ k: "peek", i: phase.i, named: phase.named, seen: true }))}>
+        {zh ? `我是 ${named.name}` : `I'm ${named.name}`}
+      </button>
+    ) : phase.k === "peek" && named ? (
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => nextAsk(phase.named))}>
+        {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : phase.seen ? (zh ? `看完了，下一题你来问` : "Done. Your turn to ask") : zh ? `下一题，${named.name}来问` : `Next: ${named.name} asks`}
+      </button>
     ) : phase.k === "ceremony" ? (
       <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(more)}>
         {zh ? "再来五个奖" : "Five more awards"}
@@ -261,13 +347,13 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     ) : undefined;
 
   return (
-    <GameShell title={GAME_BY_ID.superlatives.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: voter?.id }} status={{ kind: "round", current: phase.k === "setup" ? 1 : round, total }} actions={actions}>
+    <GameShell title={GAME_BY_ID.superlatives.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: voter?.id ?? named?.id ?? asker?.id }} status={{ kind: "round", current: phase.k === "setup" ? 1 : round, total }} actions={actions}>
       <div className="sup" ref={body}>
         {phase.k === "setup" && (
           <div className="stack" style={{ gap: 16 }}>
             <AwardCard title={title} round={1} total={total} />
             <div className="panel setup-panel">
-              <span className="field-label">{zh ? "怎么投票" : "How to vote"}</span>
+              <span className="field-label">{zh ? "怎么玩" : "How it goes"}</span>
               <div className="seg" role="group">
                 <button type="button" aria-pressed={mode === "secret"} onClick={() => setMode("secret")}>
                   {zh ? "传手机投票" : "Secret ballot"}
@@ -275,7 +361,11 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                 <button type="button" aria-pressed={mode === "point"} onClick={() => setMode("point")}>
                   {zh ? "一起指" : "Point together"}
                 </button>
+                <button type="button" aria-pressed={mode === "whisper"} onClick={() => setMode("whisper")}>
+                  {zh ? "偷偷问" : "Paranoia"}
+                </button>
               </div>
+              {mode === "whisper" && <p className="sup-pack-count">{zh ? "一个人自己看题，当众点名；被点名的人喝一口才能看题" : "One person reads the title alone and names someone; the one named drinks to see it"}</p>}
               <span className="field-label">{zh ? "几个奖" : "How many awards"}</span>
               <div className="seg" role="group">
                 {[5, 8, 12].map((n) => (
@@ -291,6 +381,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         )}
 
         {(phase.k === "pass" || phase.k === "ballot" || phase.k === "point") && <AwardCard title={title} round={round} total={total} custom={written} />}
+        {whisperPhase && <AwardCard title={reads ? title : HIDDEN} round={round} total={total} custom={reads && written} />}
 
         {/* swap the title or write one, as the host can online: under the card, until the first vote */}
         {titleOpen && (
@@ -358,6 +449,60 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                 })}
             </div>
           </>
+        )}
+
+        {phase.k === "whisper-pass" && asker && (
+          <PassCurtain name={asker.name} note={zh ? `第 ${round} 题，${asker.name} 来问：只有TA看题` : `Title ${round}: ${asker.name} asks, and reads it alone`} />
+        )}
+
+        {phase.k === "ask" && asker && (
+          <>
+            <p className="sup-ask">{pick ? (zh ? `当众说出来：${name[pick]}！点别人还能改` : `Say it out loud: ${name[pick]}! Tap someone else to change`) : zh ? `${asker.name}，这题给谁？先在心里选，当众说出来再按` : `${asker.name}, who is it? Pick them, say it out loud, then confirm`}</p>
+            <div className="ballot">
+              {players
+                .filter((p) => p.id !== asker.id)
+                .map((p) => {
+                  const on = pick === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`nominee ${on ? "is-on" : ""}`}
+                      aria-pressed={on}
+                      onClick={() => {
+                        setPick(p.id);
+                        sfx.tap();
+                        haptic(8);
+                      }}
+                    >
+                      <span className="nominee-face">
+                        <NameFace name={p.name} size={58} />
+                        {on && (
+                          <span className="nominee-check" aria-hidden="true">
+                            <Check size={14} strokeWidth={3} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="nominee-name">{p.name}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </>
+        )}
+
+        {(phase.k === "dare" || phase.k === "peek-pass" || phase.k === "peek") && asker && named && (
+          <p className="sup-named">
+            <span className="sup-named-who">{zh ? `${asker.name} 说：` : `${asker.name} says:`}</span>
+            <strong>{named.name}!</strong>
+          </p>
+        )}
+        {phase.k === "dare" && named && <p className="sup-ask">{zh ? `${named.name}，喝一口就能看题。不看也行，那就一直猜吧` : `${named.name}, a sip and you can see the title. Or pass, and keep guessing`}</p>}
+        {phase.k === "peek-pass" && named && <PassCurtain name={named.name} note={zh ? "喝过了，题只给TA看" : "Paid up: the title is theirs alone to read"} />}
+        {phase.k === "peek" && named && (
+          <p className="sup-ask">
+            {phase.seen ? (zh ? `${named.name}，题在上面。念不念出来随你` : `${named.name}, the title is up there. Read it out, or don't`) : zh ? `${named.name} 不想知道。这题到颁奖典礼才揭晓` : `${named.name} would rather not know. The title comes out at the ceremony`}
+          </p>
         )}
 
         {phase.k === "point" && (

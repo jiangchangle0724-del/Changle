@@ -533,3 +533,35 @@
   flex: none;
   color: var(--gold);
 }
+
+/* ------------------------------------------------------------------ paranoia: the name called out */
+.tvs-whisper {
+  gap: 14px;
+}
+.tvs-whisper .tvs-plaque {
+  padding-top: 54px;
+  padding-bottom: 22px;
+}
+.tvs-dare {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.tvs-says {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--haze);
+}
+.tvs-named {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 84px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--gold);
+}

@@ -1,4 +1,4 @@
-import { Check, ImageDown, Shuffle, PenLine } from "lucide-react";
+import { Check, Eye, EyeOff, ImageDown, Shuffle, PenLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { GAME_BY_ID } from "../../games/registry";
@@ -60,6 +60,10 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
 
   const rules = (
     <p>
+      {zh
+        ? "偷偷问的玩法：每轮一个人自己看题，当众说一个名字；被点名的人喝一口才能看题，不看就一直猜。被点名的人问下一题。颁奖典礼揭晓所有的题。"
+        : "Paranoia: one person reads the title alone and names someone out loud. The one named drinks to see what it was, or stays curious, and asks the next one. The ceremony shows every title."}
+      <br />
       {ownPenalty
         ? zh
           ? "每轮一个称号。每个人在自己手机上偷偷投给最配这个称号的人（不能投自己），全部投完或者时间到就揭晓。票最多的人拿奖，也要受罚；平票一起受罚。最后开颁奖典礼，看谁拿的奖最多。主人可以换题，也可以自己出称号。"
@@ -89,6 +93,28 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
               ) : (
                 <p className="sup-pack-count">{zh ? `${v.total} 个奖` : `${v.total} awards`}</p>
               )}
+              <span className="field-label">{zh ? "怎么玩" : "How it goes"}</span>
+              {isHost ? (
+                <div className="seg" role="group">
+                  <button type="button" aria-pressed={v.mode === "vote"} onClick={() => g("config", { mode: "vote" })}>
+                    {zh ? "投票" : "Vote"}
+                  </button>
+                  <button type="button" aria-pressed={v.mode === "whisper"} onClick={() => g("config", { mode: "whisper" })}>
+                    {zh ? "偷偷问" : "Paranoia"}
+                  </button>
+                </div>
+              ) : (
+                <p className="sup-pack-count">{v.mode === "whisper" ? (zh ? "偷偷问" : "Paranoia") : zh ? "投票" : "Vote"}</p>
+              )}
+              <p className="sup-pack-count">
+                {v.mode === "whisper"
+                  ? zh
+                    ? "一个人自己看题，当众点名；被点名的人喝一口才能看题"
+                    : "One person reads the title alone and names someone; the one named drinks to see it"
+                  : zh
+                    ? "每个人在自己手机上偷偷投，票最多的人拿奖"
+                    : "Everyone votes on their own phone; the most votes takes the award"}
+              </p>
               <span className="field-label">{zh ? "题库" : "Title packs"}</span>
               <PackChips picked={v.packs} onChange={isHost ? (next) => g("config", { packs: next }) : undefined} />
             </div>
@@ -103,6 +129,133 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
         )}
 
         {v.phase !== "ceremony" && v.phase !== "setup" && <AwardCard title={v.title} round={v.round} total={v.total} custom={v.custom} />}
+
+        {v.phase === "ask" && (
+          <>
+            {me === v.asker ? (
+              <>
+                <p className="sup-ask">{zh ? "只有你看得到这个称号。当众说出一个人的名字，再点TA" : "Only you can see this title. Say a name out loud, then tap them"}</p>
+                <div className="ballot">
+                  {players.map((s) => {
+                    const self = s.id === me;
+                    return (
+                      <button key={s.id} type="button" className="nominee" disabled={self} aria-disabled={fresh} onClick={guard(() => g("name", { target: s.id }))}>
+                        <span className="nominee-face">
+                          <SeatFace seat={s} size={58} />
+                        </span>
+                        <span className="nominee-name">{self ? (zh ? "你" : "You") : s.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="sup-status">
+                  <TimerArc seconds={60} running endsAt={v.endsAt} offset={offset} size={56} resetKey={`${v.round}-${v.ballot}`} />
+                  <span>{zh ? `${name(v.asker ?? "")} 在偷偷看题` : `${name(v.asker ?? "")} is reading the title`}</span>
+                </div>
+                <Waiting>{zh ? "等TA当众点一个人的名字" : "Waiting for them to name someone"}</Waiting>
+              </>
+            )}
+            {(me === v.asker || isHost) && writing && (
+              <form
+                className="field sup-custom"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!custom.trim()) return;
+                  g("custom", { text: custom.trim() });
+                  setCustom("");
+                  setWriting(false);
+                }}
+              >
+                <input value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={30} aria-label={zh ? "自己出一个称号" : "Your own title"} placeholder={zh ? "比如：今晚最会点歌" : "e.g. Best playlist tonight"} autoFocus />
+                <button type="submit" className="btn btn-primary btn-sm" disabled={!custom.trim()}>
+                  {zh ? "用这个" : "Use it"}
+                </button>
+              </form>
+            )}
+            {me === v.asker && (
+              <HostRow>
+                <HostButton onClick={() => g("skip")}>
+                  <Shuffle size={14} />
+                  {zh ? "换一个" : "Another one"}
+                </HostButton>
+                <HostButton onClick={() => setWriting((w) => !w)}>
+                  <PenLine size={14} />
+                  {zh ? "自己出" : "Write one"}
+                </HostButton>
+              </HostRow>
+            )}
+          </>
+        )}
+
+        {v.phase === "dare" && (
+          <>
+            <p className="sup-named">
+              <span className="sup-named-who">{zh ? `${name(v.asker ?? "")} 说：` : `${name(v.asker ?? "")} says:`}</span>
+              <strong>{v.named === me ? (zh ? "你！" : "You!") : `${name(v.named ?? "")}!`}</strong>
+            </p>
+            {v.named === me ? (
+              <>
+                <p className="sup-ask">{zh ? "喝一口就能看题。不看也行，那就一直猜吧" : "A sip and you can see the title. Or pass, and keep guessing"}</p>
+                <button type="button" className="btn btn-primary btn-lg btn-block" aria-disabled={fresh} onClick={guard(() => g("peek", { yes: true }))}>
+                  <Eye size={18} />
+                  {zh ? "喝一口，看题" : "Drink and see it"}
+                </button>
+                <button type="button" className="btn btn-ghost btn-lg btn-block" aria-disabled={fresh} onClick={guard(() => g("peek", { yes: false }))}>
+                  <EyeOff size={18} />
+                  {zh ? "不看了" : "Pass"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="sup-status">
+                  <TimerArc seconds={45} running endsAt={v.endsAt} offset={offset} size={56} resetKey={`${v.round}-dare`} />
+                  <span>{zh ? `${name(v.named ?? "")} 要不要喝一口看题？` : `Will ${name(v.named ?? "")} drink to see it?`}</span>
+                </div>
+                {me === v.asker && <p className="hint">{zh ? "题只有你知道，先别说" : "Only you know the title. Keep it to yourself"}</p>}
+              </>
+            )}
+          </>
+        )}
+
+        {v.phase === "peek" && (
+          <>
+            <p className="sup-named">
+              <span className="sup-named-who">{zh ? `${name(v.asker ?? "")} 说：` : `${name(v.asker ?? "")} says:`}</span>
+              <strong>{v.named === me ? (zh ? "你！" : "You!") : `${name(v.named ?? "")}!`}</strong>
+            </p>
+            <p className="sup-ask">
+              {v.seen
+                ? v.named === me
+                  ? zh
+                    ? "你喝了一口，题就在上面。念不念出来随你"
+                    : "You drank: the title is up there. Read it out, or don't"
+                  : me === v.asker
+                    ? zh
+                      ? `${name(v.named ?? "")} 喝了一口，看了题。你们俩知道就行`
+                      : `${name(v.named ?? "")} drank and saw it. Now it's the two of you`
+                    : zh
+                      ? `${name(v.named ?? "")} 喝了一口，看了题。想知道？问TA`
+                      : `${name(v.named ?? "")} drank and saw it. Want to know? Ask them`
+                : v.named === me
+                  ? zh
+                    ? "你没看。这题到颁奖典礼才揭晓"
+                    : "You passed. The title comes out at the ceremony"
+                  : zh
+                    ? `${name(v.named ?? "")} 不想知道。这题到颁奖典礼才揭晓`
+                    : `${name(v.named ?? "")} would rather not know. The title comes out at the ceremony`}
+            </p>
+            {isHost ? (
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} aria-disabled={fresh} onClick={guard(() => g("next"))}>
+                {v.round >= v.total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? `下一题，${v.named === me ? (zh ? "你" : "you") : name(v.named ?? "")}来问` : `Next: ${v.named === me ? "you" : name(v.named ?? "")} asks`}
+              </button>
+            ) : (
+              <Waiting>{zh ? "等主人翻到下一题" : "Waiting for the host"}</Waiting>
+            )}
+          </>
+        )}
 
         {v.phase === "vote" && (
           <>

@@ -312,12 +312,23 @@ export type WheelView = {
 
 export type SuperView = {
   id: "superlatives";
-  /** setup: the host picks the packs and how many awards, then starts */
-  phase: "setup" | "vote" | "reveal" | "ceremony";
+  /**
+   * setup: the host picks the packs, how many awards and the mode, then starts. The vote: vote,
+   * reveal. Paranoia (偷偷问): ask (the asker alone reads the title), dare (someone was named: they
+   * pay a sip to see it, or pass), peek (they did or didn't). Then the ceremony.
+   */
+  phase: "setup" | "vote" | "reveal" | "ceremony" | "ask" | "dare" | "peek";
   round: number;
   total: number;
   /** the packs of titles in play (data/superlatives.ts PACKS); empty: every title */
   packs: string[];
+  /** the vote, or paranoia */
+  mode: "vote" | "whisper";
+  /** paranoia: who reads the title this round, whom they named, whether the one named paid to see it */
+  asker: string | null;
+  named: string | null;
+  seen: boolean | null;
+  /** the title; in paranoia "？？？" to everyone who isn't to see it */
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;
