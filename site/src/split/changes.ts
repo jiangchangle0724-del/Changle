@@ -106,6 +106,8 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
       }
       if (isCategory(e.category)) kept.category = e.category;
       if (e.refund === true) kept.refund = true;
+      // (several who paid: problem() has seen that they come to it)
+      if (e.payers) kept.payers = { ...e.payers };
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -211,6 +213,14 @@ function asSplit(x: unknown): Split | null {
 }
 
 /** The other currency an expense was paid in, when what arrived is the shape of one. (Whether the amount and the rate are sound is core/ledger.ts's business.) */
+/** What each of several paid, as sent: two or more ids, each with a whole number of smallest units (whether they come to it is problem()'s to say). */
+function asPayers(p: unknown): Record<string, number> | null {
+  if (!isRecord(p)) return null;
+  const paid = Object.entries(p);
+  if (paid.length < 2 || paid.length > MAX_MEMBERS || paid.some(([id, n]) => id.length > 40 || !isTime(n))) return null;
+  return Object.fromEntries(paid) as Record<string, number>;
+}
+
 function asPaidIn(p: unknown): NonNullable<Expense["paidIn"]> | null {
   if (!isRecord(p) || typeof p.currency !== "string" || !/^[A-Z]{3}$/.test(p.currency) || !isTime(p.amount) || typeof p.rate !== "string" || p.rate.length > 20) return null;
   return { currency: p.currency, amount: p.amount, rate: p.rate };
@@ -274,6 +284,13 @@ function asEdit(x: unknown): Edit | null {
   // (a refund or not: true, or null for an expense; anything else isn't a change, since it turns money around)
   if (x.refund === true || x.refund === null) edit = { ...edit, refund: x.refund };
   else if (x.refund !== undefined) return null;
+  // (what each of several paid, or null for one alone; anything else isn't a change: it moves money)
+  if (x.payers === null) edit = { ...edit, payers: null };
+  else if (x.payers !== undefined) {
+    const payers = asPayers(x.payers);
+    if (!payers) return null;
+    edit = { ...edit, payers };
+  }
   return edit;
 }
 
@@ -309,6 +326,11 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
   if (isCategory(x.category)) expense = { ...expense, category: x.category };
   if (x.refund === true) expense = { ...expense, refund: true };
   else if (x.refund !== undefined) return null;
+  if (x.payers !== undefined) {
+    const payers = asPayers(x.payers);
+    if (!payers) return null;
+    expense = { ...expense, payers };
+  }
   return expense;
 }
 

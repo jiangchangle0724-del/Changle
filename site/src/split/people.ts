@@ -9,7 +9,7 @@
  * got, each with what it did for them. Only what counts (expensesOf, transfersOf), in the ledger's
  * currency.
  */
-import { expensesOf, portionsOf, transfersOf, type Expense, type Ledger, type Transfer } from "./core";
+import { expensesOf, paidBy, portionsOf, transfersOf, type Expense, type Ledger, type Transfer } from "./core";
 import { byDay } from "./lines";
 
 /** One member's sums, in the ledger's currency. `net` above zero: they are owed; below: they owe. */
@@ -22,7 +22,7 @@ export function peopleOf(l: Ledger): Person[] {
   for (const e of expensesOf(l)) {
     // (a refund the other way round: it comes off what whoever got it paid, and off each one's share)
     const way = e.refund ? -1 : 1;
-    rows[at.get(e.payer)!].paid += way * e.amount;
+    for (const [id, n] of Object.entries(paidBy(e))) rows[at.get(id)!].paid += way * n;
     for (const [id, part] of Object.entries(portionsOf(e, l))) rows[at.get(id)!].share += way * part;
   }
   for (const t of transfersOf(l)) {
@@ -40,7 +40,7 @@ export type Spent = { expense: Expense; paid: number; share: number };
 export function statementOf(l: Ledger, id: string): { expenses: Spent[]; transfers: Transfer[] } {
   const expenses = byDay(expensesOf(l))
     .flatMap(([, day]) => day)
-    .map((e) => ({ expense: e, paid: e.payer === id ? e.amount : 0, share: portionsOf(e, l)[id] ?? 0 }))
+    .map((e) => ({ expense: e, paid: paidBy(e)[id] ?? 0, share: portionsOf(e, l)[id] ?? 0 }))
     .filter((s) => s.paid > 0 || s.share > 0);
   const transfers = transfersOf(l)
     .filter((t) => t.from === id || t.to === id)

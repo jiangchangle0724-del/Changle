@@ -5,7 +5,7 @@
  * across at that expense's own rate (its amount, for what was paid in the other one). Only the
  * expenses that count (core/ledger.ts, expensesOf); a transfer is no spending.
  */
-import { expensesOf, portionsOf, type Expense, type Ledger } from "./core";
+import { expensesOf, paidBy, portionsOf, type Expense, type Ledger } from "./core";
 
 /** Who came to the most (more than one, in the roster's order, when they came to the same), and how much. */
 export type Most = { who: string[]; amount: number };
@@ -48,7 +48,7 @@ export function summaryOf(l: Ledger): Summary {
       s.refunds += e.amount;
       s.refunded++;
     } else s.count++;
-    paid.set(e.payer, (paid.get(e.payer) ?? 0) + way * e.amount);
+    for (const [id, n] of Object.entries(paidBy(e))) paid.set(id, (paid.get(id) ?? 0) + way * n);
     for (const [id, part] of Object.entries(portionsOf(e, l))) share.set(id, (share.get(id) ?? 0) + way * part);
     if (e.tip) {
       s.tips += inLedger(e.tip, e);

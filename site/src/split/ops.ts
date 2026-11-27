@@ -83,6 +83,8 @@ export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> &
   category?: Expense["category"] | null;
   // (a refund: true; null for an expense; or not at all, and it stays as it is)
   refund?: true | null;
+  // (what each of several paid: null for `payer` alone; or not at all, and it stays while the amount and `payer` do)
+  payers?: Record<string, number> | null;
 };
 
 /**
@@ -123,6 +125,8 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   const tax = to.tax === undefined ? (samePaid ? e.tax : undefined) : to.tax || undefined;
   const date = to.date === undefined ? e.date : (to.date ?? undefined);
   const refund = to.refund === undefined ? e.refund : (to.refund ?? undefined);
+  // (several who paid, unsaid, stay only while what they paid still comes to it: a page from before them may change the amount or the payer)
+  const payers = to.payers === undefined ? (to.amount === e.amount && to.payer === e.payer ? e.payers : undefined) : (to.payers ?? undefined);
   if (!soundExtras({ amount: to.amount, paidIn, tip, tax }) || (date !== undefined && !isDay(date))) return null;
   // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
   const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
@@ -149,6 +153,8 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   else delete next.category;
   if (refund === true) next.refund = true;
   else delete next.refund;
+  if (payers) next.payers = { ...payers };
+  else delete next.payers;
   return next;
 }
 
@@ -157,7 +163,8 @@ export function editExpense(l: Ledger, id: string, to: ExpenseEdit): Ledger {
   if (problem({ payer: to.payer, amount: to.amount, split: to.split, paidIn: to.paidIn ?? undefined }, roster(l))) return l;
   const was = l.entries.find((e): e is Expense => e.id === id && e.kind === "expense");
   const next = was && afterEdit(was, to);
-  return next ? { ...l, entries: l.entries.map((e) => (e === was ? next : e)) } : l;
+  // (and as it ends up: several who paid have to come to it)
+  return next && !problem(next, roster(l)) ? { ...l, entries: l.entries.map((e) => (e === was ? next : e)) } : l;
 }
 
 /** An entry taken out (an expense deleted, a transfer un-marked): it stays in the ledger, counting for nothing. */
@@ -243,7 +250,7 @@ export function setPay(l: Ledger, id: string, to: string): Ledger {
 export function inAnyEntry(l: Ledger, id: string): boolean {
   return l.entries.some((e) => {
     if (e.kind === "transfer") return e.from === id || e.to === id;
-    if (e.payer === id) return true;
+    if (e.payer === id || (e.payers && id in e.payers)) return true;
     const s = e.split;
     return s.how === "equal" ? s.among.includes(id) : s.how === "shares" ? id in s.shares : id in s.amounts;
   });

@@ -636,6 +636,44 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq(asLedger({ ...served.ledger, entries: [served.ledger.entries[0], { ...served.ledger.entries[1], refund: "yes" }] })?.entries.map((e) => "refund" in e), [false, false], "a ledger saying refund some other way: nothing this phone reads as one");
 }
 
+// ---------- 几个人一起付: what each of several paid ----------
+{
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }]);
+  const three = { how: "equal" as const, among: ["s", "w", "m"] };
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 18600, note: "晚饭", split: three, rot: 0, payers: { s: 10000, w: 8600 } };
+  const l = applyChange(start, { do: "expense", expense: dinner })!;
+  eq([(l.entries[0] as Expense).payers, balances(l), settlement(l).steps.map((x) => [x.from, x.to, x.amount])], [{ s: 10000, w: 8600 }, { s: 3800, w: 2400, m: -6200 }, [["m", "s", 3800], ["m", "w", 2400]]], "Steve paid $100 of it and 小王 $86: each is owed what they paid less their $62");
+  const off: [string, Partial<Expense>][] = [
+    ["not adding up to it", { payers: { s: 10000, w: 8000 } }],
+    ["one alone", { payers: { s: 18600 } }],
+    ["the payer not among them", { payer: "m" }],
+    ["someone not in the ledger", { payers: { s: 10000, x: 8600 } }],
+    ["one paying nothing", { payers: { s: 18600, w: 0 } }],
+    ["paid in another currency", { paidIn: { currency: "USD", amount: 13300, rate: "1.40" } }],
+  ];
+  eq(off.filter(([, more]) => applyChange(start, { do: "expense", expense: { ...dinner, ...more } }) !== null).map(([why]) => why), [], "not taken: payers not adding up to it, one alone, the payer not among them, someone not in the ledger, one paying nothing, another currency");
+  // edits: changed, taken off, left; a page from before them changes the amount or who paid: they go
+  const said = { payer: "s", amount: 18600, note: "晚饭", split: three };
+  eq(balances(applyChange(l, { do: "edit", entry: "e1", to: { ...said, payers: { s: 9000, w: 9600 } } })!), { s: 2800, w: 3400, m: -6200 }, "changed: what each paid now");
+  const alone = applyChange(l, { do: "edit", entry: "e1", to: { ...said, payers: null } })!;
+  eq(["payers" in alone.entries[0], balances(alone)], [false, { s: 12400, w: -6200, m: -6200 }], "null: Steve paid it all");
+  eq((applyChange(l, { do: "edit", entry: "e1", to: { ...said, note: "火锅" } })!.entries[0] as Expense).payers, { s: 10000, w: 8600 }, "an edit that doesn't say, and keeps the amount and the payer: they stay");
+  const dearer = applyChange(l, { do: "edit", entry: "e1", to: { ...said, amount: 20000 } })!;
+  eq(["payers" in dearer.entries[0], balances(dearer).s], [false, 20000 - 6667], "a page from before changes the amount: they no longer come to it, so they go, and Steve paid it all");
+  eq("payers" in applyChange(l, { do: "edit", entry: "e1", to: { ...said, payer: "w" } })!.entries[0], false, "or changes who paid: they go too");
+  eq(applyChange(l, { do: "edit", entry: "e1", to: { ...said, payers: { s: 9000, w: 9000 } } }), null, "changed to ones that don't add up: not taken");
+  // someone who paid can't be taken off, though they share none of it
+  const paidOnly = applyChange(start, { do: "expense", expense: { ...dinner, split: { how: "equal", among: ["s", "m"] } } })!;
+  eq(applyChange(paidOnly, { do: "remove", member: "w" }), null, "小王 paid some of it: he can't be taken off the ledger");
+  // over the network: a record of ids and amounts, or (for an edit) null; anything else isn't a change at all
+  const sentNew = (payers: unknown) => parseSent({ id: "c-p", at: 1, change: { do: "expense", expense: { ...dinner, payers } } });
+  eq([(sentNew({ s: 10000, w: 8600 })?.change as { expense: Expense }).expense.payers, sentNew("s"), sentNew({ s: 18600 }), sentNew({ s: "100", w: 8600 }), sentNew(null), "payers" in (sentNew(undefined)?.change as { expense: Expense }).expense], [{ s: 10000, w: 8600 }, null, null, null, null, false], "a new one: payers come through; a name, one alone, a sum as words or null make it no change; none, one payer");
+  const sentEdit = (payers: unknown) => parseSent({ id: "c-q", at: 1, change: { do: "edit", entry: "e1", to: { ...said, payers } } });
+  eq([(sentEdit({ s: 9000, w: 9600 })?.change as { to: Record<string, unknown> }).to.payers, (sentEdit(null)?.change as { to: Record<string, unknown> }).to.payers === null, sentEdit([1, 2])], [{ s: 9000, w: 9600 }, true, null], "an edit: payers or null come through; anything else isn't a change");
+  const served = serve(start, [sent({ do: "expense", expense: dinner })]);
+  eq(balances(asLedger(JSON.parse(JSON.stringify(served.ledger)))!), balances(l), "the server keeps them, and a phone reads them back the same");
+}
+
 if (failed) {
   console.log(`\n${failed} failure(s)`);
   process.exit(1);

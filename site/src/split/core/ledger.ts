@@ -26,10 +26,12 @@ export type Problem =
   /** typed amounts don't add up: `off` is what is still to hand out (above zero) or handed out too much (below) */
   | { what: "sum"; off: number }
   /** the other currency's amount or rate isn't one */
-  | { what: "rate" };
+  | { what: "rate" }
+  /** several paid it (types.ts, payers), and what each paid isn't two or more of the ledger's people, each more than nothing, adding up to it, with `payer` among them, in the ledger's own currency */
+  | { what: "payers" };
 
 /** What is wrong with this expense in a ledger with these members, or null. */
-export function problem(e: Pick<Expense, "payer" | "amount" | "split" | "paidIn">, roster: string[]): Problem | null {
+export function problem(e: Pick<Expense, "payer" | "amount" | "split" | "paidIn" | "payers">, roster: string[]): Problem | null {
   if (!isAmount(e.amount)) return { what: "amount" };
   if (!roster.includes(e.payer)) return { what: "payer" };
   const s = e.split;
@@ -48,6 +50,10 @@ export function problem(e: Pick<Expense, "payer" | "amount" | "split" | "paidIn"
     if (off !== 0) return { what: "sum", off };
   }
   if (e.paidIn && (!isAmount(e.paidIn.amount) || !isRate(e.paidIn.rate))) return { what: "rate" };
+  if (e.payers !== undefined) {
+    const paid = Object.entries(e.payers);
+    if (e.paidIn || paid.length < 2 || !(e.payer in e.payers) || paid.some(([id, n]) => !roster.includes(id) || !isAmount(n)) || paid.reduce((a, [, n]) => a + n, 0) !== e.amount) return { what: "payers" };
+  }
   return null;
 }
 
@@ -79,6 +85,9 @@ export const transfersOf = (l: Ledger): Transfer[] => {
 export const portionsOf = (e: Expense, l: Ledger) => portions(e.amount, e.split, e.rot, rosterOf(l));
 
 /** Everything spent, in smallest units. */
+/** Who paid an expense, and how much each: `payers`, or `payer` all of it. */
+export const paidBy = (e: Pick<Expense, "payer" | "amount" | "payers">): Record<string, number> => e.payers ?? { [e.payer]: e.amount };
+
 /** What was spent in all: the expenses, less the refunds (types.ts, refund). */
 export const spent = (l: Ledger) => expensesOf(l).reduce((a, e) => a + (e.refund ? -e.amount : e.amount), 0);
 
@@ -105,7 +114,7 @@ function netsOf(l: Ledger, withTransfers: boolean): number[] {
   for (const e of expensesOf(l)) {
     // (a refund the other way round: whoever got it holds everyone's part of it)
     const way = e.refund ? -1 : 1;
-    nets[at.get(e.payer)!] += way * e.amount;
+    for (const [id, n] of Object.entries(paidBy(e))) nets[at.get(id)!] += way * n;
     for (const [id, part] of Object.entries(portionsOf(e, l))) nets[at.get(id)!] -= way * part;
   }
   if (withTransfers)

@@ -462,6 +462,14 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, true, true, false],
     "a refund: done when the ledger says it is one, or isn't when the change says null, and whatever it is when the change says nothing",
   );
+  // and several who paid (几个人一起付)
+  const two: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, payers: { [said.payer]: 3000, z: 1200 } }] };
+  const paid = (payers?: Record<string, number> | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(payers === undefined ? {} : { payers }) } });
+  eq(
+    [holds(two, paid({ z: 1200, [said.payer]: 3000 })), holds(two, paid({ [said.payer]: 2000, z: 2200 })), holds(two, paid(null)), holds(two, paid()), holds(plainAt, paid(null)), holds(plainAt, paid({ [said.payer]: 3000, z: 1200 }))],
+    [true, false, false, true, true, false],
+    "several who paid: done when the ledger has the same ones paying the same (in any order), none when it says null, and whatever it has when the change says nothing",
+  );
   {
     // someone's 收款方式: held once the ledger says it, tidied; taken off once it says none
     const l0 = startLedger("h", "周末", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);

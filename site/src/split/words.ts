@@ -295,6 +295,9 @@ export const W = {
   historyRefund: { zh: "记了一笔退款：{what}", en: "New refund: {what}" },
   historyRefundOn: { zh: "改成退款", en: "now a refund" },
   historyRefundOff: { zh: "改成花销", en: "now an expense" },
+  // 几个人一起付 (2026-11-27), in the record
+  historyPayers: { zh: "改成 {who} 一起付", en: "now paid by {who} together" },
+  youInList: { zh: "你", en: "you" },
   // 退款 on the screens: turned on in 详情, said on the add screen, its row and its statement line
   refund: { zh: "退款", en: "Refund" },
   refundToggle: { zh: "这是一笔退款", en: "It's a refund" },

@@ -129,6 +129,10 @@ const same = (a: unknown, b: unknown): boolean => {
 };
 
 /** Does the ledger say what this change was for? (An entry taken out is out, whoever took it out.) */
+/** Several who paid, the same: the same people, each the same amount (in any order); none and none alike. */
+const samePaid = (a: Record<string, number> | null | undefined, b: Record<string, number> | null | undefined) =>
+  !a || !b ? !a && !b : Object.keys(a).length === Object.keys(b).length && Object.entries(a).every(([id, n]) => b[id] === n);
+
 export function holds(l: Ledger, c: Change): boolean {
   const entry = (id: string) => l.entries.find((e) => e.id === id);
   switch (c.do) {
@@ -152,7 +156,8 @@ export function holds(l: Ledger, c: Change): boolean {
         (c.to.tax === undefined || (e.tax ?? 0) === (c.to.tax ?? 0)) &&
         (c.to.date === undefined || (e.date ?? null) === (c.to.date ?? null)) &&
         (c.to.category === undefined || (e.category ?? null) === (c.to.category ?? null)) &&
-        (c.to.refund === undefined || (e.refund ?? null) === (c.to.refund ?? null))
+        (c.to.refund === undefined || (e.refund ?? null) === (c.to.refund ?? null)) &&
+        (c.to.payers === undefined || samePaid(e.payers, c.to.payers))
       );
     }
     case "out": {

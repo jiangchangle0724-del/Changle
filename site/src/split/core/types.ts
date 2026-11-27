@@ -29,8 +29,15 @@ export type Expense = {
   id: string;
   /** when it was recorded (ms since 1970) */
   at: number;
-  /** who paid */
+  /** who paid (of several, the one who paid the most: see `payers`) */
   payer: string;
+  /**
+   * 几个人一起付 (2026-11-27, as Splitwise's several payers): what each one paid of it, in the
+   * ledger's currency, when more than one did. Two or more of the ledger's people, each more than
+   * nothing, adding up to `amount`, `payer` among them; only in the ledger's own currency (no
+   * `paidIn`). Without it, `payer` paid it all.
+   */
+  payers?: Record<string, number>;
   /** what it cost, in the ledger's currency, in smallest units */
   amount: number;
   note: string;
