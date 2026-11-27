@@ -10,7 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
-import { comparePacks, PACK_MASS, PACK_VOLUME, perBase } from "../src/tools/units";
+import { comparePacks, figureDigits, MASS, PACK_MASS, PACK_VOLUME, perBase, perBaseOf, plainFigure, VOLUME } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -75,6 +75,29 @@ ok(v2?.better === "same" && v2.pct === 0, `$10 vs $10.02 per kg counts as the sa
 const v3 = comparePacks({ price: "2", qty: "500", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME);
 ok(v3?.better === "a" && v3.pct === 20, `500 mL at $2 vs 1 L at $5: A wins by 20% → ${JSON.stringify(v3)}`);
 eq(comparePacks({ price: "2", qty: "", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME), null, "half filled in, no verdict yet");
+
+// 2c. every unit is a field: the price typed in one, the others converted; small prices keep three digits
+const unit = (list: typeof MASS, id: string) => list.find((u) => u.id === id)!;
+near(perBaseOf("1.75", unit(VOLUME, "gal")) * unit(VOLUME, "l").size, 0.4623, "$1.75 a US gallon is $0.46 a litre");
+near(perBaseOf("0.5", unit(VOLUME, "l")) * unit(VOLUME, "gal").size, 1.8927, "and $0.50 typed in the litre box is $1.89 a US gallon");
+near(perBaseOf("12.99", unit(MASS, "lb")) * unit(MASS, "jin").size, 14.32, "$12.99 a pound is $14.32 a 斤");
+eq(perBaseOf("", unit(MASS, "kg")), 0, "an empty field is 0, not NaN");
+eq(perBaseOf("abc", unit(MASS, "kg")), 0, "and so is nonsense");
+eq(figureDigits(0.4623, 2), 2, "46 cents keeps two decimals");
+eq(figureDigits(0.1, 2), 2, "so does a dime");
+eq(figureDigits(0.01367, 2), 4, "a cent and a bit gets four");
+eq(figureDigits(0.00012, 2), 6, "never more than six");
+eq(figureDigits(8.27, 0), 2, "under ten yen gets two");
+eq(figureDigits(1500, 0), 0, "yen above ten, none");
+eq(figureDigits(0, 2), 2, "zero is the currency's own");
+eq(plainFigure(1.892705892, 2), "1.89", "a field takes two decimals");
+eq(plainFigure(0.013671875, 2), "0.0137", "or three significant digits below a dime");
+eq(plainFigure(0.004, 2), "0.004", "trailing zeros go");
+eq(plainFigure(1.5, 2), "1.50", "but not below the currency's own");
+eq(plainFigure(0, 2), "0.00", "zero");
+eq(plainFigure(12345.678, 2), "12345.68", "no thousands separators in a field");
+eq(plainFigure(2481.4, 0), "2481", "yen without decimals");
+eq(plainFigure(8.0, 0), "8", "a round yen figure has no point");
 
 // 3. the world clock
 const T = Date.UTC(2026, 6, 15, 12, 0); // 2026-07-15 12:00Z, summer

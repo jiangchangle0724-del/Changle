@@ -23,6 +23,33 @@ export const VOLUME: Unit[] = [
 export const PACK_MASS: Unit[] = [{ id: "g", zh: "克", en: "g", size: 0.001 }, ...MASS.filter((u) => u.id !== "100g")];
 export const PACK_VOLUME: Unit[] = [{ id: "ml", zh: "毫升", en: "mL", size: 0.001 }, ...VOLUME.filter((u) => u.id !== "100ml")];
 
+/** Price per kilogram or litre, from a price typed for one unit (0 while nothing is typed). */
+export function perBaseOf(text: string, unit: Unit) {
+  const n = Number(text || "0");
+  return Number.isFinite(n) && n > 0 ? n / unit.size : 0;
+}
+
+/**
+ * How many decimals a unit price is written with: the currency's own (2, or 0 for yen and won),
+ * and more below a tenth of a dollar (ten yen), so 1.75 a gallon reads $0.0137 per fl oz rather
+ * than $0.01: three significant digits, at most 6 decimals.
+ */
+export function figureDigits(v: number, decimals: number) {
+  if (!(v > 0) || !Number.isFinite(v) || v >= 10 ** (1 - decimals)) return decimals;
+  return Math.min(6, Math.max(decimals, Math.ceil(-Math.log10(v)) + 2));
+}
+
+/** A unit price as a field holds it once tapped: no thousands separators, trailing zeros trimmed down to the currency's own decimals. */
+export function plainFigure(v: number, decimals: number) {
+  if (!Number.isFinite(v)) return "";
+  const s = Math.max(0, v).toFixed(figureDigits(v, decimals));
+  const i = s.indexOf(".");
+  if (i < 0) return s;
+  let end = s.length;
+  while (end > i + 1 + decimals && s[end - 1] === "0") end--;
+  return s.slice(0, end === i + 1 ? i : end);
+}
+
 export type Pack = { price: string; qty: string; unit: string };
 
 /** Price per kilogram or litre of a pack, or null while the price or the amount is missing. */
