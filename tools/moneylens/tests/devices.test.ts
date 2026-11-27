@@ -241,6 +241,10 @@ test("signing another device out, and all the others: what each answer means", a
     [{ status: 500, json: {} }, "server"],
     [{ status: 200, json: { ok: false } }, "server"],
     [{ status: 200, json: {} }, "server"],
+    // (said to be done, by an answer that is not one)
+    [{ status: 201, json: { ok: true, ended: 1 } }, "server"],
+    [{ status: 500, json: { ok: true, ended: 1 } }, "server"],
+    [{ status: 429, json: { ok: true, ended: 1 } }, "busy"],
     [null, "offline"],
   ] as const) {
     const asked: [string, unknown][] = [];
@@ -259,6 +263,10 @@ test("signing another device out, and all the others: what each answer means", a
     [{ status: 403, json: {} }, { ok: false, why: "signed-out" }],
     [{ status: 429, json: {} }, { ok: false, why: "busy" }],
     [{ status: 503, json: {} }, { ok: false, why: "server" }],
+    // (said to be done, by an answer that is not one)
+    [{ status: 201, json: { ok: true, ended: 2 } }, { ok: false, why: "server" }],
+    [{ status: 500, json: { ok: true, ended: 2 } }, { ok: false, why: "server" }],
+    [{ status: 429, json: { ok: true, ended: 2 } }, { ok: false, why: "busy" }],
     [null, { ok: false, why: "offline" }],
   ] as const) {
     const asked: [string, unknown][] = [];
