@@ -3711,3 +3711,45 @@ button.ecard.is-legal:active {
   right: 2px;
   bottom: 4px;
 }
+/* under the winner: what the vote said (a tie, a streak, every vote, one vote in it), and the speech */
+.reveal-flavor {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--gel) 18%, var(--dusk-2));
+  color: var(--moon);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  text-align: center;
+}
+.reveal-flavor.is-unanimous {
+  background: var(--gel);
+  color: var(--on-gel);
+}
+.reveal-speech {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+/* the ceremony's mind reader, above the shelves */
+.ceremony-mind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 14%, var(--dusk-2));
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+.ceremony-mind svg {
+  flex: none;
+  color: var(--gel);
+}

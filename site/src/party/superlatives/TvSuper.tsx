@@ -1,4 +1,4 @@
-import { Check, Crown, PenLine, Trophy } from "lucide-react";
+import { Check, Crown, PenLine, Sparkles, Trophy } from "lucide-react";
 import { useRef } from "react";
 import { Figure } from "../../components/Figure";
 import { PACK_NAMES, PACKS, type Pack } from "../../data/superlatives";
@@ -7,6 +7,7 @@ import { SeatFace } from "../../online/People";
 import type { SeatView, SuperView } from "../../shared/protocol";
 import { Bi, DoneBadge, RoundTag, TvClock, TvLineup, TvPodium, TvShow, useArrivals, useBeat, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
+import { flavorOf, mindLine, mindReader } from "./flavor";
 import { useSeatMemory } from "./seats";
 import "../../styles/tv-superlatives.css";
 
@@ -143,6 +144,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
     .filter((r): r is { seat: SeatView; n: number; win: boolean } => !!r.seat);
   const max = Math.max(1, ...rows.map((r) => r.n));
   const key = `${v.round}:${v.winners.join(",")}`;
+  const flavor = flavorOf({ winners: v.winners, counts, voted: v.voted, streak: v.streak, name: (id) => seat(id)?.name ?? "?" });
   // the drum roll, then the name (the winner's penalty lands on the room's clock at 2.6 s)
   useBeat(
     (tl, q) => {
@@ -153,6 +155,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
       tl.fromTo(q(".tvs-winner"), { scale: 0.2, rotate: -12, opacity: 0, y: 60 }, { scale: 1, rotate: 0, opacity: 1, y: 0, duration: 0.8, ease: "back.out(1.9)", stagger: 0.12 }, land);
       tl.fromTo(q(".tvs-winner-name"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.12 }, land + 0.35);
       tl.fromTo(q(".tvs-title-won"), { opacity: 0 }, { opacity: 1, duration: 0.4 }, land + 0.5);
+      tl.fromTo(q(".tvs-flavor"), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4 }, land + 0.9);
       tl.fromTo(q(".tvs-vote-row"), { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.08 }, land + 0.6);
       tl.fromTo(q(".tvs-vote-fill"), { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power2.out", stagger: 0.08 }, land + 0.7);
       tl.call(() => burst({ x: 0.33, y: 0.62, count: 240, spread: 110, power: 26 }), [], land + 0.05);
@@ -185,6 +188,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
         ))}
       </div>
       <p className="tvs-title-won">{zh ? `「${tr(v.title)}」` : `"${tr(v.title)}"`}</p>
+      {flavor && <p className={`tvs-flavor is-${flavor.kind}`}>{tr(flavor.text)}</p>}
       <aside className="tvs-votes">
         <h2>{zh ? "票数" : "The votes"}</h2>
         <ul>
@@ -215,6 +219,7 @@ function Ceremony({ v, sound }: { v: SuperView; sound: boolean }) {
   const people = ids.map((id) => seat(id)).filter((s): s is SeatView => !!s);
   const rows = people.map((s) => ({ seat: s, score: v.awards[s.id]?.length ?? 0 }));
   const shelf = people.filter((s) => (v.awards[s.id]?.length ?? 0) > 0).sort((a, b) => (v.awards[b.id]?.length ?? 0) - (v.awards[a.id]?.length ?? 0));
+  const mind = mindReader(v.hits ?? {}, v.round);
   return (
     <div className="tvs-ceremony">
       <h1 className="tvs-ceremony-title">
@@ -223,6 +228,12 @@ function Ceremony({ v, sound }: { v: SuperView; sound: boolean }) {
       <TvPodium rows={rows} unit={zh ? "个奖" : "won"} sound={sound} className="tvs-podium" burstX={0.31} />
       <aside className="tvs-honours">
         <h2>{zh ? "今晚的奖" : "Tonight's awards"}</h2>
+        {mind && (
+          <p className="tvs-mind">
+            <Sparkles size={24} strokeWidth={2.4} aria-hidden="true" />
+            {tr(mindLine(mind.ids.map((id) => seat(id)?.name ?? "?"), mind.hits, mind.of))}
+          </p>
+        )}
         <ul>
           {shelf.map((s) => (
             <li key={s.id}>

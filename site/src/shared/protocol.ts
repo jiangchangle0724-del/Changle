@@ -301,6 +301,10 @@ export type SuperView = {
   counts: Record<string, number> | null;
   winners: string[];
   awards: Record<string, T[]>;
+  /** how often each voter voted for the winner (the mind reader of the night, at the ceremony) */
+  hits: Record<string, number>;
+  /** at the reveal: how many awards in a row this winner has taken (0 at a tie) */
+  streak: number;
 };
 
 export type PunchAnswer = {

@@ -941,6 +941,7 @@ test("superlatives: secret votes, award, ceremony", ownDice(() => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners[0] === "p2" && v.counts?.p2 === 3, "everyone voted: p2 wins with 3");
   ok(v.awards.p2?.length === 1, "p2 holds the award");
+  ok(v.hits.p0 === 1 && v.hits.p1 === 1 && v.hits.p3 === 1 && !v.hits.p2 && v.streak === 1, "the three who voted p2 each hit once; p2's first award in a row");
   ok(v.stampAt === clock + 2600, "the view says when the winner's stamp lands");
   // the host can't move on under the stamp: a quick "next" waits until it has landed
   t.advance(1000);
@@ -961,6 +962,7 @@ test("superlatives: secret votes, award, ceremony", ownDice(() => {
   t.advance(46_000);
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners.length === 2, "timer reveals a tie with two winners");
+  ok(v.streak === 0 && v.hits.p0 === 2 && v.hits.p1 === 2, "a tie: no streak; both voters hit (each voted a winner)");
   const s = t.eng.d.game!.s as { round: number; total: number };
   s.round = s.total;
   t.advance(2700);
@@ -977,6 +979,27 @@ test("superlatives: secret votes, award, ceremony", ownDice(() => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
   ok(v.ballot === 4, "a title the host wrote is a new ballot");
+}));
+
+test("superlatives: the same winner award after award counts a streak; another winner starts over", ownDice(() => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
+  const round = (winner: string) => {
+    for (const pid of ["p0", "p1", "p2"]) if (pid !== winner) t.g(pid, "vote", { target: winner });
+    const other = ["p0", "p1", "p2"].find((pid) => pid !== winner)!;
+    t.g(winner, "vote", { target: other });
+    const v = t.view<V<"superlatives">>("p0");
+    t.advance(2700);
+    t.g("p0", "next");
+    return v;
+  };
+  ok(round("p1").streak === 1, "p1 wins: one in a row");
+  ok(round("p1").streak === 2, "p1 again: two");
+  const v = round("p1");
+  ok(v.streak === 3 && v.hits.p0 === 3 && v.hits.p2 === 3 && !v.hits.p1, "three in a row for p1; p0 and p2 called every one");
+  ok(round("p2").streak === 1, "p2 wins: the streak starts over");
+  ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
 }));
 
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {

@@ -11,6 +11,7 @@ import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import { TOTALS } from "../../shared/engine/games/superlatives";
 import type { SuperView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
+import { flavorOf, mindReader } from "./flavor";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
 import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import { useSeatMemory } from "./seats";
@@ -195,6 +196,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
               title={v.title}
               winners={v.winners.map((id) => ({ id, name: name(id), face: face(id), count: v.counts![id] ?? 0 }))}
               nominees={Object.keys(v.counts).map((id) => ({ id, name: name(id), face: face(id), count: v.counts![id] }))}
+              flavor={flavorOf({ winners: v.winners, counts: v.counts, voted: v.voted, streak: v.streak, name })}
             />
             {isHost ? (
               <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} onClick={() => g("next")}>
@@ -216,6 +218,10 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                 face: face(id),
                 awards: v.awards[id] ?? [],
               }))}
+              mind={(() => {
+                const m = mindReader(v.hits, v.round);
+                return m && { names: m.ids.map((id) => (id === me ? (zh ? "你" : "You") : name(id))), hits: m.hits, of: m.of };
+              })()}
             />
             {isHost && (
               <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} onClick={() => g("more")}>

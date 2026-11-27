@@ -24,6 +24,10 @@ type S = {
   counts: Record<string, number> | null;
   winners: string[];
   awards: Record<string, T[]>;
+  /** how often each voter voted for the winner: the mind reader of the night */
+  hits: Record<string, number>;
+  /** the same person winning award after award (a tie breaks it) */
+  streak: { id: string; n: number } | null;
   /** when the moment's stamp lands (the winner's sip, the ceremony's toast); `stamped` once it has */
   stampAt: number;
   stamped: boolean;
@@ -91,6 +95,10 @@ function reveal(s: S, api: Api) {
   s.counts = counts;
   s.winners = Object.keys(counts).filter((pid) => counts[pid] === top);
   for (const w of s.winners) (s.awards[w] ??= []).push(s.title);
+  s.hits ??= {};
+  for (const [voter, target] of Object.entries(s.votes)) if (s.winners.includes(target)) s.hits[voter] = (s.hits[voter] ?? 0) + 1;
+  const one = s.winners.length === 1 ? s.winners[0] : null;
+  s.streak = one ? { id: one, n: s.streak?.id === one ? s.streak.n + 1 : 1 } : null;
   s.phase = "reveal";
   api.fx("award", s.winners[0]);
   stampLater(s, api, STAMP_MS);
@@ -106,7 +114,7 @@ export const superlatives: GameDef<S> = {
   min: 3,
   init() {
     // (the deck is dealt when the host starts, from the packs picked by then)
-    return { phase: "setup", round: 1, total: ROUNDS, packs: [...DEFAULT_PACKS], deck: [], title: TITLES[0], custom: false, ballot: 0, votes: {}, endsAt: 0, counts: null, winners: [], awards: {}, stampAt: 0, stamped: true };
+    return { phase: "setup", round: 1, total: ROUNDS, packs: [...DEFAULT_PACKS], deck: [], title: TITLES[0], custom: false, ballot: 0, votes: {}, endsAt: 0, counts: null, winners: [], awards: {}, hits: {}, streak: null, stampAt: 0, stamped: true };
   },
 
   act(s, pid, g, api) {
@@ -232,6 +240,8 @@ export const superlatives: GameDef<S> = {
       counts: s.phase === "vote" ? null : s.counts,
       winners: s.phase === "vote" ? [] : s.winners,
       awards: s.awards,
+      hits: s.hits ?? {},
+      streak: s.phase === "reveal" ? (s.streak?.n ?? 0) : 0,
     };
   },
 };
