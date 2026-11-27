@@ -269,6 +269,28 @@ def t_superlatives(t):
     shot(t.screens, "sup-06-ceremony")
     ok(t.tv.locator(".tvx-podium .tvx-place").count() == 3 and t.tv.locator(".tvs-honours li").count() >= 1, "superlatives: the podium and the night's awards")
     t.end()
+    # paranoia: the screens never learn the title; they show who is reading it, and the name called out
+    t.start("superlatives")
+    ok(t.wait_phase("setup"), "superlatives paranoia: the setup again")
+    t.host.get_by_role("button", name=L("偷偷问", "Paranoia")).click()
+    t.host.get_by_role("button", name="开始颁奖").click()
+    ok(t.wait_phase("ask"), "superlatives paranoia: the host reads the first title")
+    t.tv.wait_for_timeout(1200)
+    ok("？？？" in t.tv.locator(".tvs-plaque").inner_text() and view(t.tv)["title"]["zh"] == "？？？", "superlatives paranoia: the plaque shows ？？？ (the screen is never told)")
+    ok(NAMES[0] in t.tv.locator(".tvs-ask").inner_text(), "superlatives paranoia: the screen says who is reading")
+    shot(t.screens, "sup-07-ask")
+    players[0].locator(".ballot .nominee", has_text=NAMES[1]).click()
+    ok(t.wait_phase("dare"), "superlatives paranoia: a name called out")
+    t.tv.wait_for_timeout(1400)
+    ok(NAMES[1] in t.tv.locator(".tvs-named").inner_text() and "？？？" in t.tv.locator(".tvs-plaque").inner_text(), "superlatives paranoia: the name on the screen, the title still hidden")
+    shot(t.screens, "sup-08-dare")
+    players[1].get_by_role("button", name=L("喝一口，看题", "Drink and see it")).click()
+    ok(t.wait_phase("peek"), "superlatives paranoia: paid")
+    ok(until(lambda: all(s.locator(".tv-stamp").count() == 1 for s in t.screens), 6000), "superlatives paranoia: the sip on the screens")
+    ok("？？？" not in t.tv.locator(".tv-stamp").inner_text() and view(t.tv)["title"]["zh"] == "？？？", "superlatives paranoia: the stamp doesn't say the title, and the screen still doesn't know it")
+    t.tv.wait_for_timeout(1500)
+    shot(t.screens, "sup-09-peek")
+    t.end()
 
 
 # ------------------------------------------------------------------ undercover

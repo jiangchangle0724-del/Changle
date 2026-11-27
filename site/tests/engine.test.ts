@@ -1512,6 +1512,72 @@ test("superlatives: the same winner award after award counts a streak; another w
   ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
 }));
 
+test("superlatives: paranoia, one person reads the title and names someone, who pays a sip to see it or passes", ownDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "config", { mode: "whisper", total: 5 });
+  ok(t.view<V<"superlatives">>("p1").mode === "whisper", "the host picks paranoia");
+  t.g("p0", "start");
+  let v = t.view<V<"superlatives">>("p0");
+  const title = v.title;
+  ok(v.phase === "ask" && v.asker === "p0" && v.title.zh !== "？？？", "the host asks first and reads the title");
+  ok(t.view<V<"superlatives">>("p1").title.zh === "？？？" && t.view<V<"superlatives">>("p1").asker === "p0", "the others see who is reading, not what");
+  ok(nothing(t.g("p1", "name", { target: "p2" })) || t.view<V<"superlatives">>("p0").phase === "ask", "only the asker names");
+  t.g("p0", "name", { target: "p0" });
+  ok(t.view<V<"superlatives">>("p0").phase === "ask", "not themselves");
+  t.g("p0", "name", { target: "p2" });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "dare" && v.named === "p2" && v.title.zh === "？？？" && v.awards.p2?.length === 1, "p2 is named: on the spot, title still hidden, the award on p2's shelf");
+  ok(t.view<V<"superlatives">>("p0").title.zh === title.zh, "the asker still reads it");
+  t.g("p1", "peek", { yes: true });
+  ok(t.view<V<"superlatives">>("p0").phase === "dare", "only the one named answers");
+  t.g("p2", "peek", { yes: true });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "peek" && v.seen === true && v.title.zh === title.zh, "p2 pays: now p2 reads it");
+  ok(t.view<V<"superlatives">>("p3").title.zh === "？？？", "p3 still doesn't");
+  ok(v.stampAt === clock + 600, "the sip lands 0.6 s in");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "peek", "the host can't move on under the sip");
+  t.advance(700);
+  const pen = t.pens().slice(-1)[0];
+  ok(pen && pen.who.join() === "p2" && pen.kind === "sip" && pen.note?.zh !== title.zh, "p2 drinks; the stamp doesn't give the title away");
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "ask" && v.round === 2 && v.asker === "p2" && v.title.zh !== "？？？", "round 2: the one named asks, and reads");
+  ok(t.view<V<"superlatives">>("p0").title.zh === "？？？", "the host no longer reads it");
+  // the asker swaps the title, then names p3, who passes
+  const swapped = v.title.zh;
+  t.g("p2", "skip");
+  ok(t.view<V<"superlatives">>("p2").title.zh !== swapped && t.view<V<"superlatives">>("p2").phase === "ask", "the asker can swap the title");
+  t.g("p2", "name", { target: "p3" });
+  t.g("p3", "peek", { yes: false });
+  v = t.view<V<"superlatives">>("p3");
+  ok(v.phase === "peek" && v.seen === false && v.title.zh === "？？？" && v.stampAt === 0 && v.awards.p3?.length === 1, "p3 passes: still in the dark, no sip, the title on the shelf all the same");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").asker === "p3" && t.view<V<"superlatives">>("p0").round === 3, "round 3: p3 asks");
+  // an asker who sits on it: the next seat asks; someone named who doesn't answer: passes
+  t.advance(60_100);
+  ok(t.view<V<"superlatives">>("p0").asker === "p0" && t.view<V<"superlatives">>("p0").phase === "ask", "a minute on: the next seat reads the title");
+  t.g("p0", "name", { target: "p1" });
+  t.advance(45_100);
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "no answer in 45 s: passed");
+  // the one named leaves mid-dare: passed; the ceremony shows every title
+  t.g("p0", "next");
+  t.g("p1", "name", { target: "p2" });
+  t.act("p2", { a: "leave" });
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "the one named left: passed");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "ask" && t.view<V<"superlatives">>("p0").round === 5 && t.view<V<"superlatives">>("p0").asker !== "p2", "round 5, with someone still here asking");
+  const asker = t.view<V<"superlatives">>("p0").asker!;
+  const other = ["p0", "p1", "p3"].find((x) => x !== asker)!;
+  t.g(asker, "name", { target: other });
+  t.g(other, "peek", { yes: false });
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "ceremony" && Object.values(v.awards).flat().length === 5 && Object.values(v.awards).flat().every((a) => a.zh !== "？？？"), "after five: the ceremony, every title on the shelves, none hidden");
+}));
+
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
