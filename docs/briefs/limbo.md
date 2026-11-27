@@ -68,12 +68,12 @@
 - 2026-11-26 晚 Steve 四个人玩完的反馈，三条：
   - 「跟着动的杆子并没有跟着动进行同步」：量角器上目标在 8° 到 20° 之间摆，3D 的横杆却几乎不动。原因是 `barHeight(deg)` 原来是「仰到这个角度时身体最高点的高度」，小角度时余弦很平，8° 到 20° 横杆只下来 4 厘米。现在横杆高度是一条自己的曲线（站直的头顶到完全放平，按 (deg/90)^1.25 往下），第一杆的摆动变成 13 厘米，看得见了；小人的膝盖按横杆高度反算要弯多少（`crouchFor`），身体最高点还是正好在横杆上，像真的林波舞一样蹲着过。电视同一个舞台，一起改了。
   - 「只支持竖屏，手机怎么转都是影响游戏内的动作不会影响屏幕方向」：歪着过的时候手机一歪，iPhone 就把页面转成横屏。网页锁不了方向（iPhone Safari 没有这个 API，安卓要全屏），所以做成「手机转了，页面转回来」：`portrait.ts` 读 `screen.orientation.angle`（90 是顶朝左、逆时针，270 或 -90 是顶朝右），body 画成竖屏大小（宽 100dvh、高 100vw）再 rotate 回去，html 上 `overflow: hidden` 让 body 自己滚（否则 body 的 overflow 会传给视口，sticky 的底栏贴错地方）；安全区的变量跟着换边。传感器读的是手机自己的坐标，游戏逻辑本来就不受影响。只在手机上（短边小于 600），平板不转。查到的坑：全站按视口宽高写的样式都会错判（横屏布局 landscape.css、GameShell.css，桌面布局 GameHeader.css 和 components.css 的 720px、GameHeader.tsx 的 720px 判断、ScreenHints 的「横过来」提示、party.css 自己的矮屏规则），都在 `data-turned` 时让开了。无头浏览器模拟两个方向都截了图，和竖屏一模一样。
-  - 「MiniMax 我已经充钱了，英语提示就好」：workflow 加了 `only` 输入（默认 en），`voice.ts` 一种语言没有录音就放英语的（`clipsFor` 退到 `recorded(b, "en")`）。合并后跑 `only=en`。
+  - 「MiniMax 我已经充钱了，英语提示就好」：workflow 加了 `only` 输入（默认 en），`voice.ts` 一种语言没有录音就放英语的（`clipsFor` 退到 `recorded(b, "en")`）。2026-11-27 跑了 `only=en`（run 45958791361，#882 合并）：`public/sounds/limbo/en/` 六句，`English_Graceful_Lady`，每句 0.9 到 1.4 秒，平均 -15 dB、峰值 -2 dB。无头浏览器里中英文界面都听到了 `__limboSaid` 的 down 和 on；提示音照旧，`limbo-coach` 测试有录音时也过。
 
 ## 还剩什么
 
-- 录音：「横杆的摆动看得见」那个 PR 合并后跑 `gh api -X POST repos/jiangchangle0724-del/Changle/actions/workflows/limbo-voices.yml/dispatches -f ref=main -f 'inputs[only]=en'`，等它开 PR（分支 `claude/limbo-voices-<run_id>`），看 6 个英文 mp3 大小正常就合并；再让 Steve 真机听：音量、每 2.8 秒一句吵不吵、中文界面下听英文顺不顺（他说英语提示就好；要中文就再跑一次 `only=zh`，`voice.ts` 自动优先用本语言的）。
-- Steve 真机再试两件：跟着动的杆的横杆现在看得见在动；歪着过时手机歪了页面不转（转了但页面被转回来）。
+- Steve 真机再试三件：跟着动的杆的横杆现在看得见在动；歪着过时手机歪了页面不转（转了但页面被转回来）；教练的英文人声（音量、每 2.8 秒一句吵不吵、中文界面下听英文顺不顺）。要中文人声就再跑一次 workflow，`only=zh`，`voice.ts` 自动优先用本语言的；换台词改 `voice.ts` 的 `LINES` 再录。
+- workflow 自己开不了 PR：仓库设置里 GitHub Actions 不许开 PR（「GitHub Actions is not permitted to create or approve pull requests」）。它把分支推上去就停了，PR 手动开（`gh api repos/…/pulls -f head=claude/limbo-voices-<run_id>`）。要让它自己开，得 Steve 在 GitHub 仓库 Settings → Actions → General 里勾 Allow GitHub Actions to create and approve pull requests（改 GitHub 设置，要他点头）；不改也行。
 - 两条借来的玩法上的主意，改玩法，等 Steve 说了再做（2026-11-26 问过）：A. 站直校准：胸口本来就斜，每个人站直时手机读数可能 5° 到 20° 不等，等于有人起步让了十几度；可以在倒数时记下站直的读数，只扣掉超过 10° 的部分（倒数时弯腰也占不到便宜：弯腰读 0°，扣不了；仰着读得高，只会扣自己）。要动 `useLean`/`usePose`/`useFollow` 的 lean 输入和盲仰，联机时每部手机各自校准就行，不用改协议。B. 仰过头会摔（马里奥派对的林波舞小游戏就这样）：超过横杆 20° 以上算摔倒出局，逼人贴着杆过；要加一个往后摔的姿势（`figure.ts` 现在只有往前撞杆坐地的）和规则里的 fail 原因。
 - 滤波的两个参数（`smoother(1, 0.007)`）和迟滞的 2° 是在电脑上按数定的，要 Steve 真机试：仰到位的那一下有没有拖（有就把 0.007 调大到 0.01）、深仰时量角器还抖不抖（抖就把 1 调小到 0.8）。
 - 3D 舞台要 Steve 真机看：在 iPhone 上流不流畅（头几秒太慢会自动退回画的那版，退回了说一声）、人的样子和动作像不像、画面会不会太小（现在和原来的画面一样大，`party.css` 里 `.limbo-3d` 的宽度）。可以再加的：过杆时横杆亮得更夸张、人穿的颜色之外加点区别（帽子、发型）、人群多时的站位。
@@ -98,7 +98,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-26 林波舞：横杆的摆动看得见，手机转了页面转回来，语音只录英语
+- 2026-11-27 林波舞：教练的英文语音提示（MiniMax English_Graceful_Lady）（#882，workflow 录的）
+- 2026-11-26 林波舞：横杆的摆动看得见，手机转了页面转回来，语音只录英语（#880）
 - 2026-11-26 林波舞：读数过 1€ 滤波，到位有迟滞，撑住进度只掉不清零，安卓贴胸震动，小人深仰发抖
 
 - 2026-11-19 林波舞：电视和手机同一个 3D 舞台，每个人按自己手机的实时角度仰
