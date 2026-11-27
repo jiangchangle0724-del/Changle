@@ -316,6 +316,11 @@ const S = {
   creditsPeopleBody: ["两个人体模型和他们的动作来自 Quaternius 的 Universal Animation Library 1 和 2（CC0，公共领域）。我们用 Blender 脚本精简、剪辑（游戏代码里的 tools/blender），点头、摇头、吃东西、靠栏杆、提灯笼这几个动作用另一个小脚本取出来（tools/moves）；头发、帽子、包和眼睛是脚本自己做的，脸、帽子、围巾、手机和咖啡是游戏代码做的，十二种打扮的颜色也是。", "The two bodies and their moves are from Quaternius's Universal Animation Library 1 and 2 (CC0, public domain). A Blender script slims and trims them (tools/blender in the game's code), and a small script takes out the nod, the shake of the head, eating, leaning on a rail and holding a lantern (tools/moves); the hair, caps, bags and eyes are made by the script itself, and the faces, hats, scarves, phones and coffee, and the twelve outfits' colours, by the game's code."],
   creditsSets: ["场地里的立体布景", "The 3D set dressing"],
   creditsSetsBody: ["用 Blender 脚本从零搭出来的（游戏代码里的 tools/blender），没有导入别人的模型或贴图。地面、传送带、聚光灯、海、海堤的自行车、夜市的灯、鞭炮和烟花是游戏代码自己画的。", "Built from scratch by a Blender script (tools/blender in the game's code), with no outside models or textures. The floors, the walkways, the spotlight, the sea, the seawall's bike, the night market's lights, the firecrackers and the fireworks are drawn by the game's own code."],
+  creditsVoice: ["播报的声音", "The announcer's voice"],
+  creditsVoiceBody: [
+    "英文播报（First Blood、Double Kill 这些）是用开源的 Kokoro 语音模型（Apache 2.0）合成的，再在这个游戏自己的 tools/voice/make.py 里配上回声和音效；没有用任何别的游戏的录音。",
+    "The English calls (First Blood, Double Kill and the rest) were spoken by the open Kokoro speech model (Apache 2.0), then given their echo and stingers by this game's own tools/voice/make.py. No other game's recordings are used."
+  ],
   creditsFonts: ["字体", "Fonts"],
   creditsFontsBody: ["Unbounded 和 Figtree，SIL Open Font License 1.1。中文用手机自己的字体。", "Unbounded and Figtree, under the SIL Open Font License 1.1. Chinese uses the phone's own font."],
   creditsCode: ["程序库", "Code libraries"],

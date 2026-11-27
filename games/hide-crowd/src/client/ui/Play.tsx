@@ -165,7 +165,7 @@ export function Play(props: {
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   const notice = useNotice(game.events, me, game.arena);
   const drill = useDrill(game, props.receivedAt);
-  const callout = useCallout(game.events);
+  const callout = useCallout(game.events, { screen: false, screens: view.screens });
   const meScore = view.players.find((player) => player.you);
   const coach = useCoach(game, !!props.coach && !!me);
   const pointing = coach.index >= 0 && !notice ? COACH[coach.index].point : undefined;
