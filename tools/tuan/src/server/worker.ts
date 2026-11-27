@@ -12,6 +12,7 @@
 //   /tuan/my/s/<shop>                         what a shop says about itself, for its own people to change
 //   /tuan/assets/…                            the script, the styles and the fonts: plain files
 // The API (the shapes are in src/api.ts). Anyone, no sign-in:
+//   GET  /tuan/api/home                       home: the group buys open now at the shops shown there, and those shops
 //   GET  /tuan/api/offers/<id>                a group buy: the goods, what's left, who's in
 //   GET  /tuan/api/shops/<slug>               a shop and its group buys
 //   POST /tuan/api/offers/<id>/orders         place an order
@@ -23,7 +24,7 @@
 //   POST /tuan/api/my/apply                   ask to open a shop, or send the asking again, changed (src/engine/apply.ts)
 //   POST /tuan/api/my/shops/<slug>/photos     a picture of the goods, its two copies as a form (src/server/photos.ts)
 //   GET  /tuan/api/my/shops/<slug>            what a shop says about itself
-//   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit (not its address, who runs it, or whether it's live)
+//   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit, whether home shows it (not its address, who runs it, or whether it's live)
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
 //   GET  /tuan/api/my/offers/<id>             every order in it, and the sheets (src/engine/summary.ts)
 //   POST /tuan/api/my/offers/<id>             open it, close it
@@ -33,7 +34,7 @@
 // The site's owner:
 //   POST /tuan/api/admin/shops                set a shop up, or change one
 //   POST /tuan/api/admin/applications/<shop>  answer an application: let the shop in, send it back, or say no
-import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopCard, type ShopPage } from "../api";
+import { TAIL_HEADER, type ApiError, type ApiErrorCode, type HomePage, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopCard, type ShopPage } from "../api";
 import { BASE } from "../base";
 import { appliedNotice, decidedNotice, readApplication, readDecision, type NewApplication } from "../engine/apply";
 import { planEdit, type Used } from "../engine/edit";
@@ -57,6 +58,7 @@ import {
   cancelOrder,
   decideApplication,
   hasPhoto,
+  homeBook,
   insertApplication,
   insertOffer,
   insertOrder,
@@ -81,7 +83,9 @@ import {
   saveShopWords,
   sawOwner,
   setOfferStatus,
+  setShopListed,
   shopBySlug,
+  shopListed,
   shopOffers,
   shopsOf,
   usedOf,
@@ -186,6 +190,11 @@ async function seeShop(db: D1Database, slug: string, now: number): Promise<Respo
   if (!shop || shop.status === "pending") return refuse("notfound");
   const offers = (await shopOffers(db, shop.id)).map((offer) => ({ id: offer.id, title: offer.title, closesAt: offer.closesAt, state: stateOf({ shop, offer }, now) }));
   return json({ shop: cardOf(shop), offers, now } satisfies ShopPage);
+}
+
+/** The tool's home: what's open now, at the shops that are shown there. */
+async function seeHome(db: D1Database, now: number): Promise<Response> {
+  return json({ ...(await homeBook(db, now)), now } satisfies HomePage);
 }
 
 async function seeOffer(db: D1Database, offerId: string, now: number): Promise<Response> {
@@ -379,16 +388,19 @@ async function myShop(db: D1Database, who: Who, slug: string): Promise<Response>
   const shop = await shopBySlug(db, slug);
   if (!shop) return refuse("notfound");
   if (!(await runs(db, who, shop.id))) return refuse("forbidden");
-  return json({ shop: cardOf(shop), status: shop.status } satisfies MyShopPage);
+  return json({ shop: cardOf(shop), status: shop.status, listed: await shopListed(db, shop.id) } satisfies MyShopPage);
 }
 
 async function saveMyShop(req: Request, db: D1Database, who: Who, slug: string): Promise<Response> {
   const shop = await shopBySlug(db, slug);
   if (!shop) return refuse("notfound");
   if (!(await runs(db, who, shop.id))) return refuse("forbidden");
-  const read = readShopWords(await body(req, ORDER_BODY_MAX));
+  const raw = await body(req, ORDER_BODY_MAX);
+  const read = readShopWords(raw);
   if (!read.ok) return refuse(read.error);
   await saveShopWords(db, shop.id, read.words);
+  // (shown on the tool's home or not: only when it's said, as a yes or a no)
+  if (typeof raw?.listed === "boolean") await setShopListed(db, shop.id, raw.listed);
   return myShop(db, who, slug);
 }
 
@@ -672,6 +684,7 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
   const [a, b, c, d] = parts;
   const n = parts.length;
 
+  if (n === 1 && a === "home" && get) return seeHome(db, now);
   if (n === 2 && a === "shops" && SLUG_RE.test(b ?? "") && get) return seeShop(db, b, now);
   if (a === "offers" && OFFER_RE.test(b ?? "")) {
     if (n === 2 && get) return seeOffer(db, b, now);

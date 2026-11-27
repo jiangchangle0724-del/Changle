@@ -219,6 +219,8 @@ export const MY_STRINGS = {
   shopPermitField: { zh: "许可（选填，买家看得到）", en: "Permit (optional, buyers see it)" },
   shopPermitHint: { zh: "私厨和农场写上卫生局或农业部门给的许可号。", en: "Home kitchens and farms: the permit number the health or farm authority gave you." },
   shopEditNote: { zh: "店铺地址和管店的账号要改的话，找站长。", en: "To change the shop's address or who runs it, ask the site's owner." },
+  shopListed: { zh: "在跟一单首页展示这家店和它正在开的团", en: "Show this shop and its open group buys on Count Me In's home page" },
+  shopListedHint: { zh: "不展示的话，只有拿到链接的人能看到。", en: "If not, only people with your links will see them." },
   shopSaved: { zh: "存好了。", en: "Saved." },
 
   // ---------- a picture of the goods, in the editor ----------

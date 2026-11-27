@@ -1,7 +1,7 @@
 // Talking to the server, and what this phone remembers: what's in the cart of each group buy, the
 // name and phone number last ordered with, and the orders placed from here (each with the last
 // four digits that open it). Nothing is kept anywhere else: a buyer has no account.
-import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferMove, type OfferPage, type OrderInput, type OrderMove, type OrderPage, type ShopCard, type ShopPage } from "../api";
+import { TAIL_HEADER, type ApiError, type HomePage, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferMove, type OfferPage, type OrderInput, type OrderMove, type OrderPage, type ShopCard, type ShopPage } from "../api";
 import { BASE } from "../base";
 import type { How } from "../engine/types";
 
@@ -159,6 +159,7 @@ export const photoUrl = (id: string, small: boolean): string => `${BASE}/img/${i
 export const getOffer = (offerId: string): Promise<OfferPage> => ask(`/offers/${offerId}`);
 /** A shop's own page. */
 export const getShop = (slug: string): Promise<ShopPage> => ask(`/shops/${slug}`);
+export const getHome = (): Promise<HomePage> => ask("/home");
 export const placeOrder = (offerId: string, order: OrderInput): Promise<OrderPage> => ask(`/offers/${offerId}/orders`, { method: "POST", body: order });
 
 // The order just placed or changed comes back with the answer, so the order's page, opened next,
@@ -190,7 +191,7 @@ export const cancelOrder = (code: string, tail: string): Promise<OrderPage> => a
 export const getMy = (): Promise<MyHome> => ask("/my", { signedIn: true });
 /** What a shop says about itself, for its own people to change; and changing it. */
 export const getMyShop = (slug: string): Promise<MyShopPage> => ask(`/my/shops/${slug}`, { signedIn: true });
-export const saveMyShop = (slug: string, words: Omit<ShopCard, "slug">): Promise<MyShopPage> => ask(`/my/shops/${slug}`, { method: "POST", body: words, signedIn: true });
+export const saveMyShop = (slug: string, words: Omit<ShopCard, "slug">, listed: boolean): Promise<MyShopPage> => ask(`/my/shops/${slug}`, { method: "POST", body: { ...words, listed }, signedIn: true });
 export const getMyOffer = (offerId: string): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { signedIn: true });
 export const moveOffer = (offerId: string, move: OfferMove): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { method: "POST", body: move, signedIn: true });
 export const moveOrder = (code: string, move: OrderMove): Promise<Moved> => ask(`/my/orders/${code}`, { method: "POST", body: move, signedIn: true });
