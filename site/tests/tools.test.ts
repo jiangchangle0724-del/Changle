@@ -10,7 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
-import { COUNT, figureDigits, isKind, MASS, PACK_COUNT, PACK_MASS, PACK_UNITS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, UNITS, VOLUME, type Pack } from "../src/tools/units";
+import { amountOf, COUNT, figureDigits, isKind, MASS, PACK_COUNT, PACK_MASS, PACK_UNITS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, UNITS, VOLUME, type Pack } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -120,6 +120,16 @@ near(perBase(g("12.99", "6", "each", "4"), PACK_COUNT), 0.5413, "4 packs of 6 ro
 ok(isKind("count") && isKind("mass") && !isKind("pieces") && !isKind(undefined), "the three kinds, nothing else");
 ok((["mass", "volume", "count"] as const).every((k) => UNITS[k].length >= 4 && PACK_UNITS[k].length >= 2 && UNITS[k][0].size > 0), "every kind has its units and pack units");
 ok(UNITS.mass.every((u) => u.zh && u.en) && UNITS.count.every((u) => u.zh && u.en) && PACK_COUNT.every((u) => u.zh && u.en), "every unit has both names");
+
+// 2e. a whole pack's price in the big field: $5.99 for 750 mL
+near(perBaseOf("5.99", unit(VOLUME, "ml"), 750), 7.9867, "$5.99 for 750 mL is $7.99 a litre");
+near(perBaseOf("12.99", unit(COUNT, "each"), 24) * 12, 6.495, "$12.99 for 24 rolls is $6.50 a dozen");
+near(perBaseOf("8", unit(MASS, "g"), 454), 17.62, "$8 for 454 g is $17.62 a kg");
+eq(perBaseOf("8", unit(MASS, "g"), 0), perBaseOf("8", unit(MASS, "g"), 1), "an amount of 0 counts as 1");
+eq([amountOf(""), amountOf("0"), amountOf("750"), amountOf("abc"), amountOf(undefined)].join(), "1,1,750,1,1", "the amount: empty, zero or nonsense is 1");
+ok(MASS[0].id === "g" && MASS[0].tiny && VOLUME[0].id === "ml" && VOLUME[0].tiny && MASS.filter((u) => u.tiny).length === 1, "grams and millilitres are chips for a pack's size, never boxes");
+eq(PACK_MASS.filter((u) => u.id === "g").length, 1, "a pack's size lists grams once");
+eq(PACK_MASS[0].id + PACK_VOLUME[0].id, "gml", "and first");
 
 // 3. the world clock
 const T = Date.UTC(2026, 6, 15, 12, 0); // 2026-07-15 12:00Z, summer

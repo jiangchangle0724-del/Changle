@@ -1,9 +1,11 @@
 /** Units of weight and volume for the unit-price tool, the linked fields' arithmetic, and which pack is the better buy. */
 
-export type Unit = { id: string; zh: string; en: string; size: number };
+/** `tiny`: grams and millilitres are picked for a pack's size ($5.99 per 750 mL), never shown as a box of their own. */
+export type Unit = { id: string; zh: string; en: string; size: number; tiny?: true };
 
 /** sizes in kilograms */
 export const MASS: Unit[] = [
+  { id: "g", zh: "克", en: "g", size: 0.001, tiny: true },
   { id: "kg", zh: "公斤", en: "kg", size: 1 },
   { id: "lb", zh: "磅", en: "lb", size: 0.45359237 },
   { id: "jin", zh: "斤", en: "jīn 斤", size: 0.5 },
@@ -12,6 +14,7 @@ export const MASS: Unit[] = [
 ];
 /** sizes in litres */
 export const VOLUME: Unit[] = [
+  { id: "ml", zh: "毫升", en: "mL", size: 0.001, tiny: true },
   { id: "l", zh: "升", en: "L", size: 1 },
   { id: "gal", zh: "美制加仑", en: "US gal", size: 3.785411784 },
   { id: "impgal", zh: "英制加仑", en: "UK gal", size: 4.54609 },
@@ -28,8 +31,8 @@ export const COUNT: Unit[] = [
 ];
 
 /** What a pack's size is printed in: grams and millilitres first, then the units above. */
-export const PACK_MASS: Unit[] = [{ id: "g", zh: "克", en: "g", size: 0.001 }, ...MASS.filter((u) => u.id !== "100g")];
-export const PACK_VOLUME: Unit[] = [{ id: "ml", zh: "毫升", en: "mL", size: 0.001 }, ...VOLUME.filter((u) => u.id !== "100ml")];
+export const PACK_MASS: Unit[] = MASS.filter((u) => u.id !== "100g");
+export const PACK_VOLUME: Unit[] = VOLUME.filter((u) => u.id !== "100ml");
 export const PACK_COUNT: Unit[] = [
   { id: "each", zh: "个", en: "items", size: 1 },
   { id: "dozen", zh: "打", en: "dozen", size: 12 },
@@ -43,11 +46,14 @@ export const PACK_UNITS: Record<Kind, Unit[]> = { mass: PACK_MASS, volume: PACK_
 /** What packs are compared per: a kilogram, a litre, an item. */
 export const BASE: Record<Kind, { zh: string; en: string }> = { mass: { zh: "公斤", en: "kg" }, volume: { zh: "升", en: "L" }, count: { zh: "个", en: "item" } };
 
-/** Price per kilogram or litre, from a price typed for one unit (0 while nothing is typed). */
-export function perBaseOf(text: string, unit: Unit) {
+/** Price per kilogram, litre or item, from a price typed for `amount` of a unit (0 while nothing is typed). */
+export function perBaseOf(text: string, unit: Unit, amount = 1) {
   const n = Number(text || "0");
-  return Number.isFinite(n) && n > 0 ? n / unit.size : 0;
+  return Number.isFinite(n) && n > 0 ? n / (unit.size * (amount > 0 ? amount : 1)) : 0;
 }
+
+/** How much of the unit the big field's price buys: what's typed after 每, or 1. */
+export const amountOf = (text: string | undefined) => (Number(text) > 0 ? Number(text) : 1);
 
 /**
  * How many decimals a unit price is written with: the currency's own (2, or 0 for yen and won),
