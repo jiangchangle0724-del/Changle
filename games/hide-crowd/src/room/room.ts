@@ -19,6 +19,8 @@ import {
   characterMaxSpeed,
   createMatch,
   driftAt,
+  knockoutCut,
+  knockoutPath,
   LIGHT_SWITCHES,
   momentAt,
   normalizeVector,
@@ -29,6 +31,7 @@ import {
   SWITCH_RESET_MS,
   rideBike,
   roundAwards,
+  stageRanking,
   roundPenalty,
   sweepSpot,
   startBlend,
@@ -118,6 +121,52 @@ export interface MatchProgress {
   stats: Record<string, MatchStats>;
 }
 
+/**
+ * A knockout under way (settings.match, with 4 or more players: Steve, 2026-11-26): each stage is a
+ * whole round, its best players (`stageRanking`) go through (`knockoutCut`), the rest are out, until
+ * one is left.
+ */
+export interface Knockout {
+  /** a place per stage, in order */
+  places: ArenaId[];
+  /** stages played */
+  played: number;
+  /** how many began each stage played or under way (8, 5, 3) */
+  sizes: number[];
+  /** who's still in: the next stage's players */
+  alive: string[];
+  /** who's out, and in which stage (1 is the first) */
+  out: Record<string, number>;
+  /** the stage just played: its players best first, and how many of them went through */
+  last: { order: string[]; through: number } | null;
+  /** the last one in, once the final is played (or nobody, if the room emptied) */
+  champion: string | null;
+  done: boolean;
+  /** everyone's doings over the knockout, for its titles */
+  stats: Record<string, MatchStats>;
+}
+
+/** A knockout starts with this many players or more; fewer play a match of places. */
+export const KNOCKOUT_FROM = 4;
+
+/** A player's round added to their match or knockout so far. */
+function addUp(stats: Record<string, MatchStats>, game: MatchState): void {
+  for (const player of game.characters) {
+    if (player.kind !== "player" || !player.ownerId) continue;
+    const id = player.ownerId;
+    const so = stats[id] ?? { score: 0, feasts: 0, tagged: 0, fouls: 0, swings: 0, snacks: 0, best: 0 };
+    stats[id] = {
+      score: so.score + player.score,
+      feasts: so.feasts + (player.feasts ?? 0),
+      tagged: so.tagged + player.tagged,
+      fouls: so.fouls + player.fouls,
+      swings: so.swings + (player.swings ?? 0),
+      snacks: so.snacks + (player.snacks ?? 0),
+      best: Math.max(so.best, game.runs?.[id]?.best ?? 0)
+    };
+  }
+}
+
 /** The match's titles: the round's titles, worked out over everything its players did in it. */
 export function matchAwards(stats: Record<string, MatchStats>): { owner: string; award: AwardKey }[] {
   const characters = Object.entries(stats).map(([owner, item]) => ({ kind: "player", ownerId: owner, score: item.score, feasts: item.feasts, tagged: item.tagged, fouls: item.fouls, swings: item.swings, snacks: item.snacks }) as unknown as Character);
@@ -140,8 +189,10 @@ export interface RoomState {
   arenaVotes: Record<string, ArenaId>;
   seed: number;
   settings: { penalties: boolean; custom: string; match?: boolean };
-  /** the match under way (settings.match), or null */
+  /** the match under way (settings.match, 2 or 3 players), or null */
   match?: MatchProgress | null;
+  /** the knockout under way or just won (settings.match, 4 or more players), or null */
+  knockout?: Knockout | null;
   round: number;
   result: RoundResult | null;
   ended: boolean;
@@ -166,6 +217,7 @@ export class Room {
     // (a whole match unless the host turns it off; a room saved before matches existed gets one too)
     this.st.settings.match ??= true;
     this.st.match ??= null;
+    this.st.knockout ??= null;
     this.st.round ??= 0;
     this.st.result ??= null;
     this.st.ended ??= false;
@@ -369,6 +421,7 @@ export class Room {
         this.st.settings.match = message.on === true;
         // (turning it off, or on again, starts over: the next round is a fresh start)
         this.st.match = null;
+        this.st.knockout = null;
         this.dirty = true;
         return;
       }
@@ -381,8 +434,9 @@ export class Room {
         if (!host || this.playing) return;
         this.st.game = null;
         this.st.result = null;
-        // (back to the lobby: a match under way is over)
+        // (back to the lobby: a match or a knockout under way is over)
         this.st.match = null;
+        this.st.knockout = null;
         this.st.inputs = {};
         this.st.inputUpdatedAt = {};
         this.dirty = true;
@@ -399,10 +453,27 @@ export class Room {
   }
 
   private startRound(now: number): void {
-    const players = this.st.members
+    const online = this.st.members
       .filter((item) => item.role === "player" && item.online)
       .sort((a, b) => a.joinedAt - b.joinedAt)
       .slice(0, MAX_PLAYERS);
+    // a knockout under way: its next stage is for whoever's still in and still here (one who left is out)
+    let knockout = this.st.settings.match && this.st.knockout && !this.st.knockout.done ? this.st.knockout : null;
+    let players = online;
+    if (knockout) {
+      const here = new Set(online.map((player) => player.id));
+      for (const owner of knockout.alive) if (!here.has(owner)) knockout.out[owner] = knockout.played + 1;
+      knockout.alive = knockout.alive.filter((owner) => here.has(owner));
+      if (knockout.alive.length < MIN_PLAYERS) {
+        // (everyone else left: the last one in wins it)
+        knockout.champion = knockout.alive[0] ?? null;
+        knockout.done = true;
+        this.dirty = true;
+        return;
+      }
+      const alive = new Set(knockout.alive);
+      players = online.filter((player) => alive.has(player.id));
+    }
     if (players.length < MIN_PLAYERS) return;
     this.st.seed = (this.st.seed * 48271 + now) % 0x7fffffff;
     this.st.inputs = {};
@@ -416,11 +487,17 @@ export class Room {
     const leaders = ARENAS.filter((arena) => totals[arena] === highest);
     // nobody voted: each round goes to the next arena, so a table sees all four
     const voted = highest === 0 ? ARENAS[this.st.round % ARENAS.length] : leaders[this.st.seed % leaders.length];
-    // a match: its next place; a new one starts where the lobby picked, then goes where it hasn't been
+    // a match or a knockout: its next place; a new one starts where the lobby picked, then goes where it
+    // hasn't been. 4 or more players play a knockout, 2 or 3 a match of places
     const going = this.st.match && this.st.match.played < this.st.match.places.length ? this.st.match : null;
     let arena = voted;
-    if (!this.st.settings.match) this.st.match = null;
-    else if (going) arena = going.places[going.played];
+    if (!this.st.settings.match) {
+      this.st.match = null;
+      this.st.knockout = null;
+    } else if (knockout) {
+      arena = knockout.places[knockout.played] ?? ARENAS[(this.st.round + knockout.played) % ARENAS.length];
+      knockout.sizes = [...knockout.sizes.slice(0, knockout.played), players.length];
+    } else if (going) arena = going.places[going.played];
     else {
       const rest = ARENAS.filter((place) => place !== voted);
       let pick = this.st.seed;
@@ -429,9 +506,18 @@ export class Room {
         const other = pick % (index + 1);
         [rest[index], rest[other]] = [rest[other], rest[index]];
       }
-      this.st.match = { places: [voted, ...rest].slice(0, MATCH_PLACES), played: 0, totals: {}, stats: {} };
+      if (players.length >= KNOCKOUT_FROM) {
+        const stages = knockoutPath(players.length).length - 1;
+        knockout = { places: [voted, ...rest].slice(0, stages), played: 0, sizes: [players.length], alive: players.map((player) => player.id), out: {}, last: null, champion: null, done: false, stats: {} };
+        this.st.knockout = knockout;
+        this.st.match = null;
+      } else {
+        this.st.match = { places: [voted, ...rest].slice(0, MATCH_PLACES), played: 0, totals: {}, stats: {} };
+        this.st.knockout = null;
+      }
     }
-    this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed, arena);
+    // (a knockout's stage runs its whole time: the best few go through, whatever their points)
+    this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed, arena, { scoreToWin: knockout ? null : SCORE_TO_WIN });
     const test = this.st.test;
     if (test?.roundMs) this.st.game.endsAt = now + test.roundMs;
     if (test?.duel) {
@@ -488,20 +574,29 @@ export class Room {
       if (match) {
         for (const player of next.characters) {
           if (player.kind !== "player" || !player.ownerId) continue;
-          const id = player.ownerId;
-          const so = match.stats[id] ?? { score: 0, feasts: 0, tagged: 0, fouls: 0, swings: 0, snacks: 0, best: 0 };
-          match.totals[id] = (match.totals[id] ?? 0) + player.score;
-          match.stats[id] = {
-            score: so.score + player.score,
-            feasts: so.feasts + (player.feasts ?? 0),
-            tagged: so.tagged + player.tagged,
-            fouls: so.fouls + player.fouls,
-            swings: so.swings + (player.swings ?? 0),
-            snacks: so.snacks + (player.snacks ?? 0),
-            best: Math.max(so.best, next.runs?.[id]?.best ?? 0)
-          };
+          match.totals[player.ownerId] = (match.totals[player.ownerId] ?? 0) + player.score;
         }
+        addUp(match.stats, next);
         match.played++;
+      }
+      // a knockout: the stage's best go through, the rest are out; the final leaves one
+      const knockout = this.st.knockout;
+      if (knockout && !knockout.done) {
+        const order = stageRanking(next);
+        const through = knockoutCut(order.length);
+        const stage = knockout.played + 1;
+        knockout.alive = order.slice(0, through);
+        for (const owner of order.slice(through)) knockout.out[owner] = stage;
+        knockout.last = { order, through };
+        knockout.played = stage;
+        addUp(knockout.stats, next);
+        if (through <= 1) {
+          knockout.champion = order[0] ?? null;
+          knockout.done = true;
+        }
+        // (the stage's crown is its best, ties and all decided, if they scored; the final's is its champion's)
+        const best = order[0] ? characterForOwner(next, order[0]) : undefined;
+        this.st.result.winnerId = knockout.done || (best?.score ?? 0) > 0 ? order[0] ?? null : null;
       }
       this.dirty = true;
     }
@@ -513,12 +608,20 @@ export class Room {
     const asPlayer = role === "player" && me?.role === "player";
     const nameOf = (owner: string | null) => (owner ? this.member(owner)?.name ?? null : null);
     const match = this.st.match ?? null;
+    const knockout = this.st.knockout ?? null;
+    // a knockout's stage: where everyone in it stands (live while it's on; once over, as it ended)
+    const staged = knockout && game ? (game.phase === "playing" ? stageRanking(game) : knockout.last?.order ?? []) : [];
+    const cut = staged.length ? (game?.phase === "playing" ? knockoutCut(staged.length) : knockout?.last?.through ?? 0) : 0;
     const players = this.st.members
       .filter((member) => member.role === "player")
       .sort((a, b) => a.joinedAt - b.joinedAt)
       .map((member) => {
         const body = game ? characterForOwner(game, member.id) : undefined;
+        const rank = staged.indexOf(member.id);
+        const out = knockout?.out[member.id];
         return {
+          ...(rank >= 0 ? { rank: rank + 1, through: rank < cut } : {}),
+          ...(out !== undefined ? { out } : {}),
           name: member.name,
           online: member.online,
           host: member.id === this.st.hostId,
@@ -579,7 +682,7 @@ export class Room {
         })(),
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
-        scoreToWin: SCORE_TO_WIN,
+        scoreToWin: game.scoreToWin === undefined ? SCORE_TO_WIN : game.scoreToWin,
         thinning: game.phase === "playing" && game.endsAt - game.startedAt >= THIN_MS * 2 && now >= game.endsAt - THIN_MS,
         avatars: game.characters.map((character, index) => {
           const avatar: AvatarView = {
@@ -648,6 +751,27 @@ export class Room {
     const top = match ? Math.max(0, ...Object.values(match.totals)) : 0;
     const leaders = match ? Object.keys(match.totals).filter((owner) => match.totals[owner] === top) : [];
     const matchWinner = done && top > 0 && leaders.length === 1 ? leaders[0] : null;
+    // a knockout: the stage on (or, once a round is over, the one just played)
+    const koStage = knockout ? Math.max(1, knockout.played + (game?.phase === "playing" ? 1 : 0)) : 0;
+    const koPlayers = knockout ? knockout.sizes[koStage - 1] ?? knockout.alive.length : 0;
+    const koThrough = knockoutCut(koPlayers);
+    const koPath = knockout ? [...knockout.sizes.slice(0, koStage - 1), ...knockoutPath(koPlayers)] : [];
+    const knockoutView = knockout
+      ? {
+          stage: koStage,
+          stages: koPath.length - 1,
+          through: koThrough,
+          final: koThrough <= 1,
+          path: koPath,
+          out: asPlayer ? knockout.out[id] ?? null : null,
+          done: knockout.done
+        }
+      : null;
+    const koYou = (): "through" | "out" | "champion" | null => {
+      if (!knockout || !asPlayer || !knockout.last?.order.includes(id)) return null;
+      if (knockout.champion === id) return "champion";
+      return knockout.alive.includes(id) ? "through" : "out";
+    };
     return {
       code: this.st.code,
       table: this.st.table,
@@ -659,6 +783,7 @@ export class Room {
       screens: this.st.members.filter((member) => member.role === "screen" && member.online).length,
       settings: { penalties: this.st.settings.penalties, custom: this.st.settings.custom, match: this.st.settings.match !== false },
       match: matchView,
+      knockout: knockoutView,
       game: gameView,
       result: result
         ? {
@@ -680,7 +805,21 @@ export class Room {
                   youWon: asPlayer && matchWinner === id,
                   awards: done ? matchAwards(match.stats).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id })) : []
                 }
-              : null
+              : null,
+            knockout:
+              knockout && knockout.last
+                ? {
+                    stage: knockout.played,
+                    final: knockout.last.through <= 1,
+                    through: knockout.last.through,
+                    you: koYou(),
+                    next: knockout.done ? null : knockout.places[knockout.played] ?? null,
+                    nextPlayers: knockout.done ? 0 : knockout.alive.length,
+                    done: knockout.done,
+                    champion: nameOf(knockout.champion),
+                    awards: knockout.done ? matchAwards(knockout.stats).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id })) : []
+                  }
+                : null
           }
         : null,
       ended: this.st.ended,

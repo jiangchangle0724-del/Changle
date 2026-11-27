@@ -46,6 +46,10 @@ import {
   roundAwards,
   tagCall,
   leavesAt,
+  crowdFor,
+  knockoutCut,
+  knockoutPath,
+  stageRanking,
   LIGHT_SWITCHES,
   SWITCHES,
   SWITCH_DELAY_MS,
@@ -96,7 +100,7 @@ test("the crowd's order doesn't tell players from passers-by", () => {
 test("a full lobby fits the expanded crowd grid", () => {
   const full = Array.from({ length: 8 }, (_, index) => ({ id: "p" + index, name: "Player " + index }));
   const match = createMatch(full, 0, 22);
-  assert.equal(match.characters.length, 8 + NPC_COUNT);
+  assert.equal(match.characters.length, 8 + crowdFor(8));
   for (const character of match.characters) {
     assert.ok(character.x >= ARENA.marginX && character.x <= ARENA.width - ARENA.marginX);
     assert.ok(character.y >= ARENA.marginY && character.y <= ARENA.height - ARENA.marginY);
@@ -585,6 +589,42 @@ test("pulled lights take the place of the hall's own moment due then; a player's
   const later = quiet + SWITCH_DELAY_MS + BLACKOUT_MS + SWITCH_RESET_MS + 5_000;
   const free = [0, 1_000, 2_000, 4_000, 6_000].map((add) => later + add).find((now) => momentAt(match, now) === null)!;
   assert.equal(pullSwitch(match, "player-one", free), match, "two a round");
+});
+
+test("the knockout's road: about three in five go through each stage, the final leaves one", () => {
+  assert.deepEqual(knockoutPath(8), [8, 5, 3, 1]);
+  assert.deepEqual(knockoutPath(7), [7, 4, 2, 1]);
+  assert.deepEqual(knockoutPath(6), [6, 4, 2, 1]);
+  assert.deepEqual(knockoutPath(5), [5, 3, 1]);
+  assert.deepEqual(knockoutPath(4), [4, 2, 1]);
+  assert.deepEqual(knockoutPath(3), [3, 1]);
+  assert.equal(knockoutCut(2), 1);
+});
+
+test("a full room has fewer passers-by (the floor stays the same size)", () => {
+  assert.equal(crowdFor(2), NPC_COUNT);
+  assert.equal(crowdFor(4), NPC_COUNT);
+  assert.equal(crowdFor(8), 14);
+  const eight = Array.from({ length: 8 }, (_, index) => ({ id: `p${index}`, name: `P${index}` }));
+  assert.equal(createMatch(eight, 0, 3).characters.filter((body) => body.kind === "npc").length, 14);
+});
+
+test("a knockout's stage runs its whole time, and ranks by points, then the least spotted, then the earliest last point", () => {
+  const four = Array.from({ length: 4 }, (_, index) => ({ id: `p${index}`, name: `P${index}` }));
+  let match: MatchState = createMatch(four, 0, 5, "plaza", { scoreToWin: null });
+  const body = (owner: string) => characterForOwner(match, owner)!;
+  Object.assign(body("p0"), { score: 2, tagged: 1, scoredAt: 900 });
+  Object.assign(body("p1"), { score: 2, tagged: 0, scoredAt: 4_000 });
+  Object.assign(body("p2"), { score: 2, tagged: 0, scoredAt: 2_000 });
+  Object.assign(body("p3"), { score: 6, tagged: 3, scoredAt: 100 });
+  assert.deepEqual(stageRanking(match), ["p3", "p2", "p1", "p0"]);
+  // six points and nothing ends: it runs to its clock
+  match = advanceMatch(match, 1_000, {});
+  assert.equal(match.phase, "playing");
+  match = advanceMatch(match, match.endsAt, {});
+  assert.equal(match.phase, "over");
+  // a plain round still ends at five
+  assert.equal(createMatch(four, 0, 5).scoreToWin, 5);
 });
 
 test("the round's penalty lands on whoever was spotted most, or on everyone when nobody was", () => {

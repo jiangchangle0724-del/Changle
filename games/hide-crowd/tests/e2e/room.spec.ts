@@ -151,6 +151,53 @@ test("the night market: standing still at a stall tastes it, the stall lights up
   noErrors(steve, mia, tv);
 });
 
+test("four players play a knockout: two go through, two watch the final, one is the champion", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { roundMs: 7_000 } });
+  const steve = await phone(browser, "Steve");
+  const others = [await phone(browser, "Mia", "en"), await phone(browser, "Ann", "en"), await phone(browser, "Bob", "en")];
+  const tv = await screen(browser);
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  for (const page of others) await page.goto(`/hide/r/${code}?flat=1`);
+  await tv.goto(`/hide/tv/${code}?flat=1`);
+  await until(steve, (v) => v.players.filter((player) => player.online).length === 4);
+  // four or more: the whole-match switch is a knockout, 4 → 2 → 1 (no penalty this time: straight to the results)
+  await expect(steve.locator(".lobby-settings")).toContainText("晋级赛：4 → 2 → 1");
+  await steve.locator(".switch-row").filter({ hasText: "每局结束的惩罚" }).click();
+  await until(tv, (v) => v.settings.penalties === false);
+  await steve.getByRole("button", { name: "开始", exact: true }).click();
+  await until(tv, (v) => v.phase === "playing" && v.knockout?.stage === 1);
+  await expect(tv.locator(".tv-clock")).toContainText("第 1 关 · 前 2 名晋级");
+  await expect(tv.locator(".score-cut")).toHaveCount(1);
+  // stage 1 runs out: two through, two out, stamped
+  await until(tv, (v) => v.phase === "over" && !!v.result?.knockout, 20_000);
+  await expect(tv.locator(".tv-result-title")).toHaveText("前 2 名晋级", { timeout: 10_000 });
+  await expect(tv.locator(".result-stamp.is-through")).toHaveCount(2);
+  await expect(tv.locator(".result-stamp.is-out")).toHaveCount(2);
+  await expect(tv.locator(".result-next")).toContainText("决赛：");
+  await shot(tv, "tv-knockout-stage");
+  const pages = [steve, ...others];
+  const lots = await Promise.all(pages.map(async (page) => (await view(page))!.result!.knockout!.you));
+  expect(lots.filter((lot) => lot === "through")).toHaveLength(2);
+  const out = pages.filter((_, index) => lots[index] === "out");
+  await expect(out[0].locator(".result-title")).toHaveText(out[0] === steve ? "你被淘汰了" : "You're out");
+  // the host starts the final; the two who went out watch it
+  await steve.getByRole("button", { name: "开始决赛" }).click();
+  await until(tv, (v) => v.phase === "playing" && !!v.knockout?.final);
+  await expect(tv.locator(".tv-clock")).toContainText("决赛 · 只有一人胜出");
+  for (const page of out) await expect(page.locator(".play-watching")).toContainText(page === steve ? "你在第 1 关被淘汰了" : "You went out in stage 1");
+  await until(tv, (v) => v.phase === "over" && !!v.result?.knockout?.done, 20_000);
+  await expect(tv.locator(".tv-result-title")).toContainText("冠军：", { timeout: 10_000 });
+  await expect(tv.locator(".result-stamp", { hasText: "冠军" })).toHaveCount(1);
+  const final = await Promise.all(pages.map(async (page) => (await view(page))!.result!.knockout!.you));
+  expect(final.filter((lot) => lot === "champion")).toHaveLength(1);
+  const champion = pages[final.indexOf("champion")];
+  await expect(champion.locator(".result-title")).toHaveText(champion === steve ? "你是冠军！" : "You're the champion!");
+  await shot(tv, "tv-knockout-champion");
+  await expect(steve.getByRole("button", { name: "再来一场晋级赛" })).toBeVisible();
+  noErrors(...pages, tv);
+});
+
 test("every place has a side quest of its own: in the theatre, standing under a lantern lights it, in the place's own words", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { stall: 2, roundMs: 30_000 } });
   const steve = await phone(browser, "Steve");

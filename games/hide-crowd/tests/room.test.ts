@@ -439,6 +439,90 @@ test("the transit hall's light switch: the phone by one can pull it, only it hea
   assert.equal(views[first].game!.me!.canPull, false, "not while the lights are out");
 });
 
+/** A room of `n` players (player-0, player-1...) and a big screen. */
+function bigRoom(n: number) {
+  const room = Room.create("5678", 0, 7);
+  for (let index = 0; index < n; index++) assert.equal(room.join(`player-${index}`, `P${index}`, "en", "player", 1 + index), "ok");
+  assert.equal(room.join(screen, "TV", "en", "screen", 20), "ok");
+  return room;
+}
+
+/** End the round on now, with these points (and times spotted) for its players. */
+function endStage(room: Room, points: Record<string, [number, number]>) {
+  const game = room.st.game!;
+  for (const [owner, [score, tagged]] of Object.entries(points)) Object.assign(characterForOwner(game, owner)!, { score, tagged, scoredAt: score ? 1_000 : undefined });
+  room.advance(game.endsAt);
+  assert.equal(room.st.game!.phase, "over");
+}
+
+test("five players play a knockout: each stage runs its whole time, the best three go through, the rest watch; the final leaves a champion", () => {
+  const room = bigRoom(5);
+  room.handle("player-0", { t: "start" }, 30);
+  assert.ok(room.st.knockout, "four or more: a knockout");
+  assert.equal(room.st.match, null);
+  assert.equal(room.st.game!.scoreToWin, null);
+  let tv = room.view(screen, "screen", 40);
+  assert.deepEqual(tv.knockout, { stage: 1, stages: 2, through: 3, final: false, path: [5, 3, 1], out: null, done: false });
+  assert.equal(tv.game!.scoreToWin, null);
+  // live standings: whoever leads is through
+  Object.assign(characterForOwner(room.st.game!, "player-4")!, { score: 1, scoredAt: 35 });
+  assert.equal(room.view("player-4", "player", 40).players.find((player) => player.you)!.rank, 1);
+  // stage 1: P0 3, P3 2 (never spotted), P1 2 (spotted once), P2 1, P4 0
+  endStage(room, { "player-0": [3, 0], "player-1": [2, 1], "player-2": [1, 0], "player-3": [2, 0], "player-4": [0, 2] });
+  tv = room.view(screen, "screen", room.st.game!.endsAt + 10);
+  assert.equal(tv.result!.winner, "P0", "the stage's crown is its best");
+  assert.deepEqual(
+    tv.players.map((player) => [player.name, player.rank, player.through]),
+    [["P0", 1, true], ["P1", 3, true], ["P2", 4, false], ["P3", 2, true], ["P4", 5, false]]
+  );
+  assert.equal(tv.result!.knockout!.you, null);
+  assert.equal(tv.result!.knockout!.nextPlayers, 3);
+  assert.ok(tv.result!.knockout!.next);
+  assert.equal(room.view("player-1", "player").result!.knockout!.you, "through");
+  const p2 = room.view("player-2", "player");
+  assert.equal(p2.result!.knockout!.you, "out");
+  assert.equal(p2.knockout!.out, 1);
+  // stage 2, the final: only the three still in play; the others watch
+  room.handle("player-0", { t: "start" }, room.st.game!.endsAt + 100);
+  const final = room.st.game!;
+  assert.deepEqual(final.characters.filter((body) => body.kind === "player").map((body) => body.ownerId).sort(), ["player-0", "player-1", "player-3"]);
+  assert.equal(final.arena, tv.result!.knockout!.next);
+  const watching = room.view("player-2", "player", final.startedAt + 10);
+  assert.equal(watching.game!.me, null);
+  assert.equal(watching.players.find((player) => player.you)!.inRound, false);
+  assert.deepEqual(watching.knockout, { stage: 2, stages: 2, through: 1, final: true, path: [5, 3, 1], out: 1, done: false });
+  endStage(room, { "player-0": [0, 1], "player-1": [2, 0], "player-3": [1, 0] });
+  const won = room.view("player-1", "player", final.endsAt + 10);
+  assert.equal(won.result!.knockout!.you, "champion");
+  assert.equal(won.result!.knockout!.done, true);
+  assert.equal(won.result!.knockout!.champion, "P1");
+  assert.ok(won.result!.knockout!.awards.length > 0, "the knockout's titles");
+  assert.equal(room.view("player-3", "player", final.endsAt + 10).result!.knockout!.you, "out");
+  // and again: a new knockout, everyone in
+  room.handle("player-0", { t: "start" }, final.endsAt + 200);
+  assert.equal(room.st.game!.characters.filter((body) => body.kind === "player").length, 5);
+  assert.equal(room.st.knockout!.played, 0);
+});
+
+test("a knockout: one who leaves is out; with one left, they win it; two or three players play a match of places instead", () => {
+  const room = bigRoom(4);
+  room.handle("player-0", { t: "start" }, 30);
+  endStage(room, { "player-0": [2, 0], "player-1": [1, 0], "player-2": [0, 0], "player-3": [0, 1] });
+  assert.deepEqual(room.st.knockout!.alive, ["player-0", "player-1"]);
+  room.presence("player-1", false, room.st.game!.endsAt + 50);
+  room.handle("player-0", { t: "start" }, room.st.game!.endsAt + 100);
+  assert.equal(room.st.knockout!.done, true);
+  assert.equal(room.st.knockout!.champion, "player-0");
+  assert.equal(room.st.knockout!.out["player-1"], 2);
+  assert.equal(room.view("player-0", "player").result!.knockout!.you, "champion");
+  // three players: a match of places, first to five as before
+  const small = bigRoom(3);
+  small.handle("player-0", { t: "start" }, 30);
+  assert.equal(small.st.knockout, null);
+  assert.ok(small.st.match);
+  assert.equal(small.st.game!.scoreToWin, 5);
+});
+
 test("someone who joins during a round watches it and plays the next", () => {
   const room = twoPlayerRoom();
   room.handle(first, { t: "start" }, 5);
