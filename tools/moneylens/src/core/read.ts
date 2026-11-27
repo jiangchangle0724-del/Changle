@@ -32,7 +32,7 @@ export type CsvParser = {
 export const CSV_PARSERS: readonly CsvParser[] = [];
 
 /** Every named parser (IMP-3), for the import screen to list what is read: "csv" is the general CSV reader. */
-export const PARSER_IDS: readonly string[] = ["ofx", "csv", ...CSV_PARSERS.map((p) => p.id)];
+export const PARSER_IDS: readonly string[] = ["ofx", "csv", "pdf", ...CSV_PARSERS.map((p) => p.id)];
 
 /** What the caller may know before the file is read. */
 export type ReadOptions = CsvHints & {

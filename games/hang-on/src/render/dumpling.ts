@@ -11,8 +11,23 @@ import type { PlayerView } from './view';
 import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 import { pickExpression, type Expr, type Mood } from './mood';
+import { drawGachaFace, drawGachaGlasses, drawGachaHat, gachaHatHeight } from '../look-art';
+import { pixiPen } from './pen';
 
 const R = CFG.bodyR;
+/** 表情气泡里的字（11-25）。 */
+/** 臭气的黄绿（11-25 放屁键）：烟团和脸边那两道一个颜色。 */
+export const STINK = 0xa8b85c;
+const BUBBLE_STYLE: TextStyleOptions = {
+  fontFamily: '"Noto Sans SC", system-ui, sans-serif',
+  fontSize: 15,
+  fontWeight: '800',
+  fill: INK,
+  align: 'center',
+};
+/** 气泡挂到最后这么多秒开始淡。 */
+const BUBBLE_FADE = 0.4;
+
 const NAME_STYLE: TextStyleOptions = {
   fontFamily: '"Noto Sans SC", system-ui, sans-serif',
   fontSize: 12,
@@ -97,6 +112,12 @@ export class Dumpling {
   /** 晕的时候头顶转的星星（A14），每帧画。 */
   private readonly moodG = new Graphics();
   private readonly label: Text;
+  /** 表情（11-25）：头顶的气泡，挂 EMOTE_SHOW_S 秒，最后 0.4 秒淡掉；刚冒出来弹一下。 */
+  private readonly bubble = new Container();
+  private readonly bubbleBg = new Graphics();
+  private readonly bubbleText: Text;
+  private bubbleT = 0;
+  private bubbleAge = 0;
 
   private color = '#ffffff';
   private look: Look = DEFAULT_LOOK;
@@ -116,6 +137,8 @@ export class Dumpling {
   /** 被摆锤撞晕还剩几秒、过检查点乐还剩几秒、在风里歪了多少（A14）。 */
   private dizzy = 0;
   private cheer = 0;
+  /** 旁边有人放屁（11-25），还要皱几秒。 */
+  private stink = 0;
   private lean = 0;
   /** 帽子跟着身子晚半拍（A14b）：偏了多少、晃得多快（弹簧）。 */
   private hatO = { x: 0, y: 0 };
@@ -129,12 +152,31 @@ export class Dumpling {
     this.reduced = reducedMotion;
     this.label = new Text({ text: name, style: NAME_STYLE, resolution: 2 });
     this.label.anchor.set(0.5, 1);
+    this.bubbleText = new Text({ text: '', style: BUBBLE_STYLE, resolution: 2 });
+    this.bubbleText.anchor.set(0.5, 0.5);
+    this.bubble.addChild(this.bubbleBg, this.bubbleText);
+    this.bubble.visible = false;
     this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
-    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.moodG, this.label);
+    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.moodG, this.label, this.bubble);
     this.setColor(color);
     this.setLook(look);
+  }
+
+  /** 表情（11-25）：头顶冒一句，挂 seconds 秒；再来一句就换掉。 */
+  emote(text: string, seconds: number): void {
+    this.bubbleText.text = text;
+    const w = Math.max(48, Math.ceil(this.bubbleText.width) + 22);
+    const h = 30;
+    this.bubbleText.position.set(0, -h / 2 - 1);
+    const g = this.bubbleBg.clear();
+    // 尾巴朝下指着人，先画尾巴再画圆角框盖住接缝
+    g.poly([-7, -3, 0, 9, 7, -3]).fill(hex(CREAM)).stroke({ color: hex(INK), width: 2.5, join: 'round' });
+    g.roundRect(-w / 2, -h, w, h, 13).fill(hex(CREAM)).stroke({ color: hex(INK), width: 2.5 });
+    g.rect(-5.5, -3.5, 11, 4).fill(hex(CREAM));
+    this.bubbleT = seconds;
+    this.bubbleAge = 0;
   }
 
   setName(name: string): void {
@@ -184,6 +226,15 @@ export class Dumpling {
   onCheer(): void {
     this.cheer = CHEER_S;
   }
+  /** 自己放了个屁（11-25）：身子一抖，舒服地乐一下。 */
+  onFart(): void {
+    this.squash = -0.35;
+    this.cheer = Math.max(this.cheer, 0.7);
+  }
+  /** 旁边有人放屁（11-25）：眯眼皱嘴一会儿。 */
+  onStink(seconds: number): void {
+    this.stink = Math.max(this.stink, seconds);
+  }
 
   /** 每帧：读玩家状态，摆位置，重画胳膊和脸。 */
   /** won：这个人赢了（一起跳）；slips：坐不住，手抓久了要抖、圈变红。 */
@@ -191,6 +242,7 @@ export class Dumpling {
     const b = p.body;
     this.dizzy = Math.max(0, this.dizzy - dt);
     this.cheer = Math.max(0, this.cheer - dt);
+    this.stink = Math.max(0, this.stink - dt);
     // 风里身子往风那边歪一点，风停了慢慢回正（减弱动效时不歪）
     const leanTo = this.reduced || p.dead ? 0 : (mood.lean ?? 0) * 0.2;
     this.lean += (leanTo - this.lean) * Math.min(1, dt * 6);
@@ -287,6 +339,17 @@ export class Dumpling {
     this.drawItem(p, time);
     this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - (p.itemOn === 'leaf' && !p.dead ? 34 : 4));
     this.label.alpha = sinking ? 0 : 1;
+    // 表情气泡在名字上面；刚冒出来从小弹到大（减弱动效时直接出来），最后 0.4 秒淡掉
+    if (this.bubbleT > 0) {
+      this.bubbleT = Math.max(0, this.bubbleT - dt);
+      this.bubbleAge += dt;
+      const k = Math.min(1, this.bubbleAge / 0.18);
+      const pop = this.reduced ? 1 : 0.6 + 0.4 * k + Math.sin(k * Math.PI) * 0.12;
+      this.bubble.scale.set(pop);
+      this.bubble.position.set(b.x, this.label.y - this.label.height - 3);
+      this.bubble.alpha = sinking ? 0 : Math.min(1, this.bubbleT / BUBBLE_FADE);
+    }
+    this.bubble.visible = this.bubbleT > 0;
   }
 
   /**
@@ -368,7 +431,7 @@ export class Dumpling {
       case 'bow':
         return 10;
       default:
-        return 0;
+        return gachaHatHeight(this.look.hat) ?? 0;
     }
   }
 
@@ -512,7 +575,7 @@ export class Dumpling {
     this.hat.position.set(lx * 0.4 * turn + this.hatO.x, this.hatO.y);
     this.hat.rotation = this.hatO.x * 0.05;
     const blink = this.blink > 0 && this.look.eyes !== 'happy';
-    const expr = pickExpression(p.face, p.dead, { dizzy: this.dizzy, cheer: this.cheer, stamina: p.stamina ?? 1, mood });
+    const expr = pickExpression(p.face, p.dead, { dizzy: this.dizzy, cheer: this.cheer, stamina: p.stamina ?? 1, mood, stink: this.stink });
     const key = `${expr}|${lx.toFixed(1)}|${ly.toFixed(1)}|${blink}|${this.sweat > 0}|${this.look.eyes}|${Math.floor(time * 6) % 2}`;
     if (key === this.faceKey) return;
     this.faceKey = key;
@@ -630,6 +693,23 @@ export class Dumpling {
       g.moveTo(-5, 10).lineTo(5, 10).stroke({ width: 2.4, color: INK, cap: 'round' });
       return;
     }
+    if (expr === 'stinky') {
+      // 闻到屁（11-25）：眯成 >_<，嘴皱成波浪，脸边两道黄绿的臭气往上飘（减弱动效时不飘）
+      for (const side of [-1, 1]) {
+        const ex = side * 8;
+        g.moveTo(ex + side * 5, eyeY - 4).lineTo(ex - side * 3, eyeY).lineTo(ex + side * 5, eyeY + 4).stroke({ width: 2.4, color: INK, cap: 'round', join: 'round' });
+      }
+      g.moveTo(-7, 10).quadraticCurveTo(-3.5, 6.5, 0, 10).quadraticCurveTo(3.5, 13.5, 7, 10).stroke({ width: 2.2, color: INK, cap: 'round', join: 'round' });
+      const ph = this.reduced ? 0 : Math.floor(time * 6) % 2;
+      for (const side of [-1, 1]) {
+        const x = side * (R - 4);
+        const y0 = 2 - ph * 3;
+        g.moveTo(x, y0);
+        for (let k = 1; k <= 3; k++) g.quadraticCurveTo(x + (k % 2 ? 3 : -3) * side, y0 - k * 5 + 2.5, x, y0 - k * 5);
+        g.stroke({ width: 1.8, color: STINK, alpha: 0.9, cap: 'round', join: 'round' });
+      }
+      return;
+    }
     // 乐
     for (const side of [-1, 1]) {
       const ex = side * 8;
@@ -693,6 +773,8 @@ export class Dumpling {
         g.arc(0, 3, R - 8, Math.PI - 0.45, 0.45, true).stroke({ width: 1.2, color: 0x3a2418, alpha: 0.6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaFace(pixiPen(g), this.look.face);
         break;
     }
   }
@@ -725,6 +807,8 @@ export class Dumpling {
         g.moveTo(-1, eyeY - 2).lineTo(1, eyeY - 2).stroke({ width: 2, color: 0xf28ca6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaGlasses(pixiPen(g), this.look.glasses, eyeY);
         break;
     }
   }
@@ -785,6 +869,8 @@ export class Dumpling {
         g.ellipse(0, top - 12, 15, 5).stroke({ width: 1, color: 0xffffff, alpha: 0.6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaHat(pixiPen(g), this.look.hat, top);
         break;
     }
   }

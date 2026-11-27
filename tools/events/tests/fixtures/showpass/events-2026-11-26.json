@@ -1,0 +1,1207 @@
+{
+ "count": 613,
+ "next": "https://www.showpass.com/api/public/events/?location__point_location=49.15%2C-122.75%2C60&ordering=starts_on%2Cid&page=2&page_size=20&starts_on__gte=2026-11-26T08%3A00%3A00Z&starts_on__lt=2026-12-10T08%3A00%3A00Z",
+ "previous": null,
+ "results": [
+  {
+   "id": 1560743,
+   "name": "Vancouver Christmas Market",
+   "slug": "vancouver-christmas-market-101-26-11-26-16-2156",
+   "starts_on": "2026-11-26T23:00:00Z",
+   "ends_on": "2026-11-26T23:30:00Z",
+   "location": {
+    "id": 27450,
+    "street_name": "1055 Canada Pl",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6C 3L5",
+    "position": "49.2883921,-123.115542",
+    "venue": 10944,
+    "name": "Vancouver Christmas Market",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 10944,
+    "slug": "vancouver-christmas-market",
+    "name": "Vancouver Christmas Market"
+   },
+   "parent_event": 1560742,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "General Admission (Ages 7+)",
+     "price": "7.99",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Please arrive within your 30-minute entry window — once inside, enjoy the Market for as long as you like!\nPlease Note:\n\nAll sales are final.\nDoors close 30 minutes before event end time.\nChildren must be 2+ years, over 36\" tall, and accompanied by an adult to ride the carousel. To ride alone, children must be 42\"+.\nNo outside food or beverages permitted.\nCertified service animals only. Pets not allowed due to licensing regulations.\n",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/images/9c344d93-52d.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/img-banner/8515e65f-fd2.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/vancouver-christmas-market/images/9c344d93-52d.png",
+   "frontend_details_url": "https://www.showpass.com/vancouver-christmas-market-101-26-11-26-16-2156/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "Canada/Pacific",
+   "local_starts_on": "2026-11-26T16:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "Canada/Pacific",
+    "starts_on": "2026-11-26T23:00:00Z",
+    "ends_on": "2026-11-26T23:30:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1564654,
+   "name": "VANDUSEN FESTIVAL OF LIGHTS",
+   "slug": "vandusen-festival-of-lights-89-26-11-27-16-3667",
+   "starts_on": "2026-11-27T23:00:00Z",
+   "ends_on": "2026-11-27T23:30:00Z",
+   "location": {
+    "id": 28618,
+    "street_name": "5251 Oak St",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6M 4H1",
+    "position": "49.2385564,-123.1287215",
+    "venue": 11281,
+    "name": "VanDusen Botanical Garden",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 11281,
+    "slug": "festival-of-lights",
+    "name": "VanDusen Festival of Lights"
+   },
+   "parent_event": 1564653,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Adult (19-64 years)",
+     "price": "28.00",
+     "sold_out": false
+    },
+    {
+     "name": "Senior (65+ years)",
+     "price": "18.00",
+     "sold_out": false
+    },
+    {
+     "name": "Youth (13-18 years)",
+     "price": "18.00",
+     "sold_out": false
+    },
+    {
+     "name": "Child (5-12 years)",
+     "price": "11.00",
+     "sold_out": false
+    },
+    {
+     "name": "Preschooler (4 and under)",
+     "price": "0.00",
+     "sold_out": false
+    },
+    {
+     "name": "Garden Member",
+     "price": "17.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Please note that the time periods listed are entry times, not time slots. You may enter the event anytime within your half-hour window.\nSee vandusenfestivaloflights.ca for details on group tickets, event highlights, food vendors and more.\nHOURS OF OPERATION:4:00 pm – 10:00 pm daily (Last entry at 9:00 pm)\nCLOSED December 25",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/images/75cbb586-bad.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/img-banner/78a5b2f7-02a.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/festival-of-lights/images/75cbb586-bad.png",
+   "frontend_details_url": "https://www.showpass.com/vandusen-festival-of-lights-89-26-11-27-16-3667/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [
+    "All Ages"
+   ],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-27T16:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-27",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-27T23:00:00Z",
+    "ends_on": "2026-11-27T23:30:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1575640,
+   "name": "Seymour Dance: The Nutcracker",
+   "slug": "seymour-dance-the-nutcracker-26-12-05-18-5674",
+   "starts_on": "2026-12-06T01:30:00Z",
+   "ends_on": "2026-12-06T03:15:00Z",
+   "location": {
+    "id": 48068,
+    "street_name": "2300 Lonsdale Ave",
+    "city": "North Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V7M 3L1",
+    "position": "49.33063139999999,-123.0716548",
+    "venue": 16469,
+    "name": "Centennial Theatre",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 16469,
+    "slug": "centennial-theatre",
+    "name": "Centennial Theatre"
+   },
+   "parent_event": 1575639,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Adult",
+     "price": "45.00",
+     "sold_out": false
+    },
+    {
+     "name": "Senior 65+",
+     "price": "43.00",
+     "sold_out": false
+    },
+    {
+     "name": "Student with ID",
+     "price": "43.00",
+     "sold_out": false
+    },
+    {
+     "name": "Child 12 & Under",
+     "price": "37.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Seymour Dance Presents: The Nutcracker\nCelebrate the magic of the holiday season with Seymour Dance’s beloved annual production of The Nutcracker!\nA cherished North Shore holiday tradition, this enchanting ballet brings together over 200 dancers of all ages, alongside professional guest artists, to tell the timeless story of Clara’s magical Christmas Eve adventure.\nFrom the excitement of the Christmas party to the dazzling Land of Sweets, audiences will be transported into a world of beautiful dancing, festive costumes, and Tchaikovsky’s unforgettable music.\nProudly serving the North Shore community since 1965, Seymour Dance is delighted to bring generations of dancers together on stage and ",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/centennial-theatre/images/56797278-7d8.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/centennial-theatre/img-banner/428411b2-5d3.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/centennial-theatre/images/56797278-7d8.png",
+   "frontend_details_url": "https://www.showpass.com/seymour-dance-the-nutcracker-26-12-05-18-5674/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "Canada/Pacific",
+   "local_starts_on": "2026-12-05T18:30:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-12-05",
+    "timezone": "Canada/Pacific",
+    "starts_on": "2026-12-06T01:30:00Z",
+    "ends_on": "2026-12-06T03:15:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1530338,
+   "name": "Vancouver Giants vs. Regina Pats",
+   "slug": "vancouver-giants-2026-27-singl-26-10-01-19-9334",
+   "starts_on": "2026-11-28T02:00:00Z",
+   "ends_on": "2026-11-28T05:00:00Z",
+   "location": {
+    "id": 9369,
+    "street_name": "7888 200 Street",
+    "city": "Langley",
+    "province": "British Columbia",
+    "postal_code": "V2Y 3J4",
+    "position": "49.1460099,-122.66614730000003",
+    "venue": 3885,
+    "name": "Langley Events Centre",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 3885,
+    "slug": "vancouver-giants",
+    "name": "Vancouver Giants"
+   },
+   "parent_event": 1530323,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "End Zone",
+     "price": "25.95",
+     "sold_out": false
+    },
+    {
+     "name": "Goal Line",
+     "price": "28.95",
+     "sold_out": false
+    },
+    {
+     "name": "Centre Ice Front",
+     "price": "35.45",
+     "sold_out": false
+    },
+    {
+     "name": "Centre Ice Back",
+     "price": "41.45",
+     "sold_out": false
+    },
+    {
+     "name": "Club",
+     "price": "42.45",
+     "sold_out": false
+    },
+    {
+     "name": "Platinum",
+     "price": "45.45",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-giants/images/ef9c3947-e75.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-giants/img-banner/6c92fd15-896.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/vancouver-giants/images/ef9c3947-e75.png",
+   "frontend_details_url": "https://www.showpass.com/vancouver-giants-2026-27-singl-26-10-01-19-9334/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": "",
+   "date_time_to_be_determined": false,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-27T19:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-27",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-28T02:00:00Z",
+    "ends_on": "2026-11-28T05:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1557962,
+   "name": "Vinyasa Yoga Class (Thursdays)",
+   "slug": "dream-yoga-class-wednesdays-2-26-11-25-09-9159",
+   "starts_on": "2026-11-26T16:30:00Z",
+   "ends_on": "2026-11-26T17:30:00Z",
+   "location": {
+    "id": 55934,
+    "street_name": "6133 University Blvd",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6T 1Z1",
+    "position": "49.26658639999999,-123.2498349",
+    "venue": 19620,
+    "name": "AMS Student Nest",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 19620,
+    "slug": "ubc-yoga-club",
+    "name": "UBC Yoga Club"
+   },
+   "parent_event": 1557951,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "One-Day Pass",
+     "price": "7.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Move, breathe, and vibe through a playful Vinyasa flow set to good music and good energy. \nROOM 2301\nInstructor: Maizy\n*Please note that those without a membership with UBC Yoga Club must purchase a One-Day Pass. Those with a membership may attend free of charge. \nAll levels are welcome.\nAll equipment for the yoga practice is provided, including mats, blocks, straps, bolsters, blankets and more. Please wear comfortable clothes and bring a water bottle <3\nTo contact us, please dm UBC Yoga Club instagram @ubcyogaclub",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/ubc-yoga-club/images/2536bb1d-62e.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/ubc-yoga-club/img-banner/eefbbdf8-417.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/ubc-yoga-club/images/2536bb1d-62e.png",
+   "frontend_details_url": "https://www.showpass.com/dream-yoga-class-wednesdays-2-26-11-25-09-9159/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T09:30:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-26T16:30:00Z",
+    "ends_on": "2026-11-26T17:30:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1580628,
+   "name": "Dodgeball Faculty Face-Off",
+   "slug": "dodgeball-faculty-face-off-2",
+   "starts_on": "2026-12-05T00:00:00Z",
+   "ends_on": "2026-12-05T04:00:00Z",
+   "location": {
+    "id": 10586,
+    "street_name": "6140 Student Union Blvd",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6T1K2",
+    "position": "49.26591550000001,-123.2512155",
+    "venue": 4430,
+    "name": "Rec North",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 4430,
+    "slug": "science-undergraduate-society",
+    "name": "Science Undergraduate Society"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Free agent ticket (1)",
+     "price": "0.00",
+     "sold_out": false
+    },
+    {
+     "name": "Team Ticket (5-10)",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Purchase a free agent (1) ticket or team ticket (teams may be formed of 5-10 players)! Both ticket options are $0 and simply indicate your teams signup to the event!",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/science-undergraduate-society/images/R1VB0F-4b03627a-721.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/science-undergraduate-society/img-banner/4b03627a-721.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/science-undergraduate-society/images/R1VB0F-4b03627a-721.png",
+   "frontend_details_url": "https://www.showpass.com/dodgeball-faculty-face-off-2/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": "SUS and CUS are going head-to-head in the ultimate DODGEBALL TOURNAMENT! Grab your friends, bring your competitive spirit, and get ready to represent your faculty! 💙💛 Don't have a team? No worries! Sign up as a free agent and we'll help you find one!",
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-12-04T17:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-12-04",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-12-05T00:00:00Z",
+    "ends_on": "2026-12-05T04:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1580572,
+   "name": "(Hot) Characters In Your Area",
+   "slug": "hot-characters-in-your-area-5",
+   "starts_on": "2026-11-27T02:00:00Z",
+   "ends_on": "2026-11-27T03:15:00Z",
+   "location": {
+    "id": 22680,
+    "street_name": "110 Water St",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6B 1E5",
+    "position": "49.2837602,-123.1069523",
+    "venue": 9436,
+    "name": "Little Mountain Gallery",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 9436,
+    "slug": "little-mountain-gallery",
+    "name": "Little Mountain Gallery"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "General Admission",
+     "price": "17.00",
+     "sold_out": false
+    },
+    {
+     "name": "Low Cost Ticket",
+     "price": "10.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "(Hot) Characters In Your Area are waiting to meet you! Watch very funny comedians perform their solo character bits on stage.\nYour Monthly Cast includes comedians from Just For Laughs Vancouver, Blind Tiger Comedy, The Improv Centre, and of course, your Instagram For You Page.\nAllie EntwistleDella Haddock Maarten Baylis Mary SaundersRiley HardwickRonald Dario\nPLUS special guests.\nThis show will be presented in the Salazar Stage (Main floor).\nThis show is produced and curated under a rental model, independent of Little Mountain Gallery. If you have questions or comments on this performance please contact the producer at allie.entwistle@gmail.com\nAccessibility\nPlease note that the venue has tw",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/little-mountain-gallery/images/f82d1887-2f7.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/little-mountain-gallery/img-banner/ab410573-7e6.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/little-mountain-gallery/images/f82d1887-2f7.png",
+   "frontend_details_url": "https://www.showpass.com/hot-characters-in-your-area-5/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": "Salazar Stage (Main floor)",
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T19:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-27T02:00:00Z",
+    "ends_on": "2026-11-27T03:15:00Z",
+    "opens_at": "2026-11-27T01:30:00Z",
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1486056,
+   "name": "Bloedel Conservatory - December 2026",
+   "slug": "bloedel-conservatory-admission-26-12-01-10-9181",
+   "starts_on": "2026-12-01T17:00:00Z",
+   "ends_on": "2026-12-01T23:00:00Z",
+   "location": {
+    "id": 24093,
+    "street_name": "4600 Cambie St",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6G 1Z4",
+    "position": "49.238767,-123.1115271",
+    "venue": 9938,
+    "name": "Bloedel Conservatory",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 9938,
+    "slug": "bloedel-conservatory",
+    "name": "Bloedel Conservatory"
+   },
+   "parent_event": 1484389,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Adult (19-64)",
+     "price": "7.63",
+     "sold_out": false
+    },
+    {
+     "name": "Senior (65+ years)",
+     "price": "6.10",
+     "sold_out": false
+    },
+    {
+     "name": "Youth (13-18 years)",
+     "price": "5.35",
+     "sold_out": false
+    },
+    {
+     "name": "Child (5-12 years)",
+     "price": "3.82",
+     "sold_out": false
+    },
+    {
+     "name": "Preschooler (4 and under)",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Bloedel Conservatory is a domed lush paradise located in Queen Elizabeth Park atop the City of Vancouver’s highest point. Tropical birds, koi fish and over 500 exotic plants and flowers thrive within our temperature-controlled environment!\n* The last entry is 15 minutes before closing.\n \nThese tickets are for general admission only, and cannot be used for special events.",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/bloedel-conservatory/images/4666fbe8-fdc.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/bloedel-conservatory/img-banner/b200f26c-18d.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/bloedel-conservatory/images/4666fbe8-fdc.png",
+   "frontend_details_url": "https://www.showpass.com/bloedel-conservatory-admission-26-12-01-10-9181/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [
+    "All Ages",
+    "Last Entry 15 Minutes Before Closing"
+   ],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-12-01T10:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-12-01",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-12-01T17:00:00Z",
+    "ends_on": "2026-12-01T23:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1574382,
+   "name": "Senior (Ages 60+) Drop In Hockey - Arena 2",
+   "slug": "senior-ages-60-drop-in-hockey-26-11-26-10-5639",
+   "starts_on": "2026-11-26T17:30:00Z",
+   "ends_on": "2026-11-26T19:00:00Z",
+   "location": {
+    "id": 56373,
+    "street_name": "7888 200 Street",
+    "city": "Langley",
+    "province": "British Columbia",
+    "postal_code": "V2Y 3J4",
+    "position": "49.1458543,-122.6677869",
+    "venue": 19897,
+    "name": "the ARENAS at Langley Events Centre",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 19897,
+    "slug": "the-arenas-at-langley-events-centre",
+    "name": "the ARENAS at Langley Events Centre"
+   },
+   "parent_event": 1560023,
+   "is_recurring_parent": false,
+   "is_attraction_child": true,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Senior (Ages 60+) Drop In Hockey - Pre-Register",
+     "price": "10.00",
+     "sold_out": false
+    },
+    {
+     "name": "Senior (Ages 60+) Drop In Hockey - Goalie",
+     "price": "0.00",
+     "sold_out": true
+    }
+   ],
+   "description_without_html": "Join us for a recreational, seniors only, non-contact hockey game. Full-gear required for all participants, including a CSA approved helmet with cage or face-shield is required. No slap shots allowed. Limited to 26 skaters and 2 goalies. Goalies play for free. Pre-registration is required.",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/the-arenas-at-langley-events-centre/images/4D0XSX-118d7aeb-555.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/the-arenas-at-langley-events-centre/img-banner/118d7aeb-555.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/the-arenas-at-langley-events-centre/images/4D0XSX-118d7aeb-555.png",
+   "frontend_details_url": "https://www.showpass.com/senior-ages-60-drop-in-hockey-26-11-26-10-5639/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T10:30:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-26T17:30:00Z",
+    "ends_on": "2026-11-26T19:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1578137,
+   "name": "Dinner with Santa – Christmas Dinner Cruise",
+   "slug": "dinner-with-santa-christmas-dinner-cruise",
+   "starts_on": "2026-12-05T01:00:00Z",
+   "ends_on": "2027-02-03T01:00:00Z",
+   "location": {
+    "id": 57912,
+    "street_name": "760 Pacific Blvd",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6B 5E7",
+    "position": "49.2748994,-123.1088699",
+    "venue": 21070,
+    "name": "Burrard Queen",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 21070,
+    "slug": "burrard-queen",
+    "name": "Burrard Queen"
+   },
+   "parent_event": null,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Adults (15–64):",
+     "price": "125.00",
+     "sold_out": false
+    },
+    {
+     "name": "Seniors (65+)",
+     "price": "99.99",
+     "sold_out": false
+    },
+    {
+     "name": "Children (under 15)",
+     "price": "99.99",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "🎅 Dinner with Santa – Christmas Dinner Cruise 🎄\nA Magical Christmas Celebration on Vancouver's Waterfront!\nJoin us on Friday, December 4, 2026, aboard the beautiful Burrard Queen for a festive evening filled with delicious food, Santa Claus, holiday music, dancing, and Christmas cheer!\nBring your family and friends together for an unforgettable Christmas celebration while enjoying Vancouver's spectacular waterfront views.\n🎄 Your Christmas Experience Includes\n\n\n🎅 Special appearance by Santa Claus with Christmas photo opportunities\n\n\n🍽️ Delicious 11-item Christmas dinner buffet\n\n\n🎶 Festive music, DJ entertainment, and dancing\n\n\n🎄 Beautiful Christmas decorations\n\n\n📸 Family and friends' holiday ",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/burrard-queen/images/7e163703-af6.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/burrard-queen/img-banner/0bf5b0b4-a67.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/burrard-queen/images/7e163703-af6.png",
+   "frontend_details_url": "https://www.showpass.com/dinner-with-santa-christmas-dinner-cruise/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": true,
+   "time_to_be_determined": false,
+   "restrictions": [
+    "All Ages",
+    "No Outside Food or Drink",
+    "Valid Government Issued ID Required",
+    "Early Arrival Recommended"
+   ],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-12-04T18:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "date_tbd",
+    "local_date": null,
+    "timezone": "America/Vancouver",
+    "starts_on": null,
+    "ends_on": null,
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1582190,
+   "name": "THE STEADIES AT ROBERTS CREEK LEGION SATURDAY NOV.28",
+   "slug": "the-steadies-at-roberts-creek-legion-satnov28",
+   "starts_on": "2026-11-29T01:00:00Z",
+   "ends_on": "2026-11-29T05:00:00Z",
+   "location": {
+    "id": 58327,
+    "street_name": "3064 Lower Rd",
+    "city": "Roberts Creek",
+    "province": "British Columbia",
+    "postal_code": "V0N 2W0",
+    "position": "49.4211806,-123.6391538",
+    "venue": 4204,
+    "name": "Roberts Creek Legion",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 4204,
+    "slug": "the-steadies",
+    "name": "The Steadies"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "General Admission Advance Ticket",
+     "price": "20.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Roberts Creek Get Ready To Dance-Rock-Steady This Saturday Night!Award-winning Island Rockers The Steadies are making their long awaited appearance at the Roberts Creek Legion Saturday November 28th!! The drinks will be flowing and the dance floor will be rockin so make sure to get your tickets as this is a special show you won't want to miss!Frontman Earl Pereira is the co-founder of Western Canadian Hall of Fame band Wide Mouth Mason and is no stranger to the island. The Steadies will also be celebrating the release of their brand new live album!Show 7-10pm $20 for Members/Advance Tickets & $25 Guests/Door\nAddress: 3064 Lower Rd, Roberts Creek, BC V0N 2W0 Phone: (604) 886-9813The Steadies ",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/the-steadies/images/f8160b6c-ee2.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/the-steadies/img-banner/393a4a9f-fdc.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/the-steadies/images/f8160b6c-ee2.png",
+   "frontend_details_url": "https://www.showpass.com/the-steadies-at-roberts-creek-legion-satnov28/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [
+    "Ages 19+"
+   ],
+   "timezone": "America/Regina",
+   "local_starts_on": "2026-11-28T19:00:00-06:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-28",
+    "timezone": "America/Regina",
+    "starts_on": "2026-11-29T01:00:00Z",
+    "ends_on": "2026-11-29T05:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1577160,
+   "name": "Free Cover at Mansion Nightclub! CityVibez Friday Party!",
+   "slug": "free-cover-at-mansion-nightclub-cityvibez-friday-party-24",
+   "starts_on": "2026-11-28T04:30:00Z",
+   "ends_on": "2026-11-28T10:00:00Z",
+   "location": {
+    "id": 52507,
+    "street_name": "1161 W Georgia St",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6E 0B3",
+    "position": "49.2867571,-123.1241366",
+    "venue": 17708,
+    "name": "Mansion Nightclub",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 17708,
+    "slug": "cityvibez-club-parties-vancouver",
+    "name": "Cityvibez Club Parties Vancouver"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "CityVibez - Mansion FREE ENTRY TILL 11 pm!",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Just say \"CityVibez-Suma Guestlist\" at the door for FREE ENTRY till 11PM!Get ready to kick off the weekend with Cityvibez Fridays @ Mansion – where the party is just getting started!\n🔥 FRIDAYS AT MANSION NIGHTCLUB – CITYVIBEZ CLUB PARTIES 🔥 FREE COVER till 11PM\nLooking for things to do in Vancouver this Friday night? Experience one of the best Vancouver nightlife events at Mansion Nightclub in downtown Vancouver.\nCityVibez Club Parties brings you a high-energy Friday night party featuring hip hop, EDM, afrobeats, dancehall, reggaeton, and nonstop party anthems all night long. Whether you're celebrating a birthday, going out with friends, visiting Vancouver, or just looking for the best clubb",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/cityvibez-club-parties-vancouver/images/1c488e5a-ed3.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/cityvibez-club-parties-vancouver/img-banner/a709191c-fd6.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/cityvibez-club-parties-vancouver/images/1c488e5a-ed3.png",
+   "frontend_details_url": "https://www.showpass.com/free-cover-at-mansion-nightclub-cityvibez-friday-party-24/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "Canada/Pacific",
+   "local_starts_on": "2026-11-27T21:30:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-27",
+    "timezone": "Canada/Pacific",
+    "starts_on": "2026-11-28T04:30:00Z",
+    "ends_on": "2026-11-28T10:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1547392,
+   "name": "Richmond Sockeyes v. Delta Ice Hawks",
+   "slug": "202627-richmond-sockeyes-regul-25-12-13-17-2809",
+   "starts_on": "2026-11-27T02:00:00Z",
+   "ends_on": "2026-11-27T04:30:00Z",
+   "location": {
+    "id": 25643,
+    "street_name": "7551 Minoru Gate",
+    "city": "Richmond",
+    "province": "British Columbia",
+    "postal_code": "V6Y 1R8",
+    "position": "49.1639525,-123.1429925",
+    "venue": 10414,
+    "name": "Richmond Sockeyes",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 10414,
+    "slug": "richmond-sockeyes",
+    "name": "Richmond Sockeyes"
+   },
+   "parent_event": 1547378,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "Senior (60+)",
+     "price": "10.00",
+     "sold_out": false
+    },
+    {
+     "name": "Adult",
+     "price": "14.00",
+     "sold_out": false
+    },
+    {
+     "name": "Student",
+     "price": "10.00",
+     "sold_out": false
+    },
+    {
+     "name": "Youth (6-17)",
+     "price": "4.00",
+     "sold_out": false
+    },
+    {
+     "name": "Children (6 and Under)",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/richmond-sockeyes/images/989da782-098.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/richmond-sockeyes/img-banner/d3801589-eeb.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/richmond-sockeyes/images/989da782-098.png",
+   "frontend_details_url": "https://www.showpass.com/202627-richmond-sockeyes-regul-25-12-13-17-2809/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": false,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "Canada/Pacific",
+   "local_starts_on": "2026-11-26T19:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "Canada/Pacific",
+    "starts_on": "2026-11-27T02:00:00Z",
+    "ends_on": "2026-11-27T04:30:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1565685,
+   "name": "City Staff Appreciation Preview Night",
+   "slug": "city-staff-appreciation-previe-26-11-26-16-6603",
+   "starts_on": "2026-11-26T23:00:00Z",
+   "ends_on": "2026-11-26T23:30:00Z",
+   "location": {
+    "id": 28618,
+    "street_name": "5251 Oak St",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6M 4H1",
+    "position": "49.2385564,-123.1287215",
+    "venue": 11281,
+    "name": "VanDusen Botanical Garden",
+    "country": "Canada"
+   },
+   "venue": {
+    "id": 11281,
+    "slug": "festival-of-lights",
+    "name": "VanDusen Festival of Lights"
+   },
+   "parent_event": 1565683,
+   "is_recurring_parent": false,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "CoV Staff",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "Ticket bookings open at 7 pm on November 12, 2026\r\nRespect the booking policy. Ticket bookings will be monitored and any staff who exceed the four-ticket limit—including by making multiple reservations under different names—will have all associated tickets cancelled and will not be allowed to book new tickets.\r\nThis one-night event is for all staff, including Parks and Recreation, VFRS, VPL, and VPD. In recognition of all your great work from this past year, we are excited to share a chance for you to preview VanDusen Festival of Lights and celebrate with coworkers and your guests on November 26.\r\nTickets are limited. Please select tickets for yourself and up to 3 guests. All ages ccount tow",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/images/475cb845-464.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/img-banner/8ba5aebb-2c2.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/festival-of-lights/images/475cb845-464.png",
+   "frontend_details_url": "https://www.showpass.com/city-staff-appreciation-previe-26-11-26-16-6603/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": "",
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [
+    "All Ages"
+   ],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T16:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-26T23:00:00Z",
+    "ends_on": "2026-11-26T23:30:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": true,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1583159,
+   "name": "Ontario Veterinary College Information Session",
+   "slug": "ontario-veterinary-college-information-session",
+   "starts_on": "2026-11-26T21:00:00Z",
+   "ends_on": "2026-11-26T22:00:00Z",
+   "location": {
+    "id": 56322,
+    "street_name": "6133 University Blvd",
+    "city": "Vancouver",
+    "province": "British Columbia",
+    "postal_code": "V6T 1Z1",
+    "position": "49.26647790000001,-123.2498647",
+    "venue": 19877,
+    "name": "UBC PAW (Pre-Veterinary Medicine & Animal Welfare) Club",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 19877,
+    "slug": "ubc-paw-pre-veterinary-medicine-animal-welfare-club",
+    "name": "UBC PAW (Pre-Veterinary Medicine & Animal Welfare) Club"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "OVC Vet Talk",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "The event will take place on Microsoft Teams from 2-3pm on Thursday Nov 26th. The session will cover the application process, what to expect when applying to OVC, and time for any questions the students have. The teams link should be sent to your email after you sign up. ",
+   "image": null,
+   "image_banner": null,
+   "thumbnail": null,
+   "frontend_details_url": "https://www.showpass.com/ontario-veterinary-college-information-session/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": "oet_virtual_external",
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T14:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-26T21:00:00Z",
+    "ends_on": "2026-11-26T22:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  },
+  {
+   "id": 1582174,
+   "name": "Free ZeroZero Pickleball Event @Richmond FLAGSHIP Location",
+   "slug": "free-zerozero-pickleball-event-richmond-flagship-location",
+   "starts_on": "2026-11-26T23:00:00Z",
+   "ends_on": "2026-11-27T01:00:00Z",
+   "location": {
+    "id": 58324,
+    "street_name": "5400 Minoru Blvd",
+    "city": "Richmond",
+    "province": "British Columbia",
+    "postal_code": "V6Y 2B3",
+    "position": "49.17554459999999,-123.1390219",
+    "venue": 19486,
+    "name": "Zero Zero Pickleball Flagship",
+    "country": "CA"
+   },
+   "venue": {
+    "id": 19486,
+    "slug": "ubc-pickleball-club",
+    "name": "UBC Pickleball Club"
+   },
+   "parent_event": null,
+   "is_recurring_parent": null,
+   "is_attraction_child": null,
+   "attraction_event_config": null,
+   "categories": null,
+   "ticket_types": [
+    {
+     "name": "FREE RSVP",
+     "price": "0.00",
+     "sold_out": false
+    }
+   ],
+   "description_without_html": "RSVP to the free 00P Event!",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/ubc-pickleball-club/images/HEYDKA-c51d3f51-c7c.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/ubc-pickleball-club/img-banner/c51d3f51-c7c.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/images/events/ubc-pickleball-club/images/HEYDKA-c51d3f51-c7c.png",
+   "frontend_details_url": "https://www.showpass.com/free-zerozero-pickleball-event-richmond-flagship-location/",
+   "external_link": null,
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_event_type": null,
+   "show_on_calendar": true,
+   "is_published": true,
+   "subtitle": null,
+   "date_time_to_be_determined": null,
+   "time_to_be_determined": false,
+   "restrictions": [],
+   "timezone": "America/Vancouver",
+   "local_starts_on": "2026-11-26T16:00:00-07:00",
+   "display_schedule": {
+    "date_tbd_message": "DATE & TIME TBD",
+    "time_tbd_message": "Time TBD",
+    "state": "scheduled",
+    "local_date": "2026-11-26",
+    "timezone": "America/Vancouver",
+    "starts_on": "2026-11-26T23:00:00Z",
+    "ends_on": "2026-11-27T01:00:00Z",
+    "opens_at": null,
+    "source": "event"
+   },
+   "inventory_sold_out": false,
+   "is_password_protected": false,
+   "no_ticket_types": false
+  }
+ ]
+}

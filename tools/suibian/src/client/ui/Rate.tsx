@@ -19,7 +19,7 @@ export function Rate({ code, home }: { code: string; home: () => void }) {
   const [liked, setLiked] = useState<boolean | null>(null);
   const [wait, setWait] = useState<Rating["wait"] | null>(null);
   const [sentNow, setSent] = useState(false);
-  const sent = sentNow || prefs.rated(code);
+  const sent = sentNow || (!!info?.winner && prefs.rated(code, info.winner));
   const load = () => api<Info>(`/api/rooms/${code}`).then((r) => setInfo(r.data));
   useEffect(() => void load(), [code]);
 
@@ -30,7 +30,7 @@ export function Rate({ code, home }: { code: string; home: () => void }) {
     // that answers 410 has nothing left to rate, or as many ratings as people.
     const done = res.ok || res.status === 409;
     if (!done) return toast(t(res.status === 410 ? "rateClosed" : "offline"));
-    prefs.markRated(code);
+    if (info?.winner) prefs.markRated(code, info.winner);
     setSent(true);
     void load();
   };

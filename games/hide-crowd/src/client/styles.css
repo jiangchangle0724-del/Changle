@@ -568,6 +568,12 @@ a {
   transform: translateX(24px);
   background: var(--on-gel);
 }
+/* the lobby's two choices (a whole match, the penalty), one under the other in one panel */
+.lobby-settings > * + * {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
 .switch-row.is-disabled {
   opacity: 0.5;
   cursor: default;
@@ -1152,6 +1158,13 @@ button.arena-option:active {
   background: var(--color-warning);
   color: var(--color-bg);
 }
+/* (getting up in another body: who it was that spotted you, under the line) */
+.play-notice-sub {
+  display: block;
+  margin-top: 2px;
+  font: 700 var(--text-sm) / var(--leading-tight) var(--font-text);
+  opacity: 0.8;
+}
 @keyframes notice-in {
   from {
     opacity: 0;
@@ -1288,6 +1301,38 @@ button.arena-option:active {
   font-size: var(--text-xs);
   line-height: 1;
 }
+/* the transit hall's light switch: over Distract, only while you stand by one (it pops in) */
+.move-lights {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  gap: 0;
+  align-content: center;
+  background: var(--color-warning);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  line-height: 1;
+  animation: lights-in var(--dur-enter) var(--ease-out) both;
+}
+@keyframes lights-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@keyframes lights-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .move-lights {
+    animation-name: lights-fade-in;
+  }
+}
+[data-reduced="1"] .move-lights {
+  animation-name: lights-fade-in;
+}
 .move-distract.is-waiting .move-count {
   background: var(--color-line);
   color: var(--color-text-3);
@@ -1390,7 +1435,8 @@ button.arena-option:active {
   width: 100%;
   max-width: 480px;
   max-height: 100%;
-  overflow: auto;
+  /* (sideways only: a title stamping on mustn't flash a scrollbar) */
+  overflow: hidden auto;
   padding: var(--space-6) var(--space-4) var(--space-4);
   border-radius: var(--r-sheet);
   background: var(--color-sheet);
@@ -1429,6 +1475,142 @@ button.arena-option:active {
 }
 .result-table tr.is-you th {
   color: var(--gel);
+}
+.result-place {
+  display: inline-block;
+  width: 24px;
+  margin-inline-end: var(--space-2);
+  color: var(--color-text-2);
+  font-weight: 800;
+  text-align: center;
+  vertical-align: middle;
+}
+.result-place svg {
+  display: block;
+  margin: 0 auto;
+}
+.result-name {
+  vertical-align: middle;
+}
+.result-table tr.is-winner {
+  background: color-mix(in oklab, var(--gel) 14%, transparent);
+}
+.result-table tr.is-winner .result-place {
+  color: var(--gel);
+}
+.result-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.result-count b {
+  display: inline-block;
+  min-width: 1ch;
+  animation: point-pop var(--dur-emphasis) var(--ease-pop);
+}
+/* a match: everyone's points so far, and where it goes next */
+.result-table .result-total {
+  color: var(--color-text);
+  font-weight: 800;
+}
+.result-table tr.is-winner .result-total {
+  color: var(--gel);
+}
+.result-next {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-2);
+  font-weight: 700;
+  text-align: center;
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+  animation-delay: calc(var(--dur-emphasis) * 2);
+}
+/* who spotted you, whom you spotted (a phone's own round) */
+.result-mine {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  text-align: start;
+}
+.result-mine > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.result-mine dt {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.result-mine dd {
+  display: contents;
+}
+.result-who {
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  font-weight: 700;
+}
+.result-mine .is-by .result-who {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+.result-mine .is-got .result-who {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.result-who small {
+  margin-inline-start: var(--space-1);
+  color: var(--color-text-2);
+  font-weight: 600;
+}
+/*
+ * It plays in quickly (Result.tsx): the title pops, the rows come in best first (each half a
+ * --dur-exit after the one above, as ROW_STEP_MS), the titles stamp on, and a tap (.is-now), reduced
+ * motion or the game's own Motion setting shows everything at once.
+ */
+.result-title,
+.tv-result-title {
+  animation: result-pop var(--dur-emphasis) var(--ease-pop) var(--dur-exit) both;
+}
+.result-table tbody tr {
+  animation: result-row var(--dur-enter) var(--ease-out) both;
+  animation-delay: calc(var(--dur-enter) + var(--i, 0) * var(--dur-exit) / 2);
+}
+.result-mine {
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+  animation-delay: calc(var(--dur-emphasis) * 2);
+}
+.awards .award {
+  animation: award-stamp var(--dur-emphasis) var(--ease-pop) both;
+  animation-delay: calc(var(--dur-emphasis) * 2 + var(--dur-enter) + var(--i, 0) * var(--dur-exit) / 2);
+}
+@keyframes result-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes result-row {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+@keyframes award-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.2) rotate(-3deg);
+  }
+}
+.result.is-now :is(.result-title, tbody tr, .result-count b, .result-count i, .result-mine, .result-next, .award) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.result-title, .tv-result-title, .result-table tbody tr, .result-count b, .result-mine, .result-next, .awards .award) {
+    animation: none;
+  }
+}
+[data-reduced="1"] :is(.result-title, .tv-result-title, .result-table tbody tr, .result-count b, .result-mine, .result-next, .awards .award) {
+  animation: none;
 }
 .result-actions {
   display: grid;
@@ -2017,6 +2199,20 @@ html.is-tv body::before {
 .tv-result .result-table {
   font-size: var(--text-lg);
 }
+.tv-result .score-pips {
+  gap: var(--space-1);
+}
+.tv-result .score-pips i {
+  width: 14px;
+  height: 14px;
+}
+.tv-result .result-place {
+  width: 32px;
+}
+.tv-result .result-place svg {
+  width: 28px;
+  height: 28px;
+}
 .tv-result .tv-wait {
   margin-top: var(--space-6);
 }
@@ -2041,6 +2237,33 @@ html.is-tv body::before {
   background:
     repeating-linear-gradient(0deg, color-mix(in oklab, var(--arena-line) 70%, transparent) 0 1px, transparent 1px 36px),
     linear-gradient(160deg, color-mix(in oklab, var(--arena-accent) 18%, var(--arena-surface)), var(--arena-bg));
+}
+/* the transit hall's light switches at the floor's sides: a box with its lamp, green, red once pulled (lit in the dark too) */
+.flat-switch {
+  position: absolute;
+  z-index: 1;
+  width: 14px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-small);
+  background: var(--arena-steel);
+  pointer-events: none;
+}
+.flat-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: var(--r-pill);
+  background: var(--arena-foliage);
+  box-shadow: 0 0 6px var(--arena-foliage);
+}
+.flat-switch.is-pulled::after {
+  background: var(--arena-danger);
+  box-shadow: 0 0 10px var(--arena-danger);
 }
 /* the night market: the lot's asphalt and its lines; the stalls along the top, their pools of light below */
 .flat-arena--market {
@@ -2070,6 +2293,11 @@ html.is-tv body::before {
   inset: 0 0 50%;
   border-radius: 0 0 var(--r-small) var(--r-small);
   background: var(--stall-color);
+}
+/* the other places' side quest spots (a view, a train door, a lantern): a small mark at the back */
+.flat-stalls:not(.flat-stalls--market) .flat-stall::before {
+  inset: 0 32% 74%;
+  border-radius: 0 0 var(--r-pill) var(--r-pill);
 }
 .flat-stall.stall-0 {
   left: 20%;
@@ -2310,6 +2538,15 @@ html.is-tv body::before {
 .flat-avatar__you.is-name {
   background: var(--color-surface);
   color: var(--color-text);
+}
+/* a passer-by that walked off at the end of the round */
+.flat-avatar.is-gone {
+  display: none;
+}
+/* whoever just tagged you, for a moment (room.ts): their name over them */
+.flat-avatar__you.is-tagger {
+  background: var(--color-danger);
+  color: var(--on-gel);
 }
 @media (prefers-reduced-motion: reduce) {
   .flat-avatar.pose-dance .flat-avatar__turn {
@@ -2997,6 +3234,111 @@ html.is-tv body::before {
 .drill-call.is-tv.is-go {
   height: 160px;
   font-size: var(--text-4xl);
+}
+/*
+ * The announcer (roundFx CalloutBanner): first blood, a double kill and on, a spree, a shutdown, on
+ * every screen for a moment, in the middle on a dark band so it reads over the crowd. Who made
+ * it sits above (gel when it was you); the call slams in, in its own colour; the other language
+ * under it. With reduced motion it only fades.
+ */
+.callout {
+  position: absolute;
+  /* (below the notice at the top, so "who got you" still reads) */
+  top: 44%;
+  left: 50%;
+  z-index: 7;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: 92%;
+  padding: var(--space-2) var(--space-12);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  text-align: center;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-bg) 64%, transparent) 22%, color-mix(in oklab, var(--color-bg) 64%, transparent) 78%, transparent);
+  animation:
+    callout-in var(--dur-emphasis) var(--ease-pop) both,
+    fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
+}
+.callout-who {
+  padding: 2px var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: 700 var(--text-sm) / var(--leading-tight) var(--font-text);
+}
+.callout.is-you .callout-who {
+  background: var(--gel);
+  color: var(--on-gel);
+}
+.callout-call {
+  color: var(--gel);
+  font: 800 var(--text-3xl) / 1 var(--font-display);
+  white-space: nowrap;
+  text-shadow: 0 0 var(--space-6) color-mix(in oklab, currentColor 55%, transparent), 0 3px 0 var(--color-bg);
+}
+.callout-other {
+  color: var(--color-text-2);
+  font: 800 var(--text-xs) / var(--leading-tight) var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.callout.is-first .callout-call,
+.callout.is-quadra .callout-call,
+.callout.is-rampage .callout-call {
+  color: var(--color-danger);
+}
+.callout.is-triple .callout-call,
+.callout.is-spree .callout-call {
+  color: var(--color-warning);
+}
+.callout.is-shutdown .callout-call {
+  color: var(--color-text);
+}
+.callout.is-penta .callout-call {
+  background: linear-gradient(90deg, var(--gel), var(--color-warning), var(--color-danger));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 var(--space-4) color-mix(in oklab, var(--color-warning) 60%, transparent));
+}
+.callout.is-tv {
+  top: 42%;
+  gap: var(--space-2);
+}
+.callout.is-tv .callout-who {
+  font-size: var(--text-xl);
+}
+.callout.is-tv .callout-call {
+  font-size: var(--text-poster);
+}
+.callout.is-tv .callout-other {
+  font-size: var(--text-lg);
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes callout-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout {
+    animation:
+      fade-in var(--dur-enter) var(--ease-out) both,
+      fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
+  }
+}
+[data-reduced="1"] .callout {
+  animation:
+    fade-in var(--dur-enter) var(--ease-out) both,
+    fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
 }
 @keyframes drill-beat {
   from {

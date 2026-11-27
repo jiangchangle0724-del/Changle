@@ -4,7 +4,7 @@
  * 所以快照里不用带它们，两边永远对得上。
  */
 import { CFG } from './config';
-import type { LiftDef, MoverDef, PendulumDef, Pt, Rect, SpinnerDef, VentDef, WindDef } from './level';
+import type { Level, LiftDef, MoverDef, PendulumDef, Pt, Rect, SpinnerDef, VentDef, WindDef } from './level';
 
 /** 摆锤（A12）在第 t 秒时锤的中心和偏了多少（弧度，往右为正）。 */
 export function pendulumAt(p: PendulumDef, t: number): { x: number; y: number; angle: number } {
@@ -131,4 +131,18 @@ export function liftChairs(l: LiftDef, t: number): { x: number; y: number; on: b
     out.push({ x: l.from.x + dx * u, y: l.from.y + dy * u + drop, on: s < len });
   }
   return out;
+}
+
+/**
+ * 卷屏（11-26）：第 t 秒「屏幕」在哪（左上角和大小，关卡坐标）。开局停在起点那头（往右卷是关卡最左边，
+ * 往上卷是关卡最下面），delay 秒后每秒挪 speed，挪到关卡那头停。没有卷屏是 null。物理、画面、手机局都用这一个。
+ */
+export function scrollFrame(level: Pick<Level, 'w' | 'h' | 'scroll'>, t: number): Rect | null {
+  const sc = level.scroll;
+  if (!sc) return null;
+  const w = Math.min(level.w, sc.view?.w ?? CFG.scrollW);
+  const h = Math.min(level.h, sc.view?.h ?? CFG.scrollH);
+  const moved = Math.max(0, t - (sc.delay ?? CFG.scrollDelay)) * sc.speed;
+  if (sc.dir === 'right') return { x: Math.min(level.w - w, moved), y: 0, w, h: level.h };
+  return { x: 0, y: Math.max(0, level.h - h - moved), w: level.w, h };
 }

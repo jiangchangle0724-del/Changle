@@ -63,7 +63,7 @@ export function useKeepProgress<D>(data: D, going: boolean) {
 
 /** 这局还在，回来继续？ In the game's own frame, with the time it was left. */
 function ResumeAsk({ game, at, onBack, onNew }: { game: GameId; at: number; onBack: () => void; onNew: () => void }) {
-  const { lang } = useStore();
+  const { lang, setLang } = useStore();
   const zh = lang === "zh";
   const titleId = useId();
   const mins = Math.max(1, Math.round((Date.now() - at) / 60_000));
@@ -71,7 +71,7 @@ function ResumeAsk({ game, at, onBack, onNew }: { game: GameId; at: number; onBa
     mins < 60 ? (zh ? `${mins} 分钟前` : `${mins} min ago`) : zh ? `${Math.round(mins / 60)} 小时前` : `${Math.round(mins / 60)} h ago`;
   return (
     <div className="screen game-screen game-resume">
-      <GameHeader title={GAME_BY_ID[game].name} lang={lang} onBack={back} />
+      <GameHeader title={GAME_BY_ID[game].name} lang={lang} onBack={back} onLang={() => setLang(lang === "zh" ? "en" : "zh")} />
       <section className="game-resume-body" aria-labelledby={titleId}>
         <h2 id={titleId}>{zh ? "这局还在，回来继续？" : "This game is still on. Pick it up?"}</h2>
         <p>{zh ? `${ago}停在这里，人和进度都还在。` : `Left ${ago}, with the same people and the score as it was.`}</p>

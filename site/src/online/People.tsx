@@ -1,4 +1,4 @@
-import { Check, Tv, UserPlus } from "lucide-react";
+import { Check, Crown, LogOut, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAccount, type PublicUser } from "../account/AccountContext";
 import { Avatar, colorFor } from "../account/Avatar";
@@ -91,6 +91,7 @@ function Person({ seat, onClose }: { seat: SeatView | null; onClose: () => void 
           {/* the host picks which phone is the TV: that seat sits the games out and shows the big screen's view */}
           {table.isHost && seat.id !== table.me && (
             <div className="person-card-table">
+              <HostActions seat={seat} onDone={onClose} />
               <button
                 type="button"
                 className="btn btn-ghost btn-block"
@@ -137,5 +138,53 @@ function Person({ seat, onClose }: { seat: SeatView | null; onClose: () => void 
         </div>
       )}
     </Sheet>
+  );
+}
+
+/**
+ * The host's say over a seat, wherever its face is tapped (Steve 2026-11-23: kick anyone from
+ * anywhere): make them host, or take them off the table. Not a ban: they can sit down again with
+ * the code. The table sheet (the people button at the top of every screen) has the same.
+ */
+function HostActions({ seat, onDone }: { seat: SeatView; onDone: () => void }) {
+  const { act } = useRoom();
+  const { ui } = useStore();
+  const [sure, setSure] = useState(false);
+  return (
+    <div className="person-card-host">
+      <button
+        type="button"
+        className="btn btn-ghost btn-block"
+        onClick={() => {
+          act({ a: "makeHost", pid: seat.id });
+          onDone();
+        }}
+      >
+        <Crown size={17} />
+        {ui("makeHost")}
+      </button>
+      {sure ? (
+        <div className="person-card-sure">
+          <button type="button" className="btn btn-ghost" onClick={() => setSure(false)}>
+            {ui("stay")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-porcelain"
+            onClick={() => {
+              act({ a: "kick", pid: seat.id });
+              onDone();
+            }}
+          >
+            {ui("kick")}
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="btn btn-ghost btn-block" onClick={() => setSure(true)}>
+          <LogOut size={17} />
+          {ui("kick")}
+        </button>
+      )}
+    </div>
   );
 }

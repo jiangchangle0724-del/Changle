@@ -98,14 +98,17 @@ export interface Source {
   id: string;
   /** Shown on each card as where it came from. */
   name: string;
-  /** How it's read; "json": a site's own feed, with a parser of its own (Burnaby's library). */
-  kind: "ical" | "ticketmaster" | "bibliocommons" | "jsonld" | "json" | "rss";
+  /**
+   * How it's read; "json": a site's own feed, with a parser of its own (Burnaby's library); "html":
+   * a listing page with no feed behind it, with a parser of its own (the colleges').
+   */
+  kind: "ical" | "ticketmaster" | "bibliocommons" | "jsonld" | "json" | "rss" | "html";
   /** What is fetched (without any key). */
   url: string;
   /** 1 official API or feed, 2 structured data on pages, 3 articles, 4 the Chinese community. */
   tier: 1 | 2 | 3 | 4;
   /** The secret it can't run without; skipped (and logged) until it's set. */
-  needs?: "TICKETMASTER_KEY";
+  needs?: "TICKETMASTER_KEY" | "EVENTBRITE_TOKEN";
   /** The language its events are usually in. */
   lang?: Lang;
 }

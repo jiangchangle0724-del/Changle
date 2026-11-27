@@ -26,7 +26,7 @@ import { say, W } from "./words";
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
 
-export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; me: string | undefined; lang: Lang; plan: Settlement; made?: Made }) {
+export function SettleView({ ledger, me, lang, plan, made, viewing }: { ledger: Ledger; me: string | undefined; lang: Lang; plan: Settlement; made?: Made; viewing?: boolean }) {
   const toast = useToast();
   const [open, setOpen] = useState<Line | null>(null);
   // the transfer the sheet shows, kept while the sheet slides away so it doesn't empty on its way out
@@ -117,9 +117,10 @@ export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; m
         category="tool"
         title={line ? paysLine(ledger, line.from, line.to, me, lang) : ""}
         footer={
-          // (a locked ledger keeps its transfers as they are: the amount can still be copied)
+          // (a locked ledger keeps its transfers as they are, and a 查看链接 can't mark one: the amount can still be copied)
           line &&
           ledger.locked === undefined &&
+          !viewing &&
           (line.paid ? (
             <Button
               tone="quiet"
@@ -169,8 +170,8 @@ export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; m
             <span className="ui-visually-hidden" role="status">
               {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
             </span>
-            {/* (a locked ledger can't be told a transfer was made: it says why, in place of how) */}
-            <p className="split-note">{say(lang, line.paid ? "paid" : ledger.locked !== undefined ? "locked" : "noMoney")}</p>
+            {/* (a locked ledger can't be told a transfer was made, nor can a 查看链接: it says why, in place of how) */}
+            <p className="split-note">{say(lang, line.paid ? "paid" : ledger.locked !== undefined ? "locked" : viewing ? "viewOnlyPaid" : "noMoney")}</p>
           </div>
         )}
       </Sheet>

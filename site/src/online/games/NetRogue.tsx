@@ -151,7 +151,7 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
             g("draw");
             haptic(10);
           }}
-          drawLabel={lang === "zh" ? "抽牌" : "Draw"}
+          drawLabel={lang === "zh" ? "下滑抽牌" : "Swipe down"}
           shuffling={table.shuffling}
           leaveTo={table.leaveTo}
         />

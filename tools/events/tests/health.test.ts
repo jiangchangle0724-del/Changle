@@ -50,6 +50,29 @@ describe("the daily check", () => {
     expect(checkHealth(s, NOW).problems[1]).toEqual({ key: "source:ticketmaster", text: "Ticketmaster（ticketmaster）11月18日没读完，还从来没读完过。" });
   });
 
+  it("a source waiting for its key (Eventbrite until Steve adds the token) isn't a problem", () => {
+    const s = fine();
+    s.sources.push({ id: "eventbrite", name: "Eventbrite", enabled: 1, lastOkRun: null, lastError: "skipped: EVENTBRITE_TOKEN is not set" });
+    expect(checkHealth(s, NOW).ok).toBe(true);
+  });
+
+  it("says when the AI asked all day and wrote no Chinese at all (as when Qwen 3 was retired), not when some of it failed", () => {
+    const gone = "5028: @cf/qwen/qwen3-30b-a3b-fp8 was deprecated on 2026-11-20. See the model catalog for alternatives.";
+    const s = fine();
+    s.steps = [
+      { source: "vpl", found: 30, updated: 2, error: null },
+      { source: "ai", found: 15, updated: 0, error: gone },
+      { source: "ai", found: 15, updated: 0, error: gone },
+      { source: "ai", found: 15, updated: 0, error: gone },
+    ];
+    expect(checkHealth(s, NOW).problems).toEqual([{ key: "ai", text: `中文名和介绍最近一个也没写成（AI 试了 3 次，45 个活动），最后的错误是 ${gone}。` }]);
+    s.steps[2] = { source: "ai", found: 15, updated: 15, error: null };
+    expect(checkHealth(s, NOW).ok).toBe(true);
+    // nothing to write all day: nothing asked, nothing wrong
+    s.steps = [{ source: "vpl", found: 30, updated: 2, error: null }];
+    expect(checkHealth(s, NOW).ok).toBe(true);
+  });
+
   it("never puts a key or token from an error into the issue", () => {
     const s = fine();
     s.sources[2] = { ...s.sources[2], lastOkRun: "2026-11-17", lastError: "Invalid URL: https://app.ticketmaster.com/discovery/v2/events.json?apikey=abc123SECRET&size=200" };

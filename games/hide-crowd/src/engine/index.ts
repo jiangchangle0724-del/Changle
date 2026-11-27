@@ -45,9 +45,82 @@ export const BLEND_MS = 1_450;
 export const BLEND_COOLDOWN_MS = 6_000;
 /** A tagged player's new body is at least this far from whoever tagged them (when the crowd allows). */
 export const HIDE_AWAY_DISTANCE = 24;
-/** The night market's four snack stalls along the back, left to right (their middles). */
+/**
+ * How long a tagged player's phone names whoever tagged them, over the body that threw the punch:
+ * while they're down, and a moment after they slip away (Steve, 2026-11-25: you should know who got you).
+ */
+export const TAGGER_SHOWN_MS = 2_600;
+/**
+ * The announcer, as in Honor of Kings (Steve, 2026-11-25): a tag this soon after your last one makes
+ * a double, then a triple, a quadra, a penta. Getting tagged ends your run.
+ */
+export const MULTI_TAG_MS = 10_000;
+/** How many places a whole match visits (the room's settings.match): the lobby's pick, then others. */
+export const MATCH_PLACES = 3;
+/**
+ * The crowd thins in a round's last half minute, as the Steam original's robots run out of battery:
+ * passers-by walk off past the sides one by one, about LEAVE_SHARE of them, the rest stay to the end.
+ * Only in a round of at least twice that long (a test's short round never thins).
+ */
+export const THIN_MS = 30_000;
+export const LEAVE_SHARE = 0.55;
+/** How far past the arena's sides a passer-by walks before it's gone: past the edge of every screen, a 21:9 one
+ * included, so nobody vanishes in sight (measured with the 3D view's framing, camera.ts). */
+export const EXIT_PAST = 38;
+
+/** When a passer-by sets off to leave (by its id and the round's seed), or null if it stays. */
+export function leavesAt(game: Pick<MatchState, "seed" | "startedAt" | "endsAt">, id: string): number | null {
+  if (game.endsAt - game.startedAt < THIN_MS * 2) return null;
+  // (FNV over the seed and the id, then a full mix: ids differ by one digit, so the mix matters)
+  let hash = Math.imul(game.seed ^ 0x811c9dc5, 0x01000193);
+  for (let index = 0; index < id.length; index++) hash = Math.imul(hash ^ id.charCodeAt(index), 0x01000193);
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash = (hash ^ (hash >>> 16)) >>> 0;
+  // who leaves: a seeded stride over the passers-by's numbers (npc-07), so close to LEAVE_SHARE of
+  // every twenty go, a different set each round, and a round never keeps or loses nearly everyone
+  const number = Number(id.slice(id.lastIndexOf("-") + 1));
+  if (!Number.isInteger(number) || (number * 7 + (game.seed >>> 0)) % 20 >= Math.round(LEAVE_SHARE * 20)) return null;
+  // (spread over the half minute, the last of them well before the end so most are off by then)
+  return game.endsAt - THIN_MS + Math.floor(((hash >>> 10) % 1000) / 1000 * (THIN_MS - 12_000));
+}
+
+/**
+ * What the announcer calls out on a tag, the biggest one only: the round's first tag (first blood),
+ * two or more in a row within MULTI_TAG_MS, three or four tags without being spotted in between (a
+ * spree, a rampage), or tagging someone on a spree (a shutdown).
+ */
+export type TagCall = "first" | "double" | "triple" | "quadra" | "penta" | "spree" | "rampage" | "shutdown";
+
+/** A player's run of tags: since they were last spotted, in a row, until when the next one counts, the best row. */
+export interface Run {
+  streak: number;
+  chain: number;
+  until: number;
+  best: number;
+}
+
+const NO_RUN: Run = { streak: 0, chain: 0, until: 0, best: 0 };
+const CHAIN_CALLS: TagCall[] = ["double", "triple", "quadra", "penta"];
+
+/** The biggest call for a tag: a row first, then first blood, a shutdown, a spree. */
+export function tagCall(chain: number, streak: number, theirStreak: number, first: boolean): TagCall | null {
+  if (chain >= 2) return CHAIN_CALLS[Math.min(chain, 5) - 2];
+  if (first) return "first";
+  if (theirStreak >= 3) return "shutdown";
+  if (streak === 3) return "spree";
+  if (streak === 4) return "rampage";
+  return null;
+}
+/**
+ * Every place's side quest, four spots along the back, left to right (their middles): the night
+ * market's snack stalls, the seawall's photo spots, the transit hall's train doors, the theatre's
+ * lanterns. A player standing at each for a moment (BITE_MS) gets FEAST_POINTS for all four.
+ */
 export const STALLS: readonly number[] = [20, 40, 60, 80];
-/** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
+/** In front of a spot, how far either side of its middle, and how far into the floor from the back, it counts. */
 export const STALL_REACH = { halfWidth: 4.5, depth: 6 } as const;
 /** How long a player stands at a stall to taste it. */
 export const BITE_MS = 1_200;
@@ -61,6 +134,26 @@ export const DECOY_DISTANCE = 22;
 export const DECOY_MS = PUNCH_WINDUP_MS + 220 + 420;
 /** A distraction turns every other screen's camera towards the passer-by for this long (as the Steam game pans away). */
 export const GLANCE_MS = 1_500;
+/**
+ * The transit hall's light switches (after the Steam game's light switches): one on each route sign
+ * just off the floor's sides (the dressing's totems, scene x ±8.9, z -1.1, at SCENE_PER_WORLD 0.175).
+ * A player standing by one can pull it, twice a round: the hall's lights go out for everyone, as when
+ * they go by themselves, and every screen sees which switch went. Passers-by stop by the signs too.
+ */
+export const LIGHT_SWITCHES: readonly Vector[] = [
+  { x: -0.9, y: 23.9 },
+  { x: 100.9, y: 23.9 }
+];
+/** How close to a switch a player has to stand to pull it (from the floor's edge it's about 6). */
+export const SWITCH_REACH = 8.5;
+/** Pulls of the light switches a player has a round. */
+export const SWITCHES = 2;
+/** From the pull to the lights going out: the lever's clunk (the puller has a beat to settle). */
+export const SWITCH_DELAY_MS = 600;
+/** Once the lights are back, the switches reset for this long before anyone can pull one again. */
+export const SWITCH_RESET_MS = 12_000;
+/** A place's own moment due during pulled lights, or this soon after them, doesn't come. */
+const MOMENT_GAP_MS = 2_000;
 /**
  * The theatre's drill (after the Steam game's gym, where the instructor counts and every robot
  * punches): the performer calls three beats, and on the fourth the whole crowd throws a punch at once.
@@ -178,8 +271,12 @@ export interface Character {
   biteSince: number;
   /** a player: distractions left this round */
   distracts: number;
+  /** a player: pulls of the transit hall's light switches left this round */
+  switches: number;
   /** a passer-by throwing a punch at nothing for someone's distraction: since when (null: not) */
   decoyAt: number | null;
+  /** a passer-by that has walked off at the end of a round (THIN_MS): no longer in the crowd */
+  gone?: boolean;
   pose: Pose;
   npcStyle: number;
   npcOffset: number;
@@ -223,18 +320,21 @@ export interface Plan {
 /**
  * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
  * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
- * decoy: a player's distraction (only they hear of it); blast: a firecracker knocked people down;
+ * decoy: a player's distraction (only they hear of it); lights: a player pulled a light switch (only
+ * they hear it was them; every screen sees the switch go); blast: a firecracker knocked people down;
  * bike: the seawall's bike knocked people down; over: the round ended
  */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "lights" | "blast" | "bike" | "over";
   actor: string | null;
   target: string | null;
   /** bite: the stall */
   stall?: number;
   /** blast, bike: the players it knocked down (each phone is told only whether it was them) */
   targets?: string[];
+  /** tag: what the announcer calls out, if anything */
+  call?: TagCall;
 }
 
 /** Someone knocked down: where, when, and who (they don't stare at themselves). */
@@ -262,6 +362,26 @@ export interface MatchState {
   glance?: { x: number; y: number; at: number; by: string } | null;
   /** the night market's firecrackers of the moment on now (thrown where the crowd was when it began) */
   crackers?: Cracker[];
+  /** this round's tags, for the results: a tagged player, whoever tagged them, how many times */
+  spottedBy?: Record<string, Record<string, number>>;
+  /**
+   * who just tagged a player: their id, the body they threw the punch from, and until when that
+   * player's phone names them over it (a player never shows on anyone else's)
+   */
+  taggers?: Record<string, { by: string; body: number; until: number }>;
+  /** each player's run of tags, for the announcer and the round's titles */
+  runs?: Record<string, Run>;
+  /** whoever tagged first this round (first blood) */
+  firstBlood?: string;
+  /** the latest pull of a light switch this round: which switch, when, whose */
+  pull?: Pull | null;
+}
+
+/** A pull of the transit hall's light switch: the lights go out SWITCH_DELAY_MS after `at`, for BLACKOUT_MS. */
+export interface Pull {
+  box: number;
+  at: number;
+  by: string;
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -280,6 +400,7 @@ const IDENTITY = [
   "snacks",
   "feasts",
   "distracts",
+  "switches",
   "npcStyle",
   "npcOffset",
   "attackResolveAt",
@@ -385,6 +506,7 @@ function blankCharacter(fields: Pick<Character, "id" | "ownerId" | "name" | "kin
     biteStall: -1,
     biteSince: 0,
     distracts: fields.kind === "player" ? DISTRACTS : 0,
+    switches: fields.kind === "player" ? SWITCHES : 0,
     decoyAt: null,
     pose: "idle",
     attackResolveAt: null,
@@ -408,8 +530,9 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
   if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) throw new RangeError("A match needs 2 to 8 players");
   const random = seeded(seed);
   const positions = slots();
-  // the players take random spots on the grid, and the passers-by fill the rest in order
-  const free = positions.map((_, index) => index);
+  // the players take random spots on the grid (never at one of the side quest's spots: standing still
+  // there at the start would do it, and light it up for everyone), and the passers-by fill the rest in order
+  const free = positions.map((_, index) => index).filter((index) => stallAt(positions[index].x, positions[index].y) < 0);
   const occupied = new Set<number>();
   const characters: Character[] = [];
   players.forEach((player, index) => {
@@ -501,7 +624,7 @@ export function startDistract(state: MatchState, ownerId: string, now: number): 
   if (!actor || (actor.distracts ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null) return state;
   const free = (body: Character) => body.decoyAt === null || body.decoyAt === undefined || now > body.decoyAt + DECOY_MS;
   const candidates = state.characters.filter(
-    (body) => body.kind === "npc" && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
+    (body) => body.kind === "npc" && !body.gone && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
   );
   if (!candidates.length) return state;
   const pick = candidates[Math.floor(seeded(Math.imul(state.seed, 31) + now)() * candidates.length)];
@@ -513,6 +636,22 @@ export function startDistract(state: MatchState, ownerId: string, now: number): 
   decoy.pose = "windup";
   next.glance = { x: decoy.x, y: decoy.y, at: now, by: ownerId };
   addEvent(next, "decoy", ownerId, null);
+  return next;
+}
+
+/**
+ * A pull of a light switch: the player stands by one of the transit hall's two, with a pull left, the
+ * switches ready. The lights go out for everyone SWITCH_DELAY_MS later. Only the player hears it was them.
+ */
+export function pullSwitch(state: MatchState, ownerId: string, now: number): MatchState {
+  const actor = characterForOwner(state, ownerId);
+  if (!actor || (actor.switches ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null || !switchReady(state, now)) return state;
+  const box = switchNear(actor);
+  if (box < 0) return state;
+  const next = { ...state, events: [...state.events], characters: state.characters.map((character) => (character.id === actor.id ? { ...character } : character)) };
+  characterForOwner(next, ownerId)!.switches = (actor.switches ?? 0) - 1;
+  next.pull = { box, at: now, by: ownerId };
+  addEvent(next, "lights", ownerId, null);
   return next;
 }
 
@@ -552,7 +691,7 @@ function clampGoal(x: number, y: number): Vector {
 }
 
 /** The next thing a passer-by does, rolled with its own dice. */
-type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan">;
+type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan" | "gone">;
 
 export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number, arena: ArenaId = "plaza"): Plan {
   const previous = body.plan ?? restingPlan(body.x, body.y);
@@ -561,7 +700,7 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
   const roll = random();
   const near = (radius: number, moving: boolean) =>
     others.filter((other) => {
-      if (other.id === body.id || now < other.stunnedUntil) return false;
+      if (other.id === body.id || other.gone || now < other.stunnedUntil) return false;
       if (Math.hypot(other.x - body.x, other.y - body.y) > radius) return false;
       return !moving || Math.hypot(other.velocity?.x ?? 0, other.velocity?.y ?? 0) > 1.5;
     });
@@ -582,13 +721,21 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
     }
   }
   const [low, high] = PACES[((body.npcStyle % 3) + 3) % 3];
-  if (arena === "market" && previous.mode !== "browse" && roll < 0.66) {
-    // the night market: up to a stall, to look it over (about a third of the crowd is at one, so a player
-    // tasting has company)
+  if (previous.mode !== "browse" && roll < 0.66) {
+    // up to one of the side quest's spots, to look it over (a stall, a view, a train door, a lantern;
+    // about a third of the crowd is at one, so a player there has company)
     const middle = STALLS[Math.floor(random() * STALLS.length)];
     const x = middle + (random() * 2 - 1) * (STALL_REACH.halfWidth - 1);
     const y = ARENA.marginY + 1.5 + random() * (STALL_REACH.depth - 2.5);
     return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_200 + random() * 2_600 };
+  }
+  if (arena === "metro" && previous.mode !== "browse" && roll < 0.7) {
+    // the transit hall: over to a route sign at the floor's side, to read it (so whoever stands by one
+    // of its light switches has company)
+    const sign = LIGHT_SWITCHES[Math.floor(random() * LIGHT_SWITCHES.length)];
+    const x = sign.x < ARENA.width / 2 ? ARENA.marginX + random() * 2.5 : ARENA.width - ARENA.marginX - random() * 2.5;
+    const y = sign.y + (random() * 2 - 1) * 4;
+    return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_500 + random() * 3_000 };
   }
   const run = random() < 0.1;
   const angle = random() * Math.PI * 2;
@@ -670,6 +817,44 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
   if (into >= beat.lasts) return null;
   const startsAt = now - into;
   return { kind: beat.kind, startsAt, endsAt: startsAt + beat.lasts, look: beat.look };
+}
+
+/** When the lights a player pulled are out ([from, to)), or null. */
+export function pulledDark(game: Pick<MatchState, "pull">): { from: number; to: number } | null {
+  if (!game.pull) return null;
+  const from = game.pull.at + SWITCH_DELAY_MS;
+  return { from, to: from + BLACKOUT_MS };
+}
+
+/**
+ * The whole crowd's moment now: the lights a player pulled while they're out, else the place's own
+ * (one due during the pulled lights, or just after them, doesn't come). Every rule asks this.
+ */
+export function momentAt(game: Pick<MatchState, "arena" | "startedAt" | "pull">, now: number): CrowdMoment | null {
+  const dark = pulledDark(game);
+  if (dark && now >= dark.from && now < dark.to) return { kind: "blackout", startsAt: dark.from, endsAt: dark.to, look: null };
+  const moment = crowdMoment(game.arena, game.startedAt, now);
+  if (moment && dark && moment.endsAt > game.pull!.at && moment.startsAt < dark.to + MOMENT_GAP_MS) return null;
+  return moment;
+}
+
+/** The walkways' pull now: they stop while pulled lights are out (the power's off), as in their quiet spells. */
+export function driftAt(game: Pick<MatchState, "arena" | "startedAt" | "pull">, now: number): Vector {
+  const dark = pulledDark(game);
+  if (dark && now >= dark.from && now < dark.to) return { x: 0, y: 0 };
+  return environmentalDrift(game.arena, game.startedAt, now);
+}
+
+/** Whether a light switch can be pulled now: in the transit hall, no moment on, the last pulled lights back on and reset. */
+export function switchReady(game: Pick<MatchState, "arena" | "startedAt" | "pull" | "phase">, now: number): boolean {
+  if (game.arena !== "metro" || game.phase !== "playing" || momentAt(game, now)) return false;
+  const dark = pulledDark(game);
+  return !dark || now >= dark.to + SWITCH_RESET_MS;
+}
+
+/** The light switch a body stands within reach of (-1: none). */
+export function switchNear(body: Pick<Character, "x" | "y">): number {
+  return LIGHT_SWITCHES.findIndex((box) => Math.hypot(box.x - body.x, box.y - body.y) <= SWITCH_REACH);
 }
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
@@ -845,16 +1030,24 @@ export interface CrowdStep {
   face: number | null;
   /** looking around while standing */
   glance: boolean;
+  /** walking off at the end of a round (leavesAt): it may go past the sides, and is gone there */
+  leaving?: boolean;
 }
 
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions" | "crackers">,
+  game: Pick<MatchState, "arena" | "startedAt" | "endsAt" | "seed" | "commotions" | "crackers" | "pull">,
   now: number
 ): CrowdStep {
-  const moment = crowdMoment(game.arena, game.startedAt, now);
+  const moment = momentAt(game, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
+  // the end of the round: off past the nearer side, at a brisk walk (one already past the edge keeps
+  // going whatever happens; on the floor, a moment or a fuss stops a leaver like anyone, first)
+  const leaving = leavesAt(game, body.id);
+  const leave: CrowdStep | null =
+    leaving !== null && now >= leaving ? { plan, heading: { x: body.x < ARENA.width / 2 ? -1 : 1, y: 0 }, pace: 0.9, face: null, glance: false, leaving: true } : null;
+  if (leave && (body.x < ARENA.marginX || body.x > ARENA.width - ARENA.marginX)) return leave;
   if (moment?.kind === "crackers") {
     // firecrackers: get clear of any hissing near you, at a run; stop and stare at one hissing nearby
     const crackers = game.crackers ?? [];
@@ -886,6 +1079,7 @@ export function crowdStep(
   // someone knocked down nearby: stop and look
   const fuss = commotionFor(body, game.commotions, now);
   if (fuss) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(fuss.y - body.y, fuss.x - body.x), glance: false };
+  if (leave) return leave;
   const done = (current: Plan) => {
     if (now >= current.until) return true;
     if (current.mode === "walk") return Math.hypot(current.x - body.x, current.y - body.y) < 1.6;
@@ -906,9 +1100,13 @@ export function crowdStep(
       return { plan, heading: { x: dx / (distance || 1), y: dy / (distance || 1) }, pace: plan.pace * Math.min(1, 0.45 + distance / 6), face: null, glance: false };
     }
     if (plan.arrivedAt === undefined) plan = { ...plan, arrivedAt: now };
-    // at the counter, looking it over (and around, now and then)
-    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
+    // at a spot, looking it over (and around, now and then); in the transit hall, maybe reading a route sign
     const glance = now - plan.arrivedAt! > (plan.dwell ?? 0) * 0.6;
+    if (game.arena === "metro" && plan.y > ARENA.marginY + STALL_REACH.depth) {
+      const sign = LIGHT_SWITCHES.reduce((best, item) => (Math.abs(item.x - body.x) < Math.abs(best.x - body.x) ? item : best), LIGHT_SWITCHES[0]);
+      return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(sign.y - body.y, sign.x - body.x), glance };
+    }
+    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
     return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(ARENA.marginY - 3 - body.y, middle - body.x), glance };
   }
   if (plan.mode === "walk") {
@@ -941,10 +1139,10 @@ function angleDifference(a: number, b: number): number {
 
 function resolvePunch(state: MatchState, attacker: Character, now: number): void {
   // in the theatre's drill everyone is punching: a player's punch then goes through the passers-by
-  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const moment = momentAt(state, now);
   const drill = moment?.kind === "drill" && now >= moment.startsAt + DRILL_WINDOW[0] && now <= moment.startsAt + DRILL_WINDOW[1];
   const candidates = state.characters
-    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
+    .filter((character) => character.id !== attacker.id && !character.gone && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
     .map((character) => {
       const dx = character.x - attacker.x;
       const dy = character.y - attacker.y;
@@ -978,6 +1176,12 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
   attacker.score++;
   target.tagged++;
+  // (the results say who spotted whom; the tagged player's phone, for a moment, who it was)
+  const hunter = attacker.ownerId!;
+  const hunted = target.ownerId!;
+  const theirs = state.spottedBy?.[hunted] ?? {};
+  state.spottedBy = { ...state.spottedBy, [hunted]: { ...theirs, [hunter]: (theirs[hunter] ?? 0) + 1 } };
+  state.taggers = { ...state.taggers, [hunted]: { by: hunter, body: state.characters.indexOf(attacker), until: now + TAGGER_SHOWN_MS } };
   target.stunnedUntil = now + STUN_MS;
   target.hideAt = now + STUN_MS;
   target.blendUntil = 0;
@@ -987,6 +1191,19 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   target.recoil = { x: Math.cos(attacker.facing) * 17, y: Math.sin(attacker.facing) * 17 };
   target.pose = "stunned";
   addEvent(state, "tag", attacker.ownerId, target.ownerId);
+  // the announcer: the tagger's run grows, the tagged player's ends
+  const run = state.runs?.[hunter] ?? NO_RUN;
+  const ended = state.runs?.[hunted] ?? NO_RUN;
+  const chain = now <= run.until ? run.chain + 1 : 1;
+  const streak = run.streak + 1;
+  state.runs = {
+    ...state.runs,
+    [hunter]: { streak, chain, until: now + MULTI_TAG_MS, best: Math.max(run.best, chain) },
+    [hunted]: { ...ended, streak: 0, chain: 0, until: 0 }
+  };
+  const call = tagCall(chain, streak, ended.streak, !state.firstBlood);
+  state.firstBlood ??= hunter;
+  if (call) state.events[state.events.length - 1].call = call;
   if (attacker.score >= SCORE_TO_WIN) {
     state.phase = "over";
     state.winnerId = attacker.ownerId;
@@ -1000,13 +1217,20 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
  * is picked from the passers-by at least HIDE_AWAY_DISTANCE from whoever tagged them (else the
  * farthest one), by the round's seed.
  */
+/** A passer-by on its way out at the end of a round (leavesAt). */
+function leavingNow(state: MatchState, character: Character, now: number): boolean {
+  if (character.kind !== "npc") return false;
+  const at = leavesAt(state, character.id);
+  return at !== null && now >= at;
+}
+
 function hideAway(state: MatchState, index: number, now: number): void {
   const tagged = state.characters[index];
   const tag = [...state.events].reverse().find((event) => event.t === "tag" && event.target === tagged.ownerId);
   const hunter = tag?.actor ? characterForOwner(state, tag.actor) : undefined;
   const npcs = state.characters
     .map((character, at) => ({ character, at }))
-    .filter(({ character }) => character.kind === "npc" && now >= character.stunnedUntil);
+    .filter(({ character }) => character.kind === "npc" && !character.gone && now >= character.stunnedUntil && !leavingNow(state, character, now));
   if (npcs.length === 0) {
     tagged.hideAt = null;
     return;
@@ -1039,7 +1263,7 @@ function blast(state: MatchState, cracker: Cracker, now: number): void {
     const dx = body.x - cracker.x;
     const dy = body.y - cracker.y;
     const distance = Math.hypot(dx, dy);
-    if (distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
+    if (body.gone || distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
     anyone = true;
     const angle = distance < 0.05 ? ((idHash(body.id) % 628) / 100) - Math.PI : Math.atan2(dy, dx);
     const force = 9 + 9 * (1 - distance / BLAST_RADIUS);
@@ -1074,7 +1298,7 @@ function runOver(state: MatchState, ride: BikeRide, from: number, to: number, no
   let anyone = false;
   for (const body of state.characters) {
     const side = body.y - ride.y;
-    if (Math.abs(side) >= BIKE_REACH || body.x < low || body.x > high || now < body.stunnedUntil || body.hideAt !== null) continue;
+    if (body.gone || Math.abs(side) >= BIKE_REACH || body.x < low || body.x > high || now < body.stunnedUntil || body.hideAt !== null) continue;
     anyone = true;
     body.stunnedUntil = now + STUN_MS;
     body.velocity = { x: 0, y: 0 };
@@ -1095,13 +1319,21 @@ function runOver(state: MatchState, ride: BikeRide, from: number, to: number, no
   if (anyone) addEvent(state, "bike", null, null, undefined, victims);
 }
 
+/** A push or a stagger keeps a body inside the edges, except one already past them: a passer-by
+ * walking off at the end of a round keeps going rather than snapping back to the edge. */
+function edgeX(body: Character, x: number): number {
+  return bounded(x, Math.min(ARENA.marginX, body.x), Math.max(ARENA.width - ARENA.marginX, body.x));
+}
+
 function resolveCrowdCollisions(characters: Character[]): void {
   const diameter = CHARACTER_COLLISION_DIAMETER;
   for (let pass = 0; pass < 2; pass++) {
     for (let first = 0; first < characters.length; first++) {
       const a = characters[first];
+      if (a.gone) continue;
       for (let second = first + 1; second < characters.length; second++) {
         const b = characters[second];
+        if (b.gone) continue;
         let dx = a.x - b.x;
         let dy = a.y - b.y;
         let distance = Math.hypot(dx, dy);
@@ -1115,9 +1347,9 @@ function resolveCrowdCollisions(characters: Character[]): void {
           dy /= distance;
         }
         const correction = (diameter - distance) * 0.5;
-        a.x = bounded(a.x + dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        a.x = edgeX(a, a.x + dx * correction);
         a.y = bounded(a.y + dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
-        b.x = bounded(b.x - dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        b.x = edgeX(b, b.x - dx * correction);
         b.y = bounded(b.y - dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
         const closing = (a.velocity.x - b.velocity.x) * dx + (a.velocity.y - b.velocity.y) * dy;
         if (closing < 0) {
@@ -1166,9 +1398,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     commotions: (state.commotions ?? []).filter((fuss) => now - fuss.at < COMMOTION_MS)
   };
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
-  const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
+  const laneDrift = driftAt(state, now).x;
   // while the busker plays, anyone standing still dances (players too: it's how they blend in)
-  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const moment = momentAt(state, now);
   const dancing = moment?.kind === "dance";
   // the drill's call: every passer-by throws its punch (nearly together)
   const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
@@ -1190,8 +1422,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
   });
   for (const character of next.characters) {
+    if (character.gone) continue;
     if (now < character.stunnedUntil) {
-      character.x = bounded(character.x + character.recoil.x * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
+      character.x = edgeX(character, character.x + character.recoil.x * dt);
       character.y = bounded(character.y + character.recoil.y * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
       character.velocity = { x: 0, y: 0 };
       const drag = Math.exp(-dt * 6);
@@ -1242,12 +1475,18 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     else if (moving) character.facing = turnToward(character.facing, Math.atan2(moveY, moveX), TURN_RATE * dt);
     const nextX = character.x + moveX * dt;
     const nextY = character.y + moveY * dt;
-    character.x = bounded(nextX, ARENA.marginX, ARENA.width - ARENA.marginX);
+    // (walking off at the end of a round: past the sides, and gone once out of the picture)
+    // (a body already past an edge and not leaving this tick, stopped by a moment, stays where it is)
+    character.x = step?.leaving ? bounded(nextX, -EXIT_PAST - 2, ARENA.width + EXIT_PAST + 2) : edgeX(character, nextX);
+    if (step?.leaving && (character.x <= -EXIT_PAST || character.x >= ARENA.width + EXIT_PAST)) {
+      character.gone = true;
+      character.velocity = { x: 0, y: 0 };
+    }
     character.y = bounded(nextY, ARENA.marginY, ARENA.height - ARENA.marginY);
     if (character.x !== nextX) character.velocity.x = 0;
     if (character.y !== nextY) character.velocity.y = 0;
     // (a player standing at a stall tastes it however the crowd jostles them: it's the stick that counts)
-    if (next.arena === "market" && character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
+    if (character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
@@ -1281,8 +1520,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
 }
 
 /**
- * The night market: a player standing at a stall they haven't tasted yet tastes it after a moment
- * (the stall lights up on every screen: only a player's bite does that). All four is a feast: 2
+ * The side quest, in every place: a player standing at a spot they haven't done yet does it after a
+ * moment (the night market's stall is tasted, the seawall's photo taken, the train door waited at, the
+ * lantern lit): it lights up on every screen (only a player's does that). All four is a feast: 2
  * points, and they can start again.
  */
 function taste(state: MatchState, body: Character, steering: boolean, now: number): void {
@@ -1334,11 +1574,16 @@ export interface RoundPenalty {
 }
 
 /** The round's nicknames, from what each player did (each gets one at most, the first that fits). */
-export type AwardKey = "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
+export type AwardKey = "double" | "triple" | "quadra" | "penta" | "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
 
-export function roundAwards(state: Pick<MatchState, "characters">): { owner: string; award: AwardKey }[] {
+export function roundAwards(state: Pick<MatchState, "characters" | "runs">): { owner: string; award: AwardKey }[] {
   const players = state.characters.filter((character) => character.kind === "player" && character.ownerId);
   const given = new Map<string, AwardKey>();
+  // (a double kill or better is a title of its own, ahead of the rest: the best row of tags this round)
+  for (const player of players) {
+    const best = state.runs?.[player.ownerId!]?.best ?? 0;
+    if (best >= 2) given.set(player.ownerId!, (["double", "triple", "quadra", "penta"] as const)[Math.min(best, 5) - 2]);
+  }
   const most = (value: (player: Character) => number, least: number, award: AwardKey) => {
     const top = Math.max(0, ...players.map(value));
     if (top < least) return;
@@ -1351,7 +1596,7 @@ export function roundAwards(state: Pick<MatchState, "characters">): { owner: str
   most((player) => player.fouls, 1, "friendlyFire");
   most((player) => player.swings ?? 0, 2, "airPunch");
   most((player) => player.tagged, 2, "punchingBag");
-  const order: AwardKey[] = ["eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
+  const order: AwardKey[] = ["penta", "quadra", "triple", "double", "eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
   return players
     .filter((player) => given.has(player.ownerId!))
     .map((player) => ({ owner: player.ownerId!, award: given.get(player.ownerId!)! }))

@@ -9,8 +9,14 @@ Where it is: the foundation (gate A's tasks A1, A2, A5). Each morning's run read
 Vancouver calendar, the Vancouver and Richmond public libraries' events (handed over by a GitHub job, see Live), Burnaby's library's own feed, UBC's calendar (only what
 anyone can walk into: open to all or the community, in person on the Vancouver campus), SFU's
 calendar (LiveWhale's JSON, `src/parsers/livewhale.ts`; the same rule: SFU's audience "Public", in
-person, not a defence, info session or student service, except an art student's thesis show), and
-Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
+person, not a defence, info session or student service, except an art student's thesis show),
+Showpass (its public API, `src/parsers/showpass.ts`: every date as "showpass", what runs longer than
+a day, like the Christmas Market's season, as "showpass-season"; no student club's, nothing on a
+campus, no membership or pass), Eventbrite (the organizations followed, with Steve's token), five
+colleges' and their teams' public events (since 26 November, `src/parsers/schools.ts` and
+`src/parsers/sidearm.ts`: UBC's and SFU's games played in Greater Vancouver; Capilano's Centre for
+Performing Arts; Langara's Studio 58 plays and community talks; Douglas College's stages, gallery
+and community events; VCC's community events), and Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
 (in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye.
 The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
@@ -66,6 +72,12 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
   no run.
 - Ticketmaster (Steve, once): on the Worker, Settings > Variables and Secrets > add a Secret named
   `TICKETMASTER_KEY` (from developer.ticketmaster.com). Without it that source is skipped.
+- Eventbrite (Steve, once; his call on 25 November): its public search is gone, so What's On follows
+  organizations, each learned from one of their events (`src/follows.ts`: the seeds there, and later
+  the events Steve lets in from submissions), and reads each one's public events with Steve's own
+  token. On the Worker, Settings > Variables and Secrets > add a Secret named `EVENTBRITE_TOKEN`: the
+  "Private token" of an API key made at eventbrite.com/platform/api-keys. Without it that source is
+  skipped, and the daily check doesn't count that as a problem.
 - The Vancouver and Richmond libraries come by a hand-over (`src/handoff.ts`): their site,
   BiblioCommons, answers the Worker 403 since 2 November, and 200 to the same request from anywhere
   else. At 05:50 the GitHub job `.github/workflows/events-libraries.yml` runs `npm run libraries`,
@@ -95,6 +107,38 @@ It runs on the free plan: nothing here costs money.
 ### 每天的检查（什么都不用设）
 
 每天夜里两点多，GitHub 检查一次前一天那一轮：每个来源都读完了没有，清单发布了没有，活动数有没有比前几天少一半以上。有问题，就在仓库里开一个问题（issue），里面 @ 你，GitHub 会发邮件给你，写着哪个来源、上次读完是哪天、最后的错误。之后问题变了才再说一次，同样的问题不会天天发邮件；哪天检查又过了，它自己把问题关掉。收到邮件，把链接发给管玩什么的对话就行，不用回复也不用关。
+
+### 学校的活动（什么都不用设）
+
+Steve 11 月 25 日说学校里大众能去的活动也收。每天早上读这些，只收大温哥华、在现场、谁都能去的：
+
+- UBC、SFU 的日历（以前就有）：UBC 标了 All 或 Community 的，SFU 标了 Public 的。
+- UBC Thunderbirds、SFU Red Leafs 的比赛：在大温哥华打的都收（UBC 去 Trinity Western 打也在 Langley），外地的不收。
+- Capilano University 表演中心（北温）：音乐会、戏、讲座。
+- Langara：Studio 58 的戏，和给社区办的讲座（没写地点的不收）。
+- Douglas College：剧场的戏、画廊的展、标了 Community 的；毕业典礼、说明会、学生活动不收。
+- VCC：它的 Community Event（圣诞集市、学生作品义卖、晚宴）。
+
+没收的：BCIT（它的日历几乎都是招生说明会，往后四个月只有 3 个别的活动，也是校友和学生的）；KPU（学生服务为主，公开活动很少，也没有标给谁看）；Emily Carr（网站不让程序读）。这些学校有公开活动的话，可以投稿。
+
+### 投稿（什么都不用设）
+
+谁都可以在 changle.ca/go/submit 投一个活动：贴链接、贴文字（小红书、微信的帖子可以整段贴）或者传海报截图。网站先自己读一遍：Eventbrite 的链接用钥匙直接读，别的网页读它自带的活动信息，读不到就让 AI 从文字里找名字、时间、地点和价格。小红书、Instagram 这些不让程序读的网页不去读，只读投稿人贴的文字。海报截图现在只是存着给你看，还不会自动读。
+
+你在手机上用站长账号登录 changle.ca，再打开 changle.ca/go/admin：每个投稿列着原文、图和读出来的内容，你改一改，点「同意，上清单」，几分钟内就出现在页面上（来源写「投稿」，有海报的用海报当图）；点「不要」就不上。是 Eventbrite 活动的，同意时它的主办方也会被关注，以后它的活动自动进来。一个网络一天最多投 10 个，全站一天最多 100 个。
+
+有新投稿时发邮件给你：要等网站那边（房间服务器的 `site/worker/notice.ts`）给「玩什么」一个每天的邮件额度，代码已经写好；在那之前，有空就打开 changle.ca/go/admin 看一眼。
+
+### Eventbrite 的钥匙（Steve 设一次）
+
+Eventbrite 2019 年起关掉了公开搜索，它的网页也不让程序读。玩什么用它允许的办法：用 Steve 自己的免费钥匙，读一批「关注」的主办方（organization）的公开活动。关注谁：`src/follows.ts` 里列了几场活动做起点，每场活动属于哪个主办方，网站第一次读的时候问 Eventbrite；以后网友投稿、Steve 同意的 Eventbrite 活动，它的主办方也会加进来。
+
+1. 打开 https://www.eventbrite.com/platform/api-keys ，用自己的邮箱注册或登录（免费）。
+2. 点 Create API Key：名字填「changle.ca 玩什么」，网址填 https://changle.ca/go，勾选同意条款，点 Create Key。Eventbrite 可能先发邮件批准。
+3. 展开这把钥匙，复制 Private token（不是 API Key，也不是 Client secret）。
+4. Cloudflare → Workers & Pages → changle-events → Settings → Variables and Secrets → Add：类型 Secret，名字 `EVENTBRITE_TOKEN`，值粘贴刚才的 token → Deploy。不要发给任何人。
+
+没设钥匙时这个来源跳过，每天的检查不把它算成问题。
 
 ### 中文名和介绍（什么都不用设）
 

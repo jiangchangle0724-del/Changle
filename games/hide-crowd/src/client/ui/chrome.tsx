@@ -34,6 +34,10 @@ const ICONS = {
   // the theatre's drill: a fist, its knuckles on top and the thumb across
   fist: "M6 10.5V9a2 2 0 0 1 2-2h8a3 3 0 0 1 3 3v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6zM9.5 7v3.5M13 7v3.5M16.5 7.5v3M6 12.5h5a1.5 1.5 0 0 0 0-3H6",
   sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
+  // the crowd leaving at the end of a round: out through a door
+  leave: "M10 4.5H5.5v15H10M14 8l4 4-4 4M18 12H9",
+  // the round's winner, on the results
+  crown: "M4.5 19h15M5.5 16L3.5 7.5l5 3.5L12 4.5l3.5 6.5 5-3.5-2 8.5z",
   note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2",
   // Safari's page menu, as iOS draws it at the left of the address bar
   pageMenu: "M4 7h16M4 12h16M4 17h10",
@@ -45,7 +49,17 @@ const ICONS = {
   squid: "M12 2.5l4.5 8h-9zM9 10.5l-1.2 4.5M11 10.5l-.4 5M13 10.5l.4 5M15 10.5l1.2 4.5M12 10.5v11",
   fishball: "M12 2v20M14.6 6.2a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 12a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 17.8a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0z",
   tea: "M7 9h10l-1.3 12H8.3zM6 9h12M8.5 6.5h7l1 2.5h-9zM13 6.5l2.5-4M10 17h.01M12 18.5h.01M14 17h.01",
-  potato: "M12 2.5v19M8.5 6l7 1.6M8 9.8l8 1.6M8 13.6l8 1.6M8.6 17.4l6.8 1.4"
+  potato: "M12 2.5v19M8.5 6l7 1.6M8 9.8l8 1.6M8 13.6l8 1.6M8.6 17.4l6.8 1.4",
+  // the seawall's four views: the bridge (two towers, the cable sagging between), the mountains with
+  // snow on top, a seaplane on its floats, and the sails of the pier's roof
+  bridge: "M2 18h20M7 18V6M17 18V6M2 9c2.5 0 4-1 5-3c2 6.5 8 6.5 10 0c1 2 2.5 3 5 3M10 18v-5M12 18v-4M14 18v-5",
+  mountain: "M2 19l6.5-11 4 6 3-4.5L22 19zM6.4 11.5l2.1-1.7 2 1.5",
+  seaplane: "M3 11h13l3-3h2l-1.5 4.5H4.5zM8 11l-2-4.5M11 11l2.5-5M5 18h13M8 13.5V18M15 13.5V18",
+  sails: "M3 18h18M5 18l4-11 2 11M11 18l4-13 4.5 13M2.5 21h19",
+  // the transit hall's train doors: two leaves sliding apart, their handles, the lamp above
+  trainDoor: "M5 5h14v16H5zM12 5v16M9.5 12v2.5M14.5 12v2.5M10 2.5h4",
+  // the theatre's lanterns: the cap, the round paper body, its ribs, the tassel
+  lantern: "M12 2v2.5M8.5 4.5h7M6.5 11.5c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6-2.5 6-5.5 6-5.5-2.7-5.5-6zM12 5.5v12M8.5 17.5h7M12 17.5v4"
 } as const;
 export type IconName = keyof typeof ICONS;
 

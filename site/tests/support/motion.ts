@@ -22,7 +22,11 @@ export type MotionFacts = {
   air: number;
   /** The furthest a knee bends backwards (degrees past straight). */
   knee: number;
-  /** How deep a hand goes into her body or head (metres past the skin, roughly). */
+  /**
+   * How deep a hand or forearm goes into her (metres, counting its own thickness: her trunk's and
+   * thighs' shape read from her model, dancer/hands.ts), or without her shape, a wrist into her
+   * trunk's or head's rough size.
+   */
   hand: number;
   /** The longest she stands on one foot with her hips far off it (seconds). */
   tilt: number;
@@ -32,7 +36,8 @@ export type MotionFacts = {
   seam: number;
 };
 
-type Pose = { at: (name: string) => THREE.Vector3; turn: (name: string) => THREE.Quaternion };
+/** her pose in a frame: where a joint is, how it's turned, and how deep her hands are in her (hands.ts handDepth) */
+type Pose = { at: (name: string) => THREE.Vector3; turn: (name: string) => THREE.Quaternion; inside?: number };
 
 /**
  * Her motion's facts, frame by frame: `pose(k)` puts her in frame k of n (the clip played as the page
@@ -45,8 +50,10 @@ export function motionFacts(n: number, fps: number, pose: (k: number) => Pose, r
   const turned = ["Hips", "Spine", "Spine1", "Spine2", "Neck", "Head", "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg", "LeftFoot", "RightFoot"];
   for (const s of names) P[s] = [];
   for (const s of turned) Q[s] = [];
+  let inside: number | null = null;
   for (let k = 0; k <= n; k++) {
     const p = pose(k % n);
+    if (p.inside !== undefined) inside = Math.max(inside ?? 0, p.inside);
     for (const s of names) P[s].push(p.at(s).clone());
     for (const s of turned) Q[s].push(p.turn(s).clone());
   }
@@ -123,11 +130,11 @@ export function motionFacts(n: number, fps: number, pose: (k: number) => Pose, r
       knee = Math.max(knee, signed);
     }
   }
-  // hands inside her: deeper than her torso's and head's rough size
-  let hand = 0;
+  // hands inside her: deeper than her torso's and head's rough size (when her shape isn't measured)
+  let hand = inside ?? 0;
   const seg = new THREE.Line3();
   const near = new THREE.Vector3();
-  for (let k = 0; k < n; k++) {
+  for (let k = 0; inside === null && k < n; k++) {
     seg.set(P.Hips[k], P.Spine2[k]);
     const head = P.Head[k].clone().add(new THREE.Vector3(0, 0.08, 0));
     for (const s of ["Left", "Right"] as const) {

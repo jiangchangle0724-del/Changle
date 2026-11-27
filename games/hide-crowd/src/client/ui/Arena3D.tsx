@@ -20,6 +20,8 @@ import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
 import { addExtras, type Extras } from "./extras";
 import { addPhones, blackoutDark, DARK_KEEPS } from "./lights";
+import { addSwitches } from "./switches";
+import { addQuestSpots } from "./questSpots";
 import { addSpot } from "./spot";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
@@ -49,6 +51,8 @@ interface Props {
   moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
   /** someone else's distraction, for a moment: where its passer-by swung (the camera glances there) */
   glance?: { x: number; y: number; endsInMs: number } | null;
+  /** the transit hall: the light switch pulled last, while it's down (GameView.lights) */
+  lights?: { box: number; sinceMs: number } | null;
   /** the round has just begun on this screen: open on the camera's sweep into the game's view */
   intro?: boolean;
   label: string;
@@ -955,6 +959,7 @@ export function Arena3D(props: Props) {
   const flash = useRef(props.flash ?? null);
   const moment = useRef(props.moment ?? null);
   const glance = useRef(props.glance ?? null);
+  const lightsPulled = useRef(props.lights ?? null);
   const [supported, setSupported] = useState(true);
   const [frameMetrics, setFrameMetrics] = useState<FrameMetrics | null>(null);
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
@@ -969,6 +974,7 @@ export function Arena3D(props: Props) {
   flash.current = props.flash ?? null;
   moment.current = props.moment ?? null;
   glance.current = props.glance ?? null;
+  lightsPulled.current = props.lights ?? null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1018,6 +1024,13 @@ export function Arena3D(props: Props) {
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
     // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
     const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
+    // the other places' side quest spots: the seawall's photo frames, the train doors' lamps, the stage's lanterns
+    const questSpots = addQuestSpots(scene, props.arena, {
+      spots: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
+      trim: props.arena === "gallery" ? palette.bulb : props.arena === "metro" ? palette.steel : palette.inlay,
+      idle: props.arena === "gallery" ? palette.cracker : palette.grime,
+      flash: palette.marking
+    });
     // (the opening sweep, the move to the winner and the confetti stay whichever set is showing)
     const cinema = addCinema(scene, [palette.me, palette.accent, palette.warn, palette.stall1, palette.stall2, palette.ink], !!props.intro);
     // (and the punches' swooshes, the dizzy stars and the dust)
@@ -1108,8 +1121,9 @@ export function Arena3D(props: Props) {
     }
     // the theatre's follow spot
     const spot = props.arena === "gallery" ? addSpot(scene, palette.bulb) : null;
-    // the transit hall's phones, lit in the dark
+    // the transit hall's phones, lit in the dark, and its two light switches
     const phones = props.arena === "metro" ? addPhones(scene, palette.screen, MAX_CHARACTERS) : null;
+    const switches = props.arena === "metro" ? addSwitches(scene, { box: palette.steel, lever: palette.cracker, ready: palette.foliage, pulled: palette.danger }) : null;
     // the seawall's bike, with its line on the floor while it comes (its shadow is the people's)
     const bike = props.arena === "plaza" ? addBike(scene, { frame: palette.bike, tyre: palette.tyre, steel: palette.steel, saddle: palette.saddle, wicker: palette.wicker, bread: palette.stone, lane: palette.warn, laneEdge: palette.grime }, shadowMat) : null;
     // the people: until their file is in (it's fetched while the lobby is up), simple stand-ins in each look's colours
@@ -1408,6 +1422,8 @@ export function Arena3D(props: Props) {
         key.intensity = lit.key * (1 - (1 - DARK_KEEPS.key) * out);
         fill.intensity = lit.fill * (1 - (1 - DARK_KEEPS.fill) * out);
       }
+      // the transit hall's switches: which one went, and how long ago (on this page's clock)
+      switches?.update(lightsPulled.current, Date.now() - receivedAt.current, camera, reduced);
       // the theatre's follow spot: its sweep and how far along it is (on this page's clock)
       if (spot) {
         const sweeping = crowd?.kind === "spot" ? crowd.spot : undefined;
@@ -1424,6 +1440,16 @@ export function Arena3D(props: Props) {
       const lookingKey = looking ? `${looking.x},${looking.y}` : null;
       if (looking && lookingKey !== glanceSeen) cinema.glance(time, sceneX(looking.x), sceneZ(looking.y), looking.endsInMs - Math.max(0, Date.now() - receivedAt.current));
       glanceSeen = lookingKey;
+      if (questSpots) {
+        // a spot done (a view snapped, a door waited at, a lantern lit): it flares, and a few sparks fly
+        const lit = flash.current;
+        if (lit && lit.id !== lastFlash) {
+          lastFlash = lit.id;
+          questSpots.flash(lit.stall, time);
+          if (!reduced) burst((STALLS[lit.stall] - ARENA.width / 2) * SCENE_PER_WORLD, -4.25, time, "spark");
+        }
+        questSpots.update(time, camera, reduced);
+      }
       if (market) {
         // a stall tasted: its pool flashes, and a few sparks fly off its counter
         const lit = flash.current;
@@ -1459,6 +1485,14 @@ export function Arena3D(props: Props) {
       phones?.begin();
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
+        // a passer-by that walked off at the end of the round (out of the picture by then): nothing to draw
+        if (avatar.o) {
+          writeInstance(shadows, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          writeInstance(standInBodies, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          writeInstance(standInHeads, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          if (people[index]) people[index].root.visible = false;
+          continue;
+        }
         let worldX = avatar.x;
         let worldY = avatar.y;
         let velocityX = avatar.vx;
@@ -1574,6 +1608,19 @@ export function Arena3D(props: Props) {
           tag.sprite.position.set(visual.x, 2.3 + (MARKER_Y - 2.3) * tagZoom, visual.z);
           tag.sprite.scale.set(2.4 * tagZoom, 0.6 * tagZoom, 1);
           tag.winner = !!avatar.w;
+          tag.sprite.visible = true;
+        }
+        // whoever just tagged this phone's player: their name over them, in red, for a moment (room.ts)
+        if (avatar.by !== undefined) {
+          const tag = tagAt(tagCount++);
+          const key = "2" + avatar.by;
+          if (tag.painted !== key) {
+            paintPill(tag.context, tag.texture, palette.danger, palette.onMe, avatar.by);
+            tag.painted = key;
+          }
+          tag.sprite.position.set(visual.x, MARKER_Y, visual.z);
+          tag.sprite.scale.set(2.4, 0.6, 1);
+          tag.winner = false;
           tag.sprite.visible = true;
         }
       }
@@ -1708,6 +1755,8 @@ export function Arena3D(props: Props) {
       extras?.dispose();
       bike?.dispose();
       phones?.dispose();
+      switches?.dispose();
+      questSpots?.dispose();
       spot?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {

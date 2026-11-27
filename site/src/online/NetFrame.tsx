@@ -12,6 +12,8 @@ import { ConnectionBanner, ReactionDock } from "./Overlays";
 import { ScreenHints } from "../ui/ScreenHints";
 import { useRoom } from "./RoomContext";
 import { GameExitSheet, LeaveSheet, TableSheet } from "./TableSheet";
+import { SoundNudge } from "../components/SoundNudge";
+import { LangSwitch } from "../ui/LangSwitch";
 import { useActionsInView, useMoreBelow } from "./useActionsInView";
 
 type Frame = { openInvite: () => void; openTable: () => void };
@@ -46,7 +48,7 @@ export function NetFrame({
   follow?: boolean;
 }) {
   const { room, me, act, isHost, screen: bigScreen } = useRoom();
-  const { ui, lang } = useStore();
+  const { ui, lang, setLang } = useStore();
   const watching = !!room?.game && !!room.seats.find((s) => s.id === me)?.watch;
   const [tableOpen, setTableOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -79,11 +81,13 @@ export function NetFrame({
         data-follow={following ? "" : undefined}
         style={gel ? ({ ["--gel" as string]: gel } as React.CSSProperties) : undefined}
       >
-        <header className="topbar">
+        <header className="topbar topbar-fit">
           <div className="topbar-side">
             <button className="icon-btn" onClick={() => setLeaveOpen(true)} aria-label={ui("leaveTable")}>
               <ChevronLeft size={22} />
             </button>
+            {/* each phone's own language, in reach mid-game (Steve 2026-11-23) */}
+            <LangSwitch lang={lang} onSwitch={() => setLang(lang === "zh" ? "en" : "zh")} />
           </div>
           <div className="topbar-title">{center ?? (title && <BiTitle name={title} size="sm" />)}</div>
           <div className="topbar-side topbar-right">
@@ -99,6 +103,7 @@ export function NetFrame({
           </div>
         </header>
         <ConnectionBanner />
+        {gid && !bigScreen && <SoundNudge lang={lang} />}
         {watching && (
           <div className="watch-strip" role="status">
             <Eye size={15} aria-hidden="true" />

@@ -259,10 +259,18 @@ function placeFrom(g: GPlace): { p: Place; guess: CuisineGuess } | null {
 
 const orNone = <T>(xs: T[]) => (xs.length ? xs : undefined);
 
+/**
+ * Google usually answers within a second. A call that hangs fails instead, so a table never sits on
+ * "searching" (round 1 has nothing to go back to there): the search uses the calls that came back,
+ * or says it failed and the host can try again.
+ */
+const GOOGLE_TIMEOUT = 10_000;
+
 async function google(key: string, url: string, init: RequestInit & { fields: string }): Promise<unknown> {
   const res = await fetch(url, {
     ...init,
     headers: { "content-type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": init.fields },
+    signal: AbortSignal.timeout(GOOGLE_TIMEOUT),
   });
   if (!res.ok) throw new Error(`google ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return res.json();
@@ -372,7 +380,7 @@ export async function detailsGoogle(key: string, id: string): Promise<Partial<Pl
   const photo = d.photos?.[0];
   if (photo?.name) {
     // skipHttpRedirect gives a photo URL without our key in it, safe to hand to phones.
-    const res = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=480&skipHttpRedirect=true&key=${encodeURIComponent(key)}`);
+    const res = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=480&skipHttpRedirect=true&key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(GOOGLE_TIMEOUT) });
     const uri = res.ok ? ((await res.json()) as { photoUri?: string }).photoUri : undefined;
     const by = photo.authorAttributions?.[0];
     // No photo without its author: Google's terms require showing who took it.

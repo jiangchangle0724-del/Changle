@@ -30,7 +30,9 @@ The Worker runs on Cloudflare's free plan (Steve's decision, Oct 31). Per invoca
   (`src/store.ts`), whatever the count.
 - **The Chinese is written every hour, at :05** (`src/ai.ts`, a second cron): the events the
   published page shows, not over yet, that have no Chinese name or whose text changed since. Each
-  step is one Workers AI request for 15 events (`@cf/qwen/qwen3-30b-a3b-fp8`), three steps at a time,
+  step is one Workers AI request for 15 events (`AI_MODELS`: `@cf/google/gemma-4-26b-a4b-it`, and
+  `@cf/qwen/qwen3.8-27b` only when Gemma can't be asked; until 20 November `@cf/qwen/qwen3-30b-a3b-fp8`,
+  retired that day), three steps at a time,
   each handed its own 15 by id (with offsets they took the same ones, one step's writes shifting the next's),
   at most 10 rounds (30 steps and the publish) or 12 minutes; then it publishes again, unless the
   morning's run is under way. Workers AI's free allowance is 10,000 neurons a day: the first pass
@@ -124,6 +126,14 @@ current `AI_VERSION` count; Steve's words, the parsers' categories and Ticketmas
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
 Each `fetch_log` row says how its step got its answer: `via` is `fetch` or `handoff` (below), and
 `note` why, in a few words.
+Eventbrite (0006, `eventbrite_follows`): an organization followed is learned from one of its events
+(`src/follows.ts`: a seed there, or an event let in from a submission): part 0 of the morning's
+"eventbrite" step asks Eventbrite (`/v3/events/{id}/`) for up to 10 not yet known (404: set aside),
+then each part reads one organization's events (`/v3/organizations/{id}/events/`). A source with
+`keys` has exactly as many parts as keys; none: nothing asked, done for the day (the log's note is
+the source's `noKeys`). VCC's (`vccPages`): part 0 reads its list of community events and keeps
+the pages of those coming up in KV (`vcc:pages:<date>`, 2 days) for the day's other parts, one page
+a part.
 
 KV: `events:live` (the published `Published`), `raw:<runId>:<source>:<part>` (the raw answer of
 every step, kept 30 days: rerun a parser without fetching again), `handoff:<date>:<source>:<part>`
@@ -177,6 +187,16 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
 
 ## The API
 
+- Submissions (`src/submit.ts`, `src/forms.ts`, `src/owner.ts`; migration 0007 `submissions`):
+  `GET /go/submit?lang=` the form; `POST /go/api/submit` (JSON: link, text, image as a data URL
+  under 1.5 MB, contact, lang, and `website`, a field only programs fill in) keeps it, the poster in
+  KV for 60 days, and reads a draft: an Eventbrite event through its API, a page's schema.org Event,
+  else the words (the page's, or what was typed; never 小红书's or Instagram's pages) by the AI. Ten a
+  day from one network, a hundred in all. `GET /go/admin` and `/go/api/admin/…` are the owner's:
+  the page sends the phone's changle.ca session and the rooms server (`ROOMS`) says if it's the
+  owner's. Let in, a draft is an event of the source "submitted" (its poster at `/go/poster/{id}`,
+  public from then on), an Eventbrite event's organization is followed, and the page is published
+  again. The owner's email is remembered on their first visit, for the mail door (`MAIL`).
 - `GET /go/?lang=zh|en&day=YYYY-MM-DD&cat=x&area=y&price=free|20` (or bare `/go`): the page (`src/page.ts`), one day
   at a time (today by default), at most one category and one area, free or at most $20. Without
   `lang`, the browser's first language decides (Chinese if Chinese, English otherwise), and a few lines
@@ -188,7 +208,7 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
   and the AI's sentence (`summaryZh`); the English page shows the source's name. The source's picture
   (`imageUrl`, over https) sits on top of a row, 3:1, lazy, sent without a referrer; none when there's
   none. Pictures: the library's banner, Ticketmaster's smallest 16:9 at least 600 wide, UBC's ATTACH
-  image, SFU's thumbnail.
+  image, SFU's thumbnail, Showpass's banner.
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
 - `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
   named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
@@ -259,7 +279,11 @@ saved inputs in `tests/fixtures/`.
 
 An entry in `src/sources.ts` (id, name, kind, tier, url, how to ask for a part, how to read it,
 how many parts at most), a parser in `src/parsers/`, a saved real response in `tests/fixtures/`,
-tests. Be a good guest: the `USER_AGENT` in `src/sources.ts`, official feeds and APIs first, robots.txt
+tests. A site with no feed (kind "html", the colleges' in `src/parsers/schools.ts`): its parser
+first checks the page is its listing and throws if not, so a redesign or an error page is a failed
+step and not an empty fortnight; and it reads only what the listing's cards say. A calendar of a
+whole season (SIDEARM's, `src/parsers/sidearm.ts`) is cut to the window's games before ical.js
+reads it: the whole of it is more than a step's 10 ms of CPU. Be a good guest: the `USER_AGENT` in `src/sources.ts`, official feeds and APIs first, robots.txt
 respected, at most one request a second to a site, never Facebook, Instagram, WeChat or Xiaohongshu.
 
 ## Commands (in `tools/events`, Node 22)

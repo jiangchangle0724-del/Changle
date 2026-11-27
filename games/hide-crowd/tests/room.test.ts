@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner, rideBike } from "../src/engine";
+import { ARENA, BIKE_MS, BITE_MS, LIGHT_SWITCHES, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, SWITCH_DELAY_MS, TAGGER_SHOWN_MS, THIN_MS, characterForOwner, rideBike } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -100,7 +100,9 @@ test("players vote for an arena and the winning rule starts for every screen; no
   assert.equal(room.view(first, "player", 6).you.vote, "gallery");
   room.handle(first, { t: "start" }, 7);
   assert.ok(["metro", "gallery"].includes(room.view(second, "player", 8).game!.arena));
+  // (one place at a time, with nobody voting: each round goes to the next place)
   const quiet = twoPlayerRoom();
+  quiet.handle(first, { t: "match", on: false }, 9);
   const arenas: string[] = [];
   for (let round = 0; round < 5; round++) {
     quiet.handle(first, { t: "start" }, 10 + round * (MATCH_MS + 20_000));
@@ -108,6 +110,71 @@ test("players vote for an arena and the winning rule starts for every screen; no
     quiet.advance(10 + round * (MATCH_MS + 20_000) + MATCH_MS + 5_000);
   }
   assert.deepEqual(arenas, ["plaza", "metro", "gallery", "market", "plaza"]);
+});
+
+test("a match: three places in a row, the lobby's pick first, the points adding up; then a winner and its titles", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "vote", arena: "market" }, 4);
+  assert.equal(room.view(first, "player", 5).settings.match, true, "a match unless the host turns it off");
+  let at = 10;
+  const places: string[] = [];
+  for (let index = 1; index <= 3; index++) {
+    room.handle(first, { t: "start" }, at);
+    places.push(room.st.game!.arena);
+    assert.deepEqual(room.view(second, "player", at + 1).match, { index, of: 3 }, `place ${index} of 3 while it's on`);
+    // Ari tags Bo once a round; in the second, Cy tags Bo twice
+    tag(room, first, second, at + 20);
+    if (index === 2) {
+      for (const step of [1, 2]) {
+        room.advance(at + 20 + step * (170 + STUN_MS + 100));
+        tag(room, third, second, at + 20 + step * (170 + STUN_MS + 100));
+      }
+    }
+    at += MATCH_MS + 1_000;
+    room.advance(at);
+    const view = room.view(first, "player", at);
+    assert.equal(view.phase, "over");
+    assert.equal(view.result!.match!.index, index);
+    assert.equal(view.result!.match!.done, index === 3);
+    assert.equal(view.result!.match!.next, index === 3 ? null : room.st.match!.places[index]);
+    at += 1_000;
+  }
+  assert.equal(places[0], "market", "the lobby's pick first");
+  assert.equal(new Set(places).size, 3, "three different places");
+  const end = room.view(first, "player", at);
+  const totals = Object.fromEntries(end.players.map((player) => [player.name, player.total]));
+  assert.deepEqual(totals, { Ari: 3, Bo: 0, Cy: 2 });
+  assert.equal(end.result!.match!.winner, "Ari");
+  assert.equal(end.result!.match!.youWon, true);
+  assert.equal(room.view(third, "player", at).result!.match!.youWon, false);
+  const titles = Object.fromEntries(end.result!.match!.awards.map((item) => [item.name, item.award]));
+  assert.equal(titles.Cy, "double", "Cy's two in a row, in the second place");
+  assert.equal(titles.Bo, "punchingBag");
+  // the next start is a new match
+  room.handle(first, { t: "start" }, at);
+  assert.deepEqual(room.view(first, "player", at + 1).match, { index: 1, of: 3 });
+  assert.equal(room.view(first, "player", at + 1).players.find((player) => player.name === "Ari")!.total, 0);
+});
+
+test("one place at a time, the host's choice: no match, no totals; back to the lobby ends a match", () => {
+  const room = twoPlayerRoom();
+  room.handle(second, { t: "match", on: false }, 3);
+  assert.equal(room.view(first, "player", 4).settings.match, true, "only the host can turn it off");
+  room.handle(first, { t: "match", on: false }, 5);
+  room.handle(first, { t: "start" }, 10);
+  room.advance(10 + MATCH_MS + 1_000);
+  const view = room.view(first, "player", 10 + MATCH_MS + 1_000);
+  assert.equal(view.match, null);
+  assert.equal(view.result!.match, null);
+  assert.equal(view.players[0].total, undefined);
+  // with a match on, the lobby ends it
+  room.handle(first, { t: "match", on: true }, 10 + MATCH_MS + 2_000);
+  room.handle(first, { t: "start" }, 10 + MATCH_MS + 3_000);
+  room.advance(10 + 2 * MATCH_MS + 4_000);
+  assert.equal(room.view(first, "player", 10 + 2 * MATCH_MS + 4_000).result!.match!.index, 1);
+  room.handle(first, { t: "lobby" }, 10 + 2 * MATCH_MS + 5_000);
+  assert.equal(room.st.match, null);
 });
 
 test("the big screen sees the crowd and the scores but never who is a player", () => {
@@ -148,9 +215,9 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   assert.equal(view.result?.winner, "Ari");
   assert.equal(view.result?.youWon, true);
   assert.deepEqual(view.result?.penalty, { kind: "sip", who: ["Bo"], times: SCORE_TO_WIN });
-  // the titles: the hunter's sharp eye, the one never spotted
+  // the titles: five in a row is a penta (ahead of the sharpest eye), the most spotted, the one never spotted
   const titles = Object.fromEntries(view.result!.awards.map((item) => [item.name, item.award]));
-  assert.equal(titles.Ari, "eagleEye");
+  assert.equal(titles.Ari, "penta");
   assert.equal(titles.Bo, "punchingBag");
   assert.equal(titles.Cy, "ghost");
   assert.equal(view.result!.awards.find((item) => item.name === "Ari")?.you, true);
@@ -168,6 +235,97 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   room.handle(first, { t: "start" }, at + 2);
   room.advance(at + 2 + MATCH_MS + 5_000);
   assert.equal(room.view(first, "player", at + MATCH_MS + 5_003).result?.penalty, null);
+});
+
+test("a tag names the other player on the two phones it concerns, and the tagged phone sees, for a moment, the body that did it", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  const at = 20;
+  tag(room, first, second, at);
+  const now = at + 200;
+  const event = (viewer: string) => room.view(viewer, "player", now).game!.events.find((item) => item.t === "tag")!;
+  assert.equal(event(second).onYou, true);
+  assert.equal(event(second).name, "Ari", "the tagged phone hears who did it");
+  assert.equal(event(first).byYou, true);
+  assert.equal(event(first).name, "Bo", "the tagger's phone hears whom");
+  assert.equal(event(third).name, undefined, "nobody else hears a name");
+  assert.equal(room.view(screen, "screen", now).game?.events.some((item) => item.name !== undefined) ?? false, false);
+  // the tagger's body is named on the tagged phone (in the shuffled list, where the tagger stands)
+  const tagger = characterForOwner(room.st.game!, first)!;
+  const named = (viewer: string, when: number) => room.view(viewer, "player", when).game!.avatars.filter((avatar) => avatar.by !== undefined);
+  const seen = named(second, now);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].by, "Ari");
+  assert.deepEqual([seen[0].x, seen[0].y], [Math.round(tagger.x * 100) / 100, Math.round(tagger.y * 100) / 100]);
+  assert.equal(named(first, now).length, 0, "the tagger isn't named on their own phone");
+  assert.equal(named(third, now).length, 0, "nor on anyone else's");
+  // still there once the tagged player has slipped away into another body, then gone
+  room.advance(at + 170 + STUN_MS + 100);
+  assert.equal(named(second, at + 170 + STUN_MS + 100).length, 1);
+  room.advance(at + 170 + TAGGER_SHOWN_MS + 50);
+  assert.equal(named(second, at + 170 + TAGGER_SHOWN_MS + 50).length, 0);
+});
+
+test("a tagger named on a phone stops being named if that body stops being theirs", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  tag(room, first, second, 20);
+  // Cy tags Ari straight away: Ari slips into another body, and the one Bo saw is a passer-by's
+  const later = 20 + 170 + 300;
+  tag(room, third, first, later);
+  room.advance(later + 170 + STUN_MS + 100);
+  const avatars = room.view(second, "player", later + 170 + STUN_MS + 100).game!.avatars;
+  assert.equal(avatars.some((avatar) => avatar.by === "Ari"), false);
+});
+
+test("the announcer: first blood, a double kill within ten seconds, a spree; every screen gets the call and who made it", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  const called = (viewer: string, role: "player" | "screen", when: number) =>
+    room.view(viewer, role, when).game!.events.filter((item) => item.call).map((item) => [item.call, item.who]);
+  tag(room, first, second, 20);
+  let at = 20 + 170 + STUN_MS + 100;
+  room.advance(at);
+  for (const [viewer, role] of [[first, "player"], [second, "player"], [third, "player"], [screen, "screen"]] as const) {
+    assert.deepEqual(called(viewer, role, at), [["first", "Ari"]], `${viewer} sees first blood`);
+  }
+  tag(room, first, third, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(screen, "screen", at), [["first", "Ari"], ["double", "Ari"]]);
+  // more than ten seconds on, a third tag is no triple: it's a spree (three without being spotted)
+  at += 10_500;
+  room.advance(at);
+  tag(room, first, second, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(second, "player", at).at(-1), ["spree", "Ari"]);
+  // and the one on a spree, tagged, is shut down
+  tag(room, third, first, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(first, "player", at).at(-1), ["shutdown", "Cy"]);
+});
+
+test("the results tell each player who spotted them and whom they spotted; a big screen gets neither", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  let at = 20;
+  for (const [attacker, target] of [[first, second], [third, second], [first, second], [first, third]] as const) {
+    tag(room, attacker, target, at);
+    at += 170 + STUN_MS + 50;
+    room.advance(at);
+  }
+  room.advance(at + MATCH_MS);
+  const mine = (viewer: string) => room.view(viewer, "player", at + MATCH_MS).result!.mine;
+  assert.deepEqual(mine(second), { by: [{ name: "Ari", n: 2 }, { name: "Cy", n: 1 }], got: [] });
+  assert.deepEqual(mine(first), { by: [], got: [{ name: "Bo", n: 2 }, { name: "Cy", n: 1 }] });
+  assert.deepEqual(mine(third), { by: [{ name: "Ari", n: 1 }], got: [{ name: "Bo", n: 1 }] });
+  assert.equal(room.view(screen, "screen", at + MATCH_MS).result!.mine, null);
 });
 
 /** Stand a player still at one of the night market's stalls (everyone else far off) until it's tasted. */
@@ -225,6 +383,60 @@ test("all four stalls is a feast: 2 points, a fresh start, and the round's foodi
   room.advance(5 + MATCH_MS + 10);
   const titles = Object.fromEntries(room.view(first, "player", 5 + MATCH_MS + 20).result!.awards.map((item) => [item.name, item.award]));
   assert.equal(titles.Ari, "foodie");
+});
+
+test("the round's last half minute: every screen hears the crowd is leaving, and a body that walked off is marked gone", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "start" }, 4);
+  const game = room.st.game!;
+  const quiet = game.endsAt - THIN_MS - 1_000;
+  for (let at = 4 + SIMULATION_STEP_MS; at < quiet; at += SIMULATION_STEP_MS * 4) room.advance(at);
+  for (const [viewer, kind] of [[first, "player"], [screen, "screen"]] as const) {
+    const view = room.view(viewer, kind, quiet).game!;
+    assert.equal(view.thinning, false);
+    assert.equal(view.avatars.some((avatar) => avatar.o), false);
+  }
+  const late = game.endsAt - 2_000;
+  for (let at = quiet; at < late; at += SIMULATION_STEP_MS) room.advance(at);
+  const tv = room.view(screen, "screen", late).game!;
+  const phone = room.view(first, "player", late).game!;
+  assert.equal(tv.thinning, true);
+  assert.equal(phone.thinning, true);
+  const gone = tv.avatars.filter((avatar) => avatar.o === 1).length;
+  assert.ok(gone >= 4, `${gone} walked off`);
+  assert.equal(phone.avatars.filter((avatar) => avatar.o === 1).length, gone, "the same bodies on every screen");
+  assert.equal(phone.avatars.some((avatar) => avatar.me && avatar.o), false, "a player never leaves");
+  assert.equal(MATCH_MS >= THIN_MS * 2, true);
+});
+
+test("the transit hall's light switch: the phone by one can pull it, only it hears it was them, every screen sees which switch went dark", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "vote", arena: "metro" }, 4);
+  room.handle(second, { t: "vote", arena: "metro" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  const game = room.st.game!;
+  assert.equal(game.arena, "metro");
+  Object.assign(characterForOwner(game, first)!, { x: ARENA.marginX, y: LIGHT_SWITCHES[0].y });
+  Object.assign(characterForOwner(game, second)!, { x: 50, y: 29 });
+  const at = 2_000;
+  room.advance(at);
+  assert.equal(room.view(first, "player", at).game!.me!.canPull, true);
+  assert.equal(room.view(second, "player", at).game!.me!.canPull, false, "too far from a switch");
+  room.handle(first, { t: "lights" }, at + 10);
+  const dark = at + 10 + SWITCH_DELAY_MS + 100;
+  room.advance(dark);
+  const views = { [first]: room.view(first, "player", dark), [second]: room.view(second, "player", dark), [screen]: room.view(screen, "screen", dark) };
+  for (const view of Object.values(views)) {
+    assert.equal(view.game!.lights?.box, 0, "every screen sees which switch went");
+    assert.equal(view.game!.moment?.kind, "blackout");
+  }
+  assert.equal(views[first].game!.events.some((event) => event.t === "lights" && event.byYou), true, "the puller is told");
+  assert.equal(views[second].game!.events.some((event) => event.t === "lights"), false, "nobody else hears whose it was");
+  assert.equal(views[screen].game!.events.some((event) => event.t === "lights"), false);
+  assert.equal(views[first].game!.me!.switches, 1);
+  assert.equal(views[first].game!.me!.canPull, false, "not while the lights are out");
 });
 
 test("someone who joins during a round watches it and plays the next", () => {

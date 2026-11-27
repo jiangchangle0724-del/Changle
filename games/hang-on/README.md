@@ -25,6 +25,8 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/house.test.ts` | 老宅（A10）：钥匙（是物件、碰到它的门门就一直开着、钥匙用掉；头一回抓住报找到了；掉下去、碰到炭盆回开局或存档的检查点；门锁着隔几秒提醒一次），墙上的灯（人、灯笼碰一下就点着），手机局快照带钥匙和灯、没有的关不带 |
 | `src/physics/gates.test.ts` | 踩板门（11-13）：踩着开门、走开过一会儿关、有人挡着不夹人、箱子也算、几块一起按、按人数摆、手机局快照 |
 | `src/physics/items.test.ts` | A9 的道具：速冻（冻住不掉、队友能站能抓、冷却）、拉面（要先抓着墙、垂下来能挂人、到点断）、荷叶（掉得慢、能横着飘），比谁先和坐不住里没有 |
+| `src/physics/boulder.test.ts` | 推大石头（11-26）：放着不动不穿地、一个人拽得慢两个人快得多、压踏板开门、掉出去回原地、半径翻倍重一倍、手机局快照 |
+| `src/physics/scroll.test.ts` | 卷屏（11-26）：屏幕开局停着、按时挪、到头停（往右、往上）；落在后面被甩掉、复活在屏幕里最靠前的检查点、屏幕里没有就等；跑在前头没事 |
 | `src/items.ts`、`src/item-text.ts` | 道具（A9）有哪几样、小图标（物理和房间协议也用，什么都不 import）；名字和一句话说明（中英两套） |
 | `src/goals.ts`、`src/goal-text.ts`、`src/host/progress.ts` | 每关小目标和红包（A9b）：三颗星（准时、少摔、红包拿齐）怎么算、给人看的话、这台主机上记下的星和红包；`src/goals.test.ts` 测它们 |
 | `src/render/` | 画面（A3，Pixi 8；A8 加了 2.5D）：`stage.ts` 镜头（开局从终点扫回起点、过关推近）、图层、事件→动效、慢动作、落地影子；`backdrop.ts` 两个世界的视差背景（远景画虚化、灯的斜光）；`depth.ts` 台子的侧面，跟着镜头透视；`fore.ts` 近景虚化的光斑和热气；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（明暗和高光、脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池（纸屑会翻面）；`framewatch.ts` 掉帧就少画（画多细三级：电脑全画，手机不画近景光斑和斜光，再掉帧台子不画侧面）；`art.ts` 色板和程序画的贴图 |
@@ -34,12 +36,17 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `music.html` + `src/dev/music.ts` | 背景音乐试听页：选场景、拖紧张、点事件，40 秒演示，能离线导出 WAV |
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
-| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地） |
-| `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入。联机桌（A15）：`GET /hang-on/api/rooms/CODE` 回这局在大厅、在玩还是结束了；主机连房间带钥匙，一局只有一个主机（另一台是 `hostTaken`） |
+| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地）；节日关 `levels/fest/` 节日那几天排在简单那一串最前面 |
+| `src/fest.ts`、`src/render/festive.ts` | 节日关（11-26）：哪天是哪个节日（春节、中秋、圣诞、万圣节，按本地日期；`?fest=xmas` 当成圣诞、`?fest=none` 不要节日），画面上挂的装饰（灯笼、彩灯、南瓜灯、月亮、烟花、孔明灯、蝙蝠）。`src/fest.test.ts` 测日历和节日关排在哪（CONTRACTS「节日关契约」） |
+| `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入。联机桌（A15）：`GET /hang-on/api/rooms/CODE` 回这局在大厅、在玩还是结束了；主机连房间带钥匙，一局只有一个主机（另一台是 `hostTaken`）。闪退自动记录（11-25）：`reports.ts` 和 Durable Object `HangOnReports`（一个盒子），页面那头是 `src/report.ts`，见 CONTRACTS「闪退记录契约」。每日一关的排行榜（11-26）：`board.ts` 和 Durable Object `HangOnBoard`（一个盒子），`POST/GET /hang-on/api/daily`，见 CONTRACTS「每日一关契约」 |
+| `editor/index.html` + `src/editor/` | 关卡编辑器（11-26）：`/hang-on/editor/`，画关、试玩、分享（整关在链接里）；`model.ts` 是关和工具（`model.test.ts` 测它），`main.ts` 画和点、试玩、分享、草稿和「我的关」。见 CONTRACTS「关卡编辑器契约」 |
+| `src/custom.ts` | 自制关（11-26）：码怎么压、怎么解，别人给的关怎么收拾（`cleanCustom`，只留编辑器放得出来的、数夹在范围里）；主机页 `?custom=码`、手机局的 `Cast.custom` 用。`src/custom.test.ts` 测它 |
+| `src/daily.ts` | 每日一关（11-26）：温哥华的日期、每天挑第几关、成绩怎么收拾和排（主机页和房间服务器共用）；挑哪关在 `src/levels.ts` 的 `dailyLevel`。`src/daily.test.ts`、`src/server/board.test.ts` 测它们 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
-| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
-| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓（`controls.ts`，手机局的房主也用）；「样子」换装，「道具」选开局带哪样（A9：速冻、拉面、荷叶，抓键上面的道具键用）；队友摔死时亮「召唤队友」。电视局里手柄也是遥控：大厅里选玩法、选关、开始，结算时下一关、再来一次、回大厅，玩的时候顶上「回大厅」按两下，谁按都行，电视那边不用碰。「全屏」键：安卓、平板点了就全屏，iPhone 点了说怎么「添加到主屏幕」（`public/pad.webmanifest` 和图标，从主屏幕打开没有地址栏）。手机局里 `view.ts` 在手柄后面画画面 |
-| `play.html` + `src/dev/` | 物理开发页：不联网，键盘 / 鼠标 / 触屏直接玩，画面和主机页同一套，能录回放 |
+| `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`；精彩回放在 `highlights.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
+| `watch/index.html` + `src/watch/` | 观众页（11-26）：不玩的人手机上押谁先掉、投票帮一把或捣个乱、起哄；只连房间不走直连，不画画面。账和单子在 `src/crowd.ts`，大屏和手机局共用的飘字、盖一层在 `src/crowd-ui.ts`（CONTRACTS「观众契约」） |
+| `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓（`controls.ts`，手机局的房主也用）；「样子」换装，「道具」选开局带哪样（A9：速冻、拉面、荷叶，抓键上面的道具键用）；队友摔死时亮「召唤队友」；顶栏的 😀 是八句表情（「救命！」「等等我」……），点一句，那个人头顶冒气泡（见 CONTRACTS「表情契约」）；旁边的 💨 是放屁键，噗一声冒一团烟，旁边的人皱眉（「放屁键契约」）。加入页和大厅里「🏆 3/19」是自己的成就（记在自己手机上，「成就契约」）。大厅里「🎰 🧧 12」是红包扭蛋机：攒的红包 6 个扭一样新帽子、眼镜、脸、袖子、嗓子（「红包扭蛋机契约」）。闯关、大团队的大厅里「🪙 护送」打开以后，起点有个大元宝，扛到终点算数（「护送大元宝契约」）。一关的红包全拿到了，结算页有个彩蛋「红包雨」（「红包雨契约」）。电视局里手柄也是遥控：大厅里选玩法、选关、开始，结算时下一关、再来一次、回大厅，玩的时候顶上「回大厅」按两下，谁按都行，电视那边不用碰。「全屏」键：安卓、平板点了就全屏，iPhone 点了说怎么「添加到主屏幕」（`public/pad.webmanifest` 和图标，从主屏幕打开没有地址栏）。手机局里 `view.ts` 在手柄后面画画面。加入卡和大厅菜单里有「🌱 长辈小孩模式」（只管自己），菜单里的 🐢 是全场「慢一点」（CONTRACTS「长辈小孩模式契约」） |
+| `play.html` + `src/dev/` | 物理开发页：不联网，键盘 / 鼠标 / 触屏直接玩，画面和主机页同一套，能录回放。样板关 `?level=proto-10`（推大石头）、`proto-11`（卷屏）在 CONTRACTS「推大石头、卷屏」；`?fest=xmas`（cny、midautumn、halloween）挂节日的装饰 |
 | `scripts/link-check.mjs` | 联机检查：一台主机页加两个手柄页对着本地房间服务跑一遍（直连、绕路、掐线 5 秒内回来） |
 | `scripts/lobby-check.mjs` | 大厅检查：真点开始、切语言、到顶出结算、下一关、回大厅 |
 | `scripts/phone-check.mjs` | 手机局检查：一部手机开房自己也玩，两部手机进来都有画面，倒数、到顶、结算、再来一次跟着走，直连 20 张一秒、绕路 10 张一秒，电视局的手柄不下载画面 |
@@ -68,9 +75,10 @@ npm run envelopes   # 红包：从四人回放里给每关挑 3 个藏红包的�
 npm run probe       # 乱按探路：大关每关至少两段一两个人过不去（-- table-06 只报告一关，--quick 少按几次）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
+npm run reports     # 闪退自动记录：线上的页面报过哪些毛病（node scripts/reports.mjs http://127.0.0.1:8787 看本机的）
 ```
 
-主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤、F 用道具，自己一个人也能试。
+主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤、F 用道具、1 到 8 说一句表情、P 放屁，自己一个人也能试。
 「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。客人看不懂它，大厅里平时不出，
 地址带 `?relay=1`（一开始就绕路）、`?relay=0` 或 `?debug=1` 时才有这个键。`?render=0` 只跑物理不画画面（联机检查用）。
 控制台里 `hangOn.sim`、`hangOn.peers()`、`hangOn.pickLevel(i)` 看状态和换关；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
@@ -147,6 +155,6 @@ sim.events;              // 本帧的 grab / release / death / respawn / checkpo
 和一起跳（`games/party-server`）一个模式：自己的 Worker，合并 `main` 就部署。2026-11-04 连上 Cloudflare：
 Workers Builds 名字 `hang-on`（和 `wrangler.jsonc` 的 `name` 一样），根目录 `/games/hang-on`，构建命令 `npm run build`，
 部署命令 `npx wrangler deploy`，监视路径 `games/hang-on/*`，预览分支的构建关着（Durable Object 不在预览里），
-API token「suibian build token」。没有密钥，没有数据库。
+API token「suibian build token」。没有密钥。两个 Durable Object：房间（一房一个）、闪退记录的盒子（一个，`wrangler.jsonc` 的 migrations v2）。
 `changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
 `BASE=https://changle.ca npm run link-check` 对着线上跑一遍联机检查（11-04 全过：直连往返约 20 ms，绕 Cloudflare 约 120 ms）。

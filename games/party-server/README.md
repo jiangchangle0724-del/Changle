@@ -28,7 +28,10 @@ instead, `site/src/party/dj/`.)
   room moves into the dance by itself (`LEARNING_DONE`, a Durable Object alarm), putting the dance's
   beat 0 (`RoomState.routineStartAt`) exactly where the lead already had it. The host can skip
   ahead to the dance, go back to the start of the 8-count being heard (这一段再来), see the results
-  once the dance has been heard (看结果, skipping the cool-down), or stop.
+  once the dance has been heard (看结果, skipping the cool-down), or stop. While the warm-up or the
+  dance plays, each of those buttons acts only once held for 0.7 s (it fills in as it's held), and
+  the end of the room isn't there: the host dances with the phone in hand, and a palm brushing the
+  screen mustn't pause or stop the song for everyone (`holdButton` in `join.ts`). Paused, plain taps.
 - **The beats**: each phone judges its player's moves against the beat as the room hears it (the
   speaker's grid plus the TV's delay; `src/shared/taps.ts`, party-base's scoring windows) and sends
   the dance's beats a bar at a time (`beats`); after a dropped connection it sends them all again
@@ -44,6 +47,17 @@ instead, `site/src/party/dj/`.)
   (from its start, chats between dances counted), to sit down for a few minutes and have some
   water (`Results.remind`, `finish()` in `src/server/session.ts`). A word, not a lock: the host can
   start the next dance at once.
+- **Gold moves** (as in the dance games): the last beat of every 64 of a dance (8 eight-counts, the
+  end of a long phrase) and its very last beat, none in the 16 before the last (`isGoldBeat` in
+  `src/shared/show.ts`). The TV and the phones say it's coming four beats ahead (「金色动作还有 3
+  拍」, then 「就是这一拍，用力！」) and light the count gold; on it the coach lights up all over. A
+  player who moves on it (on the beat at medium and hard, near it on easy: `goldOk`/`goldHit` in
+  `src/shared/taps.ts`) gets 「金色！」 on the phone for a moment and a buzz (phones that can; not
+  iPhones), and their little dancer a gold ring and sparks. The phones' pulses say when their
+  verdict is on a gold move (`g`); once every dancer's has come (or a second after it was heard)
+  the TV cheers beside the floor's combo, 「金色动作！N 人跳中」, with fireworks when half or more
+  got it. The results count each dancer's (`PlayerResult.gold` of `Results.golds`); none in the
+  metronome.
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): it opens its room as it loads (a
   reload goes back into its own: the code is in the address) and has nothing to press (Steve,
   12 Nov: the phones pick the songs and start them; the TV speaks the host's phone's language,
@@ -147,6 +161,14 @@ instead, `site/src/party/dj/`.)
   count, what's next, the big button and how hard you're moving; the player's own results. For the host: pick a dance or a song, steer it, measure
   the TV's delay, the 120 BPM metronome (the timing test in `docs/field-notes/2026-11-01.md`), end
   the room. Each phone tells the room its language (`lang`): the TV speaks the host's.
+- **From a changle.ca table** (the site's `site/src/party/dance/link.ts`): the phones come with
+  `?table=` (kept in the address as they join) and the stage too; both pages then have 回到桌子 /
+  Back to the table in their top bar (a phone to `/t/TABLE`; the stage to the page that sent it,
+  `/tv/TABLE` for the TV, else `/t/TABLE`: `tableUrl` in `src/client/common.ts`). When the room ends,
+  1.5 s later each page goes back there, leaving `sessionStorage["dance.over"]` = the code (the stage
+  `"dance.over.tv"` too), so the table takes everyone back to its lobby. `GET /party/api/rooms/CODE`
+  says how the room is going (`{ exists, phase: "lobby" | "playing" | "over" }`), which the table
+  asks every 8 s while its players are away.
 - **测量 / Timing**: the speaker's clock in big digits, for the field test (a photo of the two
   screens side by side shows the error); on a phone its button, on the speaker page `?timing`.
 
@@ -160,7 +182,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 110 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 113 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```

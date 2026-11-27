@@ -7,7 +7,9 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
-import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
+import { customId, decodeLevel } from '../custom';
+import { festNow } from '../fest';
+import { addCustom, levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
 import { keyBanner, tideBanner, tierName } from '../mode-text';
 import { tiered } from '../sides';
 import type { Level } from '../physics/level';
@@ -17,6 +19,10 @@ import { RemoteSim } from '../net/snap';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { renderGoldScore, renderResults, resultsTitle, type ResultsDom } from '../results';
+import { reportError } from '../report';
+import { trophyToast, unlockLines } from '../achv-ui';
+import { FX, fxBanner, type FxId } from '../crowd';
+import { betText, floatCheer, floatLine, fxName, setFxLayer } from '../crowd-ui';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -25,6 +31,10 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 export class PhoneView {
+  /** 现在画的是哪一关（闪退记录用）。 */
+  get levelId(): string {
+    return this.sim.level.id;
+  }
   sim: RemoteSim;
   /** 这部手机是第几个人（样子名单来了才知道）。 */
   me = -1;
@@ -63,7 +73,9 @@ export class PhoneView {
   }
 
   static async create(canvas: HTMLCanvasElement, opts: { render: boolean }): Promise<PhoneView> {
-    const stage = opts.render ? await Stage.create(canvas, { plates: PLATES, compact: true }) : null;
+    // 节日装饰（11-26）：按这部手机的日期（节日关自己带节日）
+    const fest = festNow(new Date(), new URLSearchParams(location.search).get('fest'));
+    const stage = opts.render ? await Stage.create(canvas, { plates: PLATES, compact: true, fest }) : null;
     return new PhoneView(stage);
   }
 
@@ -103,6 +115,8 @@ export class PhoneView {
     if (c.gold && was !== undefined && c.gold.round > was && this.phase === 'playing') this.banner(tr(`第 ${c.gold.round} 局`, `Round ${c.gold.round}`));
     this.cast_ = c;
     this.me = c.me;
+    // 自制关（11-26）：带着码就解开放进关卡表，快照找得到了画面才跟上
+    if (c.custom && !levelById(customId(c.custom))) void decodeLevel(c.custom).then((l) => l && addCustom(l));
     // 玩法：坐不住时手抓久了要抖；比谁先分队时头顶的名字带上队
     this.sim.rules = { mode: c.mode ?? 'climb', ...(c.teams ? { teams: c.teams } : {}) };
     c.players.forEach((p, i) => {
@@ -123,6 +137,11 @@ export class PhoneView {
     if (r.phase === this.phase) return;
     const prev = this.phase;
     this.phase = r.phase;
+    // 观众投出来的那一样（11-26）只在玩的时候有
+    if (r.phase !== 'playing') {
+      this.fx = null;
+      setFxLayer(null);
+    }
     if (r.phase === 'countdown') this.countdown();
     else this.stopCount();
     if (r.phase === 'lobby' || (r.phase === 'countdown' && prev === 'results')) this.stage?.reset();
@@ -183,9 +202,10 @@ export class PhoneView {
     $('vWait').hidden = this.phase !== 'lobby';
     $('vLevel').textContent = this.levelName();
     $('vCount').hidden = this.phase !== 'countdown' || !this.countTimer;
-    // 抢金元宝的比分（「第 2 局 · 阿一 1 · 阿二 0」）
+    // 抢金元宝的比分（「第 2 局 · 阿一 1 · 阿二 0」）；红包雨（11-26）每一帧自己画（frameBody）
     const gold = this.phase === 'playing' && this.cast_?.mode === 'gold' ? this.cast_.gold : undefined;
-    $('vGold').hidden = !gold;
+    $('vGold').hidden = !gold && !(this.phase === 'playing' && this.cast_?.mode === 'rain');
+    $('vGoldIcon').hidden = this.cast_?.mode === 'rain';
     if (gold) {
       const players = this.cast_?.players ?? [];
       renderGoldScore($('vGoldScore'), gold.round, gold.wins, (i) => players[i]?.name || `P${i + 1}`, (i) => players[i]?.color ?? '#fff');
@@ -205,6 +225,8 @@ export class PhoneView {
       this.frameBody();
     } catch (e) {
       if (this.frameErrors++ < 3) console.error('[hang-on] phone frame', e);
+      // 闪退自动记录（11-25）：一种错报一次
+      reportError(e);
     }
     requestAnimationFrame(() => this.frame());
   }
@@ -215,6 +237,12 @@ export class PhoneView {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.sim.advance(now);
+    // 红包雨（11-26）：还剩几秒、每个人接到几个（快照带来的，变了才重画）
+    const rain = this.sim.rain;
+    if (rain && this.phase === 'playing') {
+      const players = this.cast_?.players ?? [];
+      renderGoldScore($('vGoldScore'), 0, rain.caught.slice(0, this.sim.players.length), (i) => players[i]?.name || `P${i + 1}`, (i) => players[i]?.color ?? '#fff', tr(`🧧 还剩 ${Math.ceil(rain.left)} 秒`, `🧧 ${Math.ceil(rain.left)} s left`));
+    }
     if (this.pending.length) {
       const evs = this.pending;
       this.pending = [];
@@ -235,12 +263,17 @@ export class PhoneView {
   private banners(evs: readonly SimEvent[]): void {
     const name = (i: number): string => this.cast_?.players[i]?.name || `P${i + 1}`;
     const mode = this.cast_?.mode ?? 'climb';
+    // 成就（11-25）：谁解锁了什么，冒在左上角（不占横幅）；同一下几个人一起拿到的并成一条
+    const box = document.getElementById('trophies');
+    const got = evs.flatMap((ev) => (ev.type === 'achv' ? [{ name: name(ev.player), id: ev.id }] : []));
+    if (box) for (const line of unlockLines(got)) trophyToast(box, line);
     for (const ev of evs) {
       if (ev.type === 'win') {
         const teams = this.cast_?.teams;
         this.banner(resultsTitle({ time: 0, deaths: [], grabs: [], betrayals: [], mode, winners: ev.who ?? [], ...(teams ? { teams } : {}) }, name));
       }
       if (ev.type === 'finish') this.banner(tr(`${name(ev.player)} 到了！第 ${ev.place} 个`, `${name(ev.player)} made it! #${ev.place}`));
+
       if (ev.type === 'out') this.banner(tr(`${name(ev.player)} 出局`, `${name(ev.player)} is out`), 'bad');
       if (ev.type === 'betrayal') this.banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
       if (ev.type === 'summon') {
@@ -251,6 +284,8 @@ export class PhoneView {
       if (ev.type === 'drone' && ev.phase === 'arrive') this.banner(tr('🛸 外卖到了！抓住袋子底下的横杆', '🛸 Delivery! Grab the bar under the bag'));
       if (ev.type === 'tray' && ev.phase === 'spill') this.banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
       if (ev.type === 'tray' && ev.phase === 'home') this.banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+      // 护送大元宝（11-26）
+      if (ev.type === 'escort') this.banner(ev.phase === 'home' ? tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it!') : tr('大元宝掉了，回到检查点', 'The ingot fell. It is back at the checkpoint'), ev.phase === 'home' ? 'good' : 'bad');
       if (ev.type === 'key') {
         const kb = keyBanner(ev.phase);
         if (kb) this.banner(kb.text, kb.kind);
@@ -263,9 +298,24 @@ export class PhoneView {
         const got = this.sim.envelopes.filter((e) => e.got).length;
         this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));
       }
+      // 观众（11-26）：起哄、押中没有从右下角飘上来；投票开了、投出来的那一样起作用走横幅，画面盖一层
+      if (ev.type === 'cheer') floatCheer(ev.who, ev.cheer);
+      if (ev.type === 'crowdbet') floatLine('👀', betText(name(ev.fell), ev.hits), true);
+      if (ev.type === 'crowdvote') this.banner(tr(`👀 观众在投票：${fxName(ev.a)} 还是 ${fxName(ev.b)}`, `👀 The crowd is voting: ${fxName(ev.a)} or ${fxName(ev.b)}`));
+      if (ev.type === 'crowdfx') {
+        if (ev.on) {
+          const b = fxBanner(ev.fx, ev.dir);
+          this.banner(tr(b.zh, b.en), FX[ev.fx].help ? 'good' : 'bad');
+        }
+        if (ev.on) setFxLayer(ev.fx, ev.dir);
+        else if (this.fx === ev.fx) setFxLayer(null);
+        this.fx = ev.on ? ev.fx : this.fx === ev.fx ? null : this.fx;
+      }
     }
   }
 
+  /** 观众投出来的、正在起作用的那一样（11-26）。 */
+  private fx: FxId | null = null;
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
   private banner(text: string, kind: 'good' | 'bad' = 'good'): void {
     const el = $('vBanner');

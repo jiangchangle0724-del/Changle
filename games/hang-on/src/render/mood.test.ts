@@ -52,4 +52,10 @@ describe('表情谁先', () => {
     expect(pickExpression('grab', false, { dizzy: 0, cheer: 1, stamina: 1, mood: { windy: true } })).toBe('windy');
     expect(pickExpression('grab', false, { dizzy: 0, cheer: 1, stamina: 1, mood: {} })).toBe('cheer');
   });
+  test('闻到屁（11-25）：在风里之后、乐之前；皱完了就回去', () => {
+    expect(pickExpression('grab', false, { dizzy: 0, cheer: 1, stamina: 1, mood: { windy: true }, stink: 1 })).toBe('windy');
+    expect(pickExpression('grab', false, { dizzy: 0, cheer: 1, stamina: 1, mood: {}, stink: 1 })).toBe('stinky');
+    expect(pickExpression('grab', false, { dizzy: 0, cheer: 1, stamina: 1, mood: {}, stink: 0 })).toBe('cheer');
+    expect(pickExpression('scream', false, { dizzy: 0, cheer: 0, stamina: 1, mood: {}, stink: 1 })).toBe('scream');
+  });
 });

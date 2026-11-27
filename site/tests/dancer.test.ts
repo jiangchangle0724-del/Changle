@@ -24,10 +24,12 @@ import { gunzipSync } from "node:zlib";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
+import { danceAt, DANCE_BEATS, danceRate, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
-import { feetOf, plantFeet } from "../src/party/dj/dancer/plant";
+import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
+import { entryOf } from "../src/party/dj/dancer/entry";
+import { bodyOf, handDepth, keepHands } from "../src/party/dj/dancer/hands";
 import { CAPTURED_SKATE } from "./support/captured";
 import { LIMITS, motionFacts } from "./support/motion";
 
@@ -166,6 +168,9 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // 2 and 3. her dances
   m.updateMatrixWorld(true);
   const springs = makeSprings(sp, bones);
+  // her shape, that her hands are kept out of (Nov 25; dancer/hands.ts)
+  const body = bodyOf(gltf.scene);
+  ok(body && body.parts.length === 6 && body.arms.length === 2, `${at} her trunk's and thighs' shape read from her, for her hands (${body?.parts.map((p) => p.bone.name).join(", ")})`);
   const walks: readonly { id: string; bpm: number; stride?: number }[] = Object.values(WALKS);
   let lastClip: THREE.AnimationClip | null = null;
   for (const d of [...DANCES, ...IDLES, ...walks]) {
@@ -224,7 +229,8 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(Math.abs(step - d.stride) < 0.06, `${d.id}: a step takes her ${d.stride} m (her planted foot slides back ${step.toFixed(2)} m in one)`);
     }
     ok(far < 0.45, `${at} ${d.id}: her hips stay over her spot (${far.toFixed(2)} m out at most)`);
-    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it
+    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it,
+    // her hands kept out of her as the page keeps them (Nov 25; Steve: "帮我查这个舞蹈，手会穿身体")
     if (!checkedDances.has(`${d.id} motion`)) {
       checkedDances.add(`${d.id} motion`);
       const n = h.frames;
@@ -232,7 +238,8 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
         a.time = (k / n) * h.beats;
         mixer.update(0);
         gltf.scene.updateMatrixWorld(true);
-        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion };
+        if (body) keepHands(body);
+        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion, inside: body ? handDepth(body).depth : undefined };
       };
       const f = motionFacts(n, n / (h.beats * h.beat), pose, { ankle, toe }, !!d.stride);
       if (process.env.MOTION_TABLE) console.log("MOTION", d.id, JSON.stringify(Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Math.round(v * 1000) / 1000]))));
@@ -286,6 +293,60 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(wait < 0.005 && lifted && end < 0.001, `${at} ${lastClip.name || "before"} into ${d.id}: her feet stay where they stand, then step (waiting foot off ${(wait * 1000).toFixed(1)} mm, at the end ${(end * 1000).toFixed(1)} mm off)`);
       mx.stopAllAction();
       mx.uncacheRoot(gltf.scene);
+    }
+    // 8. her standing feet as the page keeps them (Nov 23; Steve: "跳舞的动作太多问题了，仔细核查"; plant.ts
+    // standFeet; not her walks, which the page doesn't hold): seven seconds of the dance, and a foot on the floor doesn't slide (nine in ten of its
+    // moments under 0.15 m a second, as the motion checks ask of a dance), and no foot ever jumps
+    if (!checkedDances.has(`${d.id} stand`) && !walks.some((w) => w.id === d.id)) {
+      checkedDances.add(`${d.id} stand`);
+      const mx = new THREE.AnimationMixer(gltf.scene);
+      const act = mx.clipAction(clip);
+      act.play();
+      const feet = feetOf(gltf.scene)!;
+      const fps = 60;
+      const slides: number[] = [];
+      let fastest = 0;
+      const last: (THREE.Vector3 | null)[] = [null, null];
+      for (let s = 0; s < fps * 7; s++) {
+        act.time = (s / fps) % clip.duration;
+        mx.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        standFeet(feet, 1 / fps, true);
+        feet.legs.forEach((l, i) => {
+          const p = l.foot.getWorldPosition(new THREE.Vector3());
+          const was = last[i];
+          if (was && s > fps) {
+            if (p.y < feet.low[i] + 0.02 && was.y < feet.low[i] + 0.02) slides.push(Math.hypot(p.x - was.x, p.z - was.z) * fps);
+            fastest = Math.max(fastest, p.distanceTo(was) * fps);
+          }
+          last[i] = p;
+        });
+      }
+      slides.sort((a, b) => a - b);
+      const slide = slides.length ? slides[Math.floor(slides.length * 0.9)] : 0;
+      ok(slide < 0.15 && fastest < 7, `${at} ${d.id}: her standing feet stay put (${slide.toFixed(2)} m/s, fastest ${fastest.toFixed(1)} m/s)`);
+      mx.stopAllAction();
+      mx.uncacheRoot(gltf.scene);
+    }
+    // 9. where it starts when it comes in (Nov 25; dancer/entry.ts): on a whole bar, and the bar where her hips
+    // face nearest the room through its first beats (or the first bar, unless another is much nearer)
+    if (!checkedDances.has(`${d.id} entry`) && DANCES.some((x) => x.id === d.id)) {
+      checkedDances.add(`${d.id} entry`);
+      const tr = clip.tracks.find((x) => x.name === "Hips.quaternion")!;
+      const it = new THREE.QuaternionLinearInterpolant(tr.times, tr.values, 4, new Float32Array(4));
+      const turns = {
+        beats: () => clip.duration,
+        facing: (_: string, t: number) => {
+          const v = it.evaluate(((t % clip.duration) + clip.duration) % clip.duration);
+          const f = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(v[0], v[1], v[2], v[3]));
+          return Math.atan2(f.x, f.z);
+        },
+      };
+      const off = (skip: number) => Math.max(...[0, 0.5, 1, 1.5].map((s) => Math.abs(turns.facing("", skip + s))));
+      const skip = entryOf(turns, d.id, 0, 0);
+      const bars = Array.from({ length: Math.ceil(clip.duration / 4) }, (_, i) => off(i * 4));
+      ok(skip % 4 === 0 && skip < clip.duration && off(skip) <= Math.min(...bars) + 0.3 + 1e-6,
+        `${at} ${d.id} comes in ${skip / 4} bars in, her hips ${Math.round((off(skip) * 180) / Math.PI)} degrees from the room at most`);
     }
     lastClip = clip;
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her
@@ -378,6 +439,24 @@ async function main() {
     }
   const near = (bpm: number) => Math.abs(Math.log(bpm / (DANCES.find((d) => d.id === danceAt(0, "club", bpm)) as { bpm: number }).bpm));
   ok(near(118) < Math.log(1.25), "a song at 118: a dance near its tempo");
+  // (Nov 25: never hurried: in every look and at every tempo with dances enough, each dance chosen goes at
+  // most 12% faster than it was danced, or half-time)
+  {
+    let hurried = 0;
+    let checked = 0;
+    for (const look of LOOKS)
+      for (let bpm = 70; bpm <= 175; bpm += 5)
+        for (let k = 0; k < 8; k++) {
+          const id = danceAt(k * DANCE_BEATS, look, bpm);
+          const r = danceRate(id, bpm);
+          const d = DANCES.find((x) => x.id === id)!;
+          const pool = DANCES.filter((x) => x.looks.includes(look) && danceRate(x.id, bpm) !== null);
+          if (pool.length < 2) continue;
+          checked++;
+          if (r === null || (bpm * r) / d.bpm > 1.1201) hurried++;
+        }
+    ok(checked > 200 && hurried === 0, `no dance hurried: ${checked} choices, ${hurried} more than 12% faster than it was danced`);
+  }
   ok(IDLES.some((i) => i.id === idleAt(5).id) && idleAt(5).id !== idleAt(65).id, "with no song, one idle, then the other");
 }
 

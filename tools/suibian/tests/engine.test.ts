@@ -39,6 +39,8 @@ import {
   rank,
   RANGE_MODES,
   RANGES,
+  NEIGHBOURHOODS,
+  distanceMeters,
   MENU,
   OCCASIONS,
   OCCASION_IDS,
@@ -295,6 +297,14 @@ test("cuisine guesses: names, types and Google's descriptions, for every cuisine
   for (const c of MENU) assert.ok(KNOWN.some(([, , , , main, also]) => main === c || also.includes(c)), c);
 });
 
+test("Metrotown is the mall: The Meat Up BBQ, all you can eat by Google's buffet type, is inside walking 15 minutes (Steve, 2026-11-26)", () => {
+  const metrotown = NEIGHBOURHOODS.find((n) => n.en === "Burnaby Metrotown")!;
+  const meatUpAt = { lat: 49.2256, lng: -122.99 }; // 5137 Kingsway, Google's point
+  assert.ok(distanceMeters(metrotown, meatUpAt) < RANGES.walk15.meters, "the old point was 1.3 km from it, past the 1.2 km circle");
+  const meatUp = cuisineGuess("The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "buffet_restaurant", "hot_pot_restaurant", "restaurant", "food"]);
+  assert.ok(foundBy(meatUp, "ayce").also?.includes("ayce"));
+});
+
 test("a cuisine search tells what a vague place is, whatever search found it first; it never overrides what's known", () => {
   const meatUp = cuisineGuess("The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"]);
   assert.deepEqual([meatUp.cuisine, meatUp.sure, meatUp.vague], ["chinese", false, "bbq"], "Chinese barbecue: roast meats or skewers, nothing says");
@@ -314,10 +324,15 @@ test("a cuisine search tells what a vague place is, whatever search found it fir
   assert.equal(foundBy(cuisineGuess("Golden Spot", "chinese_restaurant"), "sichuan").cuisine, "sichuan");
   // A noodle shop stays one.
   assert.deepEqual(foundBy(cuisineGuess("Mr. Noodle", "noodle_shop"), "northern"), { cuisine: "northern", also: ["noodles"], sure: true, zh: false });
-  // The all-you-can-eat search adds to what a place is: Korean BBQ yes, a café it lists to fill up no.
-  assert.deepEqual(foundBy(cuisineGuess("Seoul BBQ House", "korean_barbecue_restaurant"), "ayce").also, ["ayce"]);
+  // The all-you-can-eat search proves nothing: only the place's own name, type or description does
+  // (Steve, 2026-11-25: Hon Sushi came first for all you can eat near Metrotown, and isn't).
+  assert.deepEqual(foundBy(cuisineGuess("Hon Sushi", "sushi_restaurant"), "ayce").also, []);
+  assert.deepEqual(foundBy(cuisineGuess("Seoul BBQ House", "korean_barbecue_restaurant"), "ayce").also, []);
   assert.deepEqual(foundBy(cuisineGuess("Matchstick Coffee", "coffee_shop", ["coffee_shop", "cafe"]), "ayce").also, []);
-  assert.equal(foundBy(cuisineGuess("Feast Lounge", "restaurant"), "ayce").cuisine, "ayce");
+  assert.equal(foundBy(cuisineGuess("Feast Lounge", "restaurant"), "ayce").cuisine, "other");
+  const marble = cuisineGuess("Marble House Eatery", "chinese_restaurant", [], "Versatile restaurant specializing in all-you-can-eat individual hot pot and classic dim sum.");
+  assert.ok(foundBy(marble, "ayce").also.includes("ayce"), "it says so itself");
+  assert.deepEqual(foundBy(cuisineGuess("Sakura AYCE Sushi", "sushi_restaurant"), "ayce").also, ["ayce"]);
   // A buffet a Sichuan search finds is Sichuan, and still all you can eat.
   assert.deepEqual(foundBy(cuisineGuess("川味自助", "buffet_restaurant"), "sichuan").cuisine, "sichuan");
   assert.deepEqual(foundBy(cuisineGuess("美食自助", "buffet_restaurant"), "sichuan").also, ["ayce"]);

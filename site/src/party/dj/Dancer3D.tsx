@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "../../shared/dj/dance";
-import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
+import { DANCE_BEATS, danceAt, danceNext, danceRate, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
 import type { Her } from "./dancer/her";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
@@ -78,10 +78,11 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }, { entryOf }, { bodyOf, keepHands }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant"), import("./dancer/entry"), import("./dancer/hands")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
+        const bodyOfHer = new WeakMap<Her, ReturnType<typeof bodyOf>>();
         const loading = new Map<string, Promise<Her | null>>();
         const firstIdle = idleAt(0).id;
         const fetchOutfit = (outfit: string, dances: string[]) => {
@@ -94,6 +95,8 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
                 h.dispose();
                 return null;
               }
+              // (her shape for her hands, read now, while she loads, not the first time she dances)
+              bodyOfHer.set(h, bodyOf(h.root));
               outfits.set(outfit, h);
               return h;
             })().catch(() => null);
@@ -222,6 +225,8 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
 
         let cur = firstIdle;
         let curT = 0;
+        // (whole bars into a new dance it starts, so she goes on facing the way she was: entryOf)
+        let skip = 0;
         let from: { dance: string; t: number; at: number; rate: number } | null = null;
         let gelAt = 0;
         let prev = performance.now();
@@ -319,7 +324,9 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
             walking = Math.abs(FACE - rot) > 0.3 && her!.knows(walk.id);
           }
           her!.root.rotation.y = rot;
-          const aim = walking ? walk.id : on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
+          // (checking her, on a page of the developer's own: one dance all the time)
+          const only = import.meta.env.DEV ? (window as unknown as { __djDance?: string }).__djDance : undefined;
+          const aim = walking ? walk.id : on ? (only ?? danceAt(Math.floor(b), lk, bpm)) : idle.id;
           let want = aim;
           if (on) void her!.learn(danceNext(Math.floor(b), lk, bpm)).catch(() => {});
           if (!her!.knows(want)) {
@@ -364,14 +371,20 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           // with the music on, her time is its beat (a sway a ballad's dances include too); standing easy
           // with none, the seconds at the idle's own tempo
           // (walking: her walk's beats on the song's, a step on each, or on every other)
-          const rateOf = (id: string) => (id === walk.id ? (on ? bpm * steps : walk.bpm) : on ? bpm : (idleBpm(id) ?? bpm)) / 60;
-          const tWant = on ? b * (want === walk.id ? steps : 1) : sec * rateOf(want);
+          // (a dance half-time to a song too fast for it: danceRate)
+          const half = (id: string) => (on && id !== walk.id ? (danceRate(id, bpm) ?? 1) : 1);
+          const rateOf = (id: string) => (id === walk.id ? (on ? bpm * steps : walk.bpm) : on ? bpm * half(id) : (idleBpm(id) ?? bpm)) / 60;
+          const tWant = on ? b * (want === walk.id ? steps : half(want)) : sec * rateOf(want);
           if (want !== cur) {
             // the new one flows in from wherever the last one is
             from = { dance: cur, t: curT, at: t, rate: rateOf(cur) };
+            // (Nov 25; Steve: "继续", after "跳舞的动作太多问题了": a dance that opens with her back to the
+            // room spun her round in the moment of the hand-over. Now it starts that many whole bars in, so
+            // she goes on facing much the way she was through the hand-over: dancer/entry.ts)
+            skip = want === walk.id ? 0 : entryOf(her!, want, tWant, her!.facing(cur, curT));
             cur = want;
           }
-          curT = tWant;
+          curT = tWant + skip;
           const k = from ? Math.min(1, (t - from.at) / 1000 / BLEND_S) : 1;
           const ease = k * k * (3 - 2 * k);
           if (from) from.t += dt * from.rate;
@@ -389,11 +402,23 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           // where the new dance has them, one and then the other (dancer/plant.ts)
           let feet = feetOfHer.get(her!);
           if (feet === undefined) feetOfHer.set(her!, (feet = feetOf(her!.root)));
-          if (feet) plantFeet(feet, handing, k);
+          if (feet) {
+            plantFeet(feet, handing, k);
+            // (and between hand-overs, a foot on the floor stays where it came down: plant.ts standFeet)
+            standFeet(feet, dt, !handing && !walking && !still.matches);
+          }
           const travel = stay ? 0 : hips.getWorldPosition(at).x;
           her!.root.position.x = -travel;
           const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
           if (slide !== slid) el.style.transform = slid = slide;
+          // (Nov 25; Steve: "帮我查这个舞蹈，手会穿身体") her hands kept out of her: an arm whose hand or forearm
+          // the dance puts in her hips, waist, thighs or skirt turned out until it rests on her (dancer/hands.ts)
+          let body = bodyOfHer.get(her!);
+          if (body === undefined) bodyOfHer.set(her!, (body = bodyOf(her!.root)));
+          if (body) {
+            her!.root.updateMatrixWorld(true);
+            keepHands(body);
+          }
           // her head to the room (Nov 21; Steve: "人物面部和头部表情僵硬"): turned a good way toward
           // the camera when the dance turns it away (not all the way: the dance's own turns stay),
           // settling there smoothly, and a small nod on each beat while she dances
@@ -447,7 +472,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           her!.root.updateMatrixWorld(true);
           renderer.render(scene, camera);
           // (the checks read what she dances and wears, and what drawing her costs: dj_dancer_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], x: Math.round(x), walking, roam: roamNow.current(), calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, at: curT, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], x: Math.round(x), walking, roam: roamNow.current(), calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();

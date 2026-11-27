@@ -11,11 +11,11 @@ import type { RoomState } from "../../../party-base/src/index";
 import { METRONOME_ID, ROUTINES } from "../shared/catalog";
 import { SONGS } from "../shared/songs";
 import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/protocol";
-import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
-import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
-import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
+import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
+import { BeatJudge, goldOk, type Batch, type Judged, type Verdict } from "../shared/taps";
+import { ClockSync, RoomSocket, ScreenAwake, TABLE, backToTable, clockText, el, getLang, setLang, tableUrl, tapTime, tr, wsUrl } from "./common";
 import { MotionSense } from "./motion";
-import { awardName, bodyHint, danceName, difficultyName, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
+import { awardName, bodyHint, danceName, difficultyName, goldAheadText, goldVerdictText, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
 const flash = document.getElementById("flash")!;
@@ -102,7 +102,7 @@ function join() {
     // fine
   }
   void awake.on();
-  history.replaceState(null, "", `?code=${code}`);
+  history.replaceState(null, "", `?code=${code}${TABLE ? `&table=${TABLE}` : ""}`);
   try {
     // a reload of this tab goes straight back in
     sessionStorage.setItem("party:room", code);
@@ -136,6 +136,7 @@ function onMsg(m: ServerMsg) {
       results = m.results;
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
       endArmed = false;
+      if (state.phase === "ended") leaveForTable();
       track();
       // (bars sent while the connection was down never got there; the room keeps the newest of
       // each beat, so sending one twice does no harm. After the state: a bar of a dance the room
@@ -166,6 +167,7 @@ function onMsg(m: ServerMsg) {
       return;
     case "fatal":
       fatal = m;
+      if (m.key === "ended" || m.key === "noRoom") leaveForTable();
       render();
       return;
     default:
@@ -175,6 +177,15 @@ function onMsg(m: ServerMsg) {
 
 function act(action: HostAction) {
   sock?.send({ t: "act", action });
+}
+
+/** From a changle.ca table: once the room is over, back there (a moment later, its end on the screen first). */
+let leaving = false;
+function leaveForTable() {
+  if (!TABLE || leaving) return;
+  leaving = true;
+  const over = code;
+  setTimeout(() => backToTable(over), 1500);
 }
 
 function errorText(code: string, message: string): string {
@@ -241,6 +252,7 @@ function track() {
     const heard = show && a && s ? planRun(show, a, s.audioOffsetMs) : [];
     const start = show && a ? danceStart(show, a) : null;
     tracking = { key, show, heard, zero: show && a && s && start !== null ? start - a.fromBeat * show.beatMs + s.audioOffsetMs : null, judge: null, last: null, recent: [], batches: [], sent: 0 };
+    goldShown = { i: -1, until: 0 };
   }
   const now = speakerNow();
   if (!tracking.judge && tracking.heard.length && now !== null && s?.difficulty) tracking.judge = new BeatJudge(tracking.heard, s.difficulty, now);
@@ -359,6 +371,13 @@ function topBar(): HTMLElement {
   const bar = el("header", "bar");
   bar.append(el("span", "brand", tr("一起跳", "Dance Along")));
   const tools = el("span", "bar-tools");
+  // from a changle.ca table: the way back to it
+  const back = tableUrl();
+  if (back) {
+    const a = el("a", "chip", tr("回到桌子", "Back to the table"));
+    a.href = back;
+    tools.append(a);
+  }
   if (sock) {
     const m = el("button", "chip", measure ? tr("收起测量", "Hide timing") : tr("测量", "Timing"));
     m.onclick = () => {
@@ -534,18 +553,66 @@ function myResults(r: Results): HTMLElement {
     const mine = (["steady", "hype", "effort"] as const).filter((k) => r.awards[k] === myId);
     if (mine.length) box.append(el("p", "my-award", `${tr("你拿到：", "You won: ")}${mine.map(awardName).join(" · ")}`));
     box.append(el("p", "lead", tr(`连着踩准最多 ${me.bestStreak} 拍`, `Your best run: ${me.bestStreak} beats on the beat`)));
+    if (r.golds) box.append(el("p", "my-gold", tr(`金色动作跳中 ${me.gold} / ${r.golds}`, `Gold moves: ${me.gold} of ${r.golds}`)));
   }
   return box;
 }
 
+/** While a dance runs, a host's button needs holding this long (party.css .btn.hold fills in as long). */
+const HOLD_MS = 700;
+
+/**
+ * A button that acts only once held for HOLD_MS: while a dance runs the host dances with the phone in
+ * hand, and a palm brushing the screen mustn't pause or stop it for everyone (the dance apps keep
+ * their dancing screen safe from stray touches the same way). A key held as long works too.
+ */
+function holdButton(label: string, cls: string, fire: () => void): HTMLButtonElement {
+  const b = el("button", `${cls} hold`, `${label}${tr("（按住）", " (hold)")}`);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    b.classList.remove("is-holding");
+  };
+  const start = () => {
+    if (timer !== null) return;
+    b.classList.add("is-holding");
+    timer = setTimeout(() => {
+      timer = null;
+      b.classList.remove("is-holding");
+      if (b.isConnected) fire();
+    }, HOLD_MS);
+  };
+  b.addEventListener("pointerdown", (e) => {
+    // (the finger stays this button's while held, even if it slides a little)
+    b.setPointerCapture?.(e.pointerId);
+    start();
+  });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"] as const) b.addEventListener(ev, stop);
+  b.addEventListener("keydown", (e) => {
+    if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+      e.preventDefault();
+      start();
+    }
+  });
+  b.addEventListener("keyup", stop);
+  b.addEventListener("blur", stop);
+  // (a long press on a phone mustn't open the text menu)
+  b.addEventListener("contextmenu", (e) => e.preventDefault());
+  return b;
+}
+
 function hostPanel(): HTMLElement {
   const box = el("section", "host-panel");
+  // while the warm-up or the dance plays, every button needs a short hold (holdButton)
+  const running = (state?.phase === "dancing" || (state?.phase === "learning" && routine?.leadStartAt != null)) && routine?.pausedAt === undefined;
   const button = (label: string, action: HostAction, cls = "btn") => {
-    const b = el("button", cls, label);
-    b.onclick = () => act(action);
+    const b = running ? holdButton(label, cls, () => act(action)) : el("button", cls, label);
+    if (!running) b.onclick = () => act(action);
     box.append(b);
     return b;
   };
+  if (running) box.append(el("p", "hint", tr("跳舞的时候，按钮要按住一下才算，免得手掌碰到。", "While you dance, hold a button for a moment to use it, so a palm can't press it.")));
   const phase = state?.phase;
   switch (phase) {
     case "lobby": {
@@ -591,7 +658,8 @@ function hostPanel(): HTMLElement {
     default:
       break;
   }
-  if (state && state.phase !== "ended") {
+  // (not while a dance runs: stop it first)
+  if (state && state.phase !== "ended" && !running) {
     const end = el("button", endArmed ? "btn danger" : "btn quiet", endArmed ? tr("确定结束房间", "Yes, end the room") : tr("结束房间", "End the room"));
     end.onclick = () => {
       if (endArmed) act({ type: "END_ROOM" });
@@ -690,9 +758,18 @@ function renderSync() {
 /** The verdict on the last beat (or, while nothing is scored, what to do) and this player's meter. */
 function renderBeat() {
   if (parts.verdict) {
-    const v = heardBeat.scored ? (tracking.last?.verdict ?? null) : null;
-    parts.verdict.textContent = heardBeat.scored || !heardBeat.stage ? verdictText(v) : restHint(heardBeat.stage);
-    parts.pad?.classList.toggle("is-hit", v === "hit");
+    const j = heardBeat.scored ? tracking.last : null;
+    const v = j?.verdict ?? null;
+    // a gold move got: gold for a moment, whatever comes next, and one buzz (phones that can; not iPhones)
+    if (j?.beat.gold && goldOk(v, state?.difficulty ?? "easy") && j.i !== goldShown.i) {
+      goldShown = { i: j.i, until: performance.now() + GOLD_SHOW_MS };
+      navigator.vibrate?.([60, 40, 90]);
+      setTimeout(renderBeat, GOLD_SHOW_MS + 20);
+    }
+    const gold = performance.now() < goldShown.until;
+    parts.verdict.textContent = gold ? goldVerdictText() : heardBeat.scored || !heardBeat.stage ? verdictText(v) : restHint(heardBeat.stage);
+    parts.pad?.classList.toggle("is-gold", gold);
+    parts.pad?.classList.toggle("is-hit", v === "hit" && !gold);
     parts.pad?.classList.toggle("is-miss", v === "miss");
   }
   if (parts.meter) {
@@ -704,6 +781,9 @@ function renderBeat() {
 // ---------- the beat
 
 let lastBeat: number | null = null;
+/** The gold move this phone last showed (its index in the run) and until when (page clock, ms). */
+let goldShown = { i: -1, until: 0 };
+const GOLD_SHOW_MS = 1200;
 
 /** Every frame: on each beat the room hears, a flash; the move and the count; the judge. */
 function frame() {
@@ -760,6 +840,7 @@ function showBeat(t: number) {
     const before = run.length > 0 && t < run[0]!.t;
     if (parts.stage) parts.stage.textContent = before ? tr("马上开始，看大屏", "Starting in a moment: watch the TV") : t >= runEnd(run) ? tr("跳完了", "That's the song") : "";
     for (const x of [parts.move, parts.body, parts.count, parts.next]) if (x) x.textContent = "";
+    parts.count?.classList.remove("is-gold");
     parts.pad?.classList.add("is-rest");
     renderBeat();
     return;
@@ -768,7 +849,13 @@ function showBeat(t: number) {
   if (parts.move) parts.move.textContent = b.move ? moveName(b.move) : "";
   if (parts.body) parts.body.textContent = b.move && (b.stage === "watch" || b.stage === "warmup") ? bodyHint(b.move) : "";
   parts.count.textContent = String(b.count);
-  if (parts.next) parts.next.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}` : "";
+  parts.count.classList.toggle("is-gold", !!b.gold);
+  if (parts.next) {
+    const g = goldIn(run, spot!.i, 4);
+    // (on the gold move itself, only that)
+    parts.next.textContent = [g === null ? "" : goldAheadText(g), preview && g !== 0 ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}` : ""].filter(Boolean).join(" · ");
+    parts.next.classList.toggle("is-gold", g !== null);
+  }
   // the big button counts on the beats that are scored (your turn, the dance); it rests otherwise
   parts.pad?.classList.toggle("is-rest", !b.score);
   renderBeat();
@@ -797,7 +884,7 @@ setInterval(() => {
   }
   // (nothing new: one now and then, so the TV sees a player who stopped)
   if (!fresh && Math.abs(e - pulse.e) < 0.04 && now - pulse.at < 600) return;
-  sock.send({ t: "pulse", e, v: fresh ? fresh.verdict : null });
+  sock.send({ t: "pulse", e, v: fresh ? fresh.verdict : null, ...(fresh?.beat.gold ? { g: true as const } : {}) });
   pulse = { at: now, e, judged: fresh ? fresh.i : pulse.judged };
 }, 125);
 

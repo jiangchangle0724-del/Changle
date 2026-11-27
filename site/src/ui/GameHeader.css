@@ -1,8 +1,8 @@
 .ui-game-header {
   display: grid;
-  grid-template-columns: calc(var(--tap) * var(--ui-game-side, 1)) minmax(0, 1fr) calc(
-      var(--tap) * var(--ui-game-side, 1)
-    );
+  /* the title in the middle when it fits; when it doesn't, each side keeps room for its buttons and
+     the title takes the rest */
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
   align-items: center;
   gap: var(--space-2);
   min-height: calc(var(--bar-h) + var(--safe-top));
@@ -38,6 +38,10 @@
   display: flex;
   align-items: center;
   justify-content: end;
+}
+/* clear of the sound button's lit circle beside it */
+.ui-game-header .ui-lang {
+  margin-inline-end: var(--space-1);
 }
 .ui-game-menu {
   position: fixed;
@@ -77,11 +81,11 @@
   font-weight: 800;
 }
 @media (min-width: 720px) {
+  /* room on both sides for four buttons and the language (LangSwitch), so the title stays centred */
   .ui-game-header {
-    grid-template-columns: minmax(calc(var(--tap) * 4), 1fr) minmax(
-        0,
-        2fr
-      ) minmax(calc(var(--tap) * 4), 1fr);
+    grid-template-columns:
+      minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr) minmax(0, 2fr)
+      minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr);
   }
   .ui-game-header > .ui-button {
     justify-self: start;

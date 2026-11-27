@@ -1,7 +1,7 @@
 // The phone before a round: who's here, the arena vote, the penalty switch (the host's), the big
 // screen, and the host's Start under the thumb. Practice has its own: the four places to pick from.
 import { useEffect } from "preact/hooks";
-import { ARENAS, MATCH_MS, MIN_PLAYERS, SCORE_TO_WIN, type ArenaId } from "../../engine";
+import { ARENAS, MATCH_MS, MATCH_PLACES, MIN_PLAYERS, SCORE_TO_WIN, type ArenaId } from "../../engine";
 import type { ClientMsg, RoomView } from "../../room/protocol";
 import { BASE, screenUrl } from "../base";
 import { t } from "../i18n";
@@ -154,7 +154,20 @@ export function Lobby(props: { view: RoomView; table: string | null; send: (mess
           </h2>
           <PlayerChips view={view} />
         </section>
-        <section class="panel">
+        <section class="panel lobby-settings">
+          {view.you.host ? (
+            <Switch
+              label={t("matchSwitch")}
+              hint={view.settings.match ? t("matchOn", { n: MATCH_PLACES }) : t("matchOff")}
+              on={view.settings.match}
+              onChange={(on) => send({ t: "match", on })}
+            />
+          ) : (
+            <p class="panel-line">
+              <span class="panel-label">{t("matchSwitch")}</span>
+              {view.settings.match ? t("matchOn", { n: MATCH_PLACES }) : t("matchOff")}
+            </p>
+          )}
           {view.you.host ? (
             <Switch label={t("penaltySwitch")} hint={penaltyLine(view)} on={view.settings.penalties} onChange={(on) => send({ t: "penalties", on })} />
           ) : (

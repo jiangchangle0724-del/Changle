@@ -51,7 +51,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern' | 'boulder';
   w: number;
   h: number;
   x: number;
@@ -123,6 +123,8 @@ export interface SimView {
   gates?: GateView[];
   /** 抢金元宝（A9d）：每个人这一局抓着元宝攒了几秒、要攒几秒、现在谁一个人抓着（-1 没有）。 */
   gold?: { holdT: number[]; need: number; holder: number } | null;
+  /** 红包雨（11-26）：天上正在掉的红包、每个人接到几个、还剩几秒。 */
+  rain?: { drops: readonly { x: number; y: number }[]; caught: readonly number[]; left: number } | null;
   /** 端托盘（后厨，A10）：托盘是第几个物件、点心翻了没有（翻了画空托盘）。蒸笼喷汽按关卡和 time 画，不用带。 */
   tray?: { prop: number; spilled: boolean } | null;
   /** 老宅找钥匙（A10）：每把钥匙是第几个物件、找到没有、用掉没有（插在锁里了就不画）。灯笼就是 kind 为 lantern 的物件。 */

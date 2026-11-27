@@ -7,9 +7,11 @@
  * The page is a single file with everything in it (scripts/build-check.mjs), and its policy
  * forbids the network: nothing can be loaded, and nothing can be sent (page.html).
  */
-import * as pdfjs from "pdfjs-dist";
+// (the build of PDF.js for browsers that are not the newest: the page is opened in whatever browser a person has)
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { Day } from "../../src/core/dates";
 import type { AccountKind, ImportError, ParsedStatement, ReadResult, Warning } from "../../src/core/model";
+import { readPdfStatement } from "../../src/core/pdfstatement";
 import { readStatementFile } from "../../src/core/read";
 import { reconcile } from "../../src/core/reconcile";
 import { sniff } from "../../src/core/sniff";
@@ -22,8 +24,27 @@ import { pdfPages, type PdfError, type PdfLib } from "../../src/web/pdf";
 /** The source of PDF.js's worker, put here by the build: the page loads nothing. */
 declare const PDF_WORKER: string;
 
+/** Which copy of this page a summary came from. It goes up by one each time the page changes what it does. */
+const PAGE = 3;
+
+/** A step of handling a file, for saying where it stopped. */
+type Stage = "open" | "sort" | "reader" | "pdf" | "read" | "summary" | "copy";
+/**
+ * Where the page stopped, and the kind of error it was: its name ("SecurityError", "TypeError") and never its message,
+ * which can quote what was being read (OBS-1).
+ */
+type Trouble = { stage: Stage; error: string };
+
 type Shared = { name: string; type: string; text: string; /** A line of the file that was kept as it was: the row of column names. */ kept?: string };
-type Result = { read?: ReadResult; pdf?: { pages: number; runs: number } | { error: PdfError }; refused?: string; summary: string; copy: Shared | null };
+type Result = {
+  read?: ReadResult;
+  pdf?: { pages: number; runs: number } | { error: PdfError; cause?: string };
+  refused?: string;
+  /** The page's own trouble with the file. With a result beside it, only the invented copy is missing. */
+  trouble?: Trouble;
+  summary: string;
+  copy: Shared | null;
+};
 
 const state: { zh: boolean; kind: AccountKind | ""; currency: "CAD" | "USD"; busy: boolean; result: Result | null } = {
   zh: (navigator.language || "zh").toLowerCase().startsWith("zh"),
@@ -44,16 +65,72 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return node;
 }
 
-let lib: PdfLib | null = null;
-/** PDF.js with its worker started from the source inside this page (IMP-4: the parsing runs in a Web Worker). */
-function pdfLib(): PdfLib {
-  if (!lib) {
-    // (plain script, not a module: a page opened from a file may not start a module from a string)
-    const worker = new Worker(URL.createObjectURL(new Blob([PDF_WORKER], { type: "text/javascript" })));
-    pdfjs.GlobalWorkerOptions.workerPort = worker;
-    lib = pdfjs as unknown as PdfLib;
+const nameOf = (e: unknown): string => {
+  const name = (e as { name?: unknown } | null)?.name;
+  return typeof name === "string" && /^[A-Za-z]{1,40}$/.test(name) ? name : "Error";
+};
+
+/** The page is shown inside another window: a chat program's preview of the file, say. Workers and downloads may be shut off there. */
+const framed = ((): boolean => {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
   }
-  return lib;
+})();
+
+/** The last thing the worker's script does is say this: all of it ran. */
+const UP = "moneylens-reader-up";
+/** How long the worker gets to say so. */
+const READER_MS = 15_000;
+let lib: PdfLib | null = null;
+let worker: Worker | null = null;
+
+/**
+ * PDF.js with its worker started from the source inside this page (IMP-4: the parsing runs in a Web Worker). PDF.js is
+ * given the worker once the worker has said that it is up. Where a worker may not start (a preview inside another
+ * program, a browser that shuts them off) the page says that, in place of waiting on a worker that will never answer.
+ */
+function pdfLib(): Promise<PdfLib> {
+  if (lib) return Promise.resolve(lib);
+  return new Promise<PdfLib>((resolve, reject) => {
+    let made: Worker | null = null;
+    const stop = (error: string): void => {
+      clearTimeout(timer);
+      made?.terminate();
+      reject(Object.assign(new Error("reader"), { trouble: { stage: "reader", error } satisfies Trouble }));
+    };
+    const timer = setTimeout(() => stop("Timeout"), READER_MS);
+    try {
+      // (plain script, not a module: a page opened from a file may not start a module from a string)
+      made = new Worker(URL.createObjectURL(new Blob([PDF_WORKER, `\n;postMessage(${JSON.stringify(UP)});`], { type: "text/javascript" })));
+    } catch (e) {
+      stop(nameOf(e));
+      return;
+    }
+    const started = made;
+    const failed = (): void => stop("WorkerError");
+    const up = (event: MessageEvent): void => {
+      if (event.data !== UP) return;
+      clearTimeout(timer);
+      started.removeEventListener("message", up);
+      started.removeEventListener("error", failed);
+      pdfjs.GlobalWorkerOptions.workerPort = started;
+      worker = started;
+      lib = pdfjs as unknown as PdfLib;
+      resolve(lib);
+    };
+    started.addEventListener("error", failed);
+    started.addEventListener("message", up);
+  });
+}
+
+/** Ends the worker. One that ran past the limit may still be busy with the file, and would keep the next file waiting (IMP-4). */
+function dropReader(): void {
+  worker?.terminate();
+  worker = null;
+  lib = null;
+  pdfjs.GlobalWorkerOptions.workerPort = null;
 }
 
 function today(): Day {
@@ -61,27 +138,51 @@ function today(): Day {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}` as Day;
 }
 
-async function check(bytes: Uint8Array): Promise<Result> {
+const pretty = (summary: object): string => JSON.stringify({ ...summary, page: PAGE }, null, 1);
+
+async function check(bytes: Uint8Array, at: (stage: Stage) => void): Promise<Result> {
+  at("sort");
   const what = sniff(bytes);
   const file = { kind: what.kind === "unsupported" ? what.why : what.kind, bytes: bytes.length };
-  const pretty = (summary: object): string => JSON.stringify(summary, null, 1);
+  /** The invented copy is made last, and by itself: what was read is shown even when the copy can't be made. */
+  const copied = (make: () => Shared): { copy: Shared | null; trouble?: Trouble } => {
+    try {
+      return { copy: make() };
+    } catch (e) {
+      return { copy: null, trouble: { stage: "copy", error: nameOf(e) } };
+    }
+  };
   if (what.kind === "pdf") {
-    const read = await pdfPages(pdfLib(), bytes);
-    if (!read.ok) return { pdf: { error: read.error }, summary: pretty({ ...summaryOf(file, null), read: `pdf-${read.error}` }), copy: null };
+    at("reader");
+    const reader = await pdfLib();
+    at("pdf");
+    const read = await pdfPages(reader, bytes);
+    if (!read.ok && read.error === "too-slow") dropReader();
+    at("summary");
+    if (!read.ok) return { pdf: { error: read.error, ...(read.cause ? { cause: read.cause } : {}) }, summary: pretty({ ...summaryOf(file, null), read: `pdf-${read.error}`, ...(read.cause ? { error: read.cause } : {}) }), copy: null };
     const runs = read.pages.reduce((n, page) => n + page.runs.length, 0);
-    return {
-      pdf: { pages: read.pages.length, runs },
-      summary: pretty(summaryOf(file, null, undefined, read.pages)),
-      copy: { name: "statement-layout.json", type: "application/json", text: JSON.stringify(inventPdf(read.pages, random)) },
-    };
+    at("read");
+    const statements = readPdfStatement(read.pages, { ...(state.kind ? { kind: state.kind } : {}), currency: state.currency });
+    at("summary");
+    const summary = pretty(summaryOf(file, statements, undefined, read.pages));
+    return { pdf: { pages: read.pages.length, runs }, read: statements, summary, ...copied(() => ({ name: "statement-layout.json", type: "application/json", text: JSON.stringify(inventPdf(read.pages, random)) })) };
   }
   if (what.kind === "unsupported") return { refused: what.why, summary: pretty(summaryOf(file, null)), copy: null };
+  at("read");
   const read = readStatementFile(bytes, { ...(state.kind ? { kind: state.kind } : {}), currency: state.currency, today: today() });
+  at("summary");
   if (what.kind === "ofx") return { read, summary: pretty(summaryOf(file, read)), copy: null };
   const text = decodeText(bytes);
-  const made = inventCsv(text, random);
-  const kept = made.header === null ? undefined : made.text.split(/\r\n|\n|\r/)[made.header];
-  return { read, summary: pretty(summaryOf(file, read, text)), copy: { name: "statement-invented.csv", type: "text/csv", text: made.text, ...(kept ? { kept } : {}) } };
+  const summary = pretty(summaryOf(file, read, text));
+  return {
+    read,
+    summary,
+    ...copied(() => {
+      const made = inventCsv(text, random);
+      const kept = made.header === null ? undefined : made.text.split(/\r\n|\n|\r/)[made.header];
+      return { name: "statement-invented.csv", type: "text/csv", text: made.text, ...(kept ? { kept } : {}) };
+    }),
+  };
 }
 
 async function take(file: File | undefined): Promise<void> {
@@ -89,10 +190,14 @@ async function take(file: File | undefined): Promise<void> {
   state.busy = true;
   state.result = null;
   render();
+  let stage: Stage = "open";
   try {
-    state.result = await check(new Uint8Array(await file.arrayBuffer()));
-  } catch {
-    state.result = { refused: "error", summary: JSON.stringify({ tool: "moneylens-check", version: 1, read: "page-error" }), copy: null };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    state.result = await check(bytes, (now) => void (stage = now));
+  } catch (e) {
+    const told = (e as { trouble?: Trouble } | null)?.trouble;
+    const trouble: Trouble = told ?? { stage, error: nameOf(e) };
+    state.result = { trouble, summary: pretty({ tool: "moneylens-check", version: 1, read: "page-error", stage: trouble.stage, error: trouble.error }), copy: null };
   }
   state.busy = false;
   render();
@@ -124,12 +229,35 @@ function refusal(error: ImportError | string): string {
       return t("这是图片。扫描件和照片读不了。", "This is a picture. Scans and photos cannot be read.");
     case "web-page":
       return t("这是一个网页，不是账单文件。", "This is a web page, not a statement file.");
+    case "binary":
+      return t("认不出这是什么文件：它不是 PDF、CSV、OFX 或 QFX。", "This file's type was not recognised: it is not a PDF, CSV, OFX or QFX file.");
     default:
       return t("这个文件读不了。", "This file could not be read.");
   }
 }
 
-function pdfRefusal(error: PdfError): string {
+/** The page's own trouble, in words a person can act on, with the step and the kind of error for whoever is asked about it. */
+function troubled(trouble: Trouble, alone: boolean): string {
+  const code = `${trouble.stage} · ${trouble.error}`;
+  if (trouble.stage === "open")
+    return t(
+      `浏览器没能打开这个文件（${code}）。如果它放在 OneDrive、iCloud 这类云盘文件夹里，先确认已经下载到这台电脑上，或者把它复制到桌面，再选一次。`,
+      `The browser could not open this file (${code}). If it is kept in a cloud folder such as OneDrive or iCloud, make sure it has been downloaded to this computer, or copy it to the desktop, and choose it again.`,
+    );
+  if (trouble.stage === "reader")
+    return t(
+      `PDF 阅读器在这里启动不了（${code}），所以 PDF 读不了；CSV、OFX、QFX 不受影响。请把这个页面的文件下载到电脑上，用 Chrome 或 Edge 直接打开（不要在聊天窗口的预览里用），再试一次。`,
+      `The PDF reader could not start here (${code}), so PDFs cannot be read; CSV, OFX and QFX files are not affected. Download this page's file to your computer, open it directly in Chrome or Edge (not in a chat window's preview), and try again.`,
+    );
+  if (!alone) return t(`「编出来的版本」没做出来（${code}），上面读出的结果不受影响。请把下面的摘要发给 Claude。`, `The invented copy could not be made (${code}). What was read above is not affected. Please pass on the summary below.`);
+  return t(`处理这个文件时页面自己出了错（${code}），文件没问题也可能这样。请把下面的摘要发给 Claude。`, `The page itself failed while handling this file (${code}). That can happen with a perfectly good file. Please pass on the summary below.`);
+}
+
+function pdfRefusal(error: PdfError, cause?: string): string {
+  // PDF.js says "InvalidPDFException" of a file it cannot open at all. Any other error is the reader's trouble with the
+  // file, and other programs may open the same file without complaint.
+  if (error === "malformed" && cause !== undefined && cause !== "InvalidPDFException")
+    return t(`这份 PDF 没读出来：阅读器出了错（${cause}），不一定是文件的问题。请把下面的摘要发给 Claude。`, `This PDF was not read: the reader ran into an error (${cause}), which may not be the file's fault. Please pass on the summary below.`);
   switch (error) {
     case "locked":
       return t("这份 PDF 要密码才能打开，读不了。", "This PDF needs a password and cannot be read.");
@@ -246,21 +374,61 @@ function render(): void {
     el("div", { class: "top" }, el("div", {}, el("h1", {}, t("心里有数 · 账单试读", "MoneyLens · statement check")), el("p", { class: "quiet" }, t("看看你的银行账单能不能读对。文件只在这台设备的浏览器里处理：这个页面连不了网，什么都不会上传。", "See whether your bank's statement is read correctly. The file is handled in this browser only: this page cannot reach the network, and nothing is uploaded."))), language),
     el("div", { class: "panel" }, el("p", {}, t("先选账户类型（信用卡的文件和银行账户的读法相反），再选文件。", "Choose the kind of account first (a card's file reads the other way round), then the file.")), el("div", { class: "row" }, kind, currency), drop),
   ];
+  if (framed)
+    parts.splice(
+      1,
+      0,
+      el("div", { class: "panel" }, el("p", { class: "ask" }, t("这个页面现在是嵌在别的窗口里打开的（比如聊天软件的预览）。这样 PDF 可能读不了，下载也可能不灵。请把这个页面的文件下载到电脑上，用 Chrome 或 Edge 直接打开。", "This page is open inside another window (a chat program's preview, for example). PDFs may not be readable this way, and downloads may not work. Download this page's file to your computer and open it directly in Chrome or Edge."))),
+    );
   if (state.busy) parts.push(el("p", { role: "status" }, t("正在读…", "Reading…")));
   const result = state.result;
   if (result) {
     const read = result.read;
     if (result.refused) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(result.refused))));
-    if (read && !read.ok) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(read.error))));
+    if (result.trouble && !result.read && !result.pdf) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, troubled(result.trouble, true))));
+    const pdf = result.pdf && !("error" in result.pdf) ? result.pdf : null;
+    // (a PDF whose table is not known yet has its own words for that, below)
+    if (read && !read.ok && !(pdf && read.error === "layout-unclear")) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(read.error))));
+    if (pdf && read && !read.ok)
+      parts.push(
+        el(
+          "div",
+          { class: "panel" },
+          el(
+            "p",
+            { class: read.error === "layout-unclear" ? "bad" : "" },
+            t(
+              `这份 PDF 有 ${pdf.pages} 页，读出了 ${pdf.runs} 段文字，但这个版本还认不出它的交易表。把下面「编出来的版本」和「摘要」发给 Claude，就能照它的版式补上：编出来的版本里每段文字的位置和原件一样，字和数字全是编的。`,
+              `This PDF has ${pdf.pages} page(s) and ${pdf.runs} runs of text, but this version does not recognise its table of transactions yet. Pass on the invented copy and the summary below, and it can be taught this layout: in the invented copy every run of text sits where it does in the original, and every word and number is invented.`,
+            ),
+          ),
+        ),
+      );
+    if (pdf && read?.ok)
+      parts.push(
+        el(
+          "div",
+          { class: "panel" },
+          el(
+            "p",
+            { class: "ask" },
+            t(
+              `这份 PDF 有 ${pdf.pages} 页，读出了 ${pdf.runs} 段文字。PDF 账单是照版式读的，这个功能刚做好：请对着原件核对每一笔，尤其是金额的正负，还有下面写的对没对上。读得不对的话，把「编出来的版本」和「摘要」发给 Claude。`,
+              `This PDF has ${pdf.pages} page(s) and ${pdf.runs} runs of text. PDF statements are read by their layout, and this is new: check every line against the original, above all which way each amount goes, and whether the sums below agree. If something is wrong, pass on the invented copy and the summary.`,
+            ),
+          ),
+        ),
+      );
     if (read?.ok) {
       parts.push(el("p", { class: "quiet" }, t("下面是读出来的结果，只显示在你这里。请对着银行的账单看一眼：日期、金额、进出方向对不对。", "Below is what was read, shown here only. Compare it with your bank's statement: are the dates, the amounts and the directions right?")));
       for (const statement of read.statements) parts.push(statementView(statement, read));
     }
-    if (result.pdf && "error" in result.pdf) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, pdfRefusal(result.pdf.error))));
-    if (result.pdf && !("error" in result.pdf)) parts.push(el("div", { class: "panel" }, el("p", {}, t(`这份 PDF 有 ${result.pdf.pages} 页，读出了 ${result.pdf.runs} 段文字。PDF 账单现在还不能读成交易，先把它的版式记下来：下面「编出来的版本」里，每段文字的位置和原件一样，字和数字全是编的。`, `This PDF has ${result.pdf.pages} page(s) and ${result.pdf.runs} runs of text. PDF statements are not read into transactions yet; for now its layout is recorded: in the invented copy below every run of text sits where it does in the original, and every word and number is invented.`))));
+    if (result.pdf && "error" in result.pdf) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, pdfRefusal(result.pdf.error, result.pdf.cause))));
+    if (result.trouble && (result.read || result.pdf)) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, troubled(result.trouble, false))));
     if (result.copy) parts.push(copyBox(t("编出来的版本", "The invented copy"), t("版式和你的文件一样，字和数字全是编的，所以里面的金额加起来对不上。发给别人之前请自己看一眼，确认没有真的名字、账号和金额。", "The same layout as your file, with every word and number invented, so its amounts no longer add up. Look it over before you share it: no real name, account number or amount should be in it."), result.copy.text, result.copy, result.copy.kept));
     parts.push(copyBox(t("给 Claude 的摘要", "The summary to pass on"), t("只有版式：哪一列是什么（列名原样）、读了多少行、账对没对上。没有任何金额、日期、说明文字。", "Layout only: which column is which (the column names as they are), how many lines were read, whether the sums agreed. No amount, date or description."), result.summary, null, result.copy?.kept));
   }
+  parts.push(el("p", { class: "quiet" }, t(`页面第 ${PAGE} 版`, `Page revision ${PAGE}`)));
   app.replaceChildren(...parts);
 }
 

@@ -48,6 +48,7 @@
   .field input.code { font-family: var(--font-display); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; font-size: 28px; }
   .card .btn { background: var(--card-ink); color: var(--ink); width: 100%; }
   .card .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+  #watchLink { box-sizing: border-box; text-decoration: none; margin: 12px 0 0; }
   .err { color: var(--bad); font-weight: 700; min-height: 1.4em; }
   /*
    * 横着拿的手机（三百多高）：一列放不下，加入键在屏幕外面。分左右两列：左边房间码和名字，右边样子、道具、加入，
@@ -65,6 +66,7 @@
     #joinForm > #joinBtn { grid-area: join; align-self: end; }
     #joinForm > .err { grid-area: err; margin: 6px 0 0; min-height: 0; }
     #joinForm > #tableBtn { grid-area: table; margin-top: 8px; }
+    #joinForm > #watchLink { margin-top: 8px; }
   }
 
   /* 换装：竖着一列；横着（够宽）左边预览、右边两列选项 */
@@ -142,6 +144,11 @@
   .mlevel .nm { text-align: center; font-weight: 800; font-size: 17px; line-height: 1.35; }
   .mlevel .nm small { display: block; font-weight: 500; font-size: 13px; opacity: .7; }
   .mline { margin: 0; font-size: 14px; opacity: .75; text-align: center; }
+  /* 长辈小孩模式（11-26）的开关：两行字，开着是金色 */
+  .btn.easy { display: flex; align-items: center; justify-content: center; gap: 10px; text-align: left; line-height: 1.3; }
+  .btn.easy small { display: block; font-size: 12px; font-weight: 600; opacity: .7; }
+  .btn.easy[aria-pressed="true"] { background: #f6c453 !important; color: var(--card-ink) !important; }
+  .mcard .btn.easy { background: rgba(42,31,58,.1); color: var(--card-ink); border: 0; border-radius: 16px; min-height: 52px; padding: 8px 16px; }
   .mcard .row { display: flex; gap: 8px; flex-wrap: wrap; }
   .mcard .row .btn { flex: 1 1 120px; background: var(--card-ink); color: var(--ink); }
   .mcard .row .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
@@ -183,7 +190,56 @@
   .bar .conn { margin-left: auto; opacity: .85; }
   .bar .conn.bad { color: var(--bad); opacity: 1; font-weight: 700; }
   /* 窄的手机（iPhone SE 横着 667 宽）：连上了就不写「已连接」（「直连」「绕路中」那个小牌子已经说了），顶栏排得下一行，手柄大一点 */
-  @media (max-width: 720px) { .bar .conn.ok { display: none; } }
+  @media (max-width: 720px) {
+    .bar .conn.ok { display: none; }
+    /* 小手机横着（iPhone SE 667 宽）：😀 加进来以后顶栏还是一行，键挨紧一点 */
+    .bar { gap: 6px; }
+    .bar .chip.btn { padding-inline: 10px; }
+    .bar .summon { padding-inline: 12px; }
+    /* 放屁键（11-25）：直连时不写「直连」，省出 💨 的地方；名字太长截短 */
+    .bar #path.direct { display: none; }
+    .bar .me #meName { display: inline-block; max-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
+  /* 表情（11-25）：顶栏的 😀 打开一排，两行四个，挂在顶栏下面；点一句就收起来 */
+  /* 成就（11-25）：谁解锁了什么，一条一条冒出来，3.6 秒没了 */
+  .trophies { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); z-index: 26; display: grid; justify-items: start; gap: 8px; pointer-events: none; max-width: min(560px, calc(100vw - 32px)); }
+  .trophy { background: var(--card); color: var(--card-ink); border-radius: 999px; font-weight: 800; box-shadow: 0 6px 18px rgba(0,0,0,.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    animation: trophy-in .35s ease-out, trophy-out .4s ease-in 3.2s forwards; }
+  @keyframes trophy-in { from { opacity: 0; transform: translateY(12px) scale(.9); } }
+  @keyframes trophy-out { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .trophy { animation: trophy-out .4s ease-in 3.2s forwards; } }
+  /* 成就单子：拿到的亮着带 ✓，没拿到的暗一点；每个都写怎么拿 */
+  .achv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .achv { display: grid; grid-template-columns: 34px 1fr 22px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: rgba(42,31,58,.07); }
+  .achv.got { background: #fff; }
+  .achv .ic { font-size: 24px; text-align: center; filter: grayscale(1); opacity: .6; }
+  .achv.got .ic { filter: none; opacity: 1; }
+  .achv .tx { display: grid; gap: 1px; min-width: 0; }
+  .achv .tx b { font-size: 15px; }
+  .achv .tx small { font-size: 12.5px; opacity: .75; line-height: 1.45; }
+  .achv .ok { font-weight: 900; font-size: 18px; text-align: center; }
+  @media (min-width: 640px) { .achv-list { grid-template-columns: 1fr 1fr; } }
+  /* 手机局：画面上冒在顶栏下面；电视局：拿到的人自己手机上的提示 */
+  .trophies { top: calc(60px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); }
+  .trophy { padding: 6px 14px; font-size: 14px; }
+  .achv-dlg .achv-wrap { padding: 16px 18px 18px; display: grid; gap: 10px; }
+  .achv-dlg h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0; }
+  .achv-dlg h2:focus { outline: none; }
+  .achv-dlg .row { display: flex; margin-top: 4px; }
+  .achv-dlg .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
+  .mcard .row .btn.mach { flex: 0 0 auto; min-width: 72px; }
+  .mcard .row .btn.mach:disabled { opacity: .45; }
+  .mcard .row .btn.mach[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
+  /* 红包雨（11-26）的彩蛋键：金色，一眼看得到 */
+  .btn.rainbtn, .mcard .row .btn.rainbtn { background: #f6c453; color: var(--card-ink); }
+  .bar .chip.btn.emo { font-size: 18px; min-width: 44px; padding-inline: 0; justify-content: center; }
+  .emotes { position: fixed; left: 50%; transform: translateX(-50%); z-index: 30; display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 8px;
+    padding: 10px; background: var(--card); color: var(--card-ink); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); width: max-content; max-width: calc(100vw - 24px); }
+  .emote { min-height: 48px; border: 0; border-radius: 14px; background: #fff; color: var(--card-ink); font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.2; padding: 6px 10px; cursor: pointer; }
+  .emote:active { transform: scale(.96); }
+  .emote.nope, .bar .emo.nope { animation: emote-nope .3s; }
+  @keyframes emote-nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  @media (prefers-reduced-motion: reduce) { .emote:active { transform: none; } .emote.nope, .bar .emo.nope { animation: none; opacity: .6; } }
   .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.22); overflow: hidden; }
   .stickzone .hint { position: absolute; inset: 0; padding: 16px; box-sizing: border-box; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
@@ -272,13 +328,20 @@
     <div class="field fname"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
     <button class="btn quiet" id="itemBtn" type="button"><span id="itemIcon" aria-hidden="true">🧊</span><span id="itemSummary">道具：速冻</span></button>
+    <button class="btn quiet" id="achvBtn" type="button"><span aria-hidden="true">🏆</span><span id="achvSummary">成就</span></button>
+    <!-- 长辈小孩模式（11-26）：自己这个人开 / 关，记在这部手机上 -->
+    <button class="btn quiet easy" id="assistBtn" type="button" aria-pressed="false"><span aria-hidden="true">🌱</span><span><b class="st">长辈小孩模式：关</b><small data-en="Hands grab on their own when you fall">掉的时候手自己抓，不会手酸</small></span></button>
     <p class="err" id="err" role="alert"></p>
     <button class="btn" id="joinBtn" type="submit" data-en="Join">加入</button>
     <button class="btn quiet" id="tableBtn" type="button" hidden data-en="Back to the table">回到桌上</button>
+    <!-- 观众（11-26）：不玩的、人满了的去观众页 -->
+    <a class="btn quiet" id="watchLink" href="../watch/" data-en="👀 Just watch">👀 只看，当观众</a>
   </form>
 </div>
 
 <canvas id="view" hidden aria-label="游戏画面" data-en-label="Game screen"></canvas>
+<!-- 观众（11-26，手机局）：起哄、押中没有从右边往上飘（放高一点，别压着右下角的抓键）；投出来的那一样盖一层 -->
+<div class="cheers" id="cheers" aria-hidden="true" style="bottom: 42vh"></div>
 <div id="pad" hidden>
   <div class="bar">
     <span class="me"><span class="dot"></span><span id="meName">糯米团</span></span>
@@ -289,6 +352,8 @@
     <span class="chip" id="path">连接中</span>
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
     <button class="chip btn" id="itemBtn2" type="button" data-en="Item">道具</button>
+    <button class="chip btn emo" id="emoteBtn" type="button" aria-label="表情" data-en-label="Emotes">😀</button>
+    <button class="chip btn emo" id="fartBtn" type="button" aria-label="放屁" data-en-label="Toot">💨</button>
     <button class="summon" id="summonBtn" type="button" disabled data-en="Summon">召唤队友</button>
     <button class="chip btn back" id="backBtn" type="button" hidden data-en="Lobby">回大厅</button>
     <button class="chip btn back" id="tableBtn2" type="button" hidden data-en="Table">回桌上</button>
@@ -322,7 +387,8 @@
         <button id="mNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
       </div>
       <p class="mline" id="mLine"></p>
-      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button></div>
+      <button class="btn quiet easy" id="assistBtn2" type="button" aria-pressed="false"><span aria-hidden="true">🌱</span><span><b class="st">长辈小孩模式：关</b><small data-en="Just for you: hands grab on their own when you fall">只管你自己：掉的时候手自己抓，不会手酸</small></span></button>
+      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button><button class="btn quiet mach" id="achvBtn2" type="button" aria-label="成就" data-en-label="Achievements">🏆</button><button class="btn quiet mach" id="gachaBtn2" type="button" hidden>🎰</button><button class="btn quiet mach" id="escortBtn2" type="button" hidden aria-pressed="false">🪙</button><button class="btn quiet mach" id="slowBtn2" type="button" hidden aria-pressed="false">🐢</button></div>
     </div>
     <div class="mcard" id="mResults" hidden>
       <div class="res-a">
@@ -339,6 +405,8 @@
       <p class="none" id="mBetrayNone" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
       <div class="row">
         <button class="btn" id="mNextLevel" type="button" data-en="Next level">下一关</button>
+        <button class="btn rainbtn" id="mRain" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button>
+        <button class="btn quiet" id="mReplay" type="button" hidden>▶ 精彩回放</button>
         <button class="btn quiet" id="mAgain" type="button" data-en="Play again">再来一次</button>
         <button class="btn quiet" id="mToLobby" type="button" data-en="Lobby">回大厅</button>
       </div>
@@ -372,6 +440,15 @@
   </div>
 </dialog>
 <div class="itemtip" id="itemTip" role="status" aria-live="polite"></div>
+<!-- 成就（11-25）：电视局里自己新拿到的；手机局里谁解锁了什么（src/pad/view.ts） -->
+<div class="trophies" id="trophies" aria-live="polite"></div>
+<dialog class="achv-dlg" id="achvDlg" aria-label="成就" data-en-label="Achievements">
+  <div class="achv-wrap">
+    <h2 data-en="Achievements" tabindex="-1" autofocus>成就</h2>
+    <ul class="achv-list" id="achvList"></ul>
+    <div class="row"><button class="btn" id="achvDone" type="button" data-en="Done">好了</button></div>
+  </div>
+</dialog>
 <dialog id="fsDlg" aria-label="全屏" data-en-label="Full screen">
   <div class="fs">
     <h2 data-en="Full screen on iPhone">iPhone 上怎么全屏</h2>
@@ -388,7 +465,7 @@
 <!-- 手机局：等开始、倒数、结算、横幅（src/pad/view.ts 管） -->
 <div class="vwait" id="vWait" hidden><span data-en="Waiting for the host to start">等房主开始</span> · <span id="vLevel"></span></div>
 <div class="vwait bad" id="vHost" hidden data-en="The host's phone dropped out. Waiting for it to come back…">房主的手机断线了，等它回来……</div>
-<div class="vwait" id="vGold" hidden title="抢元宝的比分" data-en-title="Gold score">🪙 <span id="vGoldScore"></span></div>
+<div class="vwait" id="vGold" hidden title="抢元宝的比分" data-en-title="Gold score"><span id="vGoldIcon" aria-hidden="true">🪙 </span><span id="vGoldScore"></span></div>
 <div class="vcount" id="vCount" hidden><div class="count"><span id="vCountNum">3</span><small id="vCountLevel"></small></div></div>
 <div class="vres" id="vResults" hidden>
   <div class="card">
@@ -406,6 +483,7 @@
     <p class="none" id="vBetrayNone" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
     <div class="row">
       <button class="btn" id="vNextLevel" type="button" data-en="Next level">下一关</button>
+      <button class="btn rainbtn" id="vRain" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button>
       <button class="btn quiet" id="vAgain" type="button" data-en="Play again">再来一次</button>
       <button class="btn quiet" id="vToLobby" type="button" data-en="Lobby">回大厅</button>
     </div>

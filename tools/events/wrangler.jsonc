@@ -4,6 +4,8 @@
 // It runs on Cloudflare's free plan: the day's run is split into small steps (see CONTRACTS.md).
 // Secrets (dashboard: this Worker > Settings > Variables and Secrets, type "Secret"):
 //   TICKETMASTER_KEY   the Ticketmaster Discovery API key; without it that source is skipped
+//   EVENTBRITE_TOKEN   Eventbrite's private token (Steve's own account, src/follows.ts); without it
+//                      that source is skipped
 //   EVENTS_HANDOFF_KEY optional, never needed live: a key for handing the libraries' pages over from a
 //                      run outside GitHub (src/handoff.ts). The GitHub job signs in with GitHub's own
 //                      token instead (src/oidc.ts), which needs no secret anywhere.
@@ -13,6 +15,9 @@
   "main": "src/worker.ts",
   // (ctx.exports, through which the day's run calls its own steps, is on by default since 2025-11-17)
   "compatibility_date": "2026-10-26",
+  // a deploy keeps what's set in Cloudflare's dashboard: a key added there as plain text (rather
+  // than as a secret) would otherwise be wiped by the next merge
+  "keep_vars": true,
   // changle-events.<account>.workers.dev answers only POST /go/api/handoff and GET /go/api/status
   // (src/worker.ts): the libraries' GitHub job hands its pages over there, and the daily health check
   // reads the status there, because changle.ca's bot protection challenges GitHub's machines
@@ -32,6 +37,12 @@
   "kv_namespaces": [{ "binding": "CACHE" }],
   // Workers AI, for the Chinese names and sentences (src/ai.ts): the free daily allowance, no key.
   "ai": { "binding": "AI" },
+  // The rooms server (site/worker), Worker to Worker: who a changle.ca session is, so only the site's
+  // owner gets into /go/admin (src/owner.ts), and its mail door, to tell the owner a submission came in
+  "services": [
+    { "binding": "ROOMS", "service": "changle-rooms" },
+    { "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }
+  ],
   // The schema files are part of the Worker (applied by src/schema.ts).
   "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   "observability": { "enabled": true, "traces": { "enabled": true } }

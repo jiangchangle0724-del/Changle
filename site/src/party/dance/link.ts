@@ -7,10 +7,26 @@ import { openRoom, write, type StageLink } from "../stage/link";
  * coach, the music) is `/party/screen#CODE`, and a phone dances at `/party/join?code=CODE`, which
  * goes straight in when this tab's `party:room` is that code, with the name in `party:name` and the
  * language in `party:lang`. The room's host there is whoever joins first, so the table's host goes
- * first. (`?table=` is this table's number, for the game's way back; docs/briefs/dance.md asks for it.)
+ * first. `?table=` is this table's number, the game's way back: its pages have a 「回到桌子」 link, and
+ * when the room ends they leave `sessionStorage["dance.over"]` (the stage `"dance.over.tv"` too) and
+ * come back here, a phone to /t/TABLE and the stage to the page that sent it (/tv/TABLE or /t/TABLE).
+ * `GET /party/api/rooms/CODE` says how the room is going.
  */
 const PARTY = "/party";
 const CODE = /^[A-HJ-NP-Z2-9]{4}$/;
+
+/** How the room is going, from its server. */
+async function dancePhase(code: string): Promise<"lobby" | "playing" | "over" | "gone" | null> {
+  try {
+    const response = await fetch(`${PARTY}/api/rooms/${code}`);
+    if (!response.ok) return null;
+    const data = (await response.json()) as { exists?: boolean; phase?: string };
+    if (!data.exists) return "gone";
+    return data.phase === "lobby" || data.phase === "playing" || data.phase === "over" ? data.phase : null;
+  } catch {
+    return null;
+  }
+}
 
 export const DANCE: StageLink = {
   id: "dance",
@@ -45,6 +61,6 @@ export const DANCE: StageLink = {
       // no session storage: the join page shows its form, with the code filled in
     }
   },
-  phase: null,
+  phase: dancePhase,
   hostFirst: true,
 };

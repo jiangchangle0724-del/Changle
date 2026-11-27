@@ -2,12 +2,19 @@
 // 信令、直连失败时中转输入。一个 Durable Object 一个房间，逻辑在 src/server/room.ts（纯，有测试）。
 //   POST /hang-on/api/rooms                 开房：{} 或 { hostPlays: true }（手机局）-> { code }
 //   GET  /hang-on/api/rooms/CODE            联机桌问这局怎么样了 -> { exists, phase: lobby | playing | over }
-//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch
+//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch&id=…&name=…（观众，11-26）
 //                                           （联机桌开的房先没有主机，主机页带 ?room=CODE 进来就是 role=host）
+//   POST /hang-on/api/report                页面出了事自己报（闪退自动记录，src/report.ts）-> 204
+//   GET  /hang-on/api/reports               报过的毛病汇总（src/server/reports.ts，`npm run reports` 打出来）
+//   POST /hang-on/api/daily                 每日一关到顶的成绩（11-26，src/daily.ts 的 DailyRun）-> { side, rank, of, best }
+//   GET  /hang-on/api/daily?day=&level=&who= 这一天这一关的单人榜、多人榜（src/server/board.ts）-> Board
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
-//   /hang-on/、/hang-on/pad/                页面（dist/hang-on，vite build）
+//   /hang-on/、/hang-on/pad/、/hang-on/watch/ 页面（dist/hang-on，vite build；watch 是观众页，11-26）
 import { DurableObject } from 'cloudflare:workers';
 import { CODE_ALPHABET, CODE_RE, HOST_KEY_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
+import { browserOf, keepReport, makeLimiter, readReport, reportSummary, topFrame, type ReportIn, type ReportStore } from './reports';
+import { boardOf, keepRun, type BoardStore } from './board';
+import { cleanRun, DAY_RE, LEVEL_RE, WHO_RE, type DailyRun } from '../daily';
 import { makeCode, NO_ROOM, Room, type From, type Out, type RoomData, type TableStatus } from './room';
 
 /** 一条消息的上限：SDP offer 两三千字节，再大就不对了。 */
@@ -56,8 +63,9 @@ export class HangOnRoom extends DurableObject<Env> {
     if (!room || room.expired()) return refuse(room?.d.phase === 'ended' ? 'ended' : 'noRoom');
     const roleParam = q.get('role');
     const role = roleParam === 'host' ? 'host' : roleParam === 'watch' ? 'watch' : 'pad';
-    const seat = role === 'pad' ? (q.get('id') ?? '') : null;
-    if (role === 'pad' && !SEAT_ID_RE.test(seat ?? '')) return refuse('badRequest');
+    // 手柄带座位 id；观众（11-26）也带一个 id（同一个人刷新了还是他）
+    const seat = role === 'host' ? null : (q.get('id') ?? '');
+    if (role !== 'host' && !SEAT_ID_RE.test(seat ?? '')) return refuse('badRequest');
     const from: From = { role, seat };
     const key = role === 'host' ? (q.get('key') ?? '') : '';
     const why = room.connect(from, q.get('name') ?? undefined, HOST_KEY_RE.test(key) ? key : undefined);
@@ -152,7 +160,7 @@ function deliver(sockets: WebSocket[], o: Out) {
     for (const ws of sockets) {
       const f = of(ws);
       if (!f) continue;
-      const hit = o.close === 'host' ? f.role === 'host' : f.role === 'pad' && f.seat === o.close.seat;
+      const hit = o.close === 'host' ? f.role === 'host' : o.close === 'audience' ? f.role === 'watch' : f.role === 'pad' && f.seat === o.close.seat;
       if (!hit) continue;
       ws.serializeAttachment(null);
       try {
@@ -169,7 +177,11 @@ function deliver(sockets: WebSocket[], o: Out) {
     const f = of(ws);
     if (!f) continue;
     const to = o.to;
-    const hit = to === 'all' || (to === 'host' && f.role === 'host') || (typeof to === 'object' && f.role === 'pad' && f.seat === to.seat);
+    const hit =
+      to === 'all' ||
+      (to === 'host' && f.role === 'host') ||
+      (to === 'audience' && f.role === 'watch') ||
+      (typeof to === 'object' && ('watch' in to ? f.role === 'watch' && f.seat === to.watch : f.role === 'pad' && f.seat === to.seat));
     if (!hit) continue;
     try {
       ws.send(text);
@@ -182,6 +194,96 @@ function deliver(sockets: WebSocket[], o: Out) {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
+/** 闪退记录（11-25）：所有页面的报放在一个盒子里（名字 all）。 */
+export class HangOnReports extends DurableObject<Env> {
+  private store(): ReportStore {
+    const s = this.ctx.storage;
+    return {
+      get: (key) => s.get(key),
+      put: (key, value) => s.put(key, value),
+      delete: (key) => s.delete(key),
+      list: (opts) => s.list(opts),
+    };
+  }
+
+  async keep(r: ReportIn, browser: string): Promise<void> {
+    await keepReport(this.store(), r, browser, Date.now());
+  }
+
+  async summary() {
+    return reportSummary(this.store(), Date.now());
+  }
+}
+
+const reportsFrom = makeLimiter();
+const reportBox = (env: Env) => env.REPORTS.get(env.REPORTS.idFromName('all'));
+
+/** 不收的报：为什么、多大，记进日志（不记说了什么）。 */
+function refused(why: string, req: Request, bytes: number): Response {
+  console.warn(JSON.stringify({ refused: why, bytes, type: req.headers.get('content-type') ?? '' }));
+  return new Response(null, { status: 400 });
+}
+
+/** 页面的一份报：收拾、截短，写进日志，放进盒子。 */
+async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const text = await req.text().catch(() => '');
+  if (text.length > 8192) return new Response(null, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return refused('not JSON', req, text.length);
+  }
+  const r = readReport(body);
+  if (!r) return refused('not a report', req, text.length);
+  if (!reportsFrom(req.headers.get('cf-connecting-ip') ?? '?', Date.now())) return new Response(null, { status: 429 });
+  const browser = browserOf(req.headers.get('user-agent') ?? '');
+  // （Cloudflare 的 Workers Logs 里也留着这一行）
+  console.error(JSON.stringify({ report: r.kind, msg: r.msg, where: topFrame(r.stack), ms: r.ms, screen: r.screen, phase: r.phase, level: r.level, players: r.players, build: r.build, browser }));
+  ctx.waitUntil(reportBox(env).keep(r, browser).catch(() => {}));
+  return new Response(null, { status: 204 });
+}
+
+/** 每日一关（11-26）：所有的榜放在一个盒子里（名字 all）。 */
+export class HangOnBoard extends DurableObject<Env> {
+  private store(): BoardStore {
+    const s = this.ctx.storage;
+    return {
+      get: (key) => s.get(key),
+      put: (key, value) => s.put(key, value),
+      delete: (key) => s.delete(key),
+      list: (opts) => s.list(opts),
+    };
+  }
+
+  async keep(run: DailyRun) {
+    return keepRun(this.store(), run, Date.now());
+  }
+
+  async board(day: string, level: string, who?: string) {
+    return boardOf(this.store(), day, level, who);
+  }
+}
+
+const runsFrom = makeLimiter(20);
+const boardBox = (env: Env) => env.BOARD.get(env.BOARD.idFromName('all'));
+
+/** 每日一关的一份成绩：收拾，不对的不收，一个地址十分钟最多 20 份。 */
+async function daily(req: Request, env: Env): Promise<Response> {
+  const text = await req.text().catch(() => '');
+  if (text.length > 4096) return new Response(null, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return refused('not JSON', req, text.length);
+  }
+  const run = cleanRun(body, Date.now());
+  if (!run) return refused('not a run', req, text.length);
+  if (!runsFrom(req.headers.get('cf-connecting-ip') ?? '?', Date.now())) return new Response(null, { status: 429 });
+  return json(await boardBox(env).keep(run));
+}
+
 function randomInt(n: number): number {
   const a = new Uint32Array(1);
   crypto.getRandomValues(a);
@@ -189,9 +291,26 @@ function randomInt(n: number): number {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname;
+    if (path === '/hang-on/api/report') {
+      if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      return report(req, env, ctx);
+    }
+    if (path === '/hang-on/api/reports') {
+      if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+      return json(await reportBox(env).summary());
+    }
+    if (path === '/hang-on/api/daily') {
+      if (req.method === 'POST') return daily(req, env);
+      if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+      const day = url.searchParams.get('day') ?? '';
+      const level = url.searchParams.get('level') ?? '';
+      const who = url.searchParams.get('who') ?? '';
+      if (!DAY_RE.test(day) || !LEVEL_RE.test(level)) return json({ error: 'bad day or level' }, 400);
+      return json(await boardBox(env).board(day, level, WHO_RE.test(who) ? who : undefined));
+    }
     if (path === '/hang-on/api/rooms') {
       if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       // 手机局：{ "hostPlays": true }（房主自己也玩）；读不出来就当电视局

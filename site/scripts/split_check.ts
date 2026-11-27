@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -141,6 +141,8 @@ const rooms = async (ctx: BrowserContext) => {
       const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
       if (at === "/api/status") return json(200, { paused: false });
       if (at === "/api/fx") return json(200, { rates: RATES, at: Date.now() - 3_600_000, source: "check" });
+      // the owner's changes to the site's words (src/lib/copy.ts): none, so every page says what the code does
+      if (at === "/api/copy" && req.method() === "GET") return json(200, { zh: {}, en: {} });
       if (at === "/api/auth/restore") return route.fulfill({ status: 204 });
       if (at === "/api/auth/keep" || at === "/api/auth/logout") return json(200, { ok: true });
       if (at === "/api/me" && req.method() === "GET") return who ? json(200, { user: userOf(who) }) : json(401, { error: "signin" });
@@ -553,6 +555,83 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.keyboard.press("Escape");
   await closed(page);
   ok((await page.locator(".split-stale").count()) === 0, `${lang} ${width}x${height}: a new picture made, the settle tab no longer says it is out of date`);
+  // 查看链接 (Steve, 2026-11-23): beside 把结清图发到群里, on one line with it, as tall as it is
+  const dock = await page.evaluate(() => {
+    const row = document.querySelector(".split-dock .split-dock-row");
+    const pill = row?.querySelector(".split-view-button");
+    const big = row?.querySelector(".ui-button");
+    const label = pill?.querySelector(".split-view-label");
+    if (!pill || !big || !label) return null;
+    const [p, b] = [pill.getBoundingClientRect(), big.getBoundingClientRect()];
+    const shown = label.getBoundingClientRect().width > 1;
+    // how many lines each one's words take: the tops of the boxes its text is drawn in
+    // (no named functions in here: the page has none of the helpers tsx would wrap them in)
+    const lines = [label, big].map((el) => {
+      const tops = new Set<number>();
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) if (r.width > 0) tops.add(Math.round(r.top));
+      }
+      return tops.size;
+    });
+    return { top: Math.abs(p.top - b.top), tall: Math.abs(p.height - b.height), lines: [shown ? lines[0] : 1, lines[1]], shown, h: Math.round(b.height) };
+  });
+  ok(!!dock && dock.top < 1 && dock.tall < 1 && dock.lines.every((n) => n === 1), `${lang} ${width}x${height}: 查看链接 sits beside 发结清图, as tall (${dock?.h}px), each on one line (${dock?.lines.join(", ")} lines${dock?.shown ? "" : "; 查看链接 its link alone"})`);
+  await button("viewLink").click();
+  let viewing = "";
+  if (local) {
+    await page.getByRole("dialog").getByRole("button", { name: t("copyLink"), exact: true }).waitFor({ timeout: 15_000 });
+    await shot("11h-view-link");
+    await page.getByRole("dialog").getByRole("button", { name: t("copyLink"), exact: true }).click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    viewing = copied.split("\n").pop() ?? "";
+    ok(copied.startsWith(`${say(lang, "viewLine", { name: "惠斯勒周末" })}\n`) && /\/split\/[A-Za-z0-9_-]{22}#v=[A-Za-z0-9_-]{43}$/.test(viewing), `${lang} ${width}x${height}: 复制链接 copies what it is, then the ledger's address with the link's own key after the #`);
+  } else {
+    await page.getByRole("dialog").getByText(t("viewLinkNotYet")).waitFor();
+    await shot("11h-view-link-not-yet");
+  }
+  await page.keyboard.press("Escape");
+  await closed(page);
+  if (local) {
+    // as a phone shows it (a share sheet of its own): 复制链接 and 发到群里 side by side, each on one line
+    await page.evaluate("navigator.share = async () => {}");
+    await button("viewLink").click();
+    await page.getByRole("dialog").getByRole("button", { name: t("sendViewLink"), exact: true }).waitFor({ timeout: 15_000 });
+    await shot("11h2-view-link-phone");
+    const tall = (await page.evaluate(`[...document.querySelectorAll("dialog[open] .split-pair .ui-button")].map((b) => b.getBoundingClientRect().height)`)) as number[];
+    ok(tall.length === 2 && tall.every((h) => h < 56), `${lang} ${width}x${height}: 复制链接 and 发到群里 sit side by side, each on one line (${tall.map(Math.round).join(", ")}px tall)`);
+    await page.evaluate("delete navigator.share");
+    await page.keyboard.press("Escape");
+    await closed(page);
+  }
+  if (local) {
+    // the link opened on a phone that isn't in the ledger: the ledger to look at, and nothing on the page changes it
+    const v = await phone(width, height, lang);
+    await speak(v, lang);
+    const looker = await v.newPage();
+    watch(looker, true);
+    await looker.goto(viewing);
+    await looker.locator(".split-viewing").waitFor({ timeout: 15_000 });
+    await shot("11i-viewing", looker);
+    const seen = await looker.evaluate(() => ({
+      title: document.querySelector(".split-page h1, .split-page .split-bar-title")?.textContent ?? "",
+      rows: document.querySelectorAll(".split-row").length,
+      buttons: [...document.querySelectorAll(".split-panel button, .split-dock button")].map((b) => b.textContent),
+      address: location.hash.startsWith("#v="),
+    }));
+    ok(seen.title.includes("惠斯勒周末") && seen.rows > 0 && seen.buttons.length === 0 && seen.address && (await looker.getByRole("button", { name: t("addExpense") }).count()) === 0 && (await looker.getByRole("button", { name: t("more") }).count()) === 0, `${lang} ${width}x${height}: 查看链接 opens the ledger, its name and ${seen.rows} rows, with nothing to press in the list and no 记一笔 or ⋯ (the link stays in the address)`);
+    await looker.getByRole("tab", { name: t("settle") }).click();
+    await looker.locator("#split-settle .split-row").first().waitFor();
+    await shot("11j-viewing-settle", looker);
+    await looker.locator("#split-settle .split-row").first().click();
+    await looker.getByRole("dialog").getByRole("button", { name: re(t("copyAmount")) }).waitFor();
+    await shot("11k-viewing-step", looker);
+    const step = looker.getByRole("dialog");
+    ok((await step.getByRole("button", { name: t("markPaid") }).count()) === 0 && (await step.getByRole("button", { name: t("undoPaid") }).count()) === 0 && (await step.getByText(new RegExp(`^(${re(t("viewOnlyPaid")).source}|${re(t("paid")).source})$`)).count()) === 1, `${lang} ${width}x${height}: a transfer opened by 查看链接 can be copied, not marked (and says who marks it)`);
+    await v.close();
+  }
 
   // the ⋯ sheet: the invitation, then the people
   await button("more").click();
@@ -982,6 +1061,17 @@ async function walk(lang: Lang, width: number, height: number) {
     await closed(page);
     await theirs.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
     await shot("34-key-changed", theirs);
+    {
+      // the 查看链接 made with the old key: changing the key turned it off too
+      const v = await phone(width, height, lang);
+      await speak(v, lang);
+      const looker = await v.newPage();
+      watch(looker, true);
+      await looker.goto(viewing);
+      await looker.getByText(t("viewGone")).waitFor({ timeout: 15_000 });
+      await shot("34c-view-gone", looker);
+      await v.close();
+    }
     await theirs.goto(invitation);
     await theirs.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 8000 });
     ok((await theirs.locator(".split-standing").count()) === 1, `${lang} ${width}x${height}: a friend shut out by a new key opens the new invitation and is in again`);
@@ -3516,6 +3606,117 @@ async function reading() {
   await b.close();
 }
 
+// ---------- view: 查看链接, end to end ----------
+/**
+ * 查看链接 (Steve, 2026-11-23): made from 结清, the same link each time; opened on another phone, the
+ * ledger to look at, coming up to date when the page comes back to the front; opened on a phone in
+ * the ledger, its own page; made on a locked ledger too; a new key turns it off, and a new link
+ * opens again; a link cut short opens nothing.
+ */
+async function viewing() {
+  if (!local) {
+    console.log("view: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const pa = await open(a, true);
+  await start(pa, "看账", ["阿甲"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  await spend(pa, "60");
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const made = async () => {
+    await button(pa, "viewLink").click();
+    const copy = pa.getByRole("dialog").getByRole("button", { name: t("copyLink"), exact: true });
+    await copy.waitFor({ timeout: 15_000 });
+    await copy.click();
+    const link = (await pa.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    await pa.keyboard.press("Escape");
+    await closed(pa);
+    return link;
+  };
+  const link = await made();
+  const kept = (await keptBy(pa)).held[0];
+  const viewKey = new URL(link).hash.slice(3);
+  ok(viewKey.length === 43 && viewKey !== kept.key && !link.includes(kept.key), "the link carries a key of its own, not the ledger's");
+  ok((await made()) === link, "made again, it is the same link");
+
+  // opened on another phone: the ledger, to look at
+  const b = await phone(390, 664, "zh");
+  const pb = await b.newPage();
+  watch(pb, true);
+  await pb.goto(link);
+  await pb.locator(".split-viewing").waitFor({ timeout: 15_000 });
+  ok((await amounts(pb)).includes("60") && (await pb.getByText(t("viewOnly")).count()) === 1, "on another phone it shows the ledger, and says it can only be looked at");
+  ok((await pb.evaluate(`localStorage.getItem(${JSON.stringify(KEPT)})`)) === null, "and that phone keeps nothing of it");
+  await pb.getByRole("tab", { name: t("settle") }).click();
+  await pb.locator("#split-settle .split-row").first().click();
+  await pb.getByRole("dialog").getByText(t("viewOnlyPaid")).waitFor();
+  ok((await pb.getByRole("dialog").getByRole("button", { name: t("markPaid") }).count()) === 0, "a transfer on it can't be marked paid: it says someone in the ledger marks it");
+  await pb.keyboard.press("Escape");
+  await closed(pb);
+  await pb.getByRole("tab", { name: t("expenses") }).click();
+  const refused = await pb.evaluate(
+    ([id, key]) => fetch(`/split/api/ledgers/${id}/changes`, { method: "POST", headers: { "x-split-key": key, "content-type": "application/json" }, body: JSON.stringify({ changes: [] }) }).then((r) => r.status),
+    [kept.server.id, viewKey] as const,
+  );
+  ok(refused === 403, `its key sends nothing to the ledger (the server says ${refused})`);
+
+  // up to date when it comes back to the front
+  await pa.getByRole("tab", { name: t("expenses") }).click();
+  await spend(pa, "25");
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  await pb.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await pb.locator(".split-row-amount", { hasText: "25" }).waitFor({ timeout: 10_000 });
+  ok(true, "an expense recorded on the ledger's own phone shows on the one looking when it comes back to the front");
+
+  // a phone in the ledger opens its own page, and the link comes off the address
+  const own = await a.newPage();
+  watch(own, true);
+  await own.goto(link);
+  await button(own, "addExpense").waitFor({ timeout: 15_000 });
+  ok((await own.locator(".split-viewing").count()) === 0 && new URL(own.url()).hash === "", "opened on a phone in the ledger: its own page, and the link off the address");
+  await own.close();
+
+  // locked, a link can still be made (the same one), and it still opens
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("lockIt")) }).click();
+  await pa.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  ok((await made()) === link, "a locked ledger has its 查看链接 too, the same");
+  await pb.reload();
+  await pb.locator(".split-viewing").waitFor({ timeout: 15_000 });
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("unlockIt")) }).click();
+  await pa.getByRole("button", { name: re(t("lockIt")) }).waitFor();
+
+  // a new key turns it off; the link made after it is another, and opens
+  await pa.getByRole("button", { name: re(t("rekey")) }).click();
+  await pa.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+  await pa.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await pb.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await pb.getByText(t("viewGone")).waitFor({ timeout: 10_000 });
+  ok(true, "the ledger's key changed: the page looking at it says the link no longer opens");
+  const again = await made();
+  ok(again !== link && /#v=[A-Za-z0-9_-]{43}$/.test(again), "the link made after the new key is another one");
+  await pb.goto(again);
+  await pb.locator(".split-viewing").waitFor({ timeout: 15_000 });
+  ok((await amounts(pb)).includes("25"), "and it opens the ledger");
+
+  // a link cut short, and one to a ledger that isn't there
+  await pb.goto(again.slice(0, -10));
+  await pb.getByText(t("viewGone")).waitFor({ timeout: 10_000 });
+  await pb.goto(again.replace(/\/split\/[^#]{4}/, "/split/zzzz"));
+  await pb.getByText(t("viewGone")).waitFor({ timeout: 10_000 });
+  ok(true, "a link cut short, or to a ledger that isn't there, says the link doesn't open");
+  await b.close();
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -3526,6 +3727,7 @@ if (what === "photos" && local) await photos();
 if (what === "all" || what === "gate") await gate();
 if ((what === "all" || what === "friends") && local) await friends();
 if ((what === "all" || what === "read") && local) await reading();
+if (what === "all" || what === "view") await viewing();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

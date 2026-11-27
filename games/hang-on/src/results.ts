@@ -24,6 +24,7 @@ export function resultsOf(sim: {
   winners?: readonly number[];
   finishOrder?: readonly number[];
   outOrder?: readonly number[];
+  rain?: { caught: readonly number[] } | null;
 }): Results {
   const counts = new Map<string, [number, number, number]>();
   for (const b of sim.betrayals) {
@@ -52,6 +53,7 @@ export function resultsOf(sim: {
     const rest = sim.players.map((_, i) => i).filter((i) => !finished.includes(i));
     r.order = [...finished.map((i): [number, number | null] => [i, endOf(i)]), ...rest.map((i): [number, number | null] => [i, null])];
   }
+  if (mode === 'rain') r.caught = sim.players.map((_, i) => sim.rain?.caught[i] ?? 0);
   if (mode === 'last') {
     // 还挂着的（赢的）在前，撑到了结束；出局的按出局的先后倒过来
     const out = [...(sim.outOrder ?? [])];
@@ -84,6 +86,11 @@ export function resultsTitle(r: Results, name: (i: number) => string): string {
     return w.length ? tr(`${name(w[0] as number)} 第一！`, `${name(w[0] as number)} wins!`) : tr('没人到终点', 'Nobody made it');
   }
   if (mode === 'gold') return w.length ? tr(`${name(w[0] as number)} 抢到了金元宝！`, `${name(w[0] as number)} takes the gold!`) : tr('没人抢到', 'Nobody got the gold');
+  if (mode === 'rain') {
+    if (w.length === 1) return tr(`${name(w[0] as number)} 接得最多！`, `${name(w[0] as number)} caught the most!`);
+    if (w.length > 1) return tr('平局！接得一样多', 'A tie! Same number of catches');
+    return tr('一个都没接到', 'Not a single catch');
+  }
   if (mode === 'last') {
     if (w.length === 1) return tr(`${name(w[0] as number)} 撑到了最后！`, `${name(w[0] as number)} held on longest!`);
     if (w.length > 1) return tr('平局！一起掉下去了', 'A tie! They dropped together');
@@ -111,7 +118,9 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
         ? tr('这一场用了多久', 'How long the race took')
         : mode === 'gold'
           ? tr('这一场一共用了多久', 'How long the whole match took')
-          : tr('撑了多久', 'How long it lasted');
+          : mode === 'rain'
+            ? tr(`彩蛋：红包雨 · 一共接到 ${(r.caught ?? []).reduce((s, n) => s + n, 0)} 个，都放进扭蛋机了`, `Secret round: envelope rain · ${(r.caught ?? []).reduce((s, n) => s + n, 0)} caught, all added to the prize machine`)
+            : tr('撑了多久', 'How long it lasted');
   dom.deaths.innerHTML = '';
   const row = (i: number, text: string, tag?: string): void => {
     const li = document.createElement('li');
@@ -133,7 +142,14 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
     }
     dom.deaths.append(li);
   };
-  if (mode === 'gold') {
+  if (mode === 'rain') {
+    // 红包雨：按接到几个排，接得最多的带「红包王」
+    const winners = r.winners ?? [];
+    (r.caught ?? [])
+      .map((n, i) => [i, n] as const)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([i, n]) => row(i, tr(`接到 ${n} 个红包 · 摔了 ${r.deaths[i] ?? 0} 次`, `${n} ${n === 1 ? 'envelope' : 'envelopes'} · ${r.deaths[i] ?? 0} falls`), winners.includes(i) ? tr('红包王', 'Top catcher') : undefined));
+  } else if (mode === 'gold') {
     // 抢金元宝：按赢了几局排，赢了的带「金元宝」
     const rounds = r.rounds ?? [];
     const winners = r.winners ?? [];
@@ -172,17 +188,18 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
     dom.betrayList.append(li);
   }
   // 「没人松手害人，好队友」只在大家一队的时候说
-  dom.betrayNone.hidden = r.betrayals.length > 0 || mode === 'last' || mode === 'gold' || (mode === 'race' && !r.teams);
+  dom.betrayNone.hidden = r.betrayals.length > 0 || mode === 'last' || mode === 'gold' || mode === 'rain' || (mode === 'race' && !r.teams);
   renderGoals(dom, r);
 }
 
-/** 小目标（A9b）：一行一个，达到的打勾，这一局第一次拿到的星带个「新」；下面一行红包。 */
+/** 小目标（A9b）：一行一个，达到的打勾，这一局第一次拿到的星带个「新」；下面一行红包，再下面一行大元宝（开着的话）。 */
 function renderGoals(dom: ResultsDom, r: Results): void {
   if (!dom.goalTitle || !dom.goalList) return;
   const goals = r.goals ?? [];
-  dom.goalTitle.hidden = goals.length === 0;
+  const show = goals.length > 0 || r.escort !== undefined;
+  dom.goalTitle.hidden = !show;
   dom.goalList.innerHTML = '';
-  dom.goalList.hidden = goals.length === 0;
+  dom.goalList.hidden = !show;
   for (const g of goals) {
     const li = document.createElement('li');
     li.className = g.ok ? 'ok' : 'miss';
@@ -209,21 +226,29 @@ function renderGoals(dom: ResultsDom, r: Results): void {
     li.textContent = tr(`🧧 这一局拿到 ${e.got} / ${e.of} 个红包${fresh}，一共攒了 ${e.total} 个`, `🧧 ${e.got} of ${e.of} red envelopes this run${fresh}. ${e.total} saved up in all`);
     dom.goalList.append(li);
   }
+  if (r.escort !== undefined) {
+    const li = document.createElement('li');
+    li.className = `env ${r.escort ? 'ok' : 'miss'}`;
+    li.textContent = r.escort ? tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it to the top!') : tr('🪙 大元宝没送到', '🪙 The big gold ingot was left behind');
+    dom.goalList.append(li);
+  }
 }
 
 /**
  * 抢金元宝（A9d）的比分：「第 2 局」，后面每个人一个颜色点、名字、赢了几局。名字长的截短，
  * 超过 4 个人只写颜色点和局数（横着的小手机也放得下）；读屏念完整的一句。没变就不重画。
  */
-export function renderGoldScore(el: HTMLElement, round: number, wins: readonly number[], name: (i: number) => string, color: (i: number) => string): void {
+export function renderGoldScore(el: HTMLElement, round: number, wins: readonly number[], name: (i: number) => string, color: (i: number) => string, title?: string): void {
   const names = wins.map((_, i) => name(i));
-  const key = JSON.stringify([getLang(), round, wins, names, wins.map((_, i) => color(i))]);
+  const key = JSON.stringify([getLang(), round, wins, names, wins.map((_, i) => color(i)), title]);
   if (el.dataset.key === key) return;
   el.dataset.key = key;
   el.classList.add('gold-score');
-  el.setAttribute('aria-label', tr(`第 ${round} 局：`, `Round ${round}: `) + wins.map((n, i) => `${names[i]} ${n}`).join(tr('，', ', ')));
+  // title：红包雨（11-26）借这个比分条，前面写「🧧 还剩 12 秒」
+  const lead = title ?? tr(`第 ${round} 局`, `Round ${round}`);
+  el.setAttribute('aria-label', `${lead}${tr('：', ': ')}` + wins.map((n, i) => `${names[i]} ${n}`).join(tr('，', ', ')));
   const head = document.createElement('span');
-  head.textContent = tr(`第 ${round} 局`, `Round ${round}`);
+  head.textContent = lead;
   const parts: HTMLElement[] = [head];
   wins.forEach((n, i) => {
     const s = document.createElement('span');

@@ -13,10 +13,11 @@ import { Arena, preloadArena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
 import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
 import { Icon } from "./chrome";
+import { QUESTS } from "./quest";
 import { PenaltyStamp } from "./Penalty";
 import { clockText, Scoreboard, useClock } from "./Play";
-import { ResultTable, resultTitle } from "./Result";
-import { arenaEvents, Awards, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
+import { ResultTable, resultLabel, resultTitle } from "./Result";
+import { arenaEvents, Awards, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -167,6 +168,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
   const drill = useDrill(game, receivedAt);
+  const callout = useCallout(game.events);
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
@@ -189,6 +191,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     flash: shown.flash,
     moment: game.moment,
     glance: game.glance ?? null,
+    lights: game.lights ?? null,
     intro
   } as const;
   // (the last blow lands, in slow motion, before the penalty and the results take the screen)
@@ -209,18 +212,22 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         </div>
         <div class={`tv-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
           <b>{clockText(game.phase === "playing" ? seconds : 0)}</b>
-          <span>{t("firstTo", { n: game.scoreToWin })}</span>
+          <span>
+            {t("firstTo", { n: game.scoreToWin })}
+            {view.match && ` · ${t("matchPlace", { i: view.match.index, n: view.match.of })}`}
+          </span>
         </div>
         <div class="tv-hud-right">
           <Scoreboard view={view} target={game.scoreToWin} />
         </div>
         {/* (the crowd's moment takes the hint's place while it lasts) */}
-        {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
+        {game.phase === "playing" && <MomentBanner game={game} tv idle={<p class="tv-hint">{t("nobodyMarked")}</p>} />}
         <DrillCall drill={drill} tv />
+        <CalloutBanner callout={callout} tv />
         {feasted && game.phase === "playing" && (
           <p class="tv-feast" role="status" key={feasted}>
             <Icon name="firework" size={30} />
-            {t("feastTv")}
+            {t(QUESTS[game.arena].feastTv)}
           </p>
         )}
         {over && (
@@ -229,10 +236,15 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
               <PenaltyStamp penalty={view.result!.penalty} custom={view.settings.custom} tv />
             ) : (
               <section class="tv-result">
-                <p class="result-round">{t("roundOver", { n: view.result!.round })}</p>
+                <p class="result-round">{resultLabel(view)}</p>
                 <h2 class="tv-result-title">{resultTitle(view)}</h2>
                 <ResultTable view={view} />
-                <Awards awards={view.result!.awards ?? []} />
+                <Awards
+                  awards={view.result!.match?.done ? view.result!.match.awards : view.result!.awards ?? []}
+                  label={view.result!.match?.done ? "matchTitles" : "awards"}
+                  quest={view.result!.match?.done ? null : game.arena}
+                />
+                {view.result!.match?.next && <p class="result-next">{t("matchNext", { place: t(view.result!.match.next) })}</p>}
                 <p class="tv-wait">{t("nextWhenReady")}</p>
               </section>
             )}

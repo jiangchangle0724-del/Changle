@@ -57,7 +57,7 @@ unlocked screen, and a user who gives away their passphrase.
 | 7 | Compromised operator account or a harmful agent merge | Stolen GitHub or Cloudflare login; an agent merges code that weakens a check | Phishing-resistant MFA on the four accounts (SEC-8). Required checks and a required review on MoneyLens paths (SEC-9). Secrets only in Cloudflare (SEC-6). No admin route returns financial records (SEC-13, ADM-2) | T-4, repository settings | Whoever controls the deployment can serve code that reads an unlocked vault. Stored data stays ciphertext | planned; SEC-8 and the repository rules need the operator |
 | 8 | Exposure through logs, previews, screenshots, fixtures or AI tools | A transaction description in an error report; a real statement used as a fixture | No bodies or financial text in logs or error reports (OBS-1, AI-7). No third-party scripts (OBS-2). Synthetic fixtures only, made by a browser-only tool and checked by the operator (IMP-9, SEC-12). Separate staging data (SEC-11) | T-6, T-7, T-8 | A person pasting real data into a chat tool. This is a working rule, not something code can stop | planned |
 | 9 | Abuse and cost exhaustion | Bulk sign-ups, large uploads, sync loops, AI calls, using up the site's shared daily allowance | Allowlist gate (SEC-10). Handoff rate limits and invitations before MoneyLens is reached (LIM-4). Per-user byte, write and AI quotas (LIM-2). AI budget cap that fails closed (AI-5). Batched sync (LIM-1). Alerts (SEC-16) | T-14, T-23 | The Free plan's limits are shared: another part of changle.ca can use them up and stop MoneyLens until the daily reset, and the reverse | planned |
-| 10 | Data loss | A sync bug overwrites a chunk; the user loses passphrase and recovery code; the platform loses data | Versioned chunk writes, stale writes refused, record-by-record merge (VAULT-4). Server copy is the durable one. Platform recovery history, 30 days (BAK-1). Export at any time (BAK-2). Plain warning at setup (VAULT-5) | T-9, T-16, T-17, T-24 | A lost passphrase with a lost recovery code cannot be recovered by anyone. Until an off-platform snapshot exists (BAK-5), the only backup is in the same Cloudflare account | planned |
+| 10 | Data loss | A sync bug overwrites a chunk; the user loses passphrase and recovery code; the platform loses data | Versioned chunk writes, stale writes refused whole, record-by-record merge, a write whose answer was lost is recognized when it comes back, a device notices a server copy that went back (VAULT-4, assessment 1.6). Server copy is the durable one. Platform recovery history, 30 days (BAK-1). Export at any time (BAK-2). Plain warning at setup (VAULT-5) | T-6, T-9, T-14, T-16, T-17, T-24 | A lost passphrase with a lost recovery code cannot be recovered by anyone. After a restore, a device that was ahead stops syncing until its owner takes the server's copy; putting a device's copy back is not built. Until an off-platform snapshot exists (BAK-5), the only backup is in the same Cloudflare account | planned |
 
 ## What the vault does not protect against
 
@@ -70,8 +70,9 @@ The allowed wording is in VAULT-6. These limits are the reason for it.
 - **Guessing a weak passphrase offline** after the stored wrapped keys leak. The defence is a
   minimum passphrase strength and a slow key derivation (VAULT-7), and a passkey where the browser
   supports one.
-- **Rollback and deletion.** The server can return an older version of a chunk or drop one.
-  Versions are not authenticated end to end in the first release.
+- **Rollback and deletion.** The server can return an older version of a chunk or drop one. A
+  device that has synced before notices and stops; a device that has never synced cannot, and a
+  server that only withholds newer versions is noticed by nobody (assessment 1.6 and section 2).
 - **Metadata.** The server sees how many chunks a user has, their sizes, and when they change.
 - **AI text in transit.** With AI on, description text passes through the proxy and the provider
   (AI-3, AI-7).

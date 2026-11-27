@@ -12,6 +12,7 @@ import luma from "./fixtures/luma/vancouver-2026-10-31.ics?raw";
 import vpl from "./fixtures/bibliocommons/vpl-2026-10-31-p1.json?raw";
 import rpl from "./fixtures/bibliocommons/rpl-2026-11-01-p1.json?raw";
 import ubc from "./fixtures/ical/ubc-2026-10-31.ics?raw";
+import { SCHOOLS_EMPTY } from "./fakes";
 import bpl from "./fixtures/bpl/events-2026-11-01.json?raw";
 
 const events = sample.events as PublicEvent[];
@@ -292,6 +293,8 @@ describe("the calendar subscription through the Worker", () => {
       if (url.hostname === "events.ubc.ca") return new Response(url.searchParams.get("tribe-bar-date") === "2026-10-31" ? ubc : "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n");
       if (url.hostname === "bpl.bc.ca") return new Response(bpl);
       if (url.hostname === "events.sfu.ca") return new Response(JSON.stringify({ meta: { page: 1, total_pages: 0, total_results: 0 }, data: [] }));
+      if (url.hostname === "www.showpass.com") return new Response(JSON.stringify({ count: 0, next: null, previous: null, results: [] }));
+      for (const [host, empty] of SCHOOLS_EMPTY) if (host.test(url.hostname)) return new Response(empty);
       if (url.hostname === "api.lu.ma") return new Response(luma);
       if (url.hostname === "gateway.bibliocommons.com") {
         const lib = /\/libraries\/(\w+)\/events/.exec(url.pathname)?.[1];
@@ -327,7 +330,8 @@ describe("the calendar subscription through the Worker", () => {
       expect(read.every((e) => e.component.getFirstPropertyValue("categories") === "family")).toBe(true);
       expect(calendar(value).getFirstPropertyValue("x-wr-calname")).toBe(names[query]);
     }
-    // A subscription is served from the published cache, without any more fetches.
-    expect(fetched.mock.calls.length).toBe(9);
+    // A subscription is served from the published cache, without any more fetches (the run's: 11,
+    // and the colleges' 7: the two teams, Capilano, Langara's two lists, Douglas, VCC's list).
+    expect(fetched.mock.calls.length).toBe(18);
   });
 });

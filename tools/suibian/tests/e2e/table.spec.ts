@@ -439,3 +439,170 @@ test("round 1: closing a group, by its button or the phone's back button, keeps 
   expect(sockets).toBe(1);
   expect(me.errors).toEqual([]);
 });
+
+test("no countdown in either round; round 2 sorts nearest first on this phone; the result goes back to the cards (Steve, 2026-11-25)", async ({ browser }) => {
+  const me = await phone(browser, "sortback");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `sortback-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await expect(page.locator("[data-path=cuisine]").first()).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveCount(0);
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveCount(0);
+  // Best match first, with rank numbers; nearest first, by distance and without them.
+  await expect(page.locator("[data-sort=best]")).toHaveAttribute("aria-pressed", "true");
+  const best = await page.locator(".place").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")));
+  await page.getByRole("button", { name: "距离最近" }).click();
+  const meters = await page.locator(".place").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-meters"))));
+  expect(meters).toEqual([...meters].sort((a, b) => a - b));
+  await expect(page.locator(".place .rank")).toHaveCount(0);
+  await page.getByRole("button", { name: "最相关" }).click();
+  expect(await page.locator(".place").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")))).toEqual(best);
+  // The host searches again with another range: the list comes back, the range line says so.
+  const was = await page.locator(".range-now").innerText();
+  await page.getByRole("button", { name: "换范围重新搜" }).click();
+  await expect(page.getByText("这一桌还能搜 3 次")).toBeVisible();
+  await expect(page.getByRole("button", { name: "按这个范围重新搜" })).toBeDisabled();
+  await page.getByRole("button", { name: /开车/ }).click();
+  await page.getByRole("button", { name: "按这个范围重新搜" }).click();
+  await expect(page.locator(".range-now")).toContainText("开车");
+  expect(await page.locator(".range-now").innerText()).not.toEqual(was);
+  await expect(page.locator(".place").first()).toBeVisible();
+  // Pick one, then go back from the result and pick again.
+  const first = await page.locator(".place").first().getAttribute("data-id");
+  await page.locator(".place").first().locator(".approve").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.getByText("今天就吃这家！")).toBeVisible();
+  await page.getByRole("button", { name: "‹ 回到上一步，重新选" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  await expect(page.locator(`.place[data-id="${first}"] .approve`)).toHaveAttribute("aria-pressed", "false");
+  await page.locator(".place").nth(1).locator(".approve").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.getByText("今天就吃这家！")).toBeVisible();
+  expect(me.errors).toEqual([]);
+});
+
+test("the top bar's back is the step before, for the whole table: round 2 → round 1 with the picks kept, round 1 → the lobby (Steve, 2026-11-26)", async ({ browser }) => {
+  const me = await phone(browser, "stepback");
+  const friend = await phone(browser, "friend");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `stepback-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Burnaby Metrotown");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  const room = page.url();
+  await page.locator(".diet .btn.primary").click();
+  await friend.page.goto(room);
+  await friend.page.locator(".diet .btn.primary").click();
+  // A friend changing their diet card when the host starts keeps the card on screen until it's saved.
+  await friend.page.getByRole("button", { name: "改饮食卡" }).click();
+  await expect(friend.page.locator(".diet")).toBeVisible();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.locator("[data-path=cuisine]").click();
+  await expect(friend.page.locator(".diet")).toBeVisible();
+  await friend.page.locator(".diet .btn.primary").click();
+  await expect(friend.page.locator("[data-path=cuisine]")).toBeVisible();
+  // With a group open, back closes it first; the table stays in round 1.
+  await page.getByRole("button", { name: "中餐：细分" }).click();
+  await expect(page.locator("[data-cuisine=sichuan]")).toBeVisible();
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.locator("[data-group=chinese]")).toBeVisible();
+  await page.locator("[data-group=chinese]").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  // Only the host takes the table back: a friend's tap says so and stays.
+  await friend.page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(friend.page.getByText("要房主点上一步，大家一起回去")).toBeVisible();
+  await friend.page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  // Round 2 → round 1, for both phones; the host's picks are still there, the address is the same.
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.locator("[data-group=chinese]")).toHaveClass(/like/);
+  await expect(page).toHaveURL(room);
+  await expect(friend.page.locator("[data-path=cuisine]")).toBeVisible();
+  // Round 1 → the lobby; there, back leaves for the home page.
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.getByRole("button", { name: "开始！" })).toBeVisible();
+  await expect(friend.page.locator("[data-path=cuisine]")).toHaveCount(0);
+  await page.getByRole("link", { name: "回首页" }).click();
+  await expect(page).toHaveURL(/\/eat\/$/);
+  expect([...me.errors, ...friend.errors]).toEqual([]);
+});
+
+test("a table that eats twice: the second meal can be rated on the same phone", async ({ browser }) => {
+  const me = await phone(browser, "twice");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `twice-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  const room = page.url();
+  await page.locator(".diet .btn.primary").click();
+  const eat = async (nth: number) => {
+    await page.getByRole("button", { name: "开始！" }).click();
+    await page.getByRole("button", { name: "好了" }).click();
+    await page.locator(".place").nth(nth).locator(".approve").click();
+    await page.getByRole("button", { name: "好了" }).click();
+    await expect(page.getByText("今天就吃这家！")).toBeVisible();
+    const name = await page.locator(".winner-card h3").first().innerText();
+    await page.getByRole("link", { name: "吃完回来评分 ⭐" }).click();
+    await expect(page.getByText(/怎么样？/)).toBeVisible();
+    await page.getByRole("button", { name: "👍" }).click();
+    await page.getByRole("button", { name: "是" }).click();
+    await page.getByRole("button", { name: "15 分钟" }).click();
+    await page.getByRole("button", { name: "提交" }).click();
+    await expect(page.getByText("谢谢！")).toBeVisible();
+    return name;
+  };
+  const first = await eat(0);
+  await page.goto(room);
+  await page.getByRole("button", { name: "重新来一轮" }).click();
+  const second = await eat(1);
+  expect(second).not.toEqual(first);
+  expect(me.errors).toEqual([]);
+});
+
+test("round 2: 换一批 brings the next places to the top, the votes kept; everyone ticking the same place is a match anyone can take (Steve, 2026-11-26)", async ({ browser }) => {
+  const me = await phone(browser, "match");
+  const friend = await phone(browser, "friend");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `match-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  const room = page.url();
+  await page.locator(".diet .btn.primary").click();
+  await friend.page.goto(room);
+  await friend.page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await friend.page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  // The host ticks the first place, then asks for the next ones (only the host can).
+  const card = (p: typeof page, name: string) => p.locator(".place").filter({ has: p.getByRole("heading", { name, exact: true }) });
+  const first = await page.locator(".place h3").first().innerText();
+  await page.locator(".place").first().locator(".approve").click();
+  await expect(friend.page.locator(".place").first()).toBeVisible();
+  await expect(friend.page.getByRole("button", { name: "这几家都不想去？换一批" })).toHaveCount(0);
+  await page.getByRole("button", { name: "这几家都不想去？换一批" }).click();
+  await expect(page.locator(".place h3").first()).not.toHaveText(first);
+  await expect(card(page, first).locator(".approve")).toHaveAttribute("aria-pressed", "true");
+  // Both tick the new first place: a match on both phones, and the friend takes it.
+  const top = await page.locator(".place h3").first().innerText();
+  await expect(friend.page.locator(".place h3").first()).toHaveText(top);
+  await page.locator(".place").first().locator(".approve").click();
+  await friend.page.locator(".place").first().locator(".approve").click();
+  await expect(page.getByText(`大家都想去「${top}」！`)).toBeVisible();
+  await expect(friend.page.getByText(`大家都想去「${top}」！`)).toBeVisible();
+  await expect(card(page, top)).toContainText("全员都想去");
+  await friend.page.getByRole("button", { name: "就吃这家" }).click();
+  await expect(page.getByText("今天就吃这家！")).toBeVisible();
+  await expect(page.locator(".winner-card h3")).toHaveText(top);
+  expect([...me.errors, ...friend.errors]).toEqual([]);
+});

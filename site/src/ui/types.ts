@@ -287,6 +287,14 @@ export type GameHeaderProps = {
   onHelp?: () => void;
   /** one more button, only if a game truly needs it: an icon in the bar, the icon and its name in the ⋯ menu */
   extra?: { icon: LucideIcon; label: string; onClick: () => void };
+  /** switch the page's language: 中 | EN, always in the bar, never folded into ⋯ (LangSwitch) */
+  onLang?: () => void;
+};
+
+/** 中 | EN on a game's bar: both shown, the one in use lit; one tap switches to the other */
+export type LangSwitchProps = {
+  lang: Lang;
+  onSwitch: () => void;
 };
 
 /** Same shape as PenaltyCall in components/PenaltyStamp.tsx, so games keep passing what they pass today. */

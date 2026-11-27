@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseDay } from "../src/core/dates";
-import { inventAll, Inventor } from "../src/fixture/invent";
+import { inventAll, Inventor, isPlainNumber, renamed } from "../src/fixture/invent";
 import { shapeOf } from "../src/fixture/summary";
 import { seeded } from "./seeded";
 
@@ -101,4 +101,35 @@ test("dates in numbers stay real dates, read the same way round", () => {
 test("a text that wasn't learned first is still invented", () => {
   const inventor = new Inventor(seeded(5));
   assert.match(inventor.text("Oct 31 CAFE 4.50"), /^[A-Z][a-zéû]{2,3} 28 [A-Z]{4} \d\.\d\d$/);
+});
+
+test("a number that names something is drawn again whole: never itself, and not a number another was given", () => {
+  /** A source of digits that gives these, in turn, and then fives. */
+  const digits = (...given: number[]): (() => number) => {
+    let i = 0;
+    return () => given[i++] ?? 5;
+  };
+  const none = new Set<string>();
+  // every digit is drawn, the zeros and what looks like a year as well, and the length stays
+  assert.equal(renamed("2019", none, digits(4, 8, 2, 1)), "4821");
+  assert.equal(renamed("0007", none, digits(1, 2, 3, 4)), "1234");
+  // drawn as itself, it is drawn again; so is a number another real one was given already
+  assert.equal(renamed("2019", none, digits(2, 0, 1, 9, 6, 6, 0, 3)), "6603");
+  assert.equal(renamed("2019", new Set(["4821"]), digits(4, 8, 2, 1, 6, 6, 0, 3)), "6603");
+  // A source that gives the same digits every time is not asked for ever: the last digit moves on until the number is a
+  // new one. With every other number taken, two real numbers share one sooner than one keeps its own.
+  assert.equal(renamed("5555", none, () => 5), "5556");
+  assert.equal(renamed("1234", new Set(["5555", "5556"]), () => 5), "5557");
+  assert.equal(renamed("5557", new Set(["5555", "5556"]), () => 5), "5558");
+  const all = new Set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  for (const real of all) {
+    const made = renamed(real, new Set([...all].filter((n) => n !== real)), () => Number(real));
+    assert.ok(made !== real && /^\d$/.test(made), `${real} came out as ${made}`);
+  }
+});
+
+test("which cells are one number and nothing else", () => {
+  for (const yes of ["12345678", "00123-4567890", "4500 1234 5678 9012", "************2019", "XXXX XXXX XXXX 1234", "•••• 1234", "30902774454897879774416"]) assert.ok(isPlainNumber(yes), yes);
+  // too short to name anything, an amount, a date in any of its forms, a number with words, and nothing at all
+  for (const no of ["123", "82.17", "1,234.56", "$1650", "-2500", "2500-", "2026-10-02", "10/02/2026", "20261002", "Oct 02", "CHQ 12345678", "REF#12345678", "****", ""]) assert.ok(!isPlainNumber(no), no);
 });

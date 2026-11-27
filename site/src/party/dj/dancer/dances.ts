@@ -66,14 +66,11 @@ export function lookOf(songBpm: number | null | undefined, mood: Mood): Look {
  */
 export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[]; rare?: boolean }[] = [
   { id: "rumba", bpm: 101.4, looks: ["sweet", "party"] },
-  { id: "belly_slow", bpm: 83.2, looks: ["sweet"] },
   { id: "bodywave", bpm: 128.6, looks: ["club"] },
   // (Nov 21, Steve: "这个舞蹈动作我不喜欢少出现一点": half as often as the others)
-  { id: "wave", bpm: 102.9, looks: ["party", "club"], rare: true },
   { id: "belly", bpm: 124.1, looks: ["party", "club"] },
   { id: "booty", bpm: 100.2, looks: ["club"] },
   { id: "hiphop", bpm: 117.2, looks: ["club"] },
-  { id: "house", bpm: 112.6, looks: ["party", "club"] },
   { id: "samba", bpm: 87.3, looks: ["party"] },
   // (standing, swaying: gentle enough for a ballad, at its tempo)
   { id: "idle", bpm: 120.1, looks: ["sweet"] },
@@ -89,7 +86,6 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[];
   // and KATSEYE "Gnarly", learnt from the videos (site/scripts/dj-dancer/mocap/fromvideo.ts); the
   // phrases that didn't pass the motion checks left out
   { id: "itsme1", bpm: 143.6, looks: ["club"] },
-  { id: "itsme3", bpm: 143.6, looks: ["club"] },
   { id: "itsme4", bpm: 143.6, looks: ["club"] },
   { id: "itsme5", bpm: 143.6, looks: ["club"] },
   { id: "gnarly1", bpm: 136, looks: ["club"] },
@@ -99,11 +95,9 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[];
   // Chinese classical dance (古典舞身韵, the arm-swing set 摇臂组合), learnt from a front-on demonstration
   // in practice clothes found on YouTube (Nov 21; Steve: "你自己去youtube 找视频学习"): the two phrases of
   // eight that passed the motion checks
-  { id: "shenyun4", bpm: 107.7, looks: ["sweet"] },
   { id: "shenyun5", bpm: 107.7, looks: ["sweet"] },
   // ballet (a centre adagio and port de bras), learnt from a teacher's class demonstration found on YouTube
   // (Nov 21; Steve: "一个接一个继续做"): the two phrases of seven that passed every check, turned to face the room
-  { id: "ballet2", bpm: 92.3, looks: ["sweet"] },
   { id: "ballet3", bpm: 92.3, looks: ["sweet"] },
   // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
@@ -135,7 +129,22 @@ export const IDLES: readonly { id: string; bpm: number }[] = [
 /** How long she dances one dance before the next: eight bars. */
 export const DANCE_BEATS = 32;
 /** A dance's own tempo this near the song's (a quarter faster or slower) looks right on it. */
-const NEAR = Math.log(1.25);
+// (Nov 25; Steve: "看看舞蹈的速度能不能稍微慢一点看起来要真实自然": a dance sped up 20 to 25% to a song looked
+// hurried. A dance is danced at most 12% faster than it was danced, and as much as 20% slower; a song too
+// fast for it may have it half-time, a step every two beats.)
+const FASTEST = 1.12;
+const SLOWEST = 0.8;
+/** How a dance goes to a song: 1 on its beats, 0.5 half-time; null when neither looks natural. */
+export function danceRate(id: string, bpm: number): 1 | 0.5 | null {
+  const d = DANCES.find((x) => x.id === id);
+  const t = Number.isFinite(bpm) && bpm > 40 ? bpm : 120;
+  if (!d) return null;
+  const f = t / d.bpm;
+  if (f <= FASTEST && f >= SLOWEST) return 1;
+  // (half-time may go slower still: a ballad's beat is often heard twice as fast as it's felt)
+  if (f / 2 <= FASTEST && f / 2 >= 0.65) return 0.5;
+  return null;
+}
 
 /**
  * The dance on beat `b` of a song at `bpm`, in `look`: every 32 beats the next of the look's that are
@@ -143,9 +152,13 @@ const NEAR = Math.log(1.25);
  */
 export function danceAt(b: number, look: Look, bpm: number): string {
   const t = Number.isFinite(bpm) && bpm > 40 ? bpm : 120;
-  const off = (d: { bpm: number }) => Math.abs(Math.log(t / d.bpm));
+  // (how far from natural: faster counts double)
+  const off = (d: { bpm: number }) => {
+    const f = [t / d.bpm, t / d.bpm / 2].reduce((a, b) => (Math.abs(Math.log(b)) < Math.abs(Math.log(a)) ? b : a));
+    return f > 1 ? 2 * Math.log(f) : -Math.log(f);
+  };
   const pool = DANCES.filter((d) => d.looks.includes(look));
-  const near = pool.filter((d) => off(d) < NEAR);
+  const near = pool.filter((d) => danceRate(d.id, t) !== null);
   const some = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
   // (round them twice, a rare one only the second time)
   const list = [...some.filter((d) => !d.rare), ...some];

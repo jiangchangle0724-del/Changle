@@ -32,8 +32,16 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   // face to face (the test room's start): Steve punches Mia
   await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await until(steve, (v) => v.players.find((p) => p.you)?.score === 1);
-  await expect(steve.locator(".play-notice")).toHaveText("打中了！+1");
-  await until(mia, (v) => v.players.find((p) => p.you)?.tagged === 1);
+  // each knows who it was: Steve whom he got, Mia who got her (and, for a moment, which body it was)
+  // (and the announcer calls first blood on both phones, Steve's own as "you")
+  await Promise.all([
+    expect(steve.locator(".play-notice")).toHaveText("打中 Mia！+1"),
+    expect(steve.locator(".callout")).toContainText("你第一滴血"),
+    expect(mia.locator(".callout")).toContainText("SteveFirst Blood")
+  ]);
+  await until(mia, (v) => v.players.find((p) => p.you)?.tagged === 1 && v.game!.avatars.some((a) => a.by === "Steve"));
+  expect((await view(steve))!.game!.avatars.some((a) => a.by !== undefined)).toBe(false);
+  await expect(mia.locator(".play-notice")).toContainText("Steve");
   // and she slips into another body, somewhere else
   await until(mia, (v) => v.game!.events.some((e) => e.t === "hide" && e.byYou), 5_000);
   const mine = (await view(mia))!.game!.avatars.findIndex((a) => a.me);
@@ -55,16 +63,25 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   await expect(steve.locator(".result-title")).toHaveText("你赢了！");
   // the round's titles: the hunter's sharp eye on their own phone, in its language
   await expect(steve.locator(".award.is-you .award-title")).toHaveText("火眼金睛");
+  // the winner's row first, with the crown; and whom you spotted
+  await expect(steve.locator(".result-table tbody tr").first()).toHaveClass(/is-winner/);
+  await expect(steve.locator(".result-mine .is-got")).toContainText("Mia");
   await expect(mia.locator("dialog.stamp")).toBeVisible();
   await mia.getByRole("button", { name: "Continue" }).click();
   await expect(mia.locator(".result-title")).toHaveText("Steve wins!");
+  await expect(mia.locator(".result-mine .is-by")).toContainText("Steve");
   await expect(mia.getByText("Waiting for the host to start the next round")).toBeVisible();
   await shot(steve, "phone-result");
 
-  // play again, straight into the next round
-  await steve.getByRole("button", { name: "再来一局" }).click();
-  await until(mia, (v) => v.phase === "playing" && v.round === 2);
+  // a whole match (on unless the host turns it off): the first of three places, the points so far,
+  // where it goes next; then straight into the next place
+  await expect(steve.locator(".result-round")).toHaveText("第 1/3 场结束");
+  await expect(steve.locator(".result-table .result-total").first()).toHaveText("1");
+  await expect(steve.locator(".result-next")).toContainText("下一场");
+  await steve.getByRole("button", { name: "下一场", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.round === 2 && v.match?.index === 2);
   await expect(mia.locator(".controls")).toBeVisible();
+  await expect(mia.locator(".hud-what")).toContainText("Place 2 of 3");
   noErrors(steve, mia, tv);
 });
 
@@ -76,7 +93,7 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   await expect(steve.locator(".lobby")).toBeVisible();
   await mia.goto(`/hide/r/${code}?flat=1`);
   await expect(steve.locator(".chips")).toContainText("Mia");
-  await steve.locator(".switch-row").click();
+  await steve.locator(".switch-row").filter({ hasText: "每局结束的惩罚" }).click();
   await until(mia, (v) => v.settings.penalties === false);
   await expect(mia.getByText("这桌不罚")).toBeVisible();
   await steve.getByRole("button", { name: "开始" }).click();
@@ -87,7 +104,7 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   await until(steve, (v) => v.phase === "over", 30_000);
   await expect(steve.locator("dialog.stamp")).toHaveCount(0);
   await expect(steve.locator(".result")).toBeVisible();
-  await steve.getByRole("button", { name: "再来一局" }).click();
+  await steve.getByRole("button", { name: "下一场", exact: true }).click();
   await until(kev, (v) => v.phase === "playing" && v.round === 2 && !!v.game?.me, 25_000);
   await expect(kev.locator(".controls")).toBeVisible();
   noErrors(steve, mia, kev);
@@ -134,6 +151,31 @@ test("the night market: standing still at a stall tastes it, the stall lights up
   noErrors(steve, mia, tv);
 });
 
+test("every place has a side quest of its own: in the theatre, standing under a lantern lights it, in the place's own words", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { stall: 2, roundMs: 30_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: /中式庭院戏台/ }).click();
+  await until(steve, (v) => v.arenaVotes.gallery === 1);
+  await steve.getByRole("button", { name: "开始", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "gallery");
+  // the theatre's quest: four lanterns
+  await expect(mia.locator(".quest")).toHaveAttribute("aria-label", "Light all four lanterns: 0 lit");
+  await expect(steve.locator(".quest .quest-snack")).toHaveCount(4);
+  // Steve starts under the third lantern and stands still: a moment later it's lit
+  await until(steve, (v) => v.game!.events.some((e) => e.t === "bite" && e.stall === 2 && e.byYou), 6_000);
+  await expect(steve.locator(".play-notice")).toHaveText("寿字灯笼亮了，还差 3 盏");
+  await expect(steve.locator(".quest")).toHaveAttribute("aria-label", "点亮四盏灯：亮了 1 盏");
+  await expect(steve.locator(".flat-stall.stall-2")).toHaveClass(/is-lit/);
+  await shot(steve, "phone-gallery-lantern");
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  noErrors(steve, mia);
+});
+
 test("Distract, twice a round: a passer-by across the crowd swings at nothing, and only you are told", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { roundMs: 30_000 } });
   const steve = await phone(browser, "Steve");
@@ -169,6 +211,39 @@ test("Distract, twice a round: a passer-by across the crowd swings at nothing, a
   await steve.getByRole("button", { name: "分心，还剩 1 次" }).dispatchEvent("pointerdown");
   await expect(steve.getByRole("button", { name: "分心，还剩 0 次" })).toHaveAttribute("aria-disabled", "true");
   noErrors(steve, mia);
+});
+
+test("the transit hall: by a light switch, Lights comes up; pulling it puts every screen in the dark, and only you are told", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { lights: true, roundMs: 30_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  const tv = await screen(browser);
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await tv.goto(`/hide/tv/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: /温哥华交通站厅/ }).click();
+  await until(steve, (v) => v.arenaVotes.metro === 1);
+  await steve.getByRole("button", { name: "开始", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "metro");
+  // Steve starts by the left switch: Lights is up on his phone only (Mia's isn't by one)
+  const lights = steve.getByRole("button", { name: "拉电闸关灯，还剩 2 次" });
+  await expect(lights).toBeVisible();
+  await expect(mia.locator(".move-lights")).toHaveCount(0);
+  await bigTargets(steve);
+  await lights.dispatchEvent("pointerdown");
+  await expect(steve.locator(".play-notice")).toHaveText("你拉了电闸，灯马上黑");
+  await shot(steve, "phone-lights");
+  // every screen goes dark and sees the left switch go; nobody else is told whose it was
+  await expect(mia.locator(".moment-banner")).toContainText("Lights out");
+  await expect(tv.locator(".moment-banner")).toContainText("灯黑了");
+  await expect(tv.locator(".flat-switch.is-pulled")).toHaveCount(1);
+  expect((await view(mia))!.game!.events.some((e) => e.t === "lights")).toBe(false);
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  await expect(steve.locator(".move-lights")).toHaveCount(0);
+  await shot(tv, "tv-lights");
+  noErrors(steve, mia, tv);
 });
 
 test("the theatre: a distraction turns the others' cameras; then the stage counts three, two, one, Punch lights up, and a punch on the call is the crowd's", async ({ browser, request }) => {

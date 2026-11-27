@@ -9,8 +9,40 @@
 import { vanParts, windowOf } from "./time";
 import { CATEGORIES, type Category } from "./types";
 
-/** Qwen 3: good Chinese, and among the cheapest models on Workers AI. */
-export const AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+/**
+ * The models asked, in order; the next only when one can't be asked at all (retired, not on the
+ * plan, down), never because of what it answered. Gemma 4 26B A4B (Google; a mixture of experts,
+ * 4B of its 26B at work a token): good Chinese at about the price of Qwen 3 30B A3B, which this used
+ * until Cloudflare retired it on 20 November 2026 (410, error 5028). Qwen 3.8 27B: Cloudflare's
+ * other small model, at about ten times the price, so the day's free allowance (10,000 neurons)
+ * would run out after a few hundred events.
+ */
+export const AI_MODELS = ["@cf/google/gemma-4-26b-a4b-it", "@cf/qwen/qwen3.8-27b"] as const;
+/** The model asked first. */
+export const AI_MODEL = AI_MODELS[0];
+
+/**
+ * Asks the models in turn (AI_MODELS) until one answers with some text: that text, and which model
+ * it was. Each is told not to think first (`enable_thinking: false` for the chat template, and
+ * /no_think for Qwen's): a model that thinks spends the answer's tokens on it and says nothing
+ * (Gemma 4's first answers, 26 November, were empty). An empty answer goes on to the next model, as
+ * an error does; when none has any text, the error says what the last one sent, to see why.
+ */
+export async function ask(run: RunModel, input: { messages: { role: string; content: string }[]; max_tokens: number; temperature: number }): Promise<{ text: string; model: string }> {
+  let failed: unknown = new Error("no model to ask");
+  for (const model of AI_MODELS) {
+    const messages = /\/qwen\//.test(model) ? input.messages.map((m, i, all) => (i === all.length - 1 && m.role === "user" ? { ...m, content: `${m.content}\n/no_think` } : m)) : input.messages;
+    try {
+      const out = await run(model, { ...input, messages, chat_template_kwargs: { enable_thinking: false } });
+      const text = answerText(out);
+      if (text.trim()) return { text, model };
+      failed = new Error(`${model} answered no text: ${JSON.stringify(out ?? null).slice(0, 400)}`);
+    } catch (e) {
+      failed = e;
+    }
+  }
+  throw failed;
+}
 /** Events a request: small enough that one bad answer costs little, big enough to share the instructions. */
 export const AI_BATCH = 15;
 /** The hourly schedule that catches up (wrangler.jsonc), told apart from the morning run's. */
@@ -21,8 +53,11 @@ export const AI_TRIES = 3;
  * The instructions' version, kept with what they wrote (ai_hash = "<text_hash>:<version>"): a new
  * version writes every event again. v2 (19 November): the source's labels, and nothing guessed.
  * v3 (the same day): Ticketmaster's names kept as they are, and praise or origins nothing backs left out.
+ * v4 (26 November): simplified characters only, Canada's hockey on ice, and no school's or junior
+ * league's game called professional; and everything written again by Gemma 4 (Qwen 3 is gone),
+ * so the names come from one model under one set of rules.
  */
-export const AI_VERSION = "v3";
+export const AI_VERSION = "v4";
 
 /** What the AI is given about an event. */
 export interface ToWrite {
@@ -49,11 +84,23 @@ export interface Written {
 
 export const INSTRUCTIONS = `你是温哥华中文活动网站「玩什么」的编辑。输入是一组本地活动，信息多是英文：名字（title）、场地（venue）、来源给的分类标签（labels）和说明（about），有的没有说明。为每个活动写：
 1. "t"：活动名的简体中文译名，简短自然，像中文海报上的活动名，最多 20 个字。艺人、乐队、DJ、球队、巡演、剧名、书名、品牌、场馆、俱乐部等名字保留英文原文，不要音译或意译，只翻译其余部分；名字看起来像普通词也一样，比如乐队 Pooh 不要译成小熊维尼。作品名有通行中文名的可以用中文加书名号，比如《美女与野兽》。下面这些本地球队例外，用通行的中文名：Vancouver Canucks 温哥华加人队，Abbotsford Canucks 阿伯茨福德加人队，Vancouver Whitecaps 温哥华白帽队，BC Lions 卑诗雄狮队，Vancouver Giants 温哥华巨人队，Vancouver Warriors 温哥华勇士队。
-2. "s"：一句简体中文介绍，15 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息：没有说明的，只按名字和标签说是什么类型的活动（比如「电子音乐现场演出」「职业冰球比赛」），不介绍艺人的国籍、风格和来历，不用「知名」「著名」「世界级」这类词，拿不准适合谁就不写；不写日期、时间、地点和价格，页面上另有。
+2. "s"：一句简体中文介绍，15 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息：没有说明的，只按名字和标签说是什么类型的活动（比如「电子音乐现场演出」「冰球比赛」），不介绍艺人的国籍、风格和来历，不用「知名」「著名」「世界级」这类词，拿不准适合谁就不写；不写日期、时间、地点和价格，页面上另有。大学、学院、中学、青少年和业余球队的比赛不是职业比赛，不要写「职业」。
 3. "c"：从这些分类代码里选一个：social（社交聚会：语言交换、聊天角、桌游、行业和技术聚会）、shows（演出音乐：音乐会、戏剧、音乐剧、喜剧、舞蹈、歌剧）、food（吃喝市集：夜市、美食节、农夫市集、品鉴）、outdoors（户外运动：徒步、滑雪、跑步、看球赛、运动）、arts（文化展览：博物馆、展览、讲座、作者活动、读书会、电影）、festivals（节日庆典：烟花、灯会、农历新年、圣诞市集）、family（亲子家庭：专为儿童、婴幼儿或家庭办的，比如故事时间、婴儿活动、儿童手工、儿童演出）、nightlife（夜生活派对：酒吧活动、夜店、DJ 之夜、派对）。专为儿童或婴幼儿的选 family；都不合适（比如报税、求职、电脑辅导、专业培训）填 null。
+只用简体字，不用繁体字。Hockey 在加拿大指冰球，Field Hockey 才是曲棍球。
 只输出一个 JSON 数组，每个活动一个对象 {"n": 序号, "t": "...", "s": "...", "c": "..."}，顺序和输入相同，不要输出任何别的文字。`;
 
 const CJK = /[㐀-鿿]/;
+
+/**
+ * Traditional characters a model slips into simplified Chinese (Gemma 4 wrote 「對陣」 on its first
+ * day), and their simplified forms: only characters simplified Chinese never uses.
+ */
+const TRADITIONAL =
+  "對对陣阵賽赛與与會会場场樂乐動动開开藝艺術术節节書书區区學学館馆華华時时間间們们這这個个來来為为說说讀读參参觀观戲戏劇剧電电團团隊队際际傳传統统豐丰體体驗验歡欢適适兒儿親亲飲饮嘗尝現现講讲覽览頒颁獎奖慶庆燈灯煙烟聖圣誕诞農农曆历運运籃篮網网遊游語语換换圖图嬰婴計计劃划稅税職职腦脑輔辅導导專专業业訓训線线實实歷历選选購购禮礼設设師师頭头髮发鐘钟點点價价錢钱門门費费優优經经舊旧鮮鲜溫温詩诗雜杂誌志漢汉粵粤國国臺台灣湾韓韩義义龍龙鳳凤馬马鳥鸟魚鱼車车風风飛飞雲云陽阳燒烧麵面湯汤雞鸡豬猪蝦虾餅饼壽寿誰谁讓让給给從从還还進进過过邊边裡里後后麼么樣样種种類类級级歲岁長长員员雙双單单號号關关係系環环錄录寫写畫画攝摄編编織织紙纸鋼钢聲声響响鬧闹熱热鬥斗獅狮輕轻鬆松簡简認认識识課课練练習习試试題题問问機机數数據据權权歸归屬属縣县鎮镇鄉乡莊庄園园廳厅樓楼層层處处辦办務务戶户發发報报廣广視视頻频絡络遠远東东寶宝貝贝媽妈爺爷孫孙婦妇愛爱戀恋憶忆夢梦樹树葉叶蘭兰衛卫護护醫医藥药療疗壓压減减靜静禪禅勝胜負负決决準准備备軍军盃杯盤盘圓圆鄰邻聯联誼谊競竞讚赞請请謝谢賀贺願愿飯饭廚厨麥麦釀酿賣卖買买攤摊販贩貨货幣币賞赏見见將将並并於于幾几條条張张";
+const SIMPLIFIED = new Map<string, string>(Array.from({ length: TRADITIONAL.length / 2 }, (_, i) => [TRADITIONAL[2 * i], TRADITIONAL[2 * i + 1]]));
+const TRADITIONAL_RE = new RegExp(`[${[...SIMPLIFIED.keys()].join("")}]`, "g");
+/** The text with those characters simplified. */
+export const simplified = (text: string) => text.replace(TRADITIONAL_RE, (c) => SIMPLIFIED.get(c) ?? c);
 
 /** What the AI reads of a description: without the libraries' standing notes, at most 400 characters. */
 export function about(description: string | null): string {
@@ -84,33 +131,47 @@ export function messages(events: ToWrite[]): { role: "system" | "user"; content:
     ...(labelsOf(e.labels) ? { labels: labelsOf(e.labels) } : {}),
     ...(about(e.description) ? { about: about(e.description) } : {}),
   }));
-  // (/no_think: Qwen 3 answers at once, without writing out its reasoning first)
   return [
     { role: "system", content: INSTRUCTIONS },
-    { role: "user", content: `${JSON.stringify(items)}\n/no_think` },
+    { role: "user", content: JSON.stringify(items) },
   ];
 }
 
-/** The text of a Workers AI answer, whichever shape it comes in. */
+/**
+ * The text of a Workers AI answer, whichever shape it comes in: `response` (a string, or the JSON
+ * itself), or OpenAI's `choices[0].message.content` (a string, or parts with text), or `choices[0].text`.
+ */
 export function answerText(out: unknown): string {
-  const o = out as { response?: unknown; choices?: { message?: { content?: unknown } }[] } | null;
-  if (typeof o?.response === "string") return o.response;
+  const o = out as { response?: unknown; choices?: { text?: unknown; message?: { content?: unknown } }[] } | null;
+  if (typeof o?.response === "string" && o.response.trim()) return o.response;
   if (o?.response && typeof o.response === "object") return JSON.stringify(o.response);
-  const content = o?.choices?.[0]?.message?.content;
-  return typeof content === "string" ? content : "";
+  const choice = o?.choices?.[0];
+  const content = choice?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map((p) => (typeof p === "string" ? p : typeof (p as { text?: unknown })?.text === "string" ? (p as { text: string }).text : "")).join("");
+  return typeof choice?.text === "string" ? choice.text : "";
 }
 
 /** A name wrapped whole in quotes, without them ("「读书会」"); 《》 around a work's name inside it stay. */
 const unwrap = (t: string) => t.replace(/^(?:「(.*)」|『(.*)』|“(.*)”|"(.*)")$/s, (_, a, b, c, d) => a ?? b ?? c ?? d).trim();
 
-/** The longest Chinese name kept (Ticketmaster's are the source's own, however long: KEEP_TITLE). */
-export const TITLE_MAX = 40;
+/**
+ * The longest name kept, all of it (Ticketmaster's are the source's own, however long: KEEP_TITLE),
+ * and the most Chinese characters in it: the instructions ask for 20 at most, and the names kept
+ * in English (teams, artists, venues) can be long by themselves ("Coquitlam Express 对阵 Prince
+ * George Spruce Kings" is 45 characters, 2 of them Chinese). Until 26 November a name had 40 in
+ * all, and the colleges' games and Showpass's line-ups were turned down for it.
+ */
+export const TITLE_MAX = 70;
+export const TITLE_ZH_MAX = 24;
+/** A name too long to be one (a sentence, a translation that rambles). */
+export const tooLong = (name: string) => name.length > TITLE_MAX || (name.match(/[㐀-鿿]/g)?.length ?? 0) > TITLE_ZH_MAX;
 
 /** One answer item, checked: a name, a Chinese sentence, a known category or none. */
 function checked(item: unknown): Written | null {
   const o = item as { t?: unknown; s?: unknown; c?: unknown } | null;
-  const t = typeof o?.t === "string" ? unwrap(o.t.trim()) : "";
-  const s = typeof o?.s === "string" ? o.s.trim() : "";
+  const t = typeof o?.t === "string" ? simplified(unwrap(o.t.trim())) : "";
+  const s = typeof o?.s === "string" ? simplified(o.s.trim()) : "";
   // (a sentence can be short: "职业冰球比赛" is all an event with only a name and labels gets)
   if (!t || !s || !CJK.test(s) || s.length < 4 || s.length > 90) return null;
   const c = typeof o?.c === "string" && (CATEGORIES as readonly string[]).includes(o.c) ? (o.c as Category) : null;
@@ -189,18 +250,22 @@ const twinsOf = (id: number, hash: number, source: number) =>
  * Keeps what was written, for the event and its twins; counts a try against each it couldn't use
  * (and its twins: they're asked as one). A category only where the parsers gave none.
  */
-export async function keepWritten(db: D1Database, events: ToWrite[], written: (Written | null)[]): Promise<{ wrote: number; failed: number }> {
+export async function keepWritten(db: D1Database, events: ToWrite[], written: (Written | null)[]): Promise<{ wrote: number; failed: number; why: Record<string, number> }> {
   const stmts: D1PreparedStatement[] = [];
   let failed = 0;
+  // why each answer turned down was: unreadable (none for it), a long name, praise, an origin
+  const why: Record<string, number> = {};
   events.forEach((e, i) => {
     const got = written[i];
     const twins = [e.textHash ?? null, e.source ?? null] as const;
     // a long name is a bad one, unless it's the source's (the AI keeps "2Dead Boyz x The
     // Underachievers - NO1LIVESFOREVER Tour" whole, as told, and the sentence was turned down with it)
     const keep = KEEP_TITLE.has(e.source ?? "");
-    const w = got && keep ? { ...got, titleZh: e.title } : got;
-    if (!w || (!keep && w.titleZh.length > TITLE_MAX) || !grounded(w, e)) {
+    const w = got && corrected(keep ? { ...got, titleZh: e.title } : got, e);
+    const no = !w ? "unreadable" : !keep && tooLong(w.titleZh) ? "long name" : ungrounded(w, e);
+    if (!w || no) {
       failed++;
+      why[no ?? "unreadable"] = (why[no ?? "unreadable"] ?? 0) + 1;
       // an event is asked because its Chinese is missing or out of date (older instructions, a changed
       // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
       // words until a good one comes (v2's "知名阿拉伯DJ" stayed up after v3 turned the new one down)
@@ -226,7 +291,7 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
     );
   });
   if (stmts.length) await db.batch(stmts);
-  return { wrote: events.length - failed, failed };
+  return { wrote: events.length - failed, failed, why };
 }
 
 /**
@@ -326,11 +391,39 @@ const ORIGINS: [RegExp, RegExp][] = [
  * nothing backs ("中国新生代歌手", "知名阿拉伯 DJ" came from a name alone).
  */
 export function grounded(w: Written, e: ToWrite): boolean {
+  return ungrounded(w, e) === null;
+}
+
+/** What in it nothing in the source backs: "praise", "origin", or null. */
+export function ungrounded(w: Written, e: ToWrite): "praise" | "origin" | null {
   const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
   const wrote = `${w.titleZh} ${w.summaryZh}`;
-  if (PRAISE.test(wrote) && !PRAISE.test(said)) return false;
-  return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said));
+  if (PRAISE.test(wrote) && !PRAISE.test(said)) return "praise";
+  return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said)) ? null : "origin";
 }
+
+/** A sport, a game or a player after 职业: where 职业 says "professional" (职业顾问, a careers adviser, stays). */
+const PRO_GAME = /职业(?=(冰球|篮球|足球|排球|棒球|垒球|橄榄球|曲棍球|长曲棍球|网球|拳击|搏击|格斗|摔跤|比赛|联赛|球赛|赛事|球队|运动员|选手))/g;
+
+/**
+ * Two words the model gets wrong that can be put right rather than asked again: a university's or a
+ * junior league's game called professional (职业冰球比赛, when nothing in the source says pro: the
+ * first answers on 26 November said it of UBC's hockey and the Langley Trappers'), and Canada's
+ * hockey called field hockey (曲棍球 for "Hockey").
+ */
+export function corrected(w: Written, e: ToWrite): Written {
+  const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
+  const fix = (text: string) => {
+    let out = PRO.test(said) ? text : text.replace(PRO_GAME, "");
+    if (/\bhockey\b/i.test(said) && !/\bfield hockey\b/i.test(said)) out = out.replace(/(?<!长)曲棍球/g, "冰球");
+    return out;
+  };
+  const [titleZh, summaryZh] = [fix(w.titleZh), fix(w.summaryZh)];
+  return titleZh === w.titleZh && summaryZh === w.summaryZh ? w : { ...w, titleZh, summaryZh };
+}
+
+/** What in a source would back calling a game, or a player, professional. */
+const PRO = /\b(pro|professional|NHL|AHL|ECHL|PWHL|NBA|WNBA|MLB|MLS|NWSL|CFL|NFL|NLL|Canucks|Whitecaps|Lions|Warriors|Seawolves|UFC)\b|职业/i;
 
 /** The model, as the Worker's AI binding offers it (and tests stand in for). */
 export type RunModel = (model: string, input: Record<string, unknown>) => Promise<unknown>;
@@ -341,6 +434,10 @@ export interface Wrote {
   failed: number;
   /** The AI couldn't be asked, or nothing it said could be used. */
   error: string | null;
+  /** Which model answered (AI_MODELS), when one did. */
+  model?: string;
+  /** Why the answers not used weren't, when some weren't: { "long name": 2, praise: 1 }. */
+  why?: Record<string, number>;
 }
 
 /**
@@ -350,15 +447,15 @@ export interface Wrote {
 export async function writeSome(db: D1Database, run: RunModel, runId: string, fromMs: number, toMs: number, ids: string[] | null = null): Promise<Wrote> {
   const events = await toWrite(db, runId, fromMs, toMs, AI_BATCH, ids);
   if (!events.length) return { asked: 0, wrote: 0, failed: 0, error: null };
-  let text: string;
+  let answer: { text: string; model: string };
   try {
-    text = answerText(await run(AI_MODEL, { messages: messages(events), max_tokens: 3000, temperature: 0.3 }));
+    answer = await ask(run, { messages: messages(events), max_tokens: 3000, temperature: 0.3 });
   } catch (e) {
-    // the allowance used up, the model away: nothing is counted against the events
+    // the allowance used up, every model away: nothing is counted against the events
     return { asked: events.length, wrote: 0, failed: 0, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
   }
-  const { wrote, failed } = await keepWritten(db, events, readAnswer(text, events.length));
-  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${text.slice(0, 200)}` };
+  const { wrote, failed, why } = await keepWritten(db, events, readAnswer(answer.text, events.length));
+  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${answer.text.slice(0, 200)}`, model: answer.model, ...(failed ? { why } : {}) };
 }
 
 /** One step of the catch-up, a request of its own (src/worker.ts), logged with the run's steps as "ai". */
@@ -370,9 +467,16 @@ export async function translateStep(env: Env, args: { runId: string; ids: string
     await env.DB.prepare(
       `INSERT INTO fetch_log (run_id, source, part, started_at, ms, found, updated, error, note) VALUES (?1, 'ai', ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
     )
-      .bind(args.runId, args.part ?? 0, new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, r.failed ? `${r.failed} not usable` : null)
+      .bind(args.runId, args.part ?? 0, new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, aiNote(r))
       .run();
   return r;
+}
+
+/** The log's note on an AI step: what wasn't usable, and the model when it wasn't the first. */
+export function aiNote(r: Wrote): string | null {
+  const why = Object.entries(r.why ?? {}).map(([reason, n]) => `${reason} ${n}`).join(", ");
+  const notes = [r.failed ? `${r.failed} not usable${why ? ` (${why})` : ""}` : "", r.model && r.model !== AI_MODEL ? `by ${r.model}` : ""].filter(Boolean);
+  return notes.length ? notes.join("; ") : null;
 }
 
 export interface Translator {

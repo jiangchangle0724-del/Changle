@@ -44,6 +44,20 @@ import {
   createMatch,
   normalizeVector,
   roundAwards,
+  tagCall,
+  leavesAt,
+  LIGHT_SWITCHES,
+  SWITCHES,
+  SWITCH_DELAY_MS,
+  SWITCH_RESET_MS,
+  BLACKOUT_MS,
+  driftAt,
+  momentAt,
+  pullSwitch,
+  SIMULATION_STEP_MS,
+  THIN_MS,
+  LEAVE_SHARE,
+  EXIT_PAST,
   roundPenalty,
   startBlend,
   startDistract,
@@ -108,6 +122,8 @@ test("player movement accelerates, brakes, and turns without snapping", () => {
   let match: MatchState = createMatch(players, 0, 18);
   const playerId = "player-one";
   const startX = match.characters.find((character) => character.ownerId === playerId)!.x;
+  // (a clear way ahead: nobody to bump into)
+  for (const other of match.characters) if (other.ownerId !== playerId) other.y = 50;
   for (let now = 65; now <= 650; now += 65) match = advanceMatch(match, now, { [playerId]: { x: 1, y: 0 } });
   const cruising = match.characters.find((character) => character.ownerId === playerId)!;
   assert.ok(cruising.x - startX > PLAYER_SPEED * 0.45, "a held input should build speed over several server ticks");
@@ -332,7 +348,7 @@ test("passers-by wander like people: their own pace, stops, a look at someone, t
     }
   }
   assert.ok(npcIds.every((id) => (stops.get(id) ?? 0) >= 3), "every passer-by stops now and then");
-  assert.deepEqual([...modes].sort(), ["follow", "wait", "walk"], "they walk, stand and tag along");
+  assert.deepEqual([...modes].sort(), ["browse", "follow", "wait", "walk"], "they walk, stand, tag along and (the transit hall) read the route signs by the light switches");
   assert.ok(fastest > NPC_SPEED * 1.4, `someone breaks into a run (fastest ${fastest.toFixed(1)})`);
   // (never faster than a player can go: a bump in the crowd may add a little, for a moment)
   assert.ok(fastest <= PLAYER_SPEED * 1.2, `but never much faster than a player can go (${fastest.toFixed(1)})`);
@@ -457,6 +473,118 @@ test("the round's titles: the sharpest eye, the ones never spotted, the most pas
   owner("player-three").tagged = 1;
   const titles = Object.fromEntries(roundAwards(match).map((item) => [item.owner, item.award]));
   assert.deepEqual(titles, { "player-one": "eagleEye", "player-two": "friendlyFire", "player-three": "airPunch", "player-four": "ghost" });
+});
+
+test("the announcer calls the biggest thing a tag makes: a row first, then first blood, a shutdown, a spree", () => {
+  assert.equal(tagCall(1, 1, 0, true), "first");
+  assert.equal(tagCall(2, 2, 0, false), "double");
+  assert.equal(tagCall(3, 3, 0, false), "triple");
+  assert.equal(tagCall(4, 4, 0, false), "quadra");
+  assert.equal(tagCall(5, 5, 0, false), "penta");
+  assert.equal(tagCall(7, 7, 0, false), "penta", "past five, still a penta");
+  assert.equal(tagCall(2, 3, 4, false), "double", "a row beats a shutdown");
+  assert.equal(tagCall(1, 1, 3, false), "shutdown");
+  assert.equal(tagCall(1, 3, 0, false), "spree");
+  assert.equal(tagCall(1, 4, 0, false), "rampage");
+  assert.equal(tagCall(1, 2, 0, false), null);
+  assert.equal(tagCall(1, 5, 2, false), null);
+});
+
+test("a double kill or better is a round's title of its own, ahead of the sharpest eye", () => {
+  const match = createMatch([...players, { id: "player-three", name: "Three" }], 0, 5);
+  const owner = (id: string) => match.characters.find((character) => character.ownerId === id)!;
+  owner("player-one").score = 3;
+  owner("player-two").score = 2;
+  match.runs = {
+    "player-one": { streak: 3, chain: 1, until: 0, best: 3 },
+    "player-two": { streak: 0, chain: 0, until: 0, best: 1 }
+  };
+  const titles = roundAwards(match);
+  assert.deepEqual(titles[0], { owner: "player-one", award: "triple" });
+  assert.equal(titles.some((item) => item.award === "eagleEye"), false, "the sharpest eye was the one with the triple");
+});
+
+test("the crowd thins in a round's last half minute: about half the passers-by walk off past the sides; players stay", () => {
+  let match: MatchState = createMatch(players, 0, 31);
+  const npcs = match.characters.filter((character) => character.kind === "npc");
+  const leaving = npcs.map((npc) => leavesAt(match, npc.id)).filter((at): at is number => at !== null);
+  assert.ok(Math.abs(leaving.length / npcs.length - LEAVE_SHARE) < 0.25, `${leaving.length} of ${npcs.length} leave`);
+  for (const at of leaving) assert.ok(at >= match.endsAt - THIN_MS && at < match.endsAt - 10_000);
+  // a short round (a test's) never thins
+  assert.equal(leavesAt({ seed: 31, startedAt: 0, endsAt: THIN_MS + 5_000 }, npcs[0].id), null);
+  // nothing until the last half minute, then they go, past the sides; by the end most have
+  const quietUntil = match.endsAt - THIN_MS;
+  for (let now = SIMULATION_STEP_MS; now < quietUntil; now += SIMULATION_STEP_MS * 4) match = advanceMatch(match, now, {});
+  assert.equal(match.characters.filter((character) => character.gone).length, 0);
+  for (let now = quietUntil; now < match.endsAt - 50; now += SIMULATION_STEP_MS) match = advanceMatch(match, now, {});
+  const gone = match.characters.filter((character) => character.gone);
+  assert.ok(gone.length >= leaving.length * 0.6, `${gone.length} of ${leaving.length} gone by the end`);
+  for (const body of gone) {
+    assert.equal(body.kind, "npc");
+    assert.ok(body.x <= -EXIT_PAST || body.x >= ARENA.width + EXIT_PAST, "out past a side");
+  }
+  assert.equal(match.characters.filter((character) => character.kind === "player" && character.gone).length, 0);
+});
+
+test("nobody punches a passer-by that has walked off, and a tagged player never slips into one", () => {
+  let match: MatchState = createMatch(players, 0, 31);
+  const attacker = match.characters.find((character) => character.ownerId === "player-one")!;
+  const gone = match.characters.find((character) => character.kind === "npc")!;
+  for (const other of match.characters) if (other !== attacker) Object.assign(other, { x: 90, y: 50 });
+  Object.assign(attacker, { x: 40, y: 28, facing: 0 });
+  Object.assign(gone, { x: 44, y: 28, gone: true });
+  match = startPunch(match, "player-one", 10);
+  for (let now = 10 + SIMULATION_STEP_MS; now <= 400; now += SIMULATION_STEP_MS) match = advanceMatch(match, now, {});
+  assert.equal(match.events.some((event) => event.t === "foul"), false, "the punch found nobody");
+  assert.deepEqual([gone.x, gone.y], [44, 28], "and it stayed where it left");
+});
+
+test("a player by one of the transit hall's light switches pulls it, twice a round: the lights go out for everyone, the walkways stop", () => {
+  let match: MatchState = createMatch(players, 0, 20, "metro");
+  const one = characterForOwner(match, "player-one")!;
+  const two = characterForOwner(match, "player-two")!;
+  Object.assign(one, { x: ARENA.marginX, y: LIGHT_SWITCHES[0].y });
+  Object.assign(two, { x: 50, y: 29 });
+  // (3 s in: no moment of the hall's own on)
+  assert.equal(crowdMoment("metro", 0, 3_000), null);
+  assert.equal(pullSwitch(match, "player-two", 3_000), match, "too far from a switch: nothing");
+  assert.equal(pullSwitch(createMatch(players, 0, 20, "plaza"), "player-one", 3_000).pull, undefined, "only the transit hall has them");
+  match = pullSwitch(match, "player-one", 3_000);
+  assert.deepEqual(match.pull, { box: 0, at: 3_000, by: "player-one" });
+  assert.equal(characterForOwner(match, "player-one")!.switches, SWITCHES - 1);
+  assert.equal(match.events.at(-1)?.t, "lights");
+  assert.equal(momentAt(match, 3_000 + SWITCH_DELAY_MS - 10), null, "the lever's clunk first");
+  const dark = momentAt(match, 3_000 + SWITCH_DELAY_MS + 10);
+  assert.equal(dark?.kind, "blackout");
+  assert.equal(dark?.endsAt, 3_000 + SWITCH_DELAY_MS + BLACKOUT_MS);
+  assert.deepEqual(driftAt(match, 3_000 + SWITCH_DELAY_MS + 10), { x: 0, y: 0 }, "the walkways stop with the power");
+  // nobody pulls again until the lights are back and the switches reset
+  const back = 3_000 + SWITCH_DELAY_MS + BLACKOUT_MS;
+  assert.equal(pullSwitch(match, "player-one", back - 100), match);
+  assert.equal(pullSwitch(match, "player-one", back + SWITCH_RESET_MS - 100), match);
+  // the passers-by stop in the dark as they do when the lights go by themselves
+  for (let now = 3_000 + SIMULATION_STEP_MS; now <= 3_000 + SWITCH_DELAY_MS + 1_600; now += SIMULATION_STEP_MS) match = advanceMatch(match, now, {});
+  const moving = match.characters.filter((body) => body.kind === "npc" && Math.hypot(body.velocity.x, body.velocity.y) > 1.2);
+  assert.ok(moving.length <= 2, `${moving.length} passers-by still walking in the dark`);
+});
+
+test("pulled lights take the place of the hall's own moment due then; a player's pulls run out", () => {
+  let match: MatchState = createMatch(players, 0, 20, "metro");
+  Object.assign(characterForOwner(match, "player-one")!, { x: ARENA.width - ARENA.marginX, y: LIGHT_SWITCHES[1].y });
+  // the busker is due 8.8 s in; lights pulled at 7 s are out over it, so it doesn't come
+  assert.equal(crowdMoment("metro", 0, 9_000)?.kind, "dance");
+  match = pullSwitch(match, "player-one", 7_000);
+  assert.equal(match.pull?.box, 1);
+  assert.equal(momentAt(match, 9_000)?.kind, "blackout");
+  assert.equal(momentAt(match, 11_000), null, "no busker after it either");
+  // the second pull, once reset; then none left
+  const ready = 7_000 + SWITCH_DELAY_MS + BLACKOUT_MS + SWITCH_RESET_MS;
+  const quiet = [ready, ready + 500, ready + 1_000, ready + 2_000, ready + 4_000].find((now) => momentAt(match, now) === null)!;
+  match = pullSwitch(match, "player-one", quiet);
+  assert.equal(characterForOwner(match, "player-one")!.switches, 0);
+  const later = quiet + SWITCH_DELAY_MS + BLACKOUT_MS + SWITCH_RESET_MS + 5_000;
+  const free = [0, 1_000, 2_000, 4_000, 6_000].map((add) => later + add).find((now) => momentAt(match, now) === null)!;
+  assert.equal(pullSwitch(match, "player-one", free), match, "two a round");
 });
 
 test("the round's penalty lands on whoever was spotted most, or on everyone when nobody was", () => {
@@ -597,10 +725,12 @@ test("a player's punch with the drill goes through the passers-by: no foul, and 
   // pressed just before the call: it lands in the window
   const pressed = 12_000 + DRILL_GO_MS - 150;
   for (let now = 12_050; now < pressed; now += 50) match = advanceMatch(match, now, {});
+  // (what happened before, while they stood about, isn't this test's: a lantern lit, say)
+  const before = match.events.length;
   match = startPunch(match, "player-one", pressed);
   for (let now = pressed + 10; now <= pressed + 400; now += 50) match = advanceMatch(match, now, {});
   assert.ok(pressed + 160 >= 12_000 + DRILL_WINDOW[0] && pressed + 160 <= 12_000 + DRILL_WINDOW[1]);
-  assert.deepEqual(match.events.map((event) => [event.t, event.actor, event.target]), [["tag", "player-one", "player-two"]]);
+  assert.deepEqual(match.events.slice(before).map((event) => [event.t, event.actor, event.target]), [["tag", "player-one", "player-two"]]);
   assert.equal(characterForOwner(match, "player-one")!.fouls, 0);
   assert.equal(match.characters.find((body) => body.id === passerBy.id)!.pose === "stunned", false, "the passer-by stays up");
 });
@@ -613,9 +743,10 @@ test("outside the drill a punch at a passer-by is still a foul, and one at nothi
   for (const body of match.characters) if (body !== one && body !== passerBy) Object.assign(body, { x: 90, y: 50 });
   Object.assign(one, { x: 40, y: 30, facing: 0, velocity: { x: 0, y: 0 } });
   Object.assign(passerBy, { x: 42.5, y: 30, velocity: { x: 0, y: 0 } });
+  const before = match.events.length;
   match = startPunch(match, "player-one", 5_010);
   for (let now = 5_050; now <= 5_400; now += 50) match = advanceMatch(match, now, {});
-  assert.deepEqual(match.events.map((event) => event.t), ["foul"]);
+  assert.deepEqual(match.events.slice(before).map((event) => event.t), ["foul"]);
 });
 
 test("a distraction leaves a glance at its passer-by for every other screen's camera", () => {

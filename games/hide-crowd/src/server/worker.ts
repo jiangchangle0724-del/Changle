@@ -68,7 +68,7 @@ export default {
     if (parts[0] !== "api") return env.ASSETS.fetch(req);
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const opening = (await req.json().catch(() => ({}))) as Opening & { test?: { roundMs?: unknown; duel?: unknown; stall?: unknown } };
+      const opening = (await req.json().catch(() => ({}))) as Opening & { test?: { roundMs?: unknown; duel?: unknown; stall?: unknown; lights?: unknown } };
       let test: TestSettings | undefined;
       if (env.ALLOW_TEST_SETTINGS === "1" && opening.test && typeof opening.test === "object") {
         const roundMs = Number(opening.test.roundMs);
@@ -76,6 +76,7 @@ export default {
         test = {
           ...(roundMs >= 1_000 && roundMs <= 600_000 ? { roundMs } : {}),
           ...(opening.test.duel === true ? { duel: true } : {}),
+          ...(opening.test.lights === true ? { lights: true } : {}),
           ...(typeof stall === "number" && Number.isInteger(stall) && stall >= 0 && stall < 4 ? { stall } : {})
         };
       }

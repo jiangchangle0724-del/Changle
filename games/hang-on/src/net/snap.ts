@@ -31,7 +31,8 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
 const r2 = (v: number): number => Math.round(v * 100) / 100;
 const r3 = (v: number): number => Math.round(v * 1000) / 1000;
 /** 物件的种类在快照里的号（按位置）：0 跷跷板、1 箱子、2 金元宝、3 托盘、4 钥匙、5 灯笼。 */
-const PROP_KINDS: PropView['kind'][] = ['seesaw', 'crate', 'ingot', 'tray', 'key', 'lantern'];
+// 推大石头（11-26）的 boulder 加在最后（已经在用的号不动）
+const PROP_KINDS: PropView['kind'][] = ['seesaw', 'crate', 'ingot', 'tray', 'key', 'lantern', 'boulder'];
 
 /** 事件里的坐标、速度也只要一位小数。 */
 function slim(ev: SimEvent): SimEvent {
@@ -79,6 +80,10 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
   if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
   if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
   if (sim.gold) snap.gd = [sim.gold.need, sim.gold.holder, ...sim.gold.holdT.map(r2)];
+  if (sim.rain) {
+    snap.rn = [r1(sim.rain.left), ...sim.rain.caught];
+    snap.rd = sim.rain.drops.flatMap((d) => [r1(d.x), r1(d.y)]);
+  }
   if (sim.tray) snap.ty = [sim.tray.prop, sim.tray.spilled ? 1 : 0];
   const ic = sim.players.flatMap((p, i) => p.arms.flatMap((a, k) => (a.grip?.max !== undefined ? [i, k, r1(a.grip.max)] : [])));
   if (ic.length) snap.ic = ic;
@@ -160,6 +165,7 @@ export class RemoteSim implements SimView {
   levers: PlateView[] = [];
   /** 抢金元宝（A9d）：每个人攒了几秒（不匀，快照来了就换）。 */
   gold: { holdT: number[]; need: number; holder: number } | null = null;
+  rain: { drops: { x: number; y: number }[]; caught: number[]; left: number } | null = null;
   /** 外卖无人机（A9c）：位置跟着匀，来了、走了直接出现、消失。 */
   drone: { x: number; y: number; phase: string } | null = null;
   /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
@@ -416,6 +422,12 @@ export class RemoteSim implements SimView {
     this.checkpoint = s.cp;
     if (this.drone && s.dr) this.drone.phase = DRONE_PHASES[s.dr[2]] ?? 'wait';
     this.gold = s.gd ? { need: s.gd[0] ?? 5, holder: s.gd[1] ?? -1, holdT: s.gd.slice(2) } : null;
+    if (s.rn) {
+      const rd = s.rd ?? [];
+      const drops: { x: number; y: number }[] = [];
+      for (let k = 0; k + 1 < rd.length; k += 2) drops.push({ x: rd[k] as number, y: rd[k + 1] as number });
+      this.rain = { left: s.rn[0] ?? 0, caught: s.rn.slice(1), drops };
+    } else this.rain = null;
     this.tray = s.ty ? { prop: s.ty[0], spilled: s.ty[1] === 1 } : null;
     const ky = s.ky ?? [];
     this.keys = Array.from({ length: Math.floor(ky.length / 2) }, (_, k) => ({ prop: ky[k * 2] ?? 0, found: ((ky[k * 2 + 1] ?? 0) & 1) !== 0, used: ((ky[k * 2 + 1] ?? 0) & 2) !== 0 }));

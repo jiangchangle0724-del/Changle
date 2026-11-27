@@ -5,11 +5,11 @@ import type { Ballot, Center, Concern, CuisineId, FitWhy, Lang, Limits, MoodPick
 export type { Lang };
 
 /** Room timings in milliseconds. */
+/**
+ * The rounds have no clock (Steve, 2026-11-25): a round ends when everyone at the table is done, or
+ * when the host taps 不等了，下一步.
+ */
 export const TIMING = {
-  /** Round 1: people who haven't finished by then keep what they tapped. */
-  mood: 90_000,
-  /** Round 2. */
-  cards: 120_000,
   /** The tie-break spinner. */
   spin: 4_500,
   /** Rooms stay this long after the last activity, so people can rate the meal. */
@@ -45,6 +45,30 @@ export type ClientMsg =
   | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
+  /**
+   * Host: one step back for the whole table (Steve, 2026-11-26: the top bar's back is the step
+   * before, not the home page). Round 1 → the lobby, round 2 → round 1 (everyone's picks stay, the
+   * votes go), the result → round 2. `phase` is the screen the tap was on: a second tap is ignored.
+   */
+  | { t: "back"; phase?: Phase }
+  /**
+   * Host, in round 2: search Google again with another range (Steve, 2026-11-25). Round 1's picks
+   * stay, everyone's votes are cleared. It counts toward the table's searches (MAX_SEARCHES).
+   */
+  | { t: "research"; range: RangeId }
+  /**
+   * Anyone at the table, in round 2, once everyone there ticked the same place and nobody vetoed
+   * it (RoomView.match; Steve, 2026-11-26): that's where they eat, without waiting for the rest of
+   * the votes. Several such places: the wheel picks among them.
+   */
+  | { t: "match" }
+  /**
+   * Host, in round 2 ("换一批", Steve 2026-11-26): the next best places of the same search at the
+   * top, the ones shown before below them. Nothing is searched, so they come without photos. The
+   * votes stay; everyone can look again. `batch` is the list the tap was on (RoomView.batch): a
+   * second tap is ignored.
+   */
+  | { t: "more"; batch: number }
   /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
   | { t: "when"; at: number | null }
   /** Host, in the lobby: what the meal is for. */
@@ -175,6 +199,14 @@ export interface RoomView {
   };
   members: MemberView[];
   range: RangeId;
+  /** Google searches this table can still run (see MAX_SEARCHES). */
+  searchesLeft: number;
+  /** Round 2: places everyone at the table ticked and nobody vetoed, best first (two phones or more). */
+  match: string[];
+  /** Round 2: places of this search that haven't been at the top yet ("换一批", the "more" message). */
+  moreLeft: number;
+  /** Which list round 2 is on: one more for each new list and each "换一批". */
+  batch: number;
   /** When the table eats (ms since epoch), or null for now. */
   at: number | null;
   /** What the meal is for. */

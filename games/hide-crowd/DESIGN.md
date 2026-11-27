@@ -27,16 +27,16 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 
 | Screen | What it shows |
 | --- | --- |
-| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, the clock in minutes and seconds, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the seawall's bike, the busker, the transit hall's lights going out, the gong, the theatre's drill, its follow spot, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, steps aside, dances, looks at its phones, punches, freezes in the light or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
+| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); one panel with the whole-match switch and the penalty switch (the host's; lines for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, the clock in minutes and seconds, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the seawall's bike, the busker, the transit hall's lights going out, the gong, the theatre's drill, its follow spot, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, steps aside, dances, looks at its phones, punches, freezes in the light or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. When you're tagged, the word names who did it (被 Mia 认出来了！ / Mia spotted you!) and their name comes up in red over the body they punched from, for 2.6 s; once you're up in another body, "new body, find yourself" carries "it was Mia" under it. When you tag someone, the word names them (打中 Mia！+1). |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again (the same place) and Pick another arena (back to the lobby; in practice, the picker), and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
+| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result, which plays in quickly (about a second and a half; a tap shows it all at once): the title pops, the rows come in best first (the winner's with a crown, the rest with their place), each filling its points a pip at a time, then who spotted you and whom you spotted (names, ×2 when more than once), then the round's titles stamping on: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again (the same place) and Pick another arena (back to the lobby; in practice, the picker), and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, minutes and seconds, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the bike's, the busker's, the lights', the gong's, the drill's, the spot's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
-| Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles. |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, minutes and seconds, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the bike's, the busker's, the lights', the gong's, the drill's, the spot's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). The announcer's calls, big, with who made them (see "The announcer"). |
+| Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles, playing in the same way as a phone's (but nothing about who spotted whom). |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. It opens on the four places to pick from (`PracticePick` in `ui/Lobby.tsx`): "pick a place to practise", a line with the round's length and target, and four picture cards in a row (held sideways), each with its name and one line about what happens there; a tap starts the round there. At the end, Play again keeps the place and Pick another arena comes back here, the place just played tagged 刚玩过 Just played. `?arena=market` on the address starts there at once (the tests and the capture scripts use it). No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
@@ -272,6 +272,30 @@ here the collecting gives a player away while they do it:
   on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
   winner's body dances. Everyone stops where they are.
 
+## Every place's side quest
+
+The Steam original gives several of its places a side task (collect things, then score); since
+2026-11-25 (Steve's list) every place here has one, the night market's rules for all (`STALLS`,
+`taste` in `src/engine`): four spots along the back, 4.5 either side of x 20, 40, 60, 80 and up to 6 in
+from the back edge; a player standing still at one they haven't done does it after 1.2 s; all four is 2
+points and they start over; every one done flares on every screen, and only the doer's phone knows it
+was them. Each place dresses its four in the stalls' colours (red, teal, purple, amber, as on the
+phone's chip), with its own words (`ui/quest.ts`), sound (`sfx.bite`) and title:
+
+| Place | The quest | The four | When one's done | Title |
+| --- | --- | --- | --- | --- |
+| Night market | 尝遍四样 Taste all four | the stalls (`market.ts`) | its pool flashes, sparks | 夜市吃货 Foodie |
+| Seawall | 拍遍四景 Snap all four views | photo frames at the back of the lawn: 狮门大桥, 北岸群山, 水上飞机, 加拿大广场 | a camera's white flash, then its colour | 打卡达人 Shutterbug |
+| Transit hall | 等遍四扇门 Wait at all four doors | the train's four doors, a lamp strip over each | the lamp lights, a chime | 老乘客 Regular |
+| Theatre | 点亮四盏灯 Light all four lanterns | lanterns hung before the stage: 福, 禄, 寿, 喜 | the lantern glows, a whoomp | 点灯人 Lamplighter |
+
+* The frames, lamps and lanterns are `ui/questSpots.ts` (three draws for the four); the flat view marks
+  the four at the top edge, as it does the stalls.
+* About a third of the passers-by are at one of the four at any time (`browse`, in every place now), so
+  a player doing one has company. Players never start a round on one (`createMatch`): standing still
+  there would do it and light it up.
+* Over a whole match the title is 副任务达人 Side-quest star.
+
 ## The camera's big moves, and Distract
 
 Steve, 2026-11-13, the second half of "more of the big games' 3D": the camera moves the way a big
@@ -442,6 +466,30 @@ The big upgrade's fourth part, its second event (an event for each place; see th
   (the same tell as the horn's).
 * With reduced motion: the lights fade out and back instead of flickering.
 
+## The transit hall's light switches
+
+The Steam original has switches its players can work; this is ours (Steve's list, 2026-11-25): the
+transit hall's lights, on demand.
+
+* **Where**: one on each route sign just off the floor's sides (`LIGHT_SWITCHES` in `src/engine`), a
+  grey box with a red lever and a lamp (`ui/switches.ts`: four draws for both; in the flat view, a box
+  and its lamp at each side).
+* **Pulling**: standing within 8.5 of one (`SWITCH_REACH`: at the floor's edge, by the sign), a
+  player sees 关灯 Lights pop in over Distract, with its count: twice a round (`SWITCHES`; F on a
+  keyboard, B on a gamepad). The walkways carry you off it like anyone. A pull puts the hall's lights
+  out for everyone 0.6 s later (`SWITCH_DELAY_MS`), exactly as when they go by themselves (the same
+  rules for the passers-by, the same screens and sounds), and the walkways stop with the power. A
+  moment of the hall's own due during it, or within 2 s after, doesn't come (`momentAt`). Nobody can
+  pull while any moment is on, or until the lights are back and the switches have reset for 12 s
+  (`SWITCH_RESET_MS`).
+* **The risk**: every screen sees which switch went: its lever drops and its lamp turns from green to
+  red with a flash, lit in the dark, until the reset (`GameView.lights`). Only the puller's phone is
+  told it was them (你拉了电闸，灯马上黑 You pulled the switch: lights out) and hears the lever's clack;
+  the big screen hears it too. Passers-by go and read the route signs now and then (a browse plan), so
+  a body by a switch isn't proof; one walking away from it in the dark is.
+* **Why pull it**: you know when the dark comes; the others find out with the crowd, and whoever's
+  caught walking stands out.
+
 ## The theatre's follow spot
 
 The big upgrade's fourth part, its third event (an event for each place).
@@ -528,6 +576,13 @@ passer-by (`Room.view` in `src/room/room.ts`, tested in `tests/room.test.ts` and
   order (each place keeps one of the twelve looks and a height), so players are spread among the looks and the
   places in the list like everyone else.
 * A phone's own body is marked (`me`) on that phone only; the big screen gets no `me` at all.
+* One exception, on one phone, for a moment: whoever just tagged a player is named over the body
+  they punched from (`by`), on the tagged player's phone only, for 2.6 s (`TAGGER_SHOWN_MS`: while
+  they're down, and a moment after they slip away), and only while that body is still theirs (if
+  they're tagged in the meantime, it isn't). The punch gave them away anyway, to anyone watching;
+  this makes sure the one it hit knows who it was (Steve, 2026-11-25). The tag's event carries the
+  other name too, on the two phones it concerns. The results tell each phone who spotted it and
+  whom it spotted (`mine`); the big screen gets neither.
 * What gives a player away is what they do: punching, being knocked down, walking on through the
   ferry horn or the busker's dance, running on and on, walking past a fall without a look. That is
   the game.
@@ -537,6 +592,57 @@ they are with a passer-by at least 24 units from whoever tagged them; every body
 is, so no screen sees anyone jump, and the passer-by gets up where the player fell. Without this a
 player could keep hitting the same rival as soon as they stood up. Their own phone says "new body,
 find yourself" and moves its marker.
+
+## A whole match
+
+The Steam original plays several places in a row to a points total; so does this, unless the host
+turns it off in the lobby (`settings.match`, on by default; practice is always one place at a time).
+A match is three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
+order from the room's seed. Each round is a round as ever (first to five, three minutes, its
+penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
+
+* During a round, the title's second line says which place it is (先到 5 分 · 第 2/3 场).
+* After one: "第 2/3 场结束", the table ranked by the points so far with a 总分 column (the crown on
+  the round's winner), "下一场：温哥华交通站厅", and the host's Next place (or Pick another arena,
+  which ends the match).
+* After the last: the match's winner as the title (你赢了整场！), the crown on them, the match's
+  titles instead of the round's (the round's titles worked out over everything done in the match,
+  `matchAwards`), and New match.
+
+## The announcer
+
+As in Honor of Kings (Steve, 2026-11-25): a tag can make a call, and every phone and the big screen
+show it in the middle for 1.9 s on a dark band, with who made it ("你" on your own phone), the call
+big in the player's language and small in the other, and a stab that grows with the moment
+(`sfx.callout`); the one who made it feels it too. One call per tag, the biggest (engine `tagCall`):
+
+* two or more tags in a row, each within 10 s of the last (`MULTI_TAG_MS`): 双杀 Double Kill, 三杀
+  Triple Kill, 四杀 Quadra Kill, 五杀 Penta Kill (green, amber, red, a gel-to-red gradient);
+* the round's first tag: 第一滴血 First Blood (red);
+* tagging someone who had three or more without being spotted: 终结 Shut Down (white);
+* three, then four tags without being spotted in between: 大杀特杀 Killing Spree (amber), 杀人如麻
+  Rampage (red).
+
+Getting tagged ends your run. Naming who made a call tells nobody anything new: everyone sees the
+score go up. The best row of the round is a title of its own (双杀 to 五杀), ahead of the others.
+
+## The crowd leaves at the end
+
+As in the Steam original, the crowd thins out at the end of a round, so the last players standing
+have fewer bodies to hide among. In a round's last 30 s (`THIN_MS`, rounds of a minute or more):
+
+* About half the passers-by (`LEAVE_SHARE`, a seeded stride over their numbers, so 50 to 61 % every
+  round, a different set each time) set off one by one over the first 18 s, at a brisk walk,
+  straight out past the nearer side (the transit hall's EXIT signs are on those sides). On the
+  floor, a moment or a fuss stops a leaver like anyone, first; one already past the edge keeps
+  going. A push never pulls one back to the edge (`edgeX`).
+* Once 38 units past a side (`EXIT_PAST`: past the edge of every screen, a 21:9 one included,
+  measured with `frameFloor`), a passer-by is gone (`gone`): nobody can hit it, hide in it or bump
+  it, and every screen stops drawing it (`AvatarView.o`). Players never leave: walking with the
+  leavers is a way to blend in, until the edge stops you.
+* Every phone and the big screen say 最后 30 秒：路人开始散场 / Last 30 seconds: the crowd is leaving
+  for 5 s (`GameView.thinning`; after a moment's own banner, when one is up), with a door icon and a
+  station's three-note chime (`sfx.thinning`).
 
 ## The penalty
 

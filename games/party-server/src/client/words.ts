@@ -117,6 +117,19 @@ export function verdictText(v: Verdict | null): string {
   return tr("跟着拍子点", "Tap with the beat");
 }
 
+/** A gold move coming (show.ts goldIn): `k` beats away, 0 on it. */
+export function goldAheadText(k: number): string {
+  return k === 0 ? tr("金色动作：就是这一拍，用力！", "Gold move: this beat, go big!") : tr(`金色动作还有 ${k} 拍`, `Gold move in ${k}`);
+}
+
+/** The TV once a gold move is judged: `n` of `of` dancers got it. */
+export function goldCheerText(n: number, of: number): string {
+  return n >= of ? tr("金色动作！全场都跳中了", "Gold move! Everyone got it") : tr(`金色动作！${n} 人跳中`, `Gold move! ${n} got it`);
+}
+
+/** A phone's verdict on a gold move it got. */
+export const goldVerdictText = () => tr("金色！", "Gold!");
+
 /** "about 5 min" for a whole show: lead, count-in, dance and cool-down. */
 export function showMinutes(show: Show): string {
   const ms = show.leadMs + show.countIn * show.beatMs + show.danceMs + show.tailMs;

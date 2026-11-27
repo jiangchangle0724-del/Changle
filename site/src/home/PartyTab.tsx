@@ -1,18 +1,21 @@
-import { Dices, KeyRound, RadioTower, UserPlus, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Dices, KeyRound, RadioTower, ScanQrCode, UserPlus, Users } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PlayersSheet } from "../components/PlayersSheet";
 import { GAME_BY_ID, GAMES, isNewGame, SOON, type GameId, type GameMeta, type SoonMeta } from "../games/registry";
 import { Sheet } from "../components/Sheet";
 import type { T } from "../i18n";
 import { LIGHTS, reduced, setLight } from "../lib/motion";
 import { haptic, sfx } from "../lib/sfx";
-import { OnlineSheet } from "../online/OnlineSheet";
 import { usePenaltyText, useStore } from "../store";
 import { Pill } from "../ui/Pill";
 import { Tile } from "../ui/Tile";
 import "../ui/base.css";
 import { GameSheet } from "./GameSheet";
 import { runSweep } from "../lib/sweep";
+
+const OnlineSheet = lazy(() => import("../online/OnlineSheet").then((m) => ({ default: m.OnlineSheet })));
+// scan a table's QR code to join it: the camera and the decoder download when it first opens
+const ScanSheet = lazy(() => import("../online/ScanSheet").then((m) => ({ default: m.ScanSheet })));
 
 const ENTERED = "changle.entered";
 /** the last few games played on this phone, newest first: 现在玩这个 suggests something else */
@@ -83,6 +86,21 @@ export function PartyTab({
   const [playersOpen, setPlayersOpen] = useState(false);
   const [soonCard, setSoonCard] = useState<SoonMeta | null>(null);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
+  // (the online sheet downloads the first time it opens, and stays for its closing slide)
+  const [onlineUsed, setOnlineUsed] = useState(false);
+  useEffect(() => {
+    if (online.open) setOnlineUsed(true);
+  }, [online.open]);
+  const [scan, setScan] = useState(false);
+  const [scanUsed, setScanUsed] = useState(false);
+  useEffect(() => {
+    if (scan) setScanUsed(true);
+  }, [scan]);
+  // (fetched while the page is idle, so the first tap opens it at once)
+  useEffect(() => {
+    const id = setTimeout(() => void import("../online/OnlineSheet"), 2500);
+    return () => clearTimeout(id);
+  }, []);
   const sheet: GameMeta | null = card ? GAME_BY_ID[card] : null;
   const [spinning, setSpinning] = useState(false);
   const [lit, setLit] = useState<number | null>(null);
@@ -264,6 +282,9 @@ export function PartyTab({
             <button type="button" className="icon-btn online-code" onClick={() => setOnline({ open: true, join: true })} aria-label={ui("joinWithCode")}>
               <KeyRound size={19} />
             </button>
+            <button type="button" className="icon-btn online-code" onClick={() => setScan(true)} aria-label={zh ? "扫码入座" : "Scan to join"}>
+              <ScanQrCode size={19} />
+            </button>
           </div>
         </section>
 
@@ -389,7 +410,24 @@ export function PartyTab({
         onWishlist={onWishlist}
       />
       <PlayersSheet open={playersOpen} onClose={() => setPlayersOpen(false)} />
-      <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />
+      {onlineUsed && (
+        <Suspense fallback={null}>
+          <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />
+        </Suspense>
+      )}
+      {scanUsed && (
+        <Suspense fallback={null}>
+          <ScanSheet
+            open={scan}
+            lang={lang}
+            onClose={() => setScan(false)}
+            onTypeCode={() => {
+              setScan(false);
+              setOnline({ open: true, join: true });
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

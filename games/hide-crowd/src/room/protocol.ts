@@ -1,6 +1,6 @@
 // What the room's server and the pages say to each other. Every word a player reads is chosen by
 // the page (src/client/i18n.ts) from these keys and numbers, in its own language.
-import type { ArenaId, AwardKey, MomentKind, Pose } from "../engine";
+import type { ArenaId, AwardKey, MomentKind, Pose, TagCall } from "../engine";
 
 export type Lang = "zh" | "en";
 /** a phone in someone's hand, or a big screen (a TV, a computer, a phone mirrored to a TV) */
@@ -12,6 +12,8 @@ export type ClientMsg =
   | { t: "blend" }
   /** a passer-by across the crowd throws a punch at nothing (twice a round) */
   | { t: "distract" }
+  /** the transit hall: pull the light switch you stand by (twice a round) */
+  | { t: "lights" }
   | { t: "vote"; arena: ArenaId }
   /** the host: start a round (from the lobby, or again after one) */
   | { t: "start" }
@@ -19,6 +21,8 @@ export type ClientMsg =
   | { t: "lobby" }
   /** the host: turn the round's penalty on or off */
   | { t: "penalties"; on: boolean }
+  /** the host: play a whole match (several places in a row, points add up) or one place at a time */
+  | { t: "match"; on: boolean }
   /** the host: everyone goes back to the changle.ca table */
   | { t: "end" }
   | { t: "leave" }
@@ -41,6 +45,8 @@ export interface PlayerView {
   score: number;
   /** times spotted (tagged) this round */
   tagged: number;
+  /** in a match: points so far (once a round is over, with that round's) */
+  total?: number;
 }
 
 /**
@@ -61,17 +67,36 @@ export interface AvatarView {
   n?: string;
   /** once the round is over: this body won it */
   w?: 1;
+  /**
+   * on a tagged player's phone only, for a moment (engine TAGGER_SHOWN_MS): the player in this body,
+   * who just tagged them
+   */
+  by?: string;
+  /** a passer-by that has walked off at the end of the round (engine THIN_MS): drawn no more */
+  o?: 1;
 }
 
 export interface EventView {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "lights" | "blast" | "bike" | "over";
   /** bite: the night market's stall that was tasted (everyone sees which; only the taster's phone sees byYou) */
   stall?: number;
   /** this phone did it (a tag, a foul, a miss) or it happened to this phone's player (slipped away) */
   byYou: boolean;
   /** this phone's player was tagged (or, a blast or the bike: knocked down by it) */
   onYou: boolean;
+  /** a tag, on the two phones it concerns: who tagged this phone's player, or whom they tagged */
+  name?: string;
+  /** a tag the announcer calls out (engine TagCall), on every screen */
+  call?: TagCall;
+  /** with a call: who made it (every screen sees it, as every screen sees the score go up) */
+  who?: string;
+}
+
+/** A rival and a count: who spotted you, or whom you spotted, how many times this round. */
+export interface TallyView {
+  name: string;
+  n: number;
 }
 
 /**
@@ -108,6 +133,9 @@ export interface MeView {
   maxSpeed: number;
   /** distractions left this round */
   distracts: number;
+  /** the transit hall: pulls of the light switches left this round, and whether you can pull one now (you stand by one, they're ready) */
+  switches: number;
+  canPull: boolean;
   /** the night market: the stalls you've tasted since your last feast (one bit each), the one you're tasting now (-1: none) and how far along (0 to 1) */
   bites: number;
   at: number;
@@ -121,6 +149,8 @@ export interface GameView {
   endsAt: number;
   remainingMs: number;
   scoreToWin: number;
+  /** the crowd is thinning now: the round's last THIN_MS, in a round long enough (engine leavesAt) */
+  thinning: boolean;
   avatars: AvatarView[];
   events: EventView[];
   /** this phone's player, when it plays this round */
@@ -136,6 +166,11 @@ export interface GameView {
    * turns its camera there, as the Steam game pans away; nothing says whose it was)
    */
   glance?: { x: number; y: number; endsInMs: number } | null;
+  /**
+   * the transit hall: the light switch pulled last, while it's down (its lever down, its lamp red) and
+   * until it's reset: which one and how long ago. Every screen sees it; nothing says whose it was.
+   */
+  lights?: { box: number; sinceMs: number } | null;
 }
 
 /** A nickname for the round (火眼金睛 Eagle Eye...), by name; `you` on that player's own phone. */
@@ -160,6 +195,10 @@ export interface ResultView {
   /** null when the host turned penalties off */
   penalty: PenaltyView | null;
   awards: AwardView[];
+  /** a player's own round: who spotted them and whom they spotted, most first (a big screen: null) */
+  mine?: { by: TallyView[]; got: TallyView[] } | null;
+  /** in a match: the place this was, the next one (null after the last), and, after the last, who won it and its titles */
+  match?: { index: number; of: number; next: ArenaId | null; done: boolean; winner: string | null; youWon: boolean; awards: AwardView[] } | null;
 }
 
 export interface RoomView {
@@ -178,7 +217,11 @@ export interface RoomView {
     penalties: boolean;
     /** the table's own penalty, set by the host on changle.ca ("" means drinking) */
     custom: string;
+    /** a whole match: several places in a row, the points add up */
+    match: boolean;
   };
+  /** a match under way: which place this round is (1 the first) of how many */
+  match: { index: number; of: number } | null;
   game: GameView | null;
   result: ResultView | null;
   /** the host took everyone back to the table: every page goes there */

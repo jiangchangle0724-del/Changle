@@ -59,9 +59,16 @@ describe("hand-made fixture acceptance", () => {
     for (const name of ["date", "venue", "category", "area"] as const) expect(r[name]).toEqual({ right: 16, of: 17, pct: 94.1 });
     expect(r.falseMerges).toEqual({ right: 2, of: 17, pct: 11.8 });
   });
-  it("uses current SOURCES, which now includes UBC, without inventing stored rows", () => {
+  it("uses current SOURCES, which now includes UBC and Eventbrite, without inventing stored rows", () => {
     const r = score(golden, stored, readSources(SOURCES.map((s) => s.id)));
-    expect(r).toMatchObject({ read: 21, matched: 17, notFound: ["G04", "G05", "G07", "G08"], unread: { eventbrite: 15, commodore: 1, rogersforum: 2, evergreen: 1 }, gateA: false });
+    // (Eventbrite is read now, through the organizations followed: the golden set's 15 aren't in these stored rows)
+    expect(r).toMatchObject({
+      read: 36,
+      matched: 17,
+      notFound: ["G04", "G05", "G06", "G07", "G08", "G26", "G27", "G28", "G30", "G31", "G32", "G33", "G34", "G35", "G36", "G37", "G38", "G39", "G40"],
+      unread: { commodore: 1, rogersforum: 2, evergreen: 1 },
+      gateA: false,
+    });
     expect(r.date).toEqual({ right: 16, of: 17, pct: 94.1 });
     expect(r.missedMerges.pct).toBeNull();
   });
