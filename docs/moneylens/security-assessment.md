@@ -962,8 +962,9 @@ from inside its answer to the trade): the sign-in is turned away with nothing op
 changed address, for someone else's notice, for an account's first sign-in and for a deleted
 account, which is then off the registry. And a transaction inside a transaction is shown to do
 on the platform what signing in takes it to do: the outer one failing undoes the inner one's
-writes, and what was thrown comes out as the thing that was thrown. Fifteen checks in
-`worker.ts` were taken out in turn: each fails a test there.
+writes, and what was thrown comes out as the thing that was thrown. Fourteen checks in
+`worker.ts` were taken out in turn: each fails a test there. So does each of 68 on Node that
+hold the gate's list, the two limits, what an address is and where a sign-in starts.
 
 **Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
 design on the device's side for proving that a session has the vault unlocked. The weekly sweep
@@ -1214,8 +1215,8 @@ minutes (with the vault open, and on the recovery code's screen before anything 
 leaving the page, and signing out when the server can and cannot be told; that the address of
 `/enter` typed in begins nothing; that nothing
 was asked of any other origin; and that the passphrase, the recovery code and the words a
-wrapper has are nowhere in the browser's storage, open or locked. Each of 49 checks in this
-code taken out in turn fails a test.
+wrapper has are nowhere in the browser's storage, open or locked. Each of 69 checks in this
+code taken out in turn fails a test, seven of them in the browser.
 
 **Limits.**
 

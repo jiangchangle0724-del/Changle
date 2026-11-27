@@ -1,6 +1,6 @@
-VERDICT (second look, c601285d): APPROVE for merging with the gate shut; APPROVE for opening the gate to the owner alone once the two deployment checks are done
+VERDICT (third look, 54ed004d): APPROVE for merging with the gate shut; APPROVE for opening the gate to the owner alone once the two deployment checks are done
 
-(First look, 342bbbb3: APPROVE with six findings, none of which blocked the merge; finding 1 blocked opening the gate.)
+(Second look, c601285d: the same two verdicts. First look, 342bbbb3: APPROVE with six findings, none of which blocked the merge; finding 1 blocked opening the gate.)
 
 # C10: the door (the ways in, the app's first pages, the main site's page, and the settling of the shell review)
 
@@ -504,5 +504,37 @@ In `tools/moneylens` of `/home/claude/review-c10b`:
 
 Not run, as asked: `npm run test:server`, `npm run test:app`, wrangler, any browser. Nothing was
 run in `/home/claude/changle`, nothing was committed, and no network was used.
+
+## Third look: 54ed004d
+
+I read `git diff c601285d..54ed004d` on 27 November 2026. **Both verdicts stand for 54ed004d:
+APPROVE for merging with the gate shut, and APPROVE for opening the gate to the owner alone once
+the two deployment checks are done.**
+
+What changed since c601285d:
+- `74ecd485`: two more cases in `tests/request.test.ts`, for an array and an object with a
+  `toString`. No code changed.
+- `2b8a6954`: my second-look files. `door.md`, `second-door.test.ts` and `second-shell.test.ts` at
+  54ed004d are identical to the copies I wrote.
+- `54ed004d`: the low point from the second look, settled by changing the wording.
+  - Only two strings changed in `web/app/i18n.ts`, in both languages, plus the matching expected
+    text in `scripts/check-app.ts`. Nothing changed under `src`.
+  - `newTimedOut` now claims only what the page did: it dropped the key and the code.
+  - `keepAnother` now names the vault this page may have kept a moment ago, and the passphrase
+    that opens it.
+  - That settles the point. The author's reason for choosing the wording over not dropping while
+    `keep` is in flight is right: a lost answer without any sleep gives the same untruth, so the
+    wording had to change in either case.
+  - The new text in 1.10 and section 3 states my nit about `closed` accurately: with the gate
+    shut, no session is ended and no cookie is taken away. Leaving it to ADM-5 is fine.
+- A nit, no change asked: `keepOffline` ("Couldn't connect, so the vault isn't created yet") can
+  also be untrue after a lost answer. It corrects itself, because the next press is answered "ok"
+  for the same vault and the app opens it.
+
+**Not run at 54ed004d.** My worktree stays at `c601285d`, and moving it would change files other
+than my three. The diff changes no code: two screen strings, one expected string in the browser
+check, and two test cases. My second-look runs at c601285d are above. The author reports
+typechecks clean, `npm test` 520/519/1 todo, `test:server` 18 pass and `test:app` ok at
+54ed004d. I did not see those runs.
 
 No real account, statement, key or token is in this review or its tests. Every value is invented.
