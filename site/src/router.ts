@@ -10,6 +10,7 @@
  *                                                             /me/email-cancel#<link>: cancels a waiting 换邮箱)
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
  *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (its card is on the Tools tab)
+ *   /member           membership: what members get, the prices, your free uses left (docs/membership.md)
  *   /settings, /login open that sheet over home (the address then goes back to /)
  *
  * Links from before (changle.ca/#/g/truth, /#/r/ABCD, /#/tv/ABCD) are rewritten on arrival, so
@@ -34,6 +35,7 @@ export type Route =
   | { kind: "figure" }
   | { kind: "emailCancel" }
   | { kind: "admin" }
+  | { kind: "member" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
   | { kind: "tv"; code?: string; game?: GameId }
@@ -92,6 +94,7 @@ export function parse(pathname: string, search = ""): Route {
   if (p === "/me/figure") return { kind: "figure" };
   if (p === "/me/email-cancel") return { kind: "emailCancel" };
   if (p === "/admin") return { kind: "admin" };
+  if (p === "/member") return { kind: "member" };
   if ((m = new RegExp(`^/u/${USER}$`).exec(p))) return { kind: "user", id: m[1] };
   if ((m = new RegExp(`^/chat/${USER}$`).exec(p))) return { kind: "chat", id: m[1] };
   if ((m = /^\/tv(?:\/([A-Za-z0-9]{4}))?$/i.exec(p))) {
@@ -126,6 +129,8 @@ export function pathOf(r: Route): string {
       return "/me/email-cancel";
     case "admin":
       return "/admin";
+    case "member":
+      return "/member";
     case "user":
       return `/u/${r.id}`;
     case "chat":
@@ -161,6 +166,7 @@ export function fromLegacyHash(hash: string): string | null {
   if (/^\/dev\/show/.test(path)) return `/dev/show${query ? `?${query}` : ""}`;
   if (/^\/me\b/.test(path)) return path.includes("friends") ? "/me/friends" : "/me";
   if (/^\/admin\b/.test(path)) return "/admin";
+  if (/^\/member\b/.test(path)) return "/member";
   if ((m = new RegExp(`^/u/${USER}`).exec(path))) return `/u/${m[1]}`;
   if ((m = new RegExp(`^/chat/${USER}`).exec(path))) return `/chat/${m[1]}`;
   if (/^\/tools/.test(path)) return "/tools";
@@ -195,6 +201,8 @@ export function titleOf(r: Route, lang: Lang): string {
     case "me":
     case "admin":
       return named("我的", "Me");
+    case "member":
+      return named("会员", "Membership");
     case "figure":
       return named("3D 小人", "3D figure");
     case "emailCancel":

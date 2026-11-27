@@ -46,6 +46,7 @@ const MePage = lazy(() => import("./account/MePage").then((m) => ({ default: m.M
 const UserPage = lazy(() => import("./account/UserPage").then((m) => ({ default: m.UserPage })));
 const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default: m.ChatPage })));
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
+const MemberPage = lazy(() => import("./member/MemberPage").then((m) => ({ default: m.MemberPage })));
 // the 3D figure's prototype (/me/figure): its page here, three.js and the model once it opens
 const FigurePage = lazy(() => import("./account/figure/FigurePage").then((m) => ({ default: m.FigurePage })));
 const EmailCancelPage = lazy(() => import("./account/EmailCancelPage").then((m) => ({ default: m.EmailCancelPage })));
@@ -174,6 +175,7 @@ function Shell() {
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => go({ kind: "home", tab: "party" }, true)} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
+  else if (route.kind === "member") screen = <MemberPage onBack={back} />;
   else if (route.kind === "figure") screen = <FigurePage onBack={back} />;
   else if (route.kind === "emailCancel") screen = <EmailCancelPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
@@ -254,7 +256,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? `${route.id}.${restarts}`
-          : route.kind === "me" || route.kind === "admin" || route.kind === "figure" || route.kind === "emailCancel" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "member" || route.kind === "figure" || route.kind === "emailCancel" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")

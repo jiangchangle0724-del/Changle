@@ -1230,3 +1230,25 @@ button.tag {
     animation: none;
   }
 }
+
+/* a member's mark (MemberMark.tsx): a small crown on amber, beside a face or a name */
+.member-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  border: 2px solid var(--night);
+  background: var(--gel-amber);
+  color: var(--night);
+  vertical-align: middle;
+}
+.acct-me .member-mark {
+  position: absolute;
+  left: -2px;
+  bottom: -2px;
+}
+.me-name .member-mark {
+  margin-left: var(--space-2);
+}
