@@ -168,7 +168,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
   const drill = useDrill(game, receivedAt);
-  const callout = useCallout(game.events);
+  const callout = useCallout(game.events, { screen: true, screens: view.screens });
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
