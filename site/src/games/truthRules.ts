@@ -74,22 +74,21 @@ export function writeOwn(list: OwnCard[]) {
   }
 }
 
-type Seen = { truth: string[]; dare: string[] };
+type SeenKind = "truth" | "dare" | "secret";
+type Seen = Record<SeenKind, string[]>;
 
 function readSeen(): Seen {
   try {
     const s = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "{}") as Partial<Seen>;
-    return {
-      truth: Array.isArray(s.truth) ? s.truth : [],
-      dare: Array.isArray(s.dare) ? s.dare : [],
-    };
+    const list = (k: SeenKind) => (Array.isArray(s[k]) ? (s[k] as string[]) : []);
+    return { truth: list("truth"), dare: list("dare"), secret: list("secret") };
   } catch {
-    return { truth: [], dare: [] };
+    return { truth: [], dare: [], secret: [] };
   }
 }
 
 /** A card this phone has dealt: the next games deal the others first. */
-export function markSeen(kind: "truth" | "dare", card: Prompt) {
+export function markSeen(kind: SeenKind, card: Prompt) {
   try {
     const seen = readSeen();
     if (!seen[kind].includes(card.zh)) seen[kind].push(card.zh);
@@ -104,7 +103,7 @@ export function markSeen(kind: "truth" | "dare", card: Prompt) {
  * ones this phone hasn't dealt in earlier games come first, so a table that plays every week doesn't
  * keep meeting the same cards. Once every card has come up, the phone forgets them and starts over.
  */
-export function freshFirst(kind: "truth" | "dare", cards: readonly Prompt[]): number[] {
+export function freshFirst(kind: SeenKind, cards: readonly Prompt[]): number[] {
   const seen = new Set(readSeen()[kind]);
   const places = cards.map((_, i) => i);
   const fresh = places.filter((i) => !seen.has(cards[i].zh));

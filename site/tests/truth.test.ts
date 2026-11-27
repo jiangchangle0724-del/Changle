@@ -3,6 +3,7 @@
  *  1. A fair bottle: who it may land on.
  *  2. Names on the ring: a long one gets smaller, then cut short.
  *  3. What one phone keeps between games: the table's own cards, and which cards it has dealt.
+ *  4. Each player's limits: which cards they skip.
  */
 const store = new Map<string, string>();
 (globalThis as { localStorage?: unknown }).localStorage = {
@@ -12,7 +13,7 @@ const store = new Map<string, string>();
 };
 
 const { fairSeats, fitName, freshFirst, markSeen, OWN_MAX, readOwn, writeOwn } = await import("../src/games/truthRules");
-const { DARES } = await import("../src/data/truthDare");
+const { DARES, TRUTHS, SECRETS, limitsOf } = await import("../src/data/truthDare");
 const { SLIP_MAX, SLIP_TEXT } = await import("../src/shared/engine/games/truth");
 const { OWN_TEXT } = await import("../src/games/truthRules");
 
@@ -104,6 +105,32 @@ const seen = JSON.parse(store.get("changle.truth.seen.v1") ?? "{}") as {
   dare?: string[];
 };
 ok((seen.dare ?? []).length === 0, "and forgets which it had dealt");
+
+// 4. 每人底线: which cards each limit skips, read off their words
+const tags = (text: string, kind: "truth" | "dare" | "secret") => limitsOf(text, kind).join();
+ok(tags("挑一个愿意的人，给 TA 捏肩一分钟。", "dare") === "touch", "a dare with someone willing touches");
+ok(tags("邀请一个人跳 30 秒慢舞。", "dare") === "touch" && tags("让右边的人用笔在你手臂上画个纹身，今晚不许洗。", "dare") === "touch", "so do a slow dance and drawing on an arm");
+ok(!TRUTHS.some((p) => limitsOf(p.zh, "truth").includes("touch")), "no truth touches anyone");
+ok(
+  tags("给通讯录第三个人打电话，只说一句“我想你了”就挂。", "dare") === "phone" && tags("学家里长辈打电话的样子。", "dare") === "",
+  "calling someone uses the phone; acting out a call doesn't",
+);
+ok(
+  tags("你手机里谁的备注名最奇怪？念出来。", "truth") === "phone" && tags("你相册里最奇怪的一张照片是什么？讲讲来历。", "truth") === "",
+  "a truth uses the phone only when it's shown or read from",
+);
+ok(tags("你劈过腿吗？或者被劈过？", "truth") === "love" && tags("你有没有吊着过一个人？为什么？", "truth") === "love", "love lives, however they're put");
+ok(tags("你最长多少天没洗澡？", "truth") === "", "and not everything is about love");
+ok(
+  SECRETS.filter((p) => p.heat === 2).every((p) => limitsOf(p.zh, "secret").includes("love")),
+  "every spicy whisper is about love lives",
+);
+ok(tags("Kiss the person on your left", "dare") === "touch,love" && tags("Text your ex", "dare") === "phone,love", "the table's own cards in English too");
+const clearOfAll = (list: typeof TRUTHS, kind: "truth" | "dare" | "secret") => list.filter((p) => p.heat === 1 && !limitsOf(p.zh, kind).length).length;
+ok(
+  clearOfAll(TRUTHS, "truth") >= 30 && clearOfAll(DARES, "dare") >= 30 && clearOfAll(SECRETS, "secret") >= 30,
+  `with every limit on, still plenty: ${clearOfAll(TRUTHS, "truth")} truths, ${clearOfAll(DARES, "dare")} dares, ${clearOfAll(SECRETS, "secret")} whispers`,
+);
 
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);

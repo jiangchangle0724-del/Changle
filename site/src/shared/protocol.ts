@@ -167,6 +167,10 @@ export type RogueView = {
   interrupt: { kind: "camera"; by: string; phase: "freeze" | "judge"; endsAt: number } | { kind: "nose"; by: string; endsAt: number; tapped: string[] } | null;
 };
 
+/** 悄悄话: how long the coin spins before everyone sees how it landed (ms). */
+export const TRUTH_FLIP_MS = 1600;
+/** Truth or dare, this game so far, per player: truths answered, dares done, whispers answered, passes, times named in a whisper. */
+export type TruthTally = { t?: number; d?: number; s?: number; p?: number; n?: number };
 export type TruthView = {
   id: "truth";
   heat: 1 | 2;
@@ -174,7 +178,9 @@ export type TruthView = {
   spinner: string;
   chosen: string | null;
   revealAt: number;
-  kind: "truth" | "dare" | null;
+  /** secret: 悄悄话, a question only the one picked reads, answered with a name */
+  kind: "truth" | "dare" | "secret" | null;
+  /** null for a whisper this phone may not read (yet) */
   prompt: T | null;
   /** how often the bottle has picked each player this game: the spinning phone evens it out */
   picked?: Record<string, number>;
@@ -186,6 +192,14 @@ export type TruthView = {
   slips?: { truth: number; dare: number; mine: number };
   /** this phone's player still has their one free swap */
   swapLeft?: boolean;
+  /** 悄悄话: whom the one picked named, how the coin landed (open: everyone sees the question), and when everyone may see it land */
+  named?: string | null;
+  coin?: "open" | "hidden" | null;
+  flipAt?: number;
+  /** this phone's own limits (每人底线); nobody else's */
+  limits?: ("touch" | "phone" | "love" | "mild")[];
+  /** this game so far, by player */
+  tally?: Record<string, TruthTally>;
 };
 
 export type UcRole = "civ" | "uc" | "blank";
