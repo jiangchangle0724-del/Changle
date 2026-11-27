@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { ROGUE_MS, RANKS, RULES, RULE_BY_RANK, ruleWords, SUITS, type Rank } from "../../data/rogue13";
 import { HeldCard, RogueTable, type LeaveTo } from "../../games/rogueCards";
+import { RogueLog } from "../../games/rogueLog";
 import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
@@ -81,7 +82,7 @@ export function useTable(v: RogueView, cardKey: string, openedOn: string) {
 }
 
 export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) {
-  const { me, isHost, g } = useRoom();
+  const { me, isHost, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const rule = v.card ? RULE_BY_RANK[v.card.rank] : null;
@@ -110,6 +111,8 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   }, [cardKey]);
   // the card and what it asks come up together, once the table has dealt it
   const up = !!v.card && !table.holding;
+  // the 牌谱, off the pile: what is left of each rank, and the cards turned so far
+  const [logOpen, setLogOpen] = useState(false);
 
   const rules = (
     <ul className="rule-list">
@@ -154,8 +157,10 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
           drawLabel={lang === "zh" ? "下滑抽牌" : "Swipe down"}
           shuffling={table.shuffling}
           leaveTo={table.leaveTo}
+          onPile={() => setLogOpen(true)}
         />
       </div>
+      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={v.stock ?? []} log={v.log ?? []} nameOf={nameOf} />
 
       <AnimatePresence mode="wait">
         {up && v.card && rule && words && (

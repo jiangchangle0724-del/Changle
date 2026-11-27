@@ -29,7 +29,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
-import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
+import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
 import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
@@ -6143,6 +6143,56 @@ test("rogue: the camera and the nose go once per card; the next card of theirs i
   s.deck.length = 0;
   t.g(rv().turn, "draw");
   ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
+});
+
+test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line; a new deck starts both over", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  const sum = (ns: number[]) => ns.reduce((a, b) => a + b, 0);
+  const at = (rank: string) => ROGUE_RANKS.indexOf(rank as Rank);
+  ok(sum(rv().stock!) === 52 && rv().stock!.every((n) => n === 4) && rv().log!.length === 0, "a full deck: four of each, nothing turned yet");
+  // a nine: the drawer drinks, and the log says so
+  s.deck.push(8); // the nine of spades
+  const nines = rv().stock![at("9")];
+  const d1 = rv().turn;
+  t.g(d1, "draw");
+  let line = rv().log![rv().log!.length - 1];
+  ok(rv().log!.length === 1 && line.rank === "9" && line.suit === "spade" && line.by === d1 && line.hit.join() === d1, "the nine's line: drawn by d1, d1 drank");
+  ok(rv().stock![at("9")] === nines - 1 && sum(rv().stock!) === 52, "one nine fewer to come (the card up is out of the stock)");
+  t.g(d1, "next");
+  // an ace: the pick lands on the line once it is made
+  s.deck.push(0); // the ace of spades
+  const d2 = rv().turn;
+  t.g(d2, "draw");
+  line = rv().log![rv().log!.length - 1];
+  ok(rv().log!.length === 2 && line.rank === "A" && line.by === d2 && line.hit.length === 0, "the ace's line waits for the pick");
+  const target = t.ids.find((id) => id !== d2)!;
+  t.g(d2, "pick", { target });
+  ok(rv().log![1].hit.join() === target, "picked: on the line");
+  // the trouble-maker's penalty lands during the ace: not on the ace's line
+  s.holders.trouble = d2;
+  const victim = t.ids.find((id) => id !== d2 && id !== target) ?? target;
+  const before = t.pens().length;
+  t.g(d2, "trouble", { target: victim });
+  ok(t.pens().length === before + 1 && rv().log![1].hit.join() === target, "the power's penalty was given, but the card's line is the card's own");
+  t.g(d2, "next");
+  // a seven's round: the one who slips is on the seven's line
+  s.deck.push(6); // the seven of spades
+  const d3 = rv().turn;
+  t.g(d3, "draw");
+  t.g(d3, "sevens", { start: 5 });
+  const speaker = rv().sevens!.speaker;
+  t.g(speaker, "say", { pass: true }); // 6 is not a seven: wrong
+  ok(rv().log![2].rank === "7" && rv().log![2].hit.join() === speaker, "the sevens' loser is on the seven's line");
+  t.g(d3, "next");
+  // the deck runs out: a new deck, a new log, a full stock again
+  s.deck.length = 0;
+  const d4 = rv().turn;
+  t.g(d4, "draw");
+  ok(rv().reshuffled && rv().log!.length === 1 && rv().log![0].by === d4, "a new deck's log starts with its first card");
+  ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
 });
 
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {
