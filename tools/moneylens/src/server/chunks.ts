@@ -31,7 +31,7 @@
  * is 19 chunks), and a pull reads each blob it hands out once more.
  */
 import { isId } from "../core/ids";
-import { MIN_BLOB, digestOf, isMark, markOf, type Limits, type Pulled, type Pushed, type RemoteChunk, type Write } from "../vault/sync";
+import { MIN_BLOB, digestOf, isMark, markOf, type Limits, type Pulled, type Pushed, type RemoteChunk, type Write } from "../vault/protocol";
 
 /** What can be bound to a `?`. A blob goes in as an ArrayBuffer, which is what a Durable Object's SQL takes and gives. */
 type Bound = string | number | null | ArrayBuffer;
@@ -64,10 +64,20 @@ export function chunkTables(db: Db): void {
   db.sql.exec(`CREATE TABLE IF NOT EXISTS vault (one INTEGER PRIMARY KEY CHECK (one = 1), id TEXT NOT NULL, seq INTEGER NOT NULL, day TEXT NOT NULL, written INTEGER NOT NULL)`);
 }
 
+/**
+ * The vault's row. What it holds is checked each time it is read: a count that is not a count (a database damaged or
+ * restored into nonsense) is an error, thrown, and nothing is done on it. The caller answers that it cannot serve.
+ */
 function vaultRow(db: Db): VaultRow | null {
   const row = db.sql.exec(`SELECT id, seq, day, written FROM vault WHERE one = 1`).toArray()[0];
-  return row ? { id: String(row.id), seq: Number(row.seq), day: String(row.day), written: Number(row.written) } : null;
+  if (!row) return null;
+  const { id, seq, day, written } = row;
+  if (typeof id !== "string" || !isVersion(seq) || !isVersion(written) || typeof day !== "string" || !/^(?:\d{4}-\d\d-\d\d)?$/.test(day)) throw new Error("vault row");
+  return { id, seq, day, written };
 }
+
+/** The last day chunks were written on ("YYYY-MM-DD"; "" before the first write). The day a caller hands to `pushChunks` is never an earlier one. */
+export const lastDay = (db: Db): string => vaultRow(db)?.day ?? "";
 
 /** Every chunk the vault holds, without the blobs. */
 function listing(db: Db): Map<string, Held> {
@@ -157,6 +167,8 @@ export function pushChunks(db: Db, vault: string, writes: readonly Write[], limi
   // 5. All of it, with a version number each, in the order given.
   return db.atomically(() => {
     const versions: { id: string; version: number }[] = [];
+    // (version numbers stay whole numbers that can be counted with: past them there is no writing)
+    if (!isVersion(held.seq + writes.length)) throw new Error("version count");
     let seq = held.seq;
     for (const write of writes) {
       seq += 1;

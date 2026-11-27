@@ -1,0 +1,40 @@
+// Cloudflare settings for MoneyLens's server: its own Worker on its own origin, money.changle.ca
+// (D2), with nothing else on it. NOT PUBLISHED YET: no Workers Build is connected to this folder,
+// and nothing here is live. When it is connected (Steve, in the dashboard), a merge into main that
+// touches tools/moneylens publishes it (root tools/moneylens, deploy command `npx wrangler deploy`),
+// and the first deploy makes the DNS record for the custom domain (approved under D2). No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moneylens",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "money.changle.ca", "custom_domain": true }],
+  // One Durable Object for each person, named by their account's id, with its own SQLite database
+  // (ISO-1): sessions, the vault's sealed chunks, the events log. And one, "registry", that only
+  // knows which accounts have ever signed in (src/server/registry.ts).
+  "durable_objects": {
+    "bindings": [
+      { "name": "VAULTS", "class_name": "VaultDO" },
+      { "name": "REGISTRY", "class_name": "Registry" }
+    ]
+  },
+  // SQLite-backed Durable Objects are the kind the Free plan has (D6).
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VaultDO", "Registry"] }],
+  // Accounts are changle.ca's own. A handoff code is traded with the accounts service (site/worker),
+  // Worker to Worker, never over a public address (ARCH-3; docs/moneylens/accounts-requests.md).
+  "services": [{ "binding": "ACCOUNTS", "service": "changle-rooms", "entrypoint": "Handoff" }],
+  "vars": {
+    // The one origin requests may come from (SEC-4), and where signing in starts.
+    "ORIGIN": "https://money.changle.ca",
+    "MAIN_SITE": "https://changle.ca",
+    // The gate (SEC-10): "closed", "owner" (Steve's own account alone) or "list" (the accounts in
+    // ALLOWED_ACCOUNTS, ids apart by commas). Opening it is Steve's decision, recorded with its
+    // date in docs/briefs/moneylens.md. Anything else written here reads as "closed".
+    "GATE": "closed",
+    "ALLOWED_ACCOUNTS": ""
+    // Quotas (LIM-2), when the defaults are to be changed: QUOTA_VAULT_BYTES (10485760),
+    // QUOTA_WRITES_PER_DAY (300).
+  },
+  "observability": { "enabled": true }
+}

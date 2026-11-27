@@ -1,10 +1,20 @@
 # The server's shell: design notes for the next slice
 
-Status: **a plan, not built** (written 2026-11-25). The libraries it stands on are merged and
-reviewed: `tools/moneylens/src/server/chunks.ts` (#782), `sessions.ts` and `request.ts` (#789).
-This file is what was worked out before the Worker and the Durable Object are written, so that the
-work can be picked up from here. It changes when the code does, and goes into the security
-assessment (a new section) when the slice is built. The slice needs a SEC-9 review.
+Status: **built, not merged, not published** (#814, 2026-11-26; it waits for its SEC-9
+review). What it does is now written in the security assessment, section 1.8, which is the
+authority; this file stays as the plan it was built from, with two corrections below.
+
+Changed while building: the server's files no longer import the device's sync layer. What both
+ends say to each other (the two calls, the limits, how a sealed copy is named) moved out of
+`vault/sync.ts` into `vault/protocol.ts`, untouched, and `sync.ts` hands it on under the same
+names.
+
+Changed after the review (C9, two findings): the plan below had a sign-in and the accounts
+service's notices pass each other with nothing to put them in order, and had signing in write
+in two steps. Now a notice sets a new stamp in the registry first, a sign-in reads it before
+its code is traded and the account's object reads it again before it opens the session, and
+signing in is one transaction. The steps and the reasons are in `src/server/flows.ts` and in
+the assessment, 1.8 ("A sign-in and a notice at the same time").
 
 ## What the platform allows (read on 2026-11-25, Cloudflare's limits pages)
 

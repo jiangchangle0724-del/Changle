@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.12, 25 November 2026. It records the choices the requirements leave to this document
+Version 0.14, 26 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -35,8 +35,11 @@ request has a time limit. The third round approved the layer as 0.9 describes it
 follows that round: the one thing it found is fixed (a doubled record was not always read with
 its latest copy's time), and one more way a field can come back is written into 1.6. Version
 0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). Version
-0.12 adds sessions and what a request has to show (1.7). The Worker and the Durable Object
-around them are not written.
+0.12 adds sessions and what a request has to show (1.7). Version 0.13 adds the Worker and the
+Durable Objects around all of it: a request's way in, the gate, and sync as it travels (1.8).
+Version 0.14 follows the review of 1.8: a sign-in and a notice from the accounts service are put
+in order ("A sign-in and a notice at the same time"), and signing in is one transaction. None of
+it is published.
 
 ## 1. The vault
 
@@ -730,10 +733,202 @@ cookie headers that are not a session, a planted second cookie among them; eight
 are not ours. Each of the 58 checks in the two files was taken out in turn: each makes a test
 fail.
 
-Not written, and not reviewed with this: the Worker and the Durable Object that call these
-functions, trading the handoff code, the allowlist (SEC-10), the content security policy, the
-security event log (SEC-17), and any limit on how often an account signs in beyond the main
-site's own limit on handoff codes.
+Not written with 1.7, and now in 1.8: the Worker and the Durable Object that call these
+functions, trading the handoff code, the gate (SEC-10), the events log (SEC-17), and a limit on
+how often an account signs in.
+
+### 1.8 The server's shell: a request's way in (ARCH-3, ISO-1, ISO-2, SEC-1, SEC-4, SEC-5, SEC-10)
+
+One Worker, `moneylens`, to be served on `money.changle.ca` and nothing else there (D2). It is
+not published: no Workers Build is connected to its folder, and its gate is shut in the
+repository. Two classes of Durable Object, both on SQLite. `VaultDO` is one person's: named by
+the account's id, it holds that person's sessions (1.7), sealed chunks (1.6), an events log, and
+one row saying whose it is. `Registry` is one object that knows which accounts have ever signed
+in, and nothing else about them; it also keeps one value that is about no account, the stamp
+(below).
+
+The rules stay in plain functions, tested on Node's SQLite: `gate.ts`, `account.ts`,
+`registry.ts`, `wire.ts`, `flows.ts`, beside `sessions.ts`, `request.ts`, `chunks.ts`. `worker.ts` reads
+requests and adapts storage. It is tested on Cloudflare's own runtime on a developer's machine
+and in CI (`npm run test:server`), with a stand-in for the accounts service.
+
+**What comes in.** `GET /enter` and `POST /api/...`; everything else is "no such thing".
+
+- `/enter` makes a nonce (256 random bits), sets it in the `__Host-ml-n` cookie and sends the
+  browser to the main site with it. The main site has the accounts service make a handoff code
+  bound to that nonce and sends the browser back (ARCH-3).
+- Every `/api` request is refused unless it is a POST whose `Origin` is exactly the configured
+  origin (`fromOurOrigin`, SEC-4; the expected origin is the setting `ORIGIN`, and with no such
+  setting nothing is answered at all), unless the gate is open, unless its body says what kind
+  it is (`application/json`, or `application/octet-stream` for a push) and states a length no
+  greater than that kind may have: 4,096 bytes, or for a push 8 MiB of blobs and a 64 KiB head
+  (SEC-5). No `Access-Control-*` header is ever sent, and `OPTIONS` is refused.
+- `POST /api/session` trades the code, Worker to Worker (`ACCOUNTS.redeem(code, "moneylens")`),
+  and compares the nonce the code was bound to with the cookie's, every character. A code that
+  is wrong, used, out of time, for another audience or bound to another browser gets one answer.
+  Then the gate is asked, a token and a session id are made here (never taken from the caller),
+  the account is noted in the registry, and `signIn` opens the session in that account's own
+  object, unless a notice from the accounts service came in the meantime (below). Opening it is
+  one transaction: the tables the first time, the session, the oldest session it pushes out
+  when there are eight, and the line in the events log are written together or not at all, so
+  a sign-in that fails half way leaves every device that was signed in, and no session whose
+  token nobody was given. The answer sets `__Host-ml` and clears the nonce's cookie. The session's label is
+  worked out from the User-Agent out of a fixed set of words ("Chrome on Windows"); none of the
+  request's own text goes into it. The code, the nonce and the token are never logged; what is
+  logged of an error is its kind.
+- Any other request names its account in its cookie. That name picks the object and is compared
+  there with the account the object belongs to; it grants nothing (ISO-2). The Worker hashes
+  the token and hands the request on with its body unread, as a stream. The object looks for
+  the session before it reads the body, so that someone with no session cannot make it hold
+  megabytes; then it reads the body; then, with nothing that waits in between, `act` checks the
+  session again and does what was asked (the third obligation of the review of 1.7). A request
+  that names an account, a session or a vault in its body has those used as what they are: a
+  session id is looked up among this account's own, and a vault id is compared with the one
+  this database holds.
+- Every answer carries `Cache-Control: no-store`, HSTS, `nosniff`, `Referrer-Policy:
+  no-referrer`, `frame-ancestors 'none'` and a policy that loads nothing (SEC-1). An answer that
+  there is no session, or that the account is not let in, clears the cookie. A database that
+  cannot be read, or a row in it that holds nonsense (a count that is not a count: `chunks.ts`
+  now checks), is answered with "unavailable" and nothing is done.
+
+**The gate (SEC-10, T-23).** The setting `GATE`: `closed` (what the repository says), `owner`,
+or `list`; anything else reads as `closed`. With `owner`, a sign-in is let in when the accounts
+service says the account is the owner's, the object remembers what was said at the latest
+sign-in, and every request is asked for it. With `list`, a sign-in is let in when the account's
+id is in `ALLOWED_ACCOUNTS`, and the Worker asks the list on every request before any object is
+reached, so taking an id off the list takes effect at once; the owner is on the list or is not
+let in. A sign-in that is not let in writes nothing anywhere, the registry included. Opening
+the gate is the operator changing that setting.
+
+**A sign-in and a notice at the same time (`flows.ts`; the review of this section, finding
+1).** A sign-in goes to three places one after another: the accounts service (the code), the
+registry (the note), the account's object (the session). The accounts service's two notices,
+"this account is gone" and "this account's address changed", go to two: the object and the
+registry. Nothing holds those still, so a whole notice can pass between two steps of a sign-in.
+Left alone, a code traded just before an address changed could open a session just after
+everyone had been signed out; and a code traded just before an account was deleted could put
+tables back into a database that had just been emptied, for an account the registry had just
+forgotten.
+
+Two things put them in order. The registry keeps a stamp: 128 random bits, new each time, and
+one for everybody, since a sign-in does not know whose it is until its code is traded. A notice
+sets a new stamp before it does anything else. A sign-in reads the stamp before it trades its
+code, and the account's object reads it again just before it opens the session, and opens none
+if the two differ. And the object counts, in memory, the notices that have done their work on
+it since it was loaded: it takes the count, asks the registry, and opens the session only if
+the count has not moved. From that second look at the count to the session's being written,
+nothing waits.
+
+For a notice about the account that is signing in, one of three things is then true. Its stamp
+was set before the sign-in first read it: then the accounts service had done its own part
+before the code was traded, and in that part it drops the waiting codes of an account it
+deletes and of an account whose other devices it signs out (`site/worker/hub.ts`,
+`endSessions`; `handoffCodes.ts`, `forgetHandoffs`), so a deleted account's code no longer
+trades, and a code that still trades after a change of address is one asked for after the
+change or by the one device the change left signed in. Or its stamp was set after that and
+before the object read it: the stamps differ. Or its stamp was set after the object read it:
+then its work on the object comes later still, either while the object waits for the registry's
+answer, and the count has moved, or after the session was written, and ends it.
+
+A sign-in turned away like this has written nothing, so there is nothing to undo and no undoing
+that could fail half way. The person is asked to try again ("try-again", 503). If the account
+has meanwhile been deleted, the Worker takes it off the registry again, emptying its database
+first as the notice does; if it cannot, the entry stays for the weekly sweep, which goes by the
+registry. The rule that holds throughout, a failure at any step included: there is never a
+database the registry does not know of.
+
+What this costs, and what it rests on. A notice about one account turns away the sign-ins of
+other accounts that were under way at that moment; with twenty-five people that is rare, and
+they try again. A sign-in asks the registry twice more than before. The count is in memory
+only, which is enough: it has to hold from the object's first look to its second, within one
+call, and an object that is restarted in between drops the call with it. The stamp is random
+and not a number counted up, so that a registry put back from a copy cannot hand out a value it
+had handed out before. The order rests on the registry being one object that does one thing at
+a time, and on what the accounts service does before it tells MoneyLens, which is its code and
+not this tool's: if it ever told the apps before dropping the codes, the first of the three
+cases would no longer hold.
+
+**What a wrong guess costs.** An address someone made up reaches an object only with the gate
+open to the owner (with a list, the Worker stops it). There it costs one request and one read:
+a database nobody signed in to has no tables, and none is made. A wrong token for a real account
+costs one request and at most eight short rows read, and writes nothing. A made-up code costs
+one read of the registry's stamp and one question to the accounts service. None of these is limited in
+this code, because an object cannot refuse a request without having been asked. A rule on
+`/api/*` in Cloudflare's own rate limiting is a setting, to be asked of the operator before
+Phase 3. Sign-ins are limited here: twelve an hour for one account (eight sessions are kept, so
+signing in over and over would push a person's other devices out).
+
+**Sync as it travels (`wire.ts`).** Blobs are not put into JSON. A push's body and the answers
+to a push and a pull are a frame: four bytes of length, that many bytes of JSON naming each blob
+and its length, then the blobs. Reading a frame checks its form (the blobs use up the bytes
+exactly); what the names and numbers are worth is checked by whoever asked, `pushChunks` on the
+server and `sync` on the device, as before. The reason is the platform: a Worker on the Free
+plan has 10 ms of processor time for a request, which base64 and JSON of eight megabytes would
+pass. It is not known whether a Free-plan Durable Object is held to the same 10 ms (Cloudflare's
+page gives 30 seconds, and says objects have "the same per invocation CPU limits as any
+Workers"). The local runtime does not enforce either. **To be measured at the first deploy,
+before any real statement goes in:** a push of the largest size.
+
+**Quotas (LIM-2, T-14).** `QUOTA_VAULT_BYTES` and `QUOTA_WRITES_PER_DAY`, each taken only as a
+whole number within bounds (1 MiB to 100 MiB; 10 to 5,000), otherwise the default of 1.6. The
+day the writes are counted for is the object's own UTC day and never an earlier one than the
+last day it wrote on: a clock set back does not hand out a second day's writes.
+
+**The events log (SEC-17).** In the person's own database: what happened (a sign-in, a
+sign-out, a session ended from another device, a vault started, an email change), when, and in
+which session. No contents. Twelve months are kept and at most 500 lines; the person is shown
+the newest 50. Failed attempts are not logged there: they would let a stranger write to a
+person's database. Unlocks, exports, deletions and consent changes are not logged yet; they
+come with the screens that do them.
+
+**The other way in.** `Internal`, reachable only over a service binding from the accounts
+service: `accountGone(id)` sets a new stamp, empties the account's object (`deleteAll`) and
+takes it off the registry, in that order; `accountChanged(id)` sets a new stamp and ends all
+the account's sessions; `count()` says how many accounts are noted. All answer normally for an
+account that was never here, and the first two throw when they fail, so that the caller tries
+again; a notice whose stamp could not be set does nothing else.
+
+**Decided here.** A restored database can bring back sessions that had been ended, up to
+twelve hours' worth: the restore runbook ends every session of a restored account
+(`accountChanged` does it). The device's `Remote` over HTTP (`web/remote.ts`) throws for every
+answer that is not the store's, which `sync` reports as no answer, and marks apart the one the
+screen must act on: the server saying this browser has no session.
+
+**Tested.** On Node: every rule above that is a function, and each of 98 of their checks taken
+out in turn fails a test. A sign-in and a notice are run in every order their steps can come in
+(`tests/flows.test.ts`): each call on another object is a step, a call into an account's object
+is three (it arrives, the object's question reaches the registry, the answer comes back), which
+gives 715 orders for nine steps of a sign-in and four of a notice. That is done for a deleted
+account and a changed address, for an account that was here before and one that was not, for a
+code that the change dropped and one it left, for someone else's notice, for a notice that
+fails at its work and is sent again (5,005 orders), and with each step of the sign-in made to
+fail in turn. After every step the registry must know of every database there is; at the end a
+deleted account has no database and no entry, no session lives that was opened by a code traded
+before a change, and no session exists that the sign-in did not say "ok" for. The object's own
+class is loaded on Node as well (`tests/objects.test.ts`), with a registry whose answer the
+test holds back, to show that a notice's work done meanwhile is counted, an emptying before it
+is over included. Signing in is run with each of its writes failing in turn, for a first
+sign-in, a second and a ninth: the database is left exactly as it was.
+
+On the local runtime: T-1 and T-2 (two people, through every route, with each other's names,
+tokens and ids), T-3, T-22 (every route, sync included, from other origins and from the main
+site), T-23 (each gate), T-14, T-6 (two devices sync real sealed records through the Worker,
+and every file the runtime kept is searched for what they wrote), the body limits, `Internal`,
+the registry, and that everything is still there after the runtime stops and starts. A notice
+is made to come while a code is being traded (the stand-in for the accounts service sends it
+from inside its answer to the trade): the sign-in is turned away with nothing opened, for a
+changed address, for someone else's notice, for an account's first sign-in and for a deleted
+account, which is then off the registry. And a transaction inside a transaction is shown to do
+on the platform what signing in takes it to do: the outer one failing undoes the inner one's
+writes, and what was thrown comes out as the thing that was thrown. Fifteen checks in
+`worker.ts` were taken out in turn: each fails a test there.
+
+**Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
+design on the device's side for proving that a session has the vault unlocked. The weekly sweep
+(ARCH-10); the registry it will read exists. Consent and eligibility. The app's pages, and with
+them the page that finishes a sign-in and the content security policy of pages that load
+something (SEC-2). The main site's page that asks for the code. The limits of the platform at
+their real sizes, and what a call is billed, which only a deploy can show.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 

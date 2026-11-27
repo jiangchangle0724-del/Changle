@@ -1,0 +1,17 @@
+{
+  // The Worker and what it imports, checked against Cloudflare's own types and none of the browser's
+  // (the rest of the tool is checked by ../../tsconfig.json, which leaves these two files out).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["@cloudflare/workers-types"]
+  },
+  "files": ["worker.ts", "../../tests/accounts/worker.ts"]
+}
