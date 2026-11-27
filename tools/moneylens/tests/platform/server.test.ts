@@ -144,7 +144,7 @@ after(async () => {
 
 test("only the app's page, /enter and POST /api answer, with the same headers on everything", async () => {
   const none: Jar = new Map();
-  for (const path of ["/index.html", "/index", "/api", "/enterprise", "/enter/", "/.well-known/security.txt", "/API/sessions", "/assets", "/assets/", "/assets/nothing.js", "/assets/fonts", "/licences", "/Licences.txt", "//"])
+  for (const path of ["/index.html", "/index", "/api", "/enterprise", "/enter/", "/.well-known/security.txt", "/API/sessions", "/assets", "/assets/", "/assets/nothing.js", "/assets/fonts", "/assets/..%2findex.html", "/assets/..%2flicences.txt", "/assets//icon.svg", "/assets/icon.svg/", "/licences", "/Licences.txt", "//"])
     assert.deepEqual(await said(await send(server, path, null, none, { method: "GET", origin: null })), [404, "no-such-thing"], path);
   assert.deepEqual(await said(await send(server, "/api/nothing", "{}", none)), [404, "no-such-thing"]);
   // /api is POST only, whatever is asked for

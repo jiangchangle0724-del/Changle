@@ -104,6 +104,8 @@ const HEADERS: Readonly<Record<string, string>> = {
 const PAGE_POLICY = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 /** A file under /assets never changes under one name (scripts/build-app.mjs), so it may be kept for a year. It holds nobody's data. */
 const KEPT = "public, max-age=31536000, immutable";
+/** What the page loads: a file under /assets, in one folder at most, with a plain name and one ending. No other path is ever asked of where the files are kept. */
+const FILE = /^\/assets\/(?:[a-z0-9-]+\/)?[A-Za-z0-9-]+\.[a-z0-9]+$/;
 
 function reply(status: number, body: BodyInit | null, type: string | null, cookies: readonly string[] = [], more: Readonly<Record<string, string>> = {}): Response {
   const headers = new Headers({ ...HEADERS, ...more });
@@ -165,13 +167,14 @@ async function route(request: Request, env: Env): Promise<Response> {
 
 /** The app's page at `/`, what it loads from under `/assets/`, and the licences of what is in it. Nothing else is a page. */
 async function page(request: Request, env: Env, config: Config, path: string): Promise<Response> {
-  const file = path.startsWith("/assets/");
+  const file = FILE.test(path);
   if (path !== "/" && path !== "/licences.txt" && !file) return refuse(404, "no-such-thing");
   if (request.method !== "GET" && request.method !== "HEAD") return reply(405, JSON.stringify({ ok: false, why: "get-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "GET, HEAD" });
   // with the gate shut, nobody is handed the app: the page says so, and there is nothing else
   if (config.gate.mode === "closed") return path === "/" ? reply(403, SHUT, "text/html; charset=utf-8") : refuse(404, "no-such-thing");
-  // (asked for by its path alone: nothing of the request goes with it)
+  // (asked for by its path alone: nothing of the request goes with it, not its cookies and not its conditions)
   const found = await env.ASSETS.fetch(new Request(`https://assets.invalid${path}`, { method: request.method }));
+  // (the file, whole, or nothing: a redirect, a part or "not changed" from there is not passed on, and neither is any header but the kind)
   if (found.status !== 200) return refuse(404, "no-such-thing");
   return reply(200, found.body, found.headers.get("Content-Type"), [], file ? { "Cache-Control": KEPT } : path === "/" ? { "Content-Security-Policy": PAGE_POLICY } : {});
 }

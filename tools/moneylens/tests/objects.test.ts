@@ -6,37 +6,24 @@
  * there opens nothing (flows.ts, `signInHere`; the review of #814, finding 1).
  *
  * worker.ts is bundled as it is; only `cloudflare:workers`, which exists on the platform alone,
- * is replaced, by two base classes that keep what they are given.
+ * is replaced, by two base classes that keep what they are given (tests/workermod.ts).
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import test, { after } from "node:test";
-import { pathToFileURL } from "node:url";
-import { build } from "esbuild";
+import test from "node:test";
 import { newId } from "../src/core/ids";
 import { isSetUp, type SignIn } from "../src/server/account";
 import type { Db } from "../src/server/chunks";
 import type { Entered } from "../src/server/flows";
 import { checkSession, hashOf, newToken } from "../src/server/sessions";
 import { sqlite } from "./sqlremote";
+import { workerModule } from "./workermod";
 
 type Storage = { sql: Db["sql"]; transactionSync: Db["atomically"]; deleteAll(): Promise<void> };
 type Vault = { signIn(made: SignIn & { stamp: string }): Promise<Entered>; signEveryoneOut(): void; erase(): Promise<void> };
 type Classes = { VaultDO: new (ctx: { storage: Storage }, env: object) => Vault };
 
 const A = "uaaaaaa1";
-const kept = mkdtempSync(join(tmpdir(), "moneylens-objects-"));
-after(() => rmSync(kept, { recursive: true, force: true }));
-
-const classes: Promise<Classes> = (async () => {
-  const base = join(kept, "cloudflare-workers.mjs");
-  writeFileSync(base, `export class DurableObject { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }\nexport class WorkerEntrypoint { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }\n`);
-  const out = join(kept, "worker.mjs");
-  await build({ entryPoints: ["src/server/worker.ts"], bundle: true, format: "esm", platform: "node", target: "es2022", outfile: out, alias: { "cloudflare:workers": base }, logLevel: "silent" });
-  return (await import(pathToFileURL(out).href)) as Classes;
-})();
+const classes = workerModule() as Promise<Classes>;
 
 /** An account's object on Node's SQLite, and a registry that answers `stampNow` when the test says so. */
 async function world() {
