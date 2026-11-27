@@ -29,8 +29,10 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
-import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
+import { deckFor, TITLES as SUPER_TITLES } from "../src/data/superlatives";
+import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
 import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
+import { SLIP_MAX } from "../src/shared/engine/games/truth";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -40,6 +42,8 @@ import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } fr
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
+import { ADULT_PAIRS, WORD_PAIRS } from "../src/data/undercover";
+import { sameWord, saysWord } from "../src/shared/engine/games/undercover";
 import { drawMatches } from "../src/shared/engine/games/draw";
 import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
 import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
@@ -474,6 +478,82 @@ test("truth: each heat deals only its own cards", () => {
   }
 });
 
+test("truth: the bottle keeps count, chance picks, one swap a game", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  // the later tests were written against the dice as they fell before these two: put them back after
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  ok(t.view<TV>("p2").picked?.p1 === 1, "the bottle counts who it picks, for the spinning phone to even out");
+  clock += 1200;
+  t.g("p1", "pick", { kind: "random" });
+  let v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.rand === true && (v.kind === "truth" || v.kind === "dare") && !!v.prompt, "听天由命: a card of either kind, marked as chance");
+  const first = v.prompt!.zh;
+  const kind = v.kind;
+  ok(v.swapLeft === true, "everyone starts with a swap");
+  t.g("p2", "swap");
+  ok(t.view<TV>("p1").prompt!.zh === first, "only the one picked can swap their card");
+  t.g("p1", "swap");
+  v = t.view<TV>("p1");
+  ok(v.prompt!.zh !== first && v.kind === kind && v.rand === true && v.swapLeft === false, "a swap deals another card of the same kind, once");
+  t.g("p1", "swap");
+  ok(t.view<TV>("p1").prompt!.zh === v.prompt!.zh, "no second swap in a game");
+  ok(t.view<TV>("p2").swapLeft === true, "the others still have theirs");
+  t.g("p1", "done");
+  v = t.view<TV>("p1");
+  ok(v.phase === "spin" && v.spinner === "p1" && v.rand === false && v.own === false, "back to the bottle, the one picked spins");
+  // a room that started before the game kept these still plays
+  const st = t.eng.d.game!.s as Record<string, unknown>;
+  delete st.picked;
+  delete st.swapped;
+  delete st.slips;
+  delete st.slipN;
+  t.act("p1", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+  ok(t.view<TV>("p0").picked?.p2 === 1 && t.view<TV>("p0").slips?.truth === 0, "a game under way when this shipped carries on");
+  ({ seed, clock } = was);
+});
+
+test("truth: the table's own cards", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.g("p2", "add", { kind: "dare", text: "  学  p0 说话的样子  " });
+  t.g("p2", "add", { kind: "dare", text: "学 p0 说话的样子" });
+  t.g("p3", "add", { kind: "truth", text: "问".repeat(200) });
+  t.g("p3", "add", { kind: "truth", text: "   " });
+  const pile = t.view<TV>("p0").slips!;
+  ok(pile.dare === 1 && pile.truth === 1 && pile.mine === 0, `the pile shows counts, the same card once, nothing empty (${JSON.stringify(pile)})`);
+  ok(t.view<TV>("p2").slips!.mine === 1 && t.view<TV>("p3").slips!.mine === 1, "each phone sees how many it wrote");
+  ok(!JSON.stringify(t.view<TV>("p0")).includes("说话的样子"), "nobody sees the words before they come up");
+  // never dealt to the one who wrote it
+  t.act("p0", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p2", "pick", { kind: "dare" });
+  let v = t.view<TV>("p2");
+  ok(v.own === false && t.view<TV>("p0").slips!.dare === 1, "the writer gets a built-in card; theirs stays in the pile");
+  t.g("p2", "done");
+  t.act("p2", { a: "spin", scope: "truth", index: 3, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p3", "pick", { kind: "dare" });
+  v = t.view<TV>("p3");
+  ok(v.own === true && v.prompt?.zh === "学 p0 说话的样子" && v.prompt.en === v.prompt.zh, `someone else gets it first, as written (${v.prompt?.zh})`);
+  ok(t.view<TV>("p0").slips!.dare === 0, "and it leaves the pile");
+  // a pile has a limit, and the host can empty it
+  for (let i = 0; i < 50; i++) t.g("p1", "add", { kind: i % 2 ? "truth" : "dare", text: `第 ${i} 题` });
+  const full = t.view<TV>("p0").slips!;
+  ok(full.truth + full.dare === SLIP_MAX, `at most ${SLIP_MAX} waiting (${full.truth + full.dare})`);
+  t.g("p3", "clearOwn");
+  ok(t.view<TV>("p0").slips!.truth > 0, "only the host can empty the pile");
+  t.g("p0", "clearOwn");
+  ok(t.view<TV>("p0").slips!.truth === 0 && t.view<TV>("p0").slips!.dare === 0, "the host empties it");
+  const words = (t.eng.d.game!.s as { slips: { text: string }[] }).slips;
+  ok(words.length === 0, "nothing left behind");
+  ({ seed, clock } = was);
+});
+
 test("undercover: words private, vote, win", () => {
   const t = setup(6);
   t.act("p0", { a: "start", game: "undercover" });
@@ -498,6 +578,437 @@ test("undercover: words private, vote, win", () => {
   t.g("p0", "next");
   ok(t.pens().some((p) => p.who.includes(ucId)), "loser drinks");
   ok(t.view<Extract<GameView, { id: "undercover" }>>(civId).roles !== null, "roles revealed at end");
+});
+
+/**
+ * The undercover tests added from 11-20 on hand the shared dice (seed) back as they found them, so
+ * the tests further down (戏精大赏's casting) deal what they always dealt, however many pairs the
+ * word banks grow to.
+ */
+function ucTest(name: string, fn: () => void) {
+  test(name, () => {
+    const keep = seed;
+    try {
+      fn();
+    } finally {
+      seed = keep;
+    }
+  });
+}
+
+ucTest("undercover: a tap that arrives twice moves the table on once (the host's double tap, or taps queued while the line was down)", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  const t = setup(5);
+  t.act("p0", { a: "start", game: "undercover" });
+  t.g("p0", "deal");
+  // 不等了，直接开 tapped three times on the word screen, sent together when the host's line came back
+  t.g("p0", "force", { phase: "word" });
+  t.g("p0", "force", { phase: "word" });
+  t.g("p0", "force", { phase: "word" });
+  ok(t.view<V>("p0").phase === "talk", `three queued 'go now' taps from the word screen reach the talk, not the count (${t.view<V>("p0").phase})`);
+  // a tap from the screen the table is on still works
+  t.g("p0", "force", { phase: "talk" });
+  ok(t.view<V>("p0").phase === "vote", "'go to the vote' from the talk screen moves on");
+  t.g("p0", "force", { phase: "talk" });
+  ok(t.view<V>("p0").phase === "vote", "the same tap again changes nothing");
+  // an old phone's tap without a screen name still works
+  t.g("p0", "force");
+  ok(t.view<V>("p0").phase === "reveal" && t.view<V>("p0").tie, "a tap with no screen name counts as before");
+
+  // the host is the speaker: 说完了 twice (a double tap) moves on by one seat, not two
+  const t2 = setup(5);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "deal");
+  for (const id of t2.ids) t2.g(id, "ready");
+  let v = t2.view<V>("p0");
+  while (v.order[v.speaker] !== "p0") {
+    t2.g(v.order[v.speaker], "done", { speaker: v.speaker, round: v.round });
+    v = t2.view<V>("p0");
+  }
+  const before = v.speaker;
+  t2.g("p0", "done", { speaker: before, round: 1 });
+  t2.g("p0", "done", { speaker: before, round: 1 });
+  v = t2.view<V>("p0");
+  const moved = v.phase === "talk" ? v.speaker - before : v.order.length - before;
+  ok(moved === 1, `the host's double tap on 说完了 moves on one seat (${moved})`);
+  // 下一个说 for a speaker who has already finished skips nobody
+  if (v.phase === "talk") {
+    const now = v.speaker;
+    t2.g("p0", "done", { speaker: now - 1, round: 1 });
+    ok(t2.view<V>("p0").speaker === now, "a stale 'next speaker' tap changes nothing");
+  }
+});
+
+ucTest("undercover: the word bank, and a table that deals every pair once before any comes round again", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  ok(WORD_PAIRS.length >= 480, `at least 480 everyday pairs (${WORD_PAIRS.length})`);
+  ok(ADULT_PAIRS.length >= 140, `at least 140 adults-only pairs (${ADULT_PAIRS.length})`);
+  // both banks together: a word in the adults-only bank is never also an everyday word
+  const seenZh = new Map<string, number>();
+  const seenEn = new Map<string, number>();
+  const bad: string[] = [];
+  for (const { a, b } of [...WORD_PAIRS, ...ADULT_PAIRS]) {
+    for (const w of [a, b]) {
+      if (!w.zh.trim() || !w.en.trim()) bad.push(`empty: ${w.zh}/${w.en}`);
+      if (w.en.length > 20) bad.push(`too long for the card: ${w.en}`);
+      seenZh.set(w.zh, (seenZh.get(w.zh) ?? 0) + 1);
+      seenEn.set(w.en.toLowerCase(), (seenEn.get(w.en.toLowerCase()) ?? 0) + 1);
+    }
+    if (a.zh === b.zh || a.en.toLowerCase() === b.en.toLowerCase()) bad.push(`the same word twice: ${a.zh}/${b.zh}`);
+  }
+  const twice = [...seenZh].filter(([, n]) => n > 1).map(([w]) => w).concat([...seenEn].filter(([, n]) => n > 1).map(([w]) => w));
+  ok(!bad.length, `every pair is two different, short words (${bad.slice(0, 5).join("; ") || "all are"})`);
+  ok(!twice.length, `no word sits in two pairs (${twice.slice(0, 8).join(", ") || "none does"})`);
+
+  // one table, 再开一局 after 再开一局: no pair twice until the whole bank has been dealt
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "undercover" });
+  const dealt: number[] = [];
+  const game = () => {
+    t.g("p0", "deal");
+    const s = t.eng.d.game!.s as { pair: number; roles: Record<string, string> };
+    dealt.push(s.pair);
+    const uc = Object.keys(s.roles).find((id) => s.roles[id] === "uc")!;
+    t.g("p0", "force", { phase: "word" });
+    t.g("p0", "force", { phase: "talk" });
+    for (const id of t.ids) if (id !== uc) t.g(id, "vote", { target: uc });
+    t.g(uc, "vote", { target: t.ids.find((id) => id !== uc)! });
+    ok(t.view<V>("p0").winner === "civ", "the undercover is voted out");
+    t.g("p0", "next");
+    t.g("p0", "again");
+  };
+  for (let i = 0; i < WORD_PAIRS.length; i++) game();
+  ok(new Set(dealt).size === WORD_PAIRS.length, `${WORD_PAIRS.length} games, ${new Set(dealt).size} different pairs`);
+  game();
+  game();
+  ok(dealt.length === WORD_PAIRS.length + 2 && dealt.slice(-2).every((i) => i >= 0 && i < WORD_PAIRS.length) && dealt.at(-1) !== dealt.at(-2), "after the whole bank, the deals go on from a fresh bank");
+});
+
+ucTest("undercover: 成人档 deals from the adults-only bank, only when the host turns it on before the deal", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  const zhOf = (bank: { a: { zh: string }; b: { zh: string } }[]) => new Set(bank.flatMap((p) => [p.a.zh, p.b.zh]));
+  const adultZh = zhOf(ADULT_PAIRS);
+  const dayZh = zhOf(WORD_PAIRS);
+  type Table = ReturnType<typeof setup>;
+  // play a game through (the civilians catch the undercover) and read the words off the end screen
+  const playOut = (t: Table) => {
+    t.g("p0", "deal");
+    const s = t.eng.d.game!.s as { roles: Record<string, string> };
+    const uc = Object.keys(s.roles).find((id) => s.roles[id] === "uc")!;
+    const mine = t.view<V>(uc).myWord!;
+    t.g("p0", "force", { phase: "word" });
+    t.g("p0", "force", { phase: "talk" });
+    for (const id of t.ids) t.g(id, "vote", { target: id === uc ? t.ids.find((x) => x !== uc)! : uc });
+    t.g("p0", "next");
+    const end = t.view<V>("p0");
+    ok(end.phase === "end" && !!end.pair, "the game ends with the words shown");
+    ok(mine.zh === end.pair!.uc.zh, "the undercover's word is the one shown at the end");
+    return end.pair!;
+  };
+
+  const t = setup(5);
+  t.act("p0", { a: "start", game: "undercover" });
+  ok(t.view<V>("p0").adult === false, "off when the game opens");
+  t.g("p1", "config", { adult: true });
+  ok(t.view<V>("p0").adult === false, "only the host can turn it on");
+  t.g("p0", "config", { adult: true });
+  ok(t.view<V>("p1").adult === true, "the host turns it on, and every phone sees it");
+  for (let i = 0; i < 6; i++) {
+    const pair = playOut(t);
+    ok(adultZh.has(pair.civ.zh) && adultZh.has(pair.uc.zh), `adults-only words dealt (${pair.civ.zh}/${pair.uc.zh})`);
+    t.g("p0", "again");
+  }
+  t.g("p0", "deal");
+  t.g("p0", "config", { adult: false });
+  ok(t.view<V>("p0").adult === true, "it can't be switched once the words are out");
+  const st = t.eng.d.game!.s as { usedAdult?: number[]; used?: number[] };
+  ok(new Set(st.usedAdult ?? []).size === 7 && (st.used ?? []).length === 0, `seven different adult pairs remembered, no everyday ones (${st.usedAdult?.length}, ${st.used?.length ?? 0})`);
+
+  // the next game back to everyday: everyday words, and each bank remembers its own pairs
+  const t2 = setup(4);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "config", { adult: true });
+  const first = playOut(t2);
+  ok(adultZh.has(first.civ.zh), `an adults-only game first (${first.civ.zh})`);
+  t2.g("p0", "again");
+  t2.g("p0", "config", { adult: false });
+  ok(t2.view<V>("p1").adult === false, "turned off for the next game");
+  const second = playOut(t2);
+  ok(dayZh.has(second.civ.zh) && dayZh.has(second.uc.zh), `then everyday words (${second.civ.zh}/${second.uc.zh})`);
+  const s2 = t2.eng.d.game!.s as { used?: number[]; usedAdult?: number[]; bank?: string };
+  ok(s2.bank === undefined && (s2.used ?? []).length === 1 && (s2.usedAdult ?? []).length === 1, "each bank remembers its own");
+});
+
+ucTest("undercover: the number of undercovers follows the table until the host sets it; a leave that decides the game ends it", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  const def = (n: number) => {
+    const t = setup(n);
+    t.act("p0", { a: "start", game: "undercover" });
+    return t.view<V>("p0").uc;
+  };
+  ok(def(4) === 1 && def(6) === 1 && def(7) === 2 && def(9) === 2 && def(10) === 3 && def(15) === 3, `one undercover up to six, two up to nine, three from ten (${[4, 6, 7, 9, 10, 15].map(def).join(",")})`);
+
+  // seven at the table, one leaves: the screen says one undercover now, and one is dealt
+  const t = setup(7);
+  t.act("p0", { a: "start", game: "undercover" });
+  ok(t.view<V>("p0").uc === 2, "seven at the table: two undercovers");
+  t.act("p6", { a: "leave" });
+  ok(t.view<V>("p0").uc === 1 && t.view<V>("p0").maxSide === 1, `six left: the screen says one (${t.view<V>("p0").uc})`);
+  ok(t.eng.hello("p7", "P7", false) === null, "another sits down");
+  t.eng.flush();
+  ok(t.view<V>("p0").uc === 2, `seven again: back to two (${t.view<V>("p0").uc})`);
+  // the host sets it by hand: it stays
+  t.g("p0", "config", { uc: 1 });
+  ok(t.eng.hello("p8", "P8", false) === null && t.eng.hello("p9", "P9", false) === null && t.eng.hello("p10", "P10", false) === null, "three more sit down");
+  t.eng.flush();
+  ok(t.view<V>("p0").uc === 1, `ten at the table but the host chose one: still one (${t.view<V>("p0").uc})`);
+  t.g("p0", "deal");
+  const roles = (t.eng.d.game!.s as { roles: Record<string, string> }).roles;
+  ok(Object.values(roles).filter((r) => r === "uc").length === 1, "one undercover dealt, as set");
+
+  // the only undercover walks off mid-talk: the game is over, nobody voted out, the end screen now
+  const t2 = setup(5);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "deal");
+  for (const id of t2.ids) t2.g(id, "ready");
+  const r2 = (t2.eng.d.game!.s as { roles: Record<string, string> }).roles;
+  const uc = Object.keys(r2).find((id) => r2[id] === "uc")!;
+  const pensBefore = t2.pens().length;
+  t2.act(uc, { a: "leave" });
+  const hostNow = t2.eng.d.host;
+  const end = t2.view<V>(hostNow);
+  ok(end.phase === "end" && end.winner === "civ" && end.out === null && end.roles !== null && end.pair !== null, `the undercover left: civilians win on the spot (${end.phase}, ${end.winner}, out ${JSON.stringify(end.out)})`);
+  ok(t2.pens().length === pensBefore, "nobody left at the table loses, so no penalty");
+  ok(t2.eng.d.timers.every((x) => x.key !== "g:talk" && x.key !== "g:vote"), `the talk timer is gone (${t2.eng.d.timers.map((x) => x.key).join(",") || "none"})`);
+  t2.g(hostNow, "again");
+  ok(t2.view<V>(hostNow).phase === "setup", "and the table can go again");
+
+  // civilians leave until the sides are even: the undercover side wins, and the civilians still there drink
+  const t3 = setup(4);
+  t3.act("p0", { a: "start", game: "undercover" });
+  t3.g("p0", "deal");
+  for (const id of t3.ids) t3.g(id, "ready");
+  const r3 = (t3.eng.d.game!.s as { roles: Record<string, string> }).roles;
+  const civs = Object.keys(r3).filter((id) => r3[id] === "civ");
+  t3.act(civs[0], { a: "leave" });
+  ok(t3.view<V>(t3.eng.d.host).phase === "talk", "one civilian gone: the game goes on");
+  t3.act(civs[1], { a: "leave" });
+  const v3 = t3.view<V>(t3.eng.d.host);
+  ok(v3.phase === "end" && v3.winner === "uc" && v3.out === null, `two gone, one each side: the undercover wins now (${v3.phase}, ${v3.winner})`);
+  const pen = t3.pens().at(-1);
+  ok(!!pen && pen.who.length === 1 && pen.who[0] === civs[2], `the civilian still at the table drinks (${JSON.stringify(pen?.who)})`);
+
+  // a leave during a reveal waits for the host's tap, as before
+  const t4 = setup(5);
+  t4.act("p0", { a: "start", game: "undercover" });
+  t4.g("p0", "deal");
+  for (const id of t4.ids) t4.g(id, "ready");
+  t4.g("p0", "force", { phase: "talk" });
+  t4.g("p0", "force", { phase: "vote" });
+  ok(t4.view<V>("p0").phase === "reveal" && t4.view<V>("p0").tie, "a tie");
+  const r4 = (t4.eng.d.game!.s as { roles: Record<string, string> }).roles;
+  const uc4 = Object.keys(r4).find((id) => r4[id] === "uc")!;
+  t4.act(uc4, { a: "leave" });
+  const h4 = t4.eng.d.host;
+  ok(t4.view<V>(h4).phase === "reveal" && t4.view<V>(h4).winner === "civ", "the reveal stays, now with the result");
+  t4.g(h4, "next");
+  ok(t4.view<V>(h4).phase === "end" && t4.view<V>(h4).out === null, "the host's tap shows the end");
+});
+
+ucTest("undercover: what other tables taught us (the blank never opens, ties go to a run-off, the blank's last guess, 换一组词, 忌爆字)", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  type St = { roles: Record<string, string>; alive: string[] };
+  const st = (t: ReturnType<typeof setup>) => t.eng.d.game!.s as St;
+  const civWord = (t: ReturnType<typeof setup>) => {
+    const id = Object.keys(st(t).roles).find((x) => st(t).roles[x] === "civ")!;
+    return t.view<V>(id).myWord!;
+  };
+
+  // the blank never speaks first, round after round and game after game
+  let firsts = 0;
+  for (let game = 0; game < 12; game++) {
+    const t = setup(8);
+    t.act("p0", { a: "start", game: "undercover" });
+    t.g("p0", "config", { uc: 1, blank: true });
+    t.g("p0", "deal");
+    for (const id of t.ids) t.g(id, "ready");
+    const v = t.view<V>("p0");
+    ok(st(t).roles[v.order[0]] !== "blank", `game ${game}: the blank does not open the round (${v.order[0]})`);
+    firsts += 1;
+  }
+  ok(firsts === 12, "twelve deals checked");
+
+  // a tie at the top: the two describe again, the rest vote between them
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "undercover" });
+  t.g("p0", "deal");
+  for (const id of t.ids) t.g(id, "ready");
+  t.g("p0", "force", { phase: "talk" });
+  const civs = t.ids.filter((id) => st(t).roles[id] === "civ");
+  const uc = t.ids.find((id) => st(t).roles[id] === "uc")!;
+  const [a, b] = [uc, civs[0]];
+  // three for each: everyone else splits, a and b vote for each other
+  const others = t.ids.filter((id) => id !== a && id !== b);
+  others.forEach((id, i) => t.g(id, "vote", { target: i % 2 ? a : b }));
+  t.g(a, "vote", { target: b });
+  t.g(b, "vote", { target: a });
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.tie && v.out === null, `three and three: a tie (${v.phase}, ${JSON.stringify(v.votes)})`);
+  ok(v.pk.length === 2 && v.pk.includes(a) && v.pk.includes(b), `the tied two go to a run-off (${v.pk})`);
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.phase === "talk" && v.round === 1 && v.order.length === 2 && v.order.every((id) => id === a || id === b), `only the tied two describe, same round (${v.order}, round ${v.round})`);
+  t.g(v.order[0], "desc", { text: "跑加赛" });
+  t.g(v.order[0], "done", { speaker: 0, round: 1 });
+  t.g(v.order[1], "done", { speaker: 1, round: 1 });
+  v = t.view<V>("p0");
+  ok(v.phase === "vote" && v.voters.length === 4 && !v.voters.includes(a) && !v.voters.includes(b), `the other four vote (${v.voters})`);
+  ok(v.said.some((x) => x.round === 1 && x.pk), "the run-off's lines are kept, marked as a run-off");
+  t.g(a, "vote", { target: b });
+  ok(!t.view<V>("p0").voted.includes(a), "a player in the run-off doesn't vote");
+  t.g(others[0], "vote", { target: others[1] });
+  ok(!t.view<V>("p0").voted.includes(others[0]), "nobody outside the run-off can be voted for");
+  for (const id of others) t.g(id, "vote", { target: a });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.out?.pid === a && v.pk.length === 0, `the run-off decides it (${v.out?.pid})`);
+
+  // a run-off that ties again: nobody goes, and the next round is everyone's
+  const t2 = setup(6);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "deal");
+  for (const id of t2.ids) t2.g(id, "ready");
+  t2.g("p0", "force", { phase: "talk" });
+  const [c, d] = t2.ids.filter((id) => st(t2).roles[id] === "civ");
+  const rest2 = t2.ids.filter((id) => id !== c && id !== d);
+  rest2.forEach((id, i) => t2.g(id, "vote", { target: i % 2 ? c : d }));
+  t2.g(c, "vote", { target: d });
+  t2.g(d, "vote", { target: c });
+  t2.g("p0", "next");
+  t2.g("p0", "force", { phase: "talk" });
+  rest2.forEach((id, i) => t2.g(id, "vote", { target: i % 2 ? c : d }));
+  let v2 = t2.view<V>("p0");
+  ok(v2.phase === "reveal" && v2.tie && v2.out === null && v2.pk.length === 0, `two and two again: nobody out, no second run-off (${v2.phase}, ${v2.pk})`);
+  t2.g("p0", "next");
+  v2 = t2.view<V>("p0");
+  ok(v2.phase === "talk" && v2.round === 2 && v2.order.length === 6, `round 2, everyone describes (${v2.round}, ${v2.order.length})`);
+
+  // the blank voted out guesses the civilians' word: a miss, then the host counts a near miss
+  const t3 = setup(7);
+  t3.act("p0", { a: "start", game: "undercover" });
+  t3.g("p0", "config", { uc: 1, blank: true });
+  t3.g("p0", "deal");
+  for (const id of t3.ids) t3.g(id, "ready");
+  t3.g("p0", "force", { phase: "talk" });
+  const blank = t3.ids.find((id) => st(t3).roles[id] === "blank")!;
+  const word = civWord(t3);
+  for (const id of t3.ids) t3.g(id, "vote", { target: id === blank ? t3.ids.find((x) => x !== blank)! : blank });
+  let v3 = t3.view<V>("p0");
+  ok(v3.phase === "guess" && v3.out?.pid === blank && v3.out.role === "blank", `the blank is out and gets a guess (${v3.phase})`);
+  ok(t3.eng.d.timers.some((x) => x.key === "g:guess"), "the guess has a clock");
+  t3.g("p0", "guess", { text: word.zh });
+  ok(t3.view<V>("p0").phase === "guess" || blank === "p0", "only the blank can guess");
+  t3.g(blank, "guess", { text: "完全不对的词" });
+  v3 = t3.view<V>("p0");
+  ok(v3.phase === "reveal" && v3.guess?.right === false && v3.winner === null, `a wrong guess: the game goes on (${v3.winner})`);
+  t3.g("p0", "guessOk");
+  v3 = t3.view<V>("p0");
+  ok(v3.guess?.right === true && v3.winner === "blank", "the host counts it: the blank wins");
+  const pensBefore = t3.pens().length;
+  t3.g("p0", "next");
+  const pen = t3.pens().at(-1)!;
+  ok(t3.pens().length === pensBefore + 1 && pen.who.length === 6 && !pen.who.includes(blank), `everyone but the blank drinks (${pen.who})`);
+
+  // the exact word, in English, wins outright; the clock running out is a miss
+  const t4 = setup(7);
+  t4.act("p0", { a: "start", game: "undercover" });
+  t4.g("p0", "config", { uc: 1, blank: true });
+  t4.g("p0", "deal");
+  for (const id of t4.ids) t4.g(id, "ready");
+  t4.g("p0", "force", { phase: "talk" });
+  const blank4 = t4.ids.find((id) => st(t4).roles[id] === "blank")!;
+  const w4 = civWord(t4);
+  for (const id of t4.ids) t4.g(id, "vote", { target: id === blank4 ? t4.ids.find((x) => x !== blank4)! : blank4 });
+  t4.g(blank4, "guess", { text: ` ${w4.en.toUpperCase()}! ` });
+  ok(t4.view<V>("p0").winner === "blank", `"${w4.en}" in capitals, with a mark: right`);
+  const t5 = setup(7);
+  t5.act("p0", { a: "start", game: "undercover" });
+  t5.g("p0", "config", { uc: 1, blank: true });
+  t5.g("p0", "deal");
+  for (const id of t5.ids) t5.g(id, "ready");
+  t5.g("p0", "force", { phase: "talk" });
+  const blank5 = t5.ids.find((id) => st(t5).roles[id] === "blank")!;
+  for (const id of t5.ids) t5.g(id, "vote", { target: id === blank5 ? t5.ids.find((x) => x !== blank5)! : blank5 });
+  t5.advance(46_000);
+  const v5 = t5.view<V>("p0");
+  ok(v5.phase === "reveal" && v5.guess?.right === false && v5.guess.text === "", `no guess in time: a miss (${v5.phase})`);
+
+  // 换一组词: before anyone speaks, up to three times; a tap arriving twice deals once
+  const t6 = setup(5);
+  t6.act("p0", { a: "start", game: "undercover" });
+  t6.g("p0", "deal");
+  const pairs = [JSON.stringify(civWord(t6))];
+  t6.g("p1", "ready");
+  t6.g("p2", "redeal", { n: 0 });
+  ok(t6.view<V>("p0").redeals === 0, "only the host deals again");
+  t6.g("p0", "redeal", { n: 0 });
+  t6.g("p0", "redeal", { n: 0 });
+  let v6 = t6.view<V>("p0");
+  ok(v6.redeals === 1 && v6.ready.length === 0 && v6.phase === "word", `one fresh deal from a double tap, everyone looks again (${v6.redeals})`);
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 1 });
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 2 });
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 3 });
+  v6 = t6.view<V>("p0");
+  ok(v6.redeals === 3, `three at most (${v6.redeals})`);
+  ok(new Set(pairs).size === 4, "each deal is a different pair");
+  for (const id of t6.ids) t6.g(id, "ready");
+  t6.g("p0", "redeal", { n: 3 });
+  ok(t6.view<V>("p0").phase === "talk", "once the talk starts, no more fresh deals");
+
+  // 忌爆字: a line with your own word in it isn't taken
+  ok(saysWord("就是火锅啊", { zh: "火锅", en: "Hot pot" }) && saysWord("I love hot-pot", { zh: "火锅", en: "Hot pot" }) && saysWord("cats!", { zh: "猫", en: "Cat" }), "the word itself, in either language, gives it away");
+  ok(!saysWord("scatter the seeds", { zh: "猫", en: "Cat" }) && !saysWord("红色的锅", { zh: "火锅", en: "Hot pot" }), "a word inside a longer one, or half the word, doesn't");
+  ok(sameWord("hot pot", { zh: "火锅", en: "Hot pot" }) && sameWord("火锅。", { zh: "火锅", en: "Hot pot" }) && sameWord("Dumpling", { zh: "饺子", en: "Dumplings" }) && !sameWord("锅", { zh: "火锅", en: "Hot pot" }), "the blank's guess: spaces, marks and a plural don't matter, half the word does");
+  const t7 = setup(5);
+  t7.act("p0", { a: "start", game: "undercover" });
+  t7.g("p0", "deal");
+  for (const id of t7.ids) t7.g(id, "ready");
+  let v7 = t7.view<V>("p0");
+  const sp = v7.order[0];
+  const mine = t7.view<V>(sp).myWord;
+  t7.g(sp, "desc", { text: mine ? `我的是${mine.zh}` : "白板" });
+  v7 = t7.view<V>("p0");
+  ok(mine ? v7.desc[sp] === undefined : true, "a line with the speaker's own word isn't kept");
+  t7.g(sp, "desc", { text: "很常见" });
+  ok(t7.view<V>("p0").desc[sp] === "很常见", "a fair line is");
+
+  // 忌跟描: a line someone already typed this game isn't taken either; the record keeps each round's votes
+  const t8 = setup(5);
+  t8.act("p0", { a: "start", game: "undercover" });
+  t8.g("p0", "deal");
+  for (const id of t8.ids) t8.g(id, "ready");
+  let v8 = t8.view<V>("p0");
+  t8.g(v8.order[0], "desc", { text: "嗯嗯啊啊" });
+  t8.g(v8.order[0], "done", { speaker: 0, round: 1 });
+  t8.g(v8.order[1], "desc", { text: "嗯嗯 啊啊！" });
+  v8 = t8.view<V>("p0");
+  ok(v8.desc[v8.order[1]] === undefined, "the same line again, give or take spaces and marks, isn't kept");
+  t8.g(v8.order[1], "desc", { text: "啊啊嗯嗯" });
+  ok(t8.view<V>("p0").desc[v8.order[1]] === "啊啊嗯嗯", "a new line is");
+  t8.g("p0", "force", { phase: "talk" });
+  for (const id of t8.ids) t8.g(id, "vote", { target: id === "p1" ? "p2" : "p1" });
+  v8 = t8.view<V>("p0");
+  const rec = v8.said.at(-1)!;
+  ok(rec.round === 1 && rec.out === "p1" && Object.keys(rec.votes ?? {}).length === 5 && rec.desc[v8.order[0]] === "嗯嗯啊啊", `round 1 in the record: lines, five votes, p1 out (${JSON.stringify(rec)})`);
+  if (!v8.winner) {
+    t8.g("p0", "next");
+    v8 = t8.view<V>("p0");
+    const sp8 = v8.order[0];
+    t8.g(sp8, "desc", { text: "嗯嗯啊啊" });
+    ok(t8.view<V>("p0").desc[sp8] === undefined, "a line from an earlier round isn't taken again");
+  }
 });
 
 test("draw: word only for drawer, guess scoring, timeout penalty", () => {
@@ -888,9 +1399,46 @@ test("buddy: penalized player calls the 2-holder", () => {
 
 type V<K extends GameView["id"]> = Extract<GameView, { id: K }>;
 
-test("superlatives: secret votes, award, ceremony", () => {
+/** The superlatives tests leave the shared dice as they found them: the deck they shuffle grows with every new title, and the tests after them must not feel it. */
+const ownDice = (fn: () => void) => () => {
+  const was = seed;
+  try {
+    fn();
+  } finally {
+    seed = was;
+  }
+};
+
+test("superlatives: the host's setup (packs, how many awards), then the first ballot", ownDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
+  let v = t.view<V<"superlatives">>("p1");
+  ok(v.phase === "setup" && v.total === 8 && v.packs.join() === "daily,table,vancouver", "opens on the setup: 8 awards, the everyday packs");
+  t.g("p1", "config", { total: 12, packs: ["spicy"] });
+  ok(t.view<V<"superlatives">>("p1").total === 8, "only the host sets it up");
+  t.g("p0", "config", { total: 12, packs: ["spicy", "nope", "spicy"] });
+  v = t.view<V<"superlatives">>("p1");
+  ok(v.total === 12 && v.packs.join() === "spicy", "12 awards, the spicy pack (unknown and repeated names dropped)");
+  t.g("p0", "config", { packs: [] });
+  ok(t.view<V<"superlatives">>("p1").packs.join() === "spicy", "at least one pack stays on");
+  t.g("p0", "config", { total: 7 });
+  ok(t.view<V<"superlatives">>("p1").total === 12, "an award count that isn't offered changes nothing");
+  ok(nothing(t.g("p1", "start")), "only the host starts");
+  t.g("p0", "start");
+  v = t.view<V<"superlatives">>("p1");
+  ok(v.phase === "vote" && v.round === 1 && v.total === 12, "started: voting on round 1 of 12");
+  const spicy = deckFor(["spicy"]).map((i) => SUPER_TITLES[i].zh);
+  ok(spicy.includes(v.title.zh), "the title comes from the pack picked");
+  t.g("p0", "skip");
+  ok(spicy.includes(t.view<V<"superlatives">>("p1").title.zh), "and so does the next one");
+  ok(nothing(t.g("p0", "config", { total: 5 })), "no setting up once started");
+}));
+
+test("superlatives: secret votes, award, ceremony", ownDice(() => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   let v = t.view<V<"superlatives">>("p1");
   ok(v.phase === "vote" && v.round === 1, "voting on round 1");
   t.g("p1", "vote", { target: "p1" });
@@ -903,6 +1451,7 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners[0] === "p2" && v.counts?.p2 === 3, "everyone voted: p2 wins with 3");
   ok(v.awards.p2?.length === 1, "p2 holds the award");
+  ok(v.hits.p0 === 1 && v.hits.p1 === 1 && v.hits.p3 === 1 && !v.hits.p2 && v.streak === 1, "the three who voted p2 each hit once; p2's first award in a row");
   ok(v.stampAt === clock + 2600, "the view says when the winner's stamp lands");
   // the host can't move on under the stamp: a quick "next" waits until it has landed
   t.advance(1000);
@@ -923,6 +1472,7 @@ test("superlatives: secret votes, award, ceremony", () => {
   t.advance(46_000);
   v = t.view<V<"superlatives">>("p0");
   ok(v.phase === "reveal" && v.winners.length === 2, "timer reveals a tie with two winners");
+  ok(v.streak === 0 && v.hits.p0 === 2 && v.hits.p1 === 2, "a tie: no streak; both voters hit (each voted a winner)");
   const s = t.eng.d.game!.s as { round: number; total: number };
   s.round = s.total;
   t.advance(2700);
@@ -939,11 +1489,33 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
   ok(v.ballot === 4, "a title the host wrote is a new ballot");
-});
+}));
 
-test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+test("superlatives: the same winner award after award counts a streak; another winner starts over", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
+  const round = (winner: string) => {
+    for (const pid of ["p0", "p1", "p2"]) if (pid !== winner) t.g(pid, "vote", { target: winner });
+    const other = ["p0", "p1", "p2"].find((pid) => pid !== winner)!;
+    t.g(winner, "vote", { target: other });
+    const v = t.view<V<"superlatives">>("p0");
+    t.advance(2700);
+    t.g("p0", "next");
+    return v;
+  };
+  ok(round("p1").streak === 1, "p1 wins: one in a row");
+  ok(round("p1").streak === 2, "p1 again: two");
+  const v = round("p1");
+  ok(v.streak === 3 && v.hits.p0 === 3 && v.hits.p2 === 3 && !v.hits.p1, "three in a row for p1; p0 and p2 called every one");
+  ok(round("p2").streak === 1, "p2 wins: the streak starts over");
+  ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
+}));
+
+test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   const ballot = t.view<V<"superlatives">>("p0").ballot;
   t.g("p1", "vote", { target: "p2", ballot });
   t.g("p0", "skip");
@@ -964,7 +1536,7 @@ test("superlatives: a skipped title is a new ballot; the winner who leaves still
   ok(!t.pens().length, "no stamp for a winner who left");
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
-});
+}));
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
   const t = setup(10);
@@ -5178,6 +5750,7 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   const su = setup(4);
   su.act("p0", { a: "penalty", text: PEN });
   su.act("p0", { a: "start", game: "superlatives" });
+  su.g("p0", "start");
   for (const [a, b] of [["p0", "p2"], ["p1", "p2"], ["p2", "p3"], ["p3", "p2"]]) su.g(a, "vote", { target: b });
   (su.eng.d.game!.s as { round: number; total: number }).round = (su.eng.d.game!.s as { total: number }).total;
   su.advance(2700); // (the host moves on once the winner's stamp has landed)
@@ -5351,6 +5924,7 @@ test("just watching: the players are the ring and every list; a watcher is never
 
   // 最佳称号: the three players vote for each other
   t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   ok(nothing(t.g("p2", "vote", { target: "p0" })), "superlatives: the watcher's vote changes nothing");
   t.g("p1", "vote", { target: "p2" });
   ok(t.view<V<"superlatives">>("p0").voted.length === 0, "superlatives: nobody can vote for the watcher");
@@ -6143,6 +6717,59 @@ test("rogue: the camera and the nose go once per card; the next card of theirs i
   s.deck.length = 0;
   t.g(rv().turn, "draw");
   ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
+});
+
+test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line but counts in the deck's tally; a new deck starts it all over", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  const sum = (ns: number[]) => ns.reduce((a, b) => a + b, 0);
+  const at = (rank: string) => ROGUE_RANKS.indexOf(rank as Rank);
+  ok(sum(rv().stock!) === 52 && rv().stock!.every((n) => n === 4) && rv().log!.length === 0, "a full deck: four of each, nothing turned yet");
+  // a nine: the drawer drinks, and the log says so
+  s.deck.push(8); // the nine of spades
+  const nines = rv().stock![at("9")];
+  const d1 = rv().turn;
+  t.g(d1, "draw");
+  let line = rv().log![rv().log!.length - 1];
+  ok(rv().log!.length === 1 && line.rank === "9" && line.suit === "spade" && line.by === d1 && line.hit.join() === d1, "the nine's line: drawn by d1, d1 drank");
+  ok(rv().tally![d1] === 1 && Object.keys(rv().tally!).length === 1, "and the deck's tally has d1 once");
+  ok(rv().stock![at("9")] === nines - 1 && sum(rv().stock!) === 52, "one nine fewer to come (the card up is out of the stock)");
+  t.g(d1, "next");
+  // an ace: the pick lands on the line once it is made
+  s.deck.push(0); // the ace of spades
+  const d2 = rv().turn;
+  t.g(d2, "draw");
+  line = rv().log![rv().log!.length - 1];
+  ok(rv().log!.length === 2 && line.rank === "A" && line.by === d2 && line.hit.length === 0, "the ace's line waits for the pick");
+  const target = t.ids.find((id) => id !== d2)!;
+  t.g(d2, "pick", { target });
+  ok(rv().log![1].hit.join() === target, "picked: on the line");
+  // the trouble-maker's penalty lands during the ace: not on the ace's line
+  s.holders.trouble = d2;
+  const victim = t.ids.find((id) => id !== d2 && id !== target) ?? target;
+  const before = t.pens().length;
+  t.g(d2, "trouble", { target: victim });
+  ok(t.pens().length === before + 1 && rv().log![1].hit.join() === target, "the power's penalty was given, but the card's line is the card's own");
+  ok(rv().tally![victim] === (victim === target ? 2 : 1) && rv().tally![target]! >= 1, "the tally counts the power's penalty too");
+  t.g(d2, "next");
+  // a seven's round: the one who slips is on the seven's line
+  s.deck.push(6); // the seven of spades
+  const d3 = rv().turn;
+  t.g(d3, "draw");
+  t.g(d3, "sevens", { start: 5 });
+  const speaker = rv().sevens!.speaker;
+  t.g(speaker, "say", { pass: true }); // 6 is not a seven: wrong
+  ok(rv().log![2].rank === "7" && rv().log![2].hit.join() === speaker, "the sevens' loser is on the seven's line");
+  t.g(d3, "next");
+  // the deck runs out: a new deck, a new log, a full stock again
+  s.deck.length = 0;
+  const d4 = rv().turn;
+  t.g(d4, "draw");
+  ok(rv().reshuffled && rv().log!.length === 1 && rv().log![0].by === d4, "a new deck's log starts with its first card");
+  ok(Object.keys(rv().tally!).length <= 1 && Object.values(rv().tally!).every((n) => n === 1), "and a new tally (at most the first card's own penalty)");
+  ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
 });
 
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {

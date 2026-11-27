@@ -48,6 +48,8 @@
   .gold-score .gs .nm { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; }
   button { font: inherit; }
   .btn { background: var(--ink); color: var(--card-ink); border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 15px; cursor: pointer; min-height: 44px; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; box-sizing: border-box; }
+  body.phone #editorLink { display: none; }
   .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
   .btn.quiet { background: var(--panel); color: var(--ink); }
   /* 联机桌的「回到桌上」、手机局玩的时候的「回大厅」按第一下变红：再按一下才算（红底上是深色字） */
@@ -70,6 +72,100 @@
   /* 大厅的座位：六张卡，每张画出这个人的糯米团 */
   .seats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 10px 0 4px; }
   .seat { position: relative; display: grid; justify-items: center; align-content: start; gap: 2px; border-radius: 16px; padding: 8px 6px 10px; background: rgba(42,31,58,.06); text-align: center; min-width: 0; }
+  /* 成就（11-25）：谁解锁了什么，一条一条冒出来，3.6 秒没了 */
+  .trophies { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); z-index: 26; display: grid; justify-items: start; gap: 8px; pointer-events: none; max-width: min(560px, calc(100vw - 32px)); }
+  .trophy { background: var(--card); color: var(--card-ink); border-radius: 999px; font-weight: 800; box-shadow: 0 6px 18px rgba(0,0,0,.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    animation: trophy-in .35s ease-out, trophy-out .4s ease-in 3.2s forwards; }
+  @keyframes trophy-in { from { opacity: 0; transform: translateY(12px) scale(.9); } }
+  @keyframes trophy-out { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .trophy { animation: trophy-out .4s ease-in 3.2s forwards; } }
+  /* 成就单子：拿到的亮着带 ✓，没拿到的暗一点；每个都写怎么拿 */
+  .achv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .achv { display: grid; grid-template-columns: 34px 1fr 22px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: rgba(42,31,58,.07); }
+  .achv.got { background: #fff; }
+  .achv .ic { font-size: 24px; text-align: center; filter: grayscale(1); opacity: .6; }
+  .achv.got .ic { filter: none; opacity: 1; }
+  .achv .tx { display: grid; gap: 1px; min-width: 0; }
+  .achv .tx b { font-size: 15px; }
+  .achv .tx small { font-size: 12.5px; opacity: .75; line-height: 1.45; }
+  .achv .ok { font-weight: 900; font-size: 18px; text-align: center; }
+  @media (min-width: 640px) { .achv-list { grid-template-columns: 1fr 1fr; } }
+  /* 电视：左下角（结算页在正中间，不挡它）；手机局：左上角（顶栏在右边） */
+  .trophies { left: 24px; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+  .trophy { padding: 8px 20px; font-size: 22px; }
+  body.phone .trophies { left: max(12px, env(safe-area-inset-left, 0px)); bottom: auto; top: calc(10px + env(safe-area-inset-top, 0px)); }
+  body.phone .trophy { padding: 6px 14px; font-size: 15px; }
+  .achv-dlg { border: 0; border-radius: 22px; padding: 16px 18px 18px; background: var(--card); color: var(--card-ink); width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+    overflow: auto; box-sizing: border-box; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+  .achv-dlg::backdrop { background: rgba(10, 12, 30, .6); }
+  .achv-dlg h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0 0 10px; }
+  .achv-dlg h2:focus { outline: none; }
+  /* 红包扭蛋机（11-25）：左边扭蛋机（扭的时候把手转两圈、球晃、掉一个蛋），扭出来的在它下面；右边 12 样的格子 */
+  .gacha-dlg .gline { margin: 0 0 10px; font-size: 14px; opacity: .8; }
+  .gmain { display: grid; gap: 14px; }
+  @media (min-width: 640px) { .gmain { grid-template-columns: 200px 1fr; align-items: start; } }
+  .gleft { display: grid; justify-items: center; gap: 8px; }
+  .machine { position: relative; width: 150px; height: 172px; }
+  .machine .dome { position: absolute; left: 15px; top: 0; width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 3px solid var(--card-ink);
+    background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.9), rgba(191,232,255,.45) 38%, rgba(120,170,220,.35)); box-sizing: border-box; }
+  .machine .cap { position: absolute; left: var(--x); top: var(--y); width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card-ink); box-sizing: border-box;
+    background: linear-gradient(180deg, var(--c) 50%, #fff6e9 50%); }
+  .machine .base { position: absolute; left: 20px; top: 106px; width: 110px; height: 62px; border-radius: 12px 12px 18px 18px; background: #d8262f; border: 3px solid var(--card-ink); box-sizing: border-box; }
+  .machine .knob { position: absolute; left: 36px; top: 10px; width: 32px; height: 32px; border-radius: 50%; background: #f6c453; border: 3px solid var(--card-ink); box-sizing: border-box; }
+  .machine .knob::after { content: ''; position: absolute; left: 10px; top: -3px; width: 6px; height: 32px; border-radius: 3px; background: var(--card-ink); }
+  .machine .slot { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 18px; border-radius: 6px; background: var(--card-ink); }
+  .machine .ball { position: absolute; right: 30px; bottom: 6px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card-ink); box-sizing: border-box; opacity: 0;
+    background: linear-gradient(180deg, #e8413c 50%, #fff6e9 50%); }
+  .machine.spin .knob { animation: knob-spin .9s ease-in-out; }
+  .machine.spin .cap { animation: cap-jiggle .3s ease-in-out 3; }
+  .machine.drop .ball { animation: ball-drop .6s ease-out forwards; }
+  @keyframes knob-spin { to { transform: rotate(720deg); } }
+  @keyframes cap-jiggle { 50% { transform: translate(3px, -6px) rotate(20deg); } }
+  @keyframes ball-drop { 0% { opacity: 1; transform: translate(0, -30px); } 60% { opacity: 1; transform: translate(-6px, 6px); } 80% { transform: translate(-8px, 0); } 100% { opacity: 1; transform: translate(-10px, 4px); } }
+  .prize { display: grid; justify-items: center; gap: 2px; text-align: center; animation: prize-in .35s ease-out; }
+  .prize canvas { width: 120px; height: 120px; }
+  .prize b { font-size: 20px; font-family: var(--font-display); }
+  .prize small { font-size: 12.5px; opacity: .75; line-height: 1.45; max-width: 220px; }
+  @keyframes prize-in { from { opacity: 0; transform: scale(.6); } }
+  .gprizes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+  .gp { display: grid; justify-items: center; align-content: center; gap: 0; min-height: 86px; border-radius: 12px; background: rgba(42,31,58,.07); text-align: center; padding: 4px 2px; }
+  .gp.got { background: #fff; }
+  .gp canvas { width: 60px; height: 60px; }
+  .gp small { font-size: 11.5px; line-height: 1.25; }
+  .gp .q { font-size: 26px; font-weight: 800; opacity: .35; }
+  .gacha-dlg .row { gap: 8px; }
+  .gacha-dlg .row .btn.quiet { flex: 0 0 auto; background: rgba(42,31,58,.1); color: var(--card-ink); }
+  .gacha-dlg .row .btn:disabled { opacity: .45; }
+  @media (prefers-reduced-motion: reduce) { .machine.spin .knob, .machine.spin .cap, .prize { animation: none; } .machine.drop .ball { animation: none; opacity: 1; } }
+  /* 横着的手机（矮）：扭蛋机缩小，扭出来以后先不画扭蛋机，格子小一点，下面两个键一直看得到 */
+  @media (max-height: 500px) {
+    .gacha-dlg { padding: 10px 14px 0; }
+    .gacha-dlg h2 { font-size: 17px; margin: 0 0 2px; }
+    .gacha-dlg .gline { font-size: 12.5px; margin: 0 0 6px; }
+    .gmain { grid-template-columns: 150px 1fr; gap: 10px; }
+    .gleft .machine { zoom: .7; }
+    .gleft:has(.prize:not([hidden])) .machine { display: none; }
+    .prize canvas { width: 84px; height: 84px; }
+    .prize b { font-size: 17px; }
+    .gprizes { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); }
+    .gp { min-height: 62px; }
+    .gp canvas { width: 40px; height: 40px; }
+    .gp small { font-size: 10.5px; }
+    .gacha-dlg .row { position: sticky; bottom: 0; background: var(--card); margin: 8px 0 0; padding: 6px 0 10px; }
+  }
+  .achv-dlg .row { display: flex; margin-top: 12px; }
+  /* 每日一关的排行（11-26）：两个榜，一条一行（名次、名字、用时、几个人摔几次），这台设备的那条亮一点 */
+  .board-dlg h3 { font-size: 14px; margin: 12px 0 6px; opacity: .7; }
+  .board-dlg ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+  .board-dlg li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; padding: 6px 10px; border-radius: 12px; background: rgba(0,0,0,.05); }
+  .board-dlg li.me { background: #f6c453; }
+  .board-dlg .rank { font-weight: 800; text-align: right; }
+  .board-dlg .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-dlg .time { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .board-dlg .n { grid-column: 2 / 4; font-size: 12px; opacity: .7; }
+  .board-dlg .bnote { font-size: 13px; opacity: .7; margin: 4px 0; }
+  .results .daily-res { font-size: 14px; margin: 8px 0 0; }
+  .achv-dlg .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
   /* 表情（11-25）：大厅里谁说了一句，挂在他的座位卡上面 */
   .seat .say { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); z-index: 1; white-space: nowrap; padding: 3px 10px; border-radius: 12px;
     background: var(--card); color: var(--card-ink); border: 2px solid var(--card-ink); font-weight: 800; font-size: 13px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
@@ -209,6 +305,46 @@
    * 不用往下滚找；上沿一道渐变，下面滚过去的字不挡键。放得下时它就在原来的地方，看不出来。
    */
   body.quiet-note #lobby { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+  .row2 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 8px; }
+  /* 红包雨（11-26）的彩蛋键：金色，一眼看得到 */
+  #rainBtn { background: #f6c453; color: var(--card-ink); }
+  /* 观众（11-26）：右下角的观众条、玩的时候顶上正中的投票、大厅里那一行、结算页那一行（起哄和盖的那一层的样子在 src/crowd-ui.ts） */
+  .crowd-box { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 25; max-width: 300px;
+    background: var(--panel); backdrop-filter: blur(6px); border-radius: 16px; padding: 10px 14px; font-size: 15px; pointer-events: none; display: grid; gap: 3px; }
+  .crowd-box .t { font-weight: 800; font-size: 13px; opacity: .85; margin-bottom: 2px; }
+  .crowd-box .r { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+  .crowd-box .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25); }
+  .crowd-box .nm { font-weight: 700; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crowd-box .hit { margin-top: 4px; font-weight: 800; color: var(--warn); }
+  .crowd-vote { position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 25; width: min(460px, calc(100vw - 32px)); box-sizing: border-box;
+    background: var(--panel); backdrop-filter: blur(6px); border-radius: 18px; padding: 10px 16px 12px; pointer-events: none; text-align: center; }
+  .crowd-vote .vtitle { font-weight: 800; font-size: 15px; margin-bottom: 6px; }
+  .crowd-vote .vrow { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; white-space: nowrap; }
+  .crowd-vote .va { color: var(--good); }
+  .crowd-vote .vb { color: var(--bad); }
+  .crowd-vote .vbar { flex: 1; min-width: 60px; height: 10px; border-radius: 5px; overflow: hidden; display: flex; background: rgba(255,255,255,.15); }
+  .crowd-vote .vbar i { display: block; height: 100%; width: 50%; transition: width .3s; }
+  #voteBarA { background: var(--good); }
+  #voteBarB { background: var(--bad); }
+  .crowd-lobby { font-size: 13px; opacity: .8; margin: 2px 0 0; line-height: 1.5; }
+  .crowd-res { font-size: 14px; font-weight: 700; margin: 8px 0 0; line-height: 1.5; }
+  /* 手机局的房主手机：没地方放观众条；投票小一点，放在右上角那排键底下 */
+  body.phone .crowd-box { display: none; }
+  body.phone .crowd-vote { top: calc(58px + env(safe-area-inset-top, 0px)); width: min(380px, calc(100vw - 24px)); padding: 6px 12px 8px; }
+  body.phone .crowd-vote .vtitle { font-size: 13px; margin-bottom: 4px; }
+  body.phone .crowd-vote .vrow { font-size: 15px; }
+  @media (prefers-reduced-motion: reduce) { .crowd-vote .vbar i { transition: none; } }
+  /* 精彩回放（11-26）：慢放的时候画面四周压暗一圈（像录像），左上角一块牌子，底下一个跳过 */
+  .replay-badge { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 27; background: var(--bad); color: var(--card-ink); font-weight: 800; font-size: 22px;
+    padding: 8px 18px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  .replay-badge::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--card-ink); margin-right: 10px; vertical-align: middle; animation: rec-blink 1s steps(2, start) infinite; }
+  @keyframes rec-blink { to { visibility: hidden; } }
+  .replay-skip { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); z-index: 27; }
+  /* 手机局：右上角一排键，牌子放在它们底下 */
+  body.phone .replay-badge { top: calc(62px + env(safe-area-inset-top, 0px)); font-size: 15px; padding: 6px 14px; }
+  @media (prefers-reduced-motion: reduce) { .replay-badge::before { animation: none; } }
+  #escortBtn[aria-pressed="true"], #slowBtn[aria-pressed="true"], #assistBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
+  .row2:not(:has(> :not([hidden]))) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to bottom, transparent, var(--card) 10px); }
   @media (orientation: landscape) {
@@ -260,7 +396,8 @@
     <span class="chip" id="deathChip" hidden>💀 <b id="deaths">0</b></span>
     <span class="chip" id="envChip" hidden title="红包" data-en-title="Red envelopes">🧧 <b id="envs">0</b></span>
     <span class="chip" id="aliveChip" hidden title="还挂着的" data-en-title="Still hanging">🙋 <b id="alive">0</b></span>
-    <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score">🪙 <span id="goldScore"></span></span>
+    <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score"><span id="goldIcon" aria-hidden="true">🪙 </span><span id="goldScore"></span></span>
+    <span class="chip" id="crowdChip" hidden title="观众" data-en-title="Audience">👀 <b id="crowdN">0</b></span>
     <button class="btn quiet emo" id="emoteBtn" type="button" hidden aria-label="表情" data-en-label="Emotes">😀</button>
     <button class="btn quiet emo" id="fartBtn" type="button" hidden aria-label="放屁" data-en-label="Toot">💨</button>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
@@ -295,13 +432,19 @@
       <p class="level teach"><span id="levelTeach"></span><span class="envtotal" id="envTotal" hidden></span></p>
       <div class="seats" id="seats"></div>
       <p id="lobbyLine" style="opacity:.75"></p>
+      <p class="crowd-lobby" id="crowdLobby"></p>
       <div class="row">
         <button class="btn" id="startBtn" type="button" disabled data-en="Start">开始</button>
         <button class="btn quiet" id="kbBtn" type="button">+ 键盘加入</button>
         <button class="btn quiet" id="itemBtn" type="button" hidden></button>
+        <button class="btn quiet" id="achvBtn" type="button" hidden aria-label="成就" data-en-label="Achievements">🏆</button>
+        <button class="btn quiet" id="gachaBtn" type="button">🎰 扭蛋机</button>
+        <!-- 关卡编辑器（11-26）：电脑上开的大屏才有（手机局里大家是来玩的，做关用电脑） -->
+        <a class="btn quiet" id="editorLink" href="/hang-on/editor/" target="_blank" rel="noopener" data-en="🛠 Make a level">🛠 做一关</a>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
-        <button class="btn quiet" id="modeBtn" type="button" hidden></button>
       </div>
+      <!-- 护送大元宝（11-26）的开关；电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
+      <div class="row2"><button class="btn quiet" id="festBtn" type="button" hidden></button><button class="btn quiet" id="dailyBtn" type="button">📅 每日一关</button><button class="btn quiet" id="customBtn" type="button" hidden></button><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>
@@ -322,13 +465,64 @@
       <h3 id="betrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
-      <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+      <p class="crowd-res" id="crowdLine" hidden></p>
+      <p class="daily-res" id="dailyLine" hidden></p>
+      <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button>
+        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="replayBtn" type="button" hidden>▶ 精彩回放</button><button class="btn quiet" id="dailyBoardBtn" type="button" hidden data-en="🏆 Today's board">🏆 今日排行</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
       <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>
 </div>
 
 <div class="banner" id="banner" aria-live="polite"></div>
+<!-- 观众（11-26）：盖在画面上的那一层（投出来的那一样起作用时）、右下角往上飘的起哄、观众条（押谁先掉）、玩的时候顶上正中的投票 -->
+<div class="crowd-fx" id="crowdFx" aria-hidden="true"></div>
+<div class="cheers" id="cheers" aria-hidden="true"></div>
+<div class="crowd-box" id="crowdBox" hidden></div>
+<div class="crowd-vote" id="crowdVote" hidden>
+  <div class="vtitle" id="voteLeft"></div>
+  <div class="vrow"><span class="va" id="voteA"></span><span class="vbar" aria-hidden="true"><i id="voteBarA"></i><i id="voteBarB"></i></span><span class="vb" id="voteB"></span></div>
+</div>
+<!-- 精彩回放（11-26）：慢放的时候左上角写是什么事，底下一个「跳过」 -->
+<div class="replay-badge" id="replayBadge" hidden></div>
+<button class="btn replay-skip" id="replaySkip" type="button" hidden data-en="Skip">跳过</button>
+<!-- 成就（11-25）：谁解锁了什么，冒在底下 -->
+<div class="trophies" id="trophies" aria-live="polite"></div>
+<!-- 红包扭蛋机（11-25）：攒的红包扭新的帽子、眼镜、脸、袖子、嗓子 -->
+<dialog class="achv-dlg gacha-dlg" id="gachaDlg" aria-label="红包扭蛋机" data-en-label="Red envelope prize machine">
+  <h2 data-en="Red envelope prize machine" tabindex="-1" autofocus>红包扭蛋机</h2>
+  <p class="gline" id="gachaLine"></p>
+  <div class="gmain">
+    <div class="gleft">
+      <div class="machine" id="machine" aria-hidden="true">
+        <div class="dome"><span class="cap" style="--x:14px;--y:52px;--c:#e8413c"></span><span class="cap" style="--x:44px;--y:62px;--c:#f6c453"></span><span class="cap" style="--x:74px;--y:54px;--c:#8ec5e8"></span><span class="cap" style="--x:28px;--y:26px;--c:#9bcf83"></span><span class="cap" style="--x:58px;--y:30px;--c:#b9a2e8"></span><span class="cap" style="--x:84px;--y:24px;--c:#f28ca6"></span><span class="cap" style="--x:48px;--y:6px;--c:#f6c453"></span></div>
+        <div class="base"><span class="knob"></span><span class="slot"></span></div>
+        <span class="ball"></span>
+      </div>
+      <div class="prize" id="gachaPrize" role="status" hidden>
+        <canvas id="prizeLook" width="240" height="240" aria-hidden="true"></canvas>
+        <b id="prizeName"></b>
+        <small data-en="Everyone playing on this screen can pick it under Customize now.">这台设备上玩的人，换装时都能选了。</small>
+      </div>
+    </div>
+    <ul class="gprizes" id="gachaPrizes"></ul>
+  </div>
+  <div class="row">
+    <button class="btn" id="gachaPull" type="button">扭一个</button>
+    <button class="btn quiet" id="gachaDone" type="button" data-en="Done">好了</button>
+  </div>
+</dialog>
+<!-- 每日一关（11-26）：今天这一关的单人榜、多人榜 -->
+<dialog class="achv-dlg board-dlg" id="boardDlg" aria-label="每日一关排行" data-en-label="Daily level board">
+  <h2 id="boardTitle" tabindex="-1" autofocus>📅 每日一关</h2>
+  <div class="bbody" id="boardBody"></div>
+  <div class="row"><button class="btn" id="boardDone" type="button" data-en="Done">好了</button></div>
+</dialog>
+<dialog class="achv-dlg" id="achvDlg" aria-label="成就" data-en-label="Achievements">
+  <h2 data-en="Achievements" tabindex="-1" autofocus>成就</h2>
+  <ul class="achv-list" id="achvList"></ul>
+  <div class="row"><button class="btn" id="achvDone" type="button" data-en="Done">好了</button></div>
+</dialog>
 
 <div class="overlay" id="fatal" hidden>
   <div class="card" style="grid-template-columns:1fr;max-width:460px">

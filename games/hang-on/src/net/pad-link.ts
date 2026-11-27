@@ -20,6 +20,7 @@ import { RoomSocket, wsUrl } from './socket';
 import { ICE_SERVERS } from './ice';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
+import { cleanAchv, type AchvId } from '../achievements';
 
 export interface PadLinkEvents {
   onRoom?(room: RoomView): void;
@@ -32,6 +33,8 @@ export interface PadLinkEvents {
   onCast?(c: Cast): void;
   /** 主机发来的菜单（手柄当遥控）。 */
   onMenu?(m: Menu): void;
+  /** 成就（11-25）：主机说新拿到一个（已经收拾过）。 */
+  onAchv?(id: AchvId): void;
 }
 
 /** 这台手机的座位 id，存起来，刷新、换 Wi-Fi 都还是同一个座位。 */
@@ -66,6 +69,8 @@ export class PadLink {
   private seq = 1;
   private look: Look | null = null;
   private item: ItemId | null = null;
+  private achvs: AchvId[] | null = null;
+  private assist = false;
 
   constructor(
     readonly code: string,
@@ -83,6 +88,8 @@ export class PadLink {
           this.relay({ k: 'hello' });
           if (this.look) this.relay({ k: 'look', look: this.look });
           if (this.item) this.relay({ k: 'item', item: this.item });
+          if (this.assist) this.relay({ k: 'assist', on: true });
+          if (this.achvs) this.relay({ k: 'achvHave', ids: this.achvs });
         }
         this.ev.onConn?.({ socket: open, direct: this.direct });
       },
@@ -108,6 +115,18 @@ export class PadLink {
   /** 放屁键（11-25）：走房间（要可靠）；没连上就不发。 */
   fart(): void {
     if (this.socketOpen) this.relay({ k: 'fart' });
+  }
+
+  /** 成就（11-25）：告诉主机自己有哪些；每次重新连上房间也会再说一遍。 */
+  setAchvs(ids: AchvId[]): void {
+    this.achvs = ids;
+    if (this.socketOpen) this.relay({ k: 'achvHave', ids });
+  }
+
+  /** 长辈小孩模式（11-26）：告诉主机开没开；每次重新连上房间（开着时）也会再说一遍。 */
+  setAssist(on: boolean): void {
+    this.assist = on;
+    if (this.socketOpen) this.relay({ k: 'assist', on });
   }
 
   /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */
@@ -205,6 +224,11 @@ export class PadLink {
       case 'menu':
         this.ev.onMenu?.(data.m);
         return;
+      case 'achv': {
+        const id = cleanAchv(data.id);
+        if (id) this.ev.onAchv?.(id);
+        return;
+      }
       default:
         return;
     }

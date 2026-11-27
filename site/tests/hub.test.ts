@@ -475,6 +475,75 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   ok("改字: another language, no words, or more than 2000 characters: turned away");
 }
 
+// ---- membership: three free uses of each counted tool, then a member's door (docs/membership.md) ----
+{
+  const { hub } = await hubOn();
+  const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+  const ann = await join(hub, "ann@example.test", "ann-phone-0001");
+  const ben = await join(hub, "ben@example.test", "ben-phone-0001");
+  const annId = String(((await req(hub, "GET", "/me", {}, ann.token, "ann-phone-0001")).json.user as Row).id);
+  const benId = String(((await req(hub, "GET", "/me", {}, ben.token, "ben-phone-0001")).json.user as Row).id);
+  const bossId = String(((await req(hub, "GET", "/me", {}, boss.token, "boss-phone-0001")).json.user as Row).id);
+
+  const lefts = [] as (number | null)[];
+  for (let i = 0; i < 4; i++) lefts.push(...[await hub.memberUse(annId, "split")].map((r) => (r.ok ? r.left : -1)));
+  assert.deepEqual(lefts, [2, 1, 0, -1]);
+  assert.deepEqual(await hub.memberUse(annId, "suibian"), { ok: true, member: false, left: 2 });
+  const st = (await req(hub, "GET", "/me/member", {}, ann.token, "ann-phone-0001")).json as Row;
+  assert.deepEqual((st.standing as Row).left, { suibian: 2, split: 0, moneylens: 3 });
+  assert.equal((st.standing as Row).member, null);
+  assert.equal(st.lifeLeft, 5);
+  ok("会员: three free uses of each tool, counted apart; the fourth is turned away; what's left shows on /me/member");
+
+  for (const bad of ["events", "go", "", "SPLIT"]) assert.deepEqual(await hub.memberUse(annId, bad), { ok: false, member: false, left: null });
+  assert.deepEqual(await hub.memberUse("u-nobody-here", "split"), { ok: false, member: false, left: null });
+  assert.equal(await hub.memberStatus("u-nobody-here"), null);
+  ok("会员: a tool that isn't counted, or an account that isn't here: nothing allowed, nothing counted");
+
+  for (let i = 0; i < 5; i++) assert.deepEqual(await hub.memberUse(bossId, "split"), { ok: true, member: true, left: null });
+  assert.deepEqual((await hub.memberStatus(bossId))?.left.split, 3);
+  ok("会员: the owner is never counted");
+
+  const give = (body: unknown, token = boss.token) => req(hub, "POST", "/admin/members", body, token, token === boss.token ? "boss-phone-0001" : "ben-phone-0001");
+  assert.equal((await give({ email: "ann@example.test", months: 1 }, ben.token)).status, 403);
+  assert.equal((await give({ email: "nobody@example.test", months: 1 })).status, 404);
+  assert.equal((await give({ email: "ann@example.test", months: 0 })).status, 400);
+  const g = await give({ email: " Ann@Example.test ", months: 1, note: "friend" });
+  assert.equal(g.status, 200);
+  const annRow = (g.json.members as Row[]).find((r) => r.uid === annId)!;
+  assert.equal(annRow.tier, "gift");
+  assert.equal(annRow.active, true);
+  assert.deepEqual(await hub.memberUse(annId, "split"), { ok: true, member: true, left: null });
+  const annMe = (await req(hub, "GET", "/me", {}, ann.token, "ann-phone-0001")).json.user as Row;
+  assert.equal((annMe.member as Row).tier, "gift");
+  const seen = (await req(hub, "GET", `/users/${annId}`, {}, ben.token, "ben-phone-0001")).json as Row;
+  assert.equal(((seen.user ?? seen) as Row).member, true);
+  ok("会员: the owner gives a month by email; the member goes through without being counted, and others see the mark");
+
+  const until1 = Number(annRow.until);
+  const g2 = await give({ email: "ann@example.test", months: 2 });
+  const until2 = Number((g2.json.members as Row[]).find((r) => r.uid === annId)!.until);
+  assert.ok(until2 - until1 > 55 * 864e5 && until2 - until1 < 63 * 864e5, String(until2 - until1));
+  ok("会员: more months given add to the end of the running one");
+
+  const ended = await give({ uid: annId, end: true });
+  assert.equal((ended.json.members as Row[]).some((r) => r.uid === annId), false);
+  assert.deepEqual(await hub.memberUse(annId, "split"), { ok: false, member: false, left: 0 });
+  ok("会员: ended by the owner, and the used-up free uses are still used up");
+
+  for (const who of ["ann", "ben"]) assert.equal((await give({ email: `${who}@example.test`, life: true })).status, 200);
+  const extra = [] as string[];
+  for (let i = 0; i < 3; i++) extra.push((await join(hub, `life${i}@example.test`, `life${i}-phone-0001`)).token);
+  for (let i = 0; i < 3; i++) assert.equal((await give({ email: `life${i}@example.test`, life: true })).status, 200);
+  assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 0);
+  await join(hub, "late@example.test", "late-phone-0001");
+  const late = await give({ email: "late@example.test", life: true });
+  assert.equal(late.status, 400);
+  assert.equal((late.json as Row).error, "full");
+  assert.equal((await give({ email: "ann@example.test", months: 3 })).status, 400);
+  ok("会员: five lifetime memberships and no sixth; a lifetime member isn't given months on top");
+}
+
 console.log(`\nall ${n} passed`);
 // (the first hub in "stopped mid-try" still has its never-answered send on a 30-second timer)
 process.exit(0);

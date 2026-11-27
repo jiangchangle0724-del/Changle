@@ -68,6 +68,14 @@ export interface RoomState {
   raters?: string[];
   /** Google searches run so far (capped: see MAX_SEARCHES). */
   searches?: number;
+  /** What the last search was for (searchKey): back in round 1 with nothing changed, no new search. */
+  searchedFor?: string;
+  /** Places whose details were asked for, once each per search (Google bills every ask). */
+  detailed?: string[];
+  /** Round 2's places that have been at the top of the list ("换一批" shows the ones that haven't). */
+  featured?: string[];
+  /** Round 2's list: one more for each new list and each "换一批" (RoomView.batch). */
+  batch?: number;
   error: RoomView["error"];
 }
 
@@ -177,9 +185,19 @@ export class Room {
     return m.online > 0 || (m.leftAt !== undefined && this.env.now() - m.leftAt < TIMING.awayGrace);
   }
 
-  /** After a restart: these ids have open sockets, nobody else does. */
+  /**
+   * After a restart: these ids have open sockets, nobody else does. A phone that was here before it
+   * gets the same grace as one that dropped off (an update drops every phone at once: they come back
+   * within seconds), and when the grace ends the round stops waiting for it (tick).
+   */
   presence(ids: string[]) {
-    for (const m of Object.values(this.st.members)) m.online = ids.filter((x) => x === m.id).length;
+    const now = this.env.now();
+    for (const m of Object.values(this.st.members)) {
+      const was = m.online;
+      m.online = ids.filter((x) => x === m.id).length;
+      if (m.online) delete m.leftAt;
+      else if (was && m.leftAt === undefined) m.leftAt = now;
+    }
     this.changed = true;
   }
 
@@ -247,11 +265,35 @@ export class Room {
         for (const x of Object.values(this.st.members)) Object.assign(x, { ballot: { approve: [], veto: null }, ballotDone: false });
         this.search();
         break;
+      case "match": {
+        // Everyone at the table ticked it and nobody vetoed it: that's where they eat.
+        const ids = ph === "cards" && this.present(m) ? this.matches() : [];
+        if (!ids.length) return;
+        this.count(ids);
+        break;
+      }
+      case "more": {
+        // 换一批: the next best places of the same search at the top. No search, no new photos.
+        if (ph !== "cards" || !this.isHost(id) || msg.batch !== (this.st.batch ?? 0)) return;
+        const next = this.unfeatured().slice(0, E.TOP_COUNT);
+        if (!next.length) return;
+        this.st.cards = [...next, ...this.st.cards.filter((c) => !next.includes(c))];
+        this.st.featured = [...(this.st.featured ?? []), ...next];
+        this.st.batch = (this.st.batch ?? 0) + 1;
+        for (const x of Object.values(this.st.members)) x.ballotDone = false;
+        this.bump();
+        break;
+      }
       case "back":
+        // One step back (Steve, 2026-11-26). A tap meant for another screen (two quick taps on the
+        // same corner) must not go back twice.
+        if (!this.isHost(id) || (msg.phase !== undefined && msg.phase !== ph)) return;
+        if (ph === "mood") this.toLobby({ keepMoods: true });
+        else if (ph === "cards") this.backToMood();
         // The result, back to round 2's cards: the same places, everyone votes again. Not once
         // someone has rated the meal (the ratings belong to this winner).
-        if (ph !== "result" || !this.isHost(id) || Object.keys(this.st.ratings).length) return;
-        this.backToCards();
+        else if (ph === "result" && !Object.keys(this.st.ratings).length) this.backToCards();
+        else return;
         break;
       case "mood": {
         if (ph !== "mood") return;
@@ -288,6 +330,7 @@ export class Room {
   found(places: E.Place[]) {
     if (this.st.phase !== "finding") return;
     this.st.places = places;
+    this.st.detailed = [];
     if (!places.length) return this.fail("nothingNearby");
     this.toCards();
   }
@@ -350,6 +393,12 @@ export class Room {
 
   /** Round 1 is over: search, spending the searches on what people liked. */
   private search() {
+    // Back in round 1 and nothing the search depends on changed (or the table is out of searches):
+    // the last search's places again, ranked for the picks as they are now. Google isn't asked.
+    const key = this.searchKey();
+    const out = (this.st.searches ?? 0) >= MAX_SEARCHES;
+    if (this.st.places.length && (key === this.st.searchedFor || out)) return this.toCards();
+    this.st.searchedFor = key;
     this.st.searches = (this.st.searches ?? 0) + 1;
     this.st.phase = "finding";
     this.st.phaseEnds = null;
@@ -357,6 +406,11 @@ export class Room {
     for (const m of Object.values(this.st.members)) m.moodDone = true;
     this.want = this.searchWant();
     this.changed = true;
+  }
+
+  /** What decides the search, the planned time instead of the clock ("now" moves on its own). */
+  private searchKey(): string {
+    return JSON.stringify({ ...this.searchWant(), at: this.st.at ?? null });
   }
 
   /** The search to run now: also what a restarted server runs again. */
@@ -381,6 +435,13 @@ export class Room {
     return E.MENU.filter((c) => net(c) > 0).sort((a, b) => net(b) - net(a) || (weight[b] ?? 0) - (weight[a] ?? 0));
   }
 
+  /** From round 2 back to round 1: everyone's picks stay to change, the votes go. */
+  private backToMood() {
+    Object.assign(this.st, { phase: "mood", phaseEnds: null, cards: [], error: null });
+    for (const m of Object.values(this.st.members)) Object.assign(m, { moodDone: false, ballot: { approve: [], veto: null }, ballotDone: false });
+    this.bump();
+  }
+
   /** From the result back to round 2: the same cards, no votes yet. */
   private backToCards() {
     Object.assign(this.st, { phase: "cards", phaseEnds: null, result: null, error: null });
@@ -389,7 +450,7 @@ export class Room {
   }
 
   private toLobby(o: { keepMoods?: boolean } = {}) {
-    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], cards: [], result: null, ratings: {}, error: null });
+    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], detailed: [], cards: [], result: null, ratings: {}, error: null });
     for (const m of Object.values(this.st.members)) Object.assign(m, { mood: o.keepMoods ? m.mood : {}, moodDone: false, ballot: { approve: [], veto: null }, ballotDone: false });
     this.bump();
   }
@@ -444,11 +505,17 @@ export class Room {
     });
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
+    this.st.featured = ids.slice(0, E.TOP_COUNT);
+    this.st.batch = (this.st.batch ?? 0) + 1;
     this.st.phase = "cards";
     this.st.phaseEnds = null; // no clock: see TIMING
     for (const m of Object.values(this.st.members)) m.moodDone = true;
-    // Photos and reviews only for the top of the list (Google bills each place's details).
-    this.want = { k: "details", ids: ids.slice(0, E.TOP_COUNT) };
+    // Photos and reviews only for the top of the list, and only once (Google bills each place's
+    // details): back in round 1 and here again with the same places, nothing is asked twice.
+    const asked = (this.st.detailed ??= []);
+    const need = ids.slice(0, E.TOP_COUNT).filter((id) => !asked.includes(id));
+    asked.push(...need);
+    if (need.length) this.want = { k: "details", ids: need };
     this.bump();
   }
 
@@ -461,8 +528,30 @@ export class Room {
     });
   }
 
-  private count() {
+  /**
+   * Round 2's places that everyone at the table ticked and nobody vetoed, best first. Two phones or
+   * more: alone, a tick is just a tick.
+   */
+  private matches(): string[] {
+    if (this.st.phase !== "cards") return [];
+    const members = Object.values(this.st.members);
+    const here = members.filter((m) => this.present(m));
+    if (here.length < 2) return [];
     const cards = this.liveCards();
+    const ballots = new Map(members.map((m) => [m.id, E.cleanBallot(m.ballot, cards)]));
+    const vetoed = new Set(members.map((m) => ballots.get(m.id)!.veto));
+    return cards.filter((c) => !vetoed.has(c) && here.every((m) => ballots.get(m.id)!.approve.includes(c)));
+  }
+
+  /** Round 2's places that haven't been at the top of the list yet, best first. */
+  private unfeatured(): string[] {
+    const seen = new Set(this.st.featured ?? []);
+    return this.liveCards().filter((c) => !seen.has(c));
+  }
+
+  /** Round 2 is over: the votes counted, over `only` these places when everyone already agreed on them. */
+  private count(only?: string[]) {
+    const cards = only ?? this.liveCards();
     if (!cards.length) return this.fail("nothingFits");
     const ballots = Object.values(this.st.members).map((m) => E.cleanBallot(m.ballot, cards));
     const t = E.tally(cards, ballots, this.env.random);
@@ -600,6 +689,9 @@ export class Room {
         .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
       searchesLeft: Math.max(0, MAX_SEARCHES - (st.searches ?? 0)),
+      match: this.matches(),
+      moreLeft: st.phase === "cards" ? this.unfeatured().length : 0,
+      batch: st.batch ?? 0,
       // Planned and still ahead; a time that has come (or passed) is "now".
       at: this.when(now) === now ? null : this.when(now),
       occasion: st.occasion ?? "casual",

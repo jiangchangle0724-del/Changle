@@ -33,16 +33,9 @@ import {
 import type { Pose, V3 } from "./pose";
 import type { Face, Outfit, Wear } from "./style";
 
-// ---------- sizes (metres)
-const HIP_Y = 0.875;
-const HIP_W = 0.1;
-const THIGH = 0.4;
-const SHIN = 0.4;
-export const ANKLE_Y = 0.075;
-const SHOULDER_W = 0.19;
-const SHOULDER_Y = 0.26;
-const UPPER_ARM = 0.29;
-const FOREARM = 0.27;
+// ---------- sizes (metres): sizes.ts, which the camera reads too
+import { ANKLE_Y, CHEST_Y, FOREARM, HIP_W, HIP_Y, SHIN, SHOULDER_W, SHOULDER_Y, SPINE_Y, THIGH, UPPER_ARM } from "./sizes";
+export { ANKLE_Y };
 
 export const COLORS = {
   skin: "#efbe9c",
@@ -188,11 +181,11 @@ export class Rig {
     belt.scale.set(1, 0.78, 1);
     hips.add(belt);
     // the waist and the chest
-    spine.position.set(0, 0.08, 0);
+    spine.position.set(0, SPINE_Y, 0);
     spine.rotation.order = "YXZ";
     hips.add(spine);
     this.part(new SphereGeometry(0.135, 24, 16), "top", spine, [0, 0.03, 0]).scale.set(1, 1.05, 0.74);
-    chest.position.set(0, 0.14, 0);
+    chest.position.set(0, CHEST_Y, 0);
     chest.rotation.order = "YXZ";
     spine.add(chest);
     const torso = new LatheGeometry(

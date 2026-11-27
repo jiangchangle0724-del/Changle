@@ -2,7 +2,10 @@
 // together (the combo bar on the TV) and the results. Pure. The phones do the scoring
 // (party-base's scoreBeats, against the beat as the room hears it); the room only counts.
 import { WINDOW_MS, summarize, type BeatScore, type Difficulty } from "../../../party-base/src/index";
+import { METRONOME_ID } from "../shared/catalog";
 import { COMBO_FULL, COMBO_QUORUM, type Floor, type PlayerResult, type Results } from "../shared/protocol";
+import { isGoldBeat } from "../shared/show";
+import { goldHit } from "../shared/taps";
 
 /** A beat a phone hasn't sent (not yet, or its player wasn't dancing then). */
 export const UNSEEN = 9999;
@@ -135,6 +138,8 @@ export function resultsOf(s: Scores, order: readonly string[], routineId: string
   const players: PlayerResult[] = [];
   const moved: number[] = [];
   const hits: number[] = [];
+  // the gold moves (none in the metronome, the timing test)
+  const golds = routineId === METRONOME_ID ? [] : Array.from({ length: total }, (_, b) => b).filter((b) => isGoldBeat(b, total));
   for (const id of ids) {
     const row = s.offs[id]!;
     if (!row.some((o) => o !== UNSEEN)) continue;
@@ -150,7 +155,11 @@ export function resultsOf(s: Scores, order: readonly string[], routineId: string
       if (run > best) best = run;
     }
     const sum = summarize(beats, difficulty);
-    players.push({ id, name: s.names[id] ?? "", participation: sum.participation, hitRate: sum.hitRate, movedRate: sum.movedRate, meanAbsOffsetMs: Number.isFinite(sum.meanAbsOffsetMs) ? Math.round(sum.meanAbsOffsetMs) : null, bestStreak: best });
+    const gold = golds.filter((b) => {
+      const o = row[b];
+      return goldHit(seen(o) ? o : null, difficulty);
+    }).length;
+    players.push({ id, name: s.names[id] ?? "", participation: sum.participation, hitRate: sum.hitRate, movedRate: sum.movedRate, meanAbsOffsetMs: Number.isFinite(sum.meanAbsOffsetMs) ? Math.round(sum.meanAbsOffsetMs) : null, bestStreak: best, gold });
     moved.push(beats.filter((x) => x.moved).length);
     hits.push(beats.filter((x) => x.hit).length);
   }
@@ -164,6 +173,7 @@ export function resultsOf(s: Scores, order: readonly string[], routineId: string
     bestStreak: floor.best,
     bursts: floor.bursts,
     together: players.length ? Math.round((100 * players.reduce((a, p) => a + p.movedRate, 0)) / players.length) : 0,
+    golds: golds.length,
   };
 }
 

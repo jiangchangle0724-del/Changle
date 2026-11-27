@@ -1,6 +1,6 @@
 // Every place in range and budget, best first: the top as full cards with photos, then shorter
 // cards that open with "More", ten more at a time, so a long list stays quick to scroll.
-import type { ComponentChildren } from "preact";
+import { Fragment, type ComponentChildren } from "preact";
 import { useRef, useState } from "preact/hooks";
 import type { OccasionId } from "../../engine";
 import type { CardView } from "../../room/protocol";
@@ -30,6 +30,10 @@ export function RankedList(p: {
    * first. Only this phone's order: the table's ranking and the votes don't change.
    */
   sortable?: boolean;
+  /** Round 2: places everyone at the table ticked and nobody vetoed (RoomView.match). */
+  matched?: string[];
+  /** Under the full cards at the top, in best-match order (round 2's "换一批"). */
+  afterTop?: ComponentChildren;
 }) {
   const [shown, setShown] = useState(p.top + STEP);
   const [order, setOrder] = useState<"best" | "near">("best");
@@ -49,10 +53,13 @@ export function RankedList(p: {
       )}
       <div class="places">
         {cards.slice(0, shown).map((c, i) => (
-          // Nearest first, the rank numbers would jump about: they're the best-match order.
-          <PlaceCard key={c.place.id} c={c} ranked={order === "best"} compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id} arrival={initial.current.get(c.place.id) ?? -1}>
-            {p.action(c, i < p.top)}
-          </PlaceCard>
+          <Fragment key={c.place.id}>
+            {/* Nearest first, the rank numbers would jump about: they're the best-match order. */}
+            <PlaceCard c={c} ranked={order === "best"} compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id} matched={p.matched?.includes(c.place.id)} arrival={initial.current.get(c.place.id) ?? -1}>
+              {p.action(c, i < p.top)}
+            </PlaceCard>
+            {i === p.top - 1 && order === "best" && p.afterTop}
+          </Fragment>
         ))}
       </div>
       <p class="muted small">

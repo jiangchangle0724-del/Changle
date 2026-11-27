@@ -7,7 +7,7 @@ import { BASE } from "../../base";
 import type { ShopKind } from "../../engine/types";
 import { ApiFail, getMyShop, saveMyShop, session } from "../api";
 import { t } from "../i18n";
-import { IconBack, useLang, useTitle } from "./common";
+import { IconBack, IconCheck, useLang, useTitle } from "./common";
 import { onReturn, shutOut, troubleOf, TroublePanel, type Trouble } from "./My";
 
 type Words = Omit<ShopCard, "slug">;
@@ -17,6 +17,7 @@ export function ShopEdit({ slug }: { slug: string }) {
   useLang();
   useTitle(t("shopEditTitle"));
   const [typed, setTyped] = useState<Words | null>(null);
+  const [listed, setListed] = useState(true);
   const [trouble, setTrouble] = useState<Trouble | null>(null);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
@@ -25,7 +26,9 @@ export function ShopEdit({ slug }: { slug: string }) {
   async function load() {
     if (!session()) return setTrouble("signin");
     try {
-      setTyped(wordsOf((await getMyShop(slug)).shop));
+      const mine = await getMyShop(slug);
+      setTyped(wordsOf(mine.shop));
+      setListed(mine.listed);
       loaded.current = true;
       setTrouble(null);
     } catch (e) {
@@ -44,7 +47,9 @@ export function ShopEdit({ slug }: { slug: string }) {
     setBusy(true);
     setSaid(null);
     try {
-      setTyped(wordsOf((await saveMyShop(slug, typed)).shop));
+      const saved = await saveMyShop(slug, typed, listed);
+      setTyped(wordsOf(saved.shop));
+      setListed(saved.listed);
       setSaid({ ok: true, text: t("shopSaved") });
     } catch (e) {
       const why = troubleOf(e);
@@ -118,6 +123,24 @@ export function ShopEdit({ slug }: { slug: string }) {
               <span class="field-label">{t("shopPermitField")}</span>
               <input type="text" name="permit" maxLength={200} autocomplete="off" value={typed.permit} onInput={(event) => set({ permit: event.currentTarget.value })} />
               <span class="hint">{t("shopPermitHint")}</span>
+            </label>
+            <label class="choice choice-tick">
+              <input
+                type="checkbox"
+                name="listed"
+                checked={listed}
+                onChange={(event) => {
+                  setListed(event.currentTarget.checked);
+                  setSaid(null);
+                }}
+              />
+              <span class="tick" aria-hidden="true">
+                <IconCheck size={14} />
+              </span>
+              <span class="choice-what">
+                {t("shopListed")}
+                <span class="hint">{t("shopListedHint")}</span>
+              </span>
             </label>
             <p class="hint">{t("shopEditNote")}</p>
             {said && (

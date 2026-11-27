@@ -139,6 +139,19 @@ def errors(pages):
 
 # ------------------------------------------------------------------ superlatives
 
+def poster_check(pg, tag):
+    """The awards poster: drawn on this phone, shown in a sheet, with a way to hand it over."""
+    pg.get_by_role("button", name="颁奖海报").click()
+    ok(until(lambda: pg.locator(".sup-poster img").count() == 1, 8000), f"{tag}: the poster is drawn")
+    size = pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); return [i.naturalWidth, i.naturalHeight, i.src.startsWith('data:image/png')]; }")
+    ok(size[0] == 1080 and size[1] > 600 and size[2], f"{tag}: a 1080-wide PNG {size[:2]}")
+    ok(pg.locator(".ui-sheet button", has_text=re.compile("发给朋友|保存图片")).count() == 1, f"{tag}: a share or save button")
+    shot(pg, f"sup-poster-{tag}")
+    pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); window.__poster = i.src; }")
+    pg.locator(".ui-sheet").get_by_role("button", name=re.compile("^(关闭|Close)$")).last.click()
+    ok(until(lambda: not pg.locator(".sup-poster img").is_visible(), 3000), f"{tag}: the sheet closes")
+
+
 def t_superlatives_single(browser):
     pg = phone(browser, "solo", players=PLAYERS[:4])
     pg.goto(BASE + "#/g/superlatives", wait_until="networkidle")
@@ -210,6 +223,7 @@ def t_superlatives_single(browser):
     ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 3000), "one phone: then the whole table's toast, as online")
     ok("全场" in pg.locator(".stamp-layer").inner_text(), "one phone: the toast is for everyone")
     clear_stamps([pg])
+    poster_check(pg, "solo")
     pg.get_by_role("button", name="再来五个奖").click()
     ok(until(lambda: pg.locator(".pass-curtain").count() == 1, 3000) and "第 6 个奖" in pg.locator(".award-count").inner_text(), "one phone: five more awards")
     errors([pg])
@@ -251,6 +265,16 @@ def t_superlatives_online(browser):
     host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay", "Kev"])
     everyone = [host] + guests
     start_game(host, everyone, "superlatives")
+    # the host's setup first: packs and how many awards (the others wait)
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "setup") for g in everyone), "online: the host's setup comes first")
+    ok(guests[0].locator(".sup-pack-row button").count() == 0 and guests[0].locator(".sup-pack-row .chip-selected").count() == 3, "online: the others only see the packs picked")
+    shot(host, "sup-net-setup")
+    host.get_by_role("button", name="辣一点").click()
+    ok(until(lambda: "spicy" in (view(guests[0]) or {}).get("packs", []), 3000), "online: a pack the host turns on shows on every phone")
+    host.get_by_role("button", name="5", exact=True).click()
+    ok(until(lambda: (view(guests[0]) or {}).get("total") == 5, 3000), "online: five awards")
+    host.get_by_role("button", name="开始颁奖").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "vote") for g in everyone), "online: started, the first ballot")
     shot(host, "sup-net-vote")
     pids = [me(g) for g in everyone]
     # everyone votes for Jay (Jay votes Mia)
@@ -293,7 +317,7 @@ def t_superlatives_online(browser):
                 g.locator(".ballot .nominee:not([disabled])").first.click()
         until(lambda: view(host)["phase"] != "vote", 5000)
         clear_stamps(everyone, wait=False)
-    ok(until(lambda: view(host)["phase"] == "ceremony", 5000), "eight awards, then the ceremony")
+    ok(until(lambda: view(host)["phase"] == "ceremony", 5000), "five awards, then the ceremony")
     more = host.get_by_role("button", name="再来五个奖")
     ok(more.is_disabled(), "the host can't go on before the table's toast (3.2 s)")
     shelves = host.evaluate("() => [...document.querySelectorAll('.shelf')].map((s) => s.querySelector('strong').firstChild.textContent + ':' + s.querySelectorAll('.award-chip').length)")
@@ -302,6 +326,7 @@ def t_superlatives_online(browser):
     ok(until(lambda: more.is_enabled(), 2000), "then the host can go on")
     clear_stamps(everyone)
     shot(host, "sup-net-ceremony")
+    poster_check(guests[0], "online")
     errors(everyone)
     for g in [host] + guests:
         g.context.close()
@@ -1026,10 +1051,12 @@ def t_limbo_coach_moving(browser):
     ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
     auto(pg)
     pg.wait_for_timeout(700)
-    until(lambda: gauge_target(pg) > 18, 6000)
+    # the bar's second trip down: she drops to 9° as it passes 16° on its way to 20°, so the whole
+    # listen (the smoothed reading takes a third of a second to get there) has the bar 8° to 12° below her
+    until(lambda: gauge_target(pg) < 10, 8000)
+    until(lambda: gauge_target(pg) > 16, 8000)
     tilt_to(pg, 9, 0)
     c = listen(pg, 900, lean=9)
-    # (the bar keeps moving: a tick can come as it swings back within 8° of her)
     ok(1 <= c["down"] <= 2 and c["up"] == 0, f"at 9° with the bar near 20°, still in the band but drifting: the quiet warning, on the beat {c}")
     auto(pg)
     pg.wait_for_timeout(700)

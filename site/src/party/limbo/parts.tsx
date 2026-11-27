@@ -5,6 +5,7 @@ import { CATCH_MS, FOLLOW_DEG, LOST_MS, MOVE_LEAD_MS, barAngleAt, classicBar, ty
 import type { LimboBar, LimboKind } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { degreesApart, leanAndSide, leanOf, upOf, useTilt } from "../sensors";
+import { atBar, atSide, holdAfter } from "./measure";
 
 /** How long you hold the lean before it counts. */
 export const HOLD_MS = 1200;
@@ -103,10 +104,11 @@ export function LimboScene({ angle, level, side = 0, sway, children }: { angle: 
 
 /**
  * Live lean against the target: an arc from upright (0°) to flat (90°). Past the target counts; with
- * `band` (a moving bar), only within that many degrees of it either way. The bar underneath fills
+ * `band` (a moving bar), only within that many degrees of it either way; `over`, when given, says
+ * instead (the measuring hooks know, with a little give once you're there). The bar underneath fills
  * with `hold` (0 to 1); `warn` turns it red, for a fill that's bad news. `note` replaces the line under it.
  */
-export function LeanGauge({ lean, target, hold, band, warn, note }: { lean: number; target: number; hold: number; band?: number; warn?: boolean; note?: string }) {
+export function LeanGauge({ lean, target, hold, band, warn, note, over: there }: { lean: number; target: number; hold: number; band?: number; warn?: boolean; note?: string; over?: boolean }) {
   const r = 110;
   const cx = 130;
   const cy = 130;
@@ -121,7 +123,7 @@ export function LeanGauge({ lean, target, hold, band, warn, note }: { lean: numb
     return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`;
   };
   const shown = Math.max(0.5, Math.min(90, lean));
-  const over = band === undefined ? lean >= target : Math.abs(lean - target) <= band;
+  const over = there ?? (band === undefined ? lean >= target : Math.abs(lean - target) <= band);
   // the target's label sits clear of the arc (16 wide), whichever way the fill or the zone runs under it
   const [tx, ty] = pt(target, r + 22);
   const [nx, ny] = pt(shown, r - 26);
@@ -148,15 +150,28 @@ export function LeanGauge({ lean, target, hold, band, warn, note }: { lean: numb
   );
 }
 
+/** A hold in progress: whether the lean is at the bar (with hysteresis), how full the hold is, and the last reading's time. */
+type Run = { at: boolean; h: number; t: number };
+const fresh = (): Run => ({ at: false, h: 0, t: 0 });
+/** The time since the last reading, for the hold's clock (a stalled sensor doesn't count up). */
+function stepOf(r: Run, t: number) {
+  const dt = r.t ? Math.min(200, t - r.t) : 0;
+  r.t = t;
+  return dt;
+}
+
 /**
- * Watch the phone's lean while `on`; calls `onPass` once the target has been held long enough.
- * Returns the live lean, the best lean so far, and how far through the hold we are (0 to 1).
+ * Watch the phone's lean while `on` (smoothed: see sensors.ts `smoother`); calls `onPass` once the
+ * target has been held long enough. At the bar means at it with a little give (measure.ts), and the
+ * hold fills there and drains away from it rather than starting over. Returns the live lean, the best
+ * lean so far, whether you're at the bar, and how far through the hold we are (0 to 1).
  */
 export function useLean(on: boolean, target: number, onPass: (deg: number) => void) {
-  const tilt = useTilt(on);
+  const tilt = useTilt(on, true);
   const [best, setBest] = useState(0);
   const [hold, setHold] = useState(0);
-  const since = useRef<number | null>(null);
+  const [over, setOver] = useState(false);
+  const run = useRef<Run>(fresh());
   const done = useRef(false);
   const cb = useRef(onPass);
   cb.current = onPass;
@@ -164,7 +179,8 @@ export function useLean(on: boolean, target: number, onPass: (deg: number) => vo
     if (!on) {
       setBest(0);
       setHold(0);
-      since.current = null;
+      setOver(false);
+      run.current = fresh();
       done.current = false;
     }
   }, [on, target]);
@@ -172,22 +188,19 @@ export function useLean(on: boolean, target: number, onPass: (deg: number) => vo
   useEffect(() => {
     if (!on || done.current || !tilt) return;
     setBest((b) => Math.max(b, lean));
-    const t = performance.now();
-    if (lean >= target) {
-      if (since.current === null) since.current = t;
-      const h = Math.min(1, (t - since.current) / HOLD_MS);
-      setHold(h);
-      if (h >= 1) {
-        done.current = true;
-        cb.current(Math.round(lean));
-      }
-    } else {
-      since.current = null;
-      setHold(0);
+    const r = run.current;
+    const dt = stepOf(r, performance.now());
+    r.at = atBar(r.at, lean, target);
+    r.h = holdAfter(r.h, r.at, dt, HOLD_MS);
+    setOver(r.at);
+    setHold(r.h);
+    if (r.h >= 1) {
+      done.current = true;
+      cb.current(Math.round(lean));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tilt]);
-  return { lean, best, hold, live: !!tilt };
+  return { lean, best, hold, over, live: !!tilt };
 }
 
 /** Hold steady: how far the phone may move, any way, from where the hold began before it counts as a wobble. */
@@ -198,18 +211,22 @@ export type PoseAsk = { target: number; side: number; holdMs: number; still: boo
 
 /**
  * Hold a pose while `on` (稳住, 歪着过): lean back at least `target`, tilt at least `side` that way
- * when it asks, and keep it up for `holdMs`. With `still`, the phone must also stay within
- * STEADY_DEG of where the hold began, or the hold starts again. `onPass` gets the lean, once.
- * Returns the live lean and sideways tilt, the deepest lean so far, how far through the hold
- * (0 to 1), and when the last wobble was (performance time, 0 for none).
+ * when it asks, and keep it up for `holdMs`. Both are reached with a little give once you're there
+ * (measure.ts). With `still`, the phone must also stay within STEADY_DEG of where the hold began,
+ * or the hold starts again (and so it does when you leave the pose: that is the game); without it,
+ * the hold fills in the pose and drains out of it. `onPass` gets the lean, once. Returns the live lean
+ * and sideways tilt, the deepest lean so far, whether the lean and the tilt are there, how far through
+ * the hold (0 to 1), and when the last wobble was (performance time, 0 for none).
  */
 export function usePose(on: boolean, ask: PoseAsk, onPass: (deg: number) => void) {
-  const tilt = useTilt(on);
+  const tilt = useTilt(on, true);
   const [best, setBest] = useState(0);
   const [hold, setHold] = useState(0);
+  const [over, setOver] = useState(false);
+  const [sideOver, setSideOver] = useState(false);
   const [wobbleAt, setWobbleAt] = useState(0);
-  /** this hold: when it began, and the sum of the "up" directions since (their average direction) */
-  const run = useRef<{ t0: number; sum: [number, number, number] } | null>(null);
+  /** the hold, and (still) when this stretch of it began and the sum of the "up" directions since (their average direction) */
+  const run = useRef<Run & { sideAt: boolean; t0: number; sum: [number, number, number] | null }>({ ...fresh(), sideAt: false, t0: 0, sum: null });
   const done = useRef(false);
   const cb = useRef(onPass);
   cb.current = onPass;
@@ -218,8 +235,10 @@ export function usePose(on: boolean, ask: PoseAsk, onPass: (deg: number) => void
     if (!on) {
       setBest(0);
       setHold(0);
+      setOver(false);
+      setSideOver(false);
       setWobbleAt(0);
-      run.current = null;
+      run.current = { ...fresh(), sideAt: false, t0: 0, sum: null };
       done.current = false;
     }
   }, [on, target, side, holdMs]);
@@ -228,35 +247,45 @@ export function usePose(on: boolean, ask: PoseAsk, onPass: (deg: number) => void
     if (!on || done.current || !tilt) return;
     setBest((b) => Math.max(b, pose.lean));
     const t = performance.now();
-    const sideOk = side === 0 || (side > 0 ? pose.side >= side : pose.side <= side);
-    if (pose.lean < target || !sideOk) {
-      run.current = null;
-      setHold(0);
-      return;
-    }
-    const up = upOf(tilt.beta, tilt.gamma);
     const r = run.current;
-    if (r && still && degreesApart(up, r.sum) > STEADY_DEG) {
-      // a wobble: the hold starts again from here (settling in for a moment doesn't count as one)
-      if (t - r.t0 > 400) setWobbleAt(t);
-      run.current = null;
-    }
-    if (!run.current) {
-      run.current = { t0: t, sum: up };
-      setHold(0);
+    const dt = stepOf(r, t);
+    r.at = atBar(r.at, pose.lean, target);
+    r.sideAt = atSide(r.sideAt, pose.side, side);
+    setOver(r.at);
+    setSideOver(r.sideAt);
+    if (!r.at || !r.sideAt) {
+      if (still) {
+        r.h = 0;
+        r.sum = null;
+      } else r.h = holdAfter(r.h, false, dt, holdMs);
+      setHold(r.h);
       return;
     }
-    const s = run.current.sum;
-    run.current.sum = [s[0] + up[0], s[1] + up[1], s[2] + up[2]];
-    const h = Math.min(1, (t - run.current.t0) / holdMs);
-    setHold(h);
-    if (h >= 1) {
+    if (still) {
+      const up = upOf(tilt.beta, tilt.gamma);
+      if (r.sum && degreesApart(up, r.sum) > STEADY_DEG) {
+        // a wobble: the hold starts again from here (settling in for a moment doesn't count as one)
+        if (t - r.t0 > 400) setWobbleAt(t);
+        r.sum = null;
+      }
+      if (!r.sum) {
+        r.sum = up;
+        r.t0 = t;
+        r.h = 0;
+        setHold(0);
+        return;
+      }
+      r.sum = [r.sum[0] + up[0], r.sum[1] + up[1], r.sum[2] + up[2]];
+      r.h = Math.min(1, (t - r.t0) / holdMs);
+    } else r.h = holdAfter(r.h, true, dt, holdMs);
+    setHold(r.h);
+    if (r.h >= 1) {
       done.current = true;
       cb.current(Math.round(pose.lean));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tilt]);
-  return { lean: pose.lean, side: pose.side, best, hold, wobbleAt, live: !!tilt };
+  return { lean: pose.lean, side: pose.side, best, hold, over, sideOver, wobbleAt, live: !!tilt };
 }
 
 /**
@@ -270,7 +299,7 @@ export function usePose(on: boolean, ask: PoseAsk, onPass: (deg: number) => void
  * deepest you followed it.
  */
 export function useFollow(on: boolean, angle: number, bar: LimboBar, startAt: number, clock: () => number, onEnd: (kept: boolean, deg: number) => void) {
-  const tilt = useTilt(on);
+  const tilt = useTilt(on, true);
   const latest = useRef(tilt);
   latest.current = tilt;
   const cb = useRef(onEnd);
@@ -329,16 +358,16 @@ export function SteadyMeter({ target, holdMs, pose }: { target: number; holdMs: 
   const wobbled = pose.wobbleAt > 0 && performance.now() - pose.wobbleAt < 900;
   const left = secs(Math.max(0, 1 - pose.hold) * holdMs);
   const note =
-    pose.lean < target ? (zh ? `往后仰到 ${target}°` : `Lean back to ${target}°`) : wobbled ? (zh ? "晃了，重来" : "You moved, start again") : zh ? `别动，还要 ${left} 秒` : `Hold still, ${left}s to go`;
-  return <LeanGauge lean={pose.lean} target={target} hold={pose.hold} note={note} />;
+    !pose.over ? (zh ? `往后仰到 ${target}°` : `Lean back to ${target}°`) : wobbled ? (zh ? "晃了，重来" : "You moved, start again") : zh ? `别动，还要 ${left} 秒` : `Hold still, ${left}s to go`;
+  return <LeanGauge lean={pose.lean} target={target} hold={pose.hold} note={note} over={pose.over} />;
 }
 
-/** Tilt through: how far you tilt to the side against what the bar asks (right is positive), on a level. */
-export function SideGauge({ side, want }: { side: number; want: number }) {
+/** Tilt through: how far you tilt to the side against what the bar asks (right is positive), on a level; `ok`, when given, says whether that's enough (with a little give once it is). */
+export function SideGauge({ side, want, ok: enough }: { side: number; want: number; ok?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const right = want > 0;
-  const ok = right ? side >= want : side <= want;
+  const ok = enough ?? (right ? side >= want : side <= want);
   const at = (d: number) => 50 + (Math.max(-45, Math.min(45, d)) / 45) * 50;
   const Arrow = right ? ArrowRight : ArrowLeft;
   const now = Math.round(Math.abs(side));
@@ -364,15 +393,14 @@ export function TiltMeter({ target, side, pose }: { target: number; side: number
   const { lang } = useStore();
   const zh = lang === "zh";
   const right = side > 0;
-  const sideOk = right ? pose.side >= side : pose.side <= side;
   const note =
-    pose.lean < target
+    !pose.over
       ? zh ? `往后仰到 ${target}°` : `Lean back to ${target}°`
-      : !sideOk ? (zh ? `再往${right ? "右" : "左"}歪一点` : `Tilt ${right ? "right" : "left"} a bit more`) : zh ? "撑住" : "Hold it";
+      : !pose.sideOver ? (zh ? `再往${right ? "右" : "左"}歪一点` : `Tilt ${right ? "right" : "left"} a bit more`) : zh ? "撑住" : "Hold it";
   return (
     <>
-      <LeanGauge lean={pose.lean} target={target} hold={pose.hold} note={note} />
-      <SideGauge side={pose.side} want={side} />
+      <LeanGauge lean={pose.lean} target={target} hold={pose.hold} note={note} over={pose.over} />
+      <SideGauge side={pose.side} want={side} ok={pose.sideOver} />
     </>
   );
 }
@@ -507,7 +535,7 @@ const BLIND_MIN_LEAN = 8;
  * runs out (if it's a real lean). The live angle is never returned, so no screen can show it.
  */
 export function useBlindLock(on: boolean, onLock: (deg: number) => void) {
-  const tilt = useTilt(on);
+  const tilt = useTilt(on, true);
   const [steady, setSteady] = useState(0);
   const run = useRef<{ t0: number; sum: number; n: number } | null>(null);
   const done = useRef(false);

@@ -205,6 +205,15 @@ class Sfx {
           this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
           break;
         }
+        case 'raincatch': {
+          // 红包雨（11-26）：接到一个叮一声，短一点（一会儿接好多个，不能太吵），每个人音高差一点
+          if (!this.throttle(`rain${ev.player}`, 0.06)) break;
+          const pan = this.pan(ev.x, ev.y);
+          const f = 1320 * (1 + (ev.player % 6) * 0.05);
+          this.tone({ freq: f, wave: 'triangle', dur: 0.08, vol: 0.18, pan });
+          this.tone({ freq: f * 1.33, wave: 'triangle', dur: 0.14, vol: 0.14, pan, delay: 0.05 });
+          break;
+        }
         case 'gold': {
           // 抢金元宝（A9d）：抓住叮当一声；每攒一秒响一下，越来越高；元宝回到中间呼一声
           const pan = this.pan(ev.x, ev.y);
@@ -240,6 +249,18 @@ class Sfx {
           } else {
             this.noise({ dur: 1.1, vol: 0.16, filter: { type: 'bandpass', freq: 3600, to: 1500, q: 0.9 }, attack: 0.04, pan });
             this.noise({ dur: 0.5, vol: 0.08, filter: { type: 'lowpass', freq: 600 }, attack: 0.02, pan });
+          }
+          break;
+        }
+        case 'escort': {
+          // 护送大元宝（11-26）：送到了是一串金币叮当往上走；掉了回去是低低两声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'home') {
+            for (const [k, f] of [1047, 1319, 1568, 2093].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.18, vol: 0.16, pan, delay: k * 0.07 });
+            this.tone({ freq: 2637, wave: 'sine', dur: 0.4, vol: 0.08, pan, delay: 0.3 });
+          } else {
+            this.tone({ freq: 392, to: 330, wave: 'triangle', dur: 0.16, vol: 0.14, pan });
+            this.tone({ freq: 294, to: 247, wave: 'triangle', dur: 0.22, vol: 0.14, pan, delay: 0.14 });
           }
           break;
         }
@@ -323,6 +344,52 @@ class Sfx {
           const f = 520 + (ev.player % 6) * 70;
           this.tone({ freq: f, to: f * 1.5, wave: 'sine', dur: 0.08, vol: 0.16, pan });
           this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
+          break;
+        }
+        case 'boulder': {
+          // 推大石头（11-26）掉出去回到原地：闷闷地咚一下
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: 90, to: 60, wave: 'sine', dur: 0.35, vol: 0.2, pan });
+          this.noise({ dur: 0.25, vol: 0.1, filter: { type: 'lowpass', freq: 400 }, pan });
+          break;
+        }
+        case 'cheer': {
+          // 观众起哄（11-26）：轻轻啵一声，起得密了就省掉几声
+          if (!this.throttle('cheer', 0.12)) break;
+          const f = 760 + Math.random() * 260;
+          this.tone({ freq: f, to: f * 1.25, wave: 'sine', dur: 0.06, vol: 0.06 });
+          break;
+        }
+        case 'crowdvote': {
+          // 观众投票开了：叮咚
+          this.tone({ freq: 660, wave: 'triangle', dur: 0.16, vol: 0.12 });
+          this.tone({ freq: 880, wave: 'triangle', dur: 0.24, vol: 0.12, delay: 0.14 });
+          break;
+        }
+        case 'crowdbet': {
+          // 这一局第一个掉的：押中了三个音往上，没押中两个音往下
+          if (ev.hits.length) [660, 830, 990].forEach((f, k) => this.tone({ freq: f, wave: 'sine', dur: 0.12, vol: 0.1, delay: k * 0.08 }));
+          else [520, 390].forEach((f, k) => this.tone({ freq: f, wave: 'triangle', dur: 0.18, vol: 0.08, delay: k * 0.12 }));
+          break;
+        }
+        case 'crowdfx': {
+          // 观众投出来的那一样开始：刮风呼的一声，变轻往上飘，变重往下沉，慢动作像磁带慢下来，力气满往上走四个音
+          if (!ev.on) break;
+          const side = ev.dir < 0 ? -0.6 : 0.6;
+          if (ev.fx === 'wind') this.noise({ dur: 1.4, vol: 0.22, attack: 0.25, filter: { type: 'bandpass', freq: 400, to: 1400, q: 0.8 }, pan: side });
+          else if (ev.fx === 'float') this.tone({ freq: 300, to: 900, wave: 'sine', dur: 0.9, vol: 0.12, vibrato: [12, 6] });
+          else if (ev.fx === 'heavy') {
+            this.tone({ freq: 160, to: 55, wave: 'sawtooth', dur: 0.6, vol: 0.14, lowpass: 500 });
+            this.noise({ dur: 0.3, vol: 0.1, filter: { type: 'lowpass', freq: 300 }, delay: 0.45 });
+          } else if (ev.fx === 'slow') this.tone({ freq: 520, to: 130, wave: 'triangle', dur: 1.0, vol: 0.12 });
+          else [392, 523, 659, 784].forEach((f, k) => this.tone({ freq: f, wave: k === 3 ? 'triangle' : 'sine', dur: k === 3 ? 0.3 : 0.1, vol: 0.12, delay: k * 0.07 }));
+          break;
+        }
+        case 'achv': {
+          // 成就（11-25）：叮叮叮往上走三个音，最后一个亮一点
+          const pan = this.pan(ev.x, ev.y);
+          const notes = [784, 988, 1319];
+          notes.forEach((f, k) => this.tone({ freq: f, wave: k === 2 ? 'triangle' : 'sine', dur: k === 2 ? 0.35 : 0.12, vol: 0.14, pan, delay: k * 0.09 }));
           break;
         }
         case 'fart': {
@@ -505,6 +572,12 @@ class Sfx {
         steps.forEach((f, k) => this.tone({ freq: f, wave: 'square', dur: 0.085, attack: 0.004, vol: 0.12, pan, lowpass: 2600, delay: k * 0.08 }));
         return;
       }
+      case 'meow':
+        // 喵（红包扭蛋机里扭的，11-25）：先往上挑，再拖着往下
+        this.tone({ freq: 620, to: 1050, wave: 'triangle', dur: 0.14, attack: 0.02, vol: 0.18, pan });
+        this.tone({ freq: 1050, to: 480, wave: 'sawtooth', dur: 0.55, attack: 0.02, vol: 0.13, vibrato: [25, 9], pan, lowpass: 1800, delay: 0.12 });
+        this.tone({ freq: 2100, to: 960, wave: 'sine', dur: 0.5, attack: 0.02, vol: 0.04, pan, delay: 0.12 });
+        return;
       case 'opera':
         // 歌剧：先唱上去，再长长地滑下来，宽颤音
         this.tone({ freq: 660, to: 880, wave: 'triangle', dur: 0.32, attack: 0.05, vol: 0.22, vibrato: [22, 6], pan });
@@ -678,12 +751,18 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.ok || ev.player === me;
     case 'itemEnd':
       return true;
-    // 表情、放屁（11-25）是给大家听的
+    // 表情、放屁、成就（11-25）是给大家听的；观众的（11-26）也是
     case 'emote':
     case 'fart':
+    case 'achv':
+    case 'cheer':
+    case 'crowdvote':
+    case 'crowdbet':
+    case 'crowdfx':
       return true;
-    // 红包是大家的
+    // 红包是大家的（红包雨也是）
     case 'envelope':
+    case 'raincatch':
       return true;
     default:
       return !('player' in ev) || ev.player === me;

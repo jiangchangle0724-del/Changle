@@ -4,8 +4,11 @@
  * src/server/worker.ts 里的 Durable Object 包着它。
  */
 import {
+  CROWD_BURST,
+  CROWD_RATE,
   HOST_GRACE_MS,
   IDLE_MS,
+  MAX_AUDIENCE,
   MAX_SEATS,
   PAD_GRACE_MS,
   type ClientMsg,
@@ -32,7 +35,10 @@ export interface RoomData {
   seats: SeatData[];
   hostConnected: boolean;
   hostGoneAt: number | null;
+  /** 在线的观众有几个（和 audience 的长短一样；老房间只有这个数）。 */
   watchers: number;
+  /** 观众（11-26）：在线的观众的 id 和名字。老房间没有这一项。 */
+  audience?: { id: string; name: string }[];
   openedAt: number;
   lastActive: number;
   /** 手机局：房主自己也玩，占 0 号颜色，手柄最多 MAX_SEATS - 1 个。 */
@@ -43,6 +49,7 @@ export interface RoomData {
 
 export interface From {
   role: Role;
+  /** 手柄的座位 id；观众（11-26）的 id 也放在这里；主机是 null。 */
   seat: string | null;
 }
 
@@ -55,8 +62,10 @@ export interface TableStatus {
 /** 没有这个房间（从没开过，或者结束以后收掉了）。 */
 export const NO_ROOM: TableStatus = { exists: false, phase: 'over' };
 
-/** 发给谁：所有人、主机、某个座位；或者把谁踢下线。 */
-export type Out = { to: 'all' | 'host' | { seat: string }; msg: ServerMsg } | { close: 'host' | { seat: string }; key: FatalKey };
+/** 发给谁：所有人、主机、某个座位、某个观众、所有观众；或者把谁踢下线（房间结束时观众一起）。 */
+export type Out =
+  | { to: 'all' | 'host' | 'audience' | { seat: string } | { watch: string }; msg: ServerMsg }
+  | { close: 'host' | 'audience' | { seat: string }; key: FatalKey };
 
 const ACTIONS = new Set(['START', 'PLAY', 'FINISH', 'LOBBY', 'END', 'KICK']);
 /** 每个阶段允许的主机动作和去向。 */
@@ -72,6 +81,8 @@ const MOVES: Record<string, Partial<Record<Phase, Phase>>> = {
 export class Room {
   private out: Out[] = [];
   private changed = false;
+  /** 观众说话的限速（11-26）：每个观众还能说几句、上次算到什么时候。不存，房间醒过来重新算。 */
+  private readonly crowdRate = new Map<string, { n: number; at: number }>();
 
   constructor(
     public d: RoomData,
@@ -105,6 +116,7 @@ export class Room {
       hostConnected: this.d.hostConnected,
       seats: this.d.seats.map(({ id, name, color, connected }) => ({ id, name, color, connected })),
       watchers: this.d.watchers,
+      ...(this.d.audience?.length ? { audience: this.d.audience.map(({ id, name }) => ({ id, name })) } : {}),
       age: this.now() - this.d.openedAt,
       ...(this.d.hostPlays ? { hostPlays: true } : {}),
     };
@@ -128,7 +140,17 @@ export class Room {
     }
     this.d.lastActive = this.now();
     if (from.role === 'watch') {
-      this.d.watchers++;
+      // 观众（11-26）带 id 和名字：同一个人刷新了还是他（改了名字跟着改），满了进不来
+      if (!from.seat) return 'badRequest';
+      const audience = (this.d.audience ??= []);
+      const old = audience.find((w) => w.id === from.seat);
+      if (old) {
+        if (name) old.name = cleanName(name);
+      } else {
+        if (audience.length >= MAX_AUDIENCE) return 'full';
+        audience.push({ id: from.seat, name: cleanName(name) });
+      }
+      this.d.watchers = audience.length;
       this.touch();
       return null;
     }
@@ -162,7 +184,11 @@ export class Room {
       return;
     }
     if (from.role === 'watch') {
-      this.d.watchers = Math.max(0, this.d.watchers - 1);
+      const audience = this.d.audience ?? [];
+      const i = audience.findIndex((w) => w.id === from.seat);
+      if (i >= 0) audience.splice(i, 1);
+      this.d.watchers = audience.length;
+      this.crowdRate.delete(from.seat ?? '');
       this.touch();
       return;
     }
@@ -210,18 +236,48 @@ export class Room {
     if (next === 'ended') this.endAll();
   }
 
-  /** 转发：主机 → 某座位，手柄 → 主机。观众不能说话，房间不看内容。 */
+  /**
+   * 转发：主机 → 某座位、某个观众、所有观众，手柄 → 主机，房间不看内容。
+   * 观众（11-26）只能跟主机说 crowd（押谁、起哄、投票），还限速：每秒 CROWD_RATE 句，攒着最多 CROWD_BURST 句。
+   */
   private relay(from: From, to: RelayTo, data: LinkMsg): void {
     if (!data || typeof data !== 'object' || typeof (data as { k?: unknown }).k !== 'string') return;
     if (from.role === 'host') {
-      if (!to || typeof to !== 'object' || !this.d.seats.some((s) => s.id === to.seat)) return;
+      if (to === 'audience') {
+        if (this.d.audience?.length) this.out.push({ to: 'audience', msg: { t: 'relay', from: 'host', data } });
+        return;
+      }
+      if (!to || typeof to !== 'object') return;
+      if ('watch' in to) {
+        if (this.d.audience?.some((w) => w.id === to.watch)) this.out.push({ to: { watch: to.watch }, msg: { t: 'relay', from: 'host', data } });
+        return;
+      }
+      if (!this.d.seats.some((s) => s.id === to.seat)) return;
       this.out.push({ to: { seat: to.seat }, msg: { t: 'relay', from: 'host', data } });
+      return;
+    }
+    if (from.role === 'watch') {
+      const id = from.seat;
+      if (!id || to !== 'host' || data.k !== 'crowd' || !this.d.audience?.some((w) => w.id === id) || !this.crowdOk(id)) return;
+      this.out.push({ to: 'host', msg: { t: 'relay', from: { watch: id }, data } });
       return;
     }
     if (from.role === 'pad' && from.seat && to === 'host' && this.d.seats.some((s) => s.id === from.seat)) {
       if (data.k === 'input') this.d.lastActive = this.now();
       this.out.push({ to: 'host', msg: { t: 'relay', from: { seat: from.seat }, data } });
     }
+  }
+
+  /** 观众这一句能不能说（限速，能说就记一句）。 */
+  private crowdOk(id: string): boolean {
+    const now = this.now();
+    const r = this.crowdRate.get(id) ?? { n: CROWD_BURST, at: now };
+    r.n = Math.min(CROWD_BURST, r.n + ((now - r.at) / 1000) * CROWD_RATE);
+    r.at = now;
+    this.crowdRate.set(id, r);
+    if (r.n < 1) return false;
+    r.n -= 1;
+    return true;
   }
 
   /** 房间时钟到了某个期限：主机没回来、座位空太久。 */
@@ -262,6 +318,7 @@ export class Room {
   private endAll(): void {
     this.out.push({ close: 'host', key: 'ended' });
     for (const s of this.d.seats) this.out.push({ close: { seat: s.id }, key: 'ended' });
+    if (this.d.audience?.length) this.out.push({ close: 'audience', key: 'ended' });
   }
 
   /** 有变化：存一下，所有人收一份新的房间样子。 */
@@ -273,6 +330,7 @@ export class Room {
   private send(from: From, msg: ServerMsg): void {
     if (from.role === 'host') this.out.push({ to: 'host', msg });
     else if (from.role === 'pad' && from.seat) this.out.push({ to: { seat: from.seat }, msg });
+    else if (from.role === 'watch' && from.seat) this.out.push({ to: { watch: from.seat }, msg });
   }
 }
 

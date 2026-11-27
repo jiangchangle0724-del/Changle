@@ -89,7 +89,7 @@ function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
   return t(`why_${r}` as Key);
 }
 
-export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win, arrival }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren; vetoed?: boolean; win?: boolean; arrival?: number }) {
+export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, matched, win, arrival }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren; vetoed?: boolean; matched?: boolean; win?: boolean; arrival?: number }) {
   const [open, setOpen] = useState(!compact);
   const article = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -105,7 +105,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win,
   const until = c.at !== undefined ? c.closesAt : undefined;
   const lines = notes(c, occasion);
   return (
-    <article ref={article} class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank} data-meters={c.meters}>
+    <article ref={article} class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${matched ? " matched" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank} data-meters={c.meters}>
       {open && p.photo && (
         <figure class="photo">
           <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />
@@ -131,6 +131,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win,
             </span>
           )}
           <h3>{p.name}</h3>
+          {matched && <span class="matched-tag">{t("matchTag")}</span>}
         </div>
         {!!p.badges?.length && (
           <p class="badges">

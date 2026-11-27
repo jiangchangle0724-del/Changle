@@ -95,6 +95,21 @@ describe("the results", () => {
     assert.deepEqual([r.beats, r.together, r.bestStreak, r.routineId, r.difficulty], [16, 100, 16, "square-easy", "easy"]);
   });
 
+  it("the gold moves each dancer got: on easy a move near the beat, on medium on it", () => {
+    const total = 192;
+    const s = emptyScores();
+    const row = (at: Record<number, number>) => Array.from({ length: total }, (_, b) => at[b] ?? null);
+    addBeats(s, "ann", "Ann", 0, row({ 63: 20, 127: -250, 191: 0, 10: 0 }), total, "easy");
+    addBeats(s, "bob", "Bob", 0, row({ 63: 20 }), total, "easy");
+    const r = resultsOf(s, ["ann", "bob"], "square-easy", "easy", total);
+    assert.equal(r.golds, 3);
+    assert.deepEqual(r.players.map((p) => [p.id, p.gold]), [["ann", 3], ["bob", 1]]);
+    const m = emptyScores();
+    addBeats(m, "ann", "Ann", 0, row({ 63: 20, 127: -150, 191: 0 }), total, "medium");
+    assert.equal(resultsOf(m, ["ann"], "square-medium", "medium", total).players[0]!.gold, 2, "150 ms off is moved, not on the beat");
+    assert.equal(resultsOf(m, ["ann"], "metronome-120", "medium", total).golds, 0, "none in the metronome");
+  });
+
   it("a beat not sent is a beat not moved; nobody who never moved gets an award", () => {
     const s = emptyScores();
     addBeats(s, "ann", "Ann", 0, [0, 0, 0, 0], 8, "easy");

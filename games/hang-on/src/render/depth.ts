@@ -156,8 +156,8 @@ export class Depth {
       boxes.push({ pts: rectPts(f), depth: depthOf({ ...f, kind: 'cookie' }), style: this.cookieStyle(), alpha });
     });
     for (const prop of sim.props) {
-      // 钥匙、灯笼（老宅）是小的、不方的东西，不画侧面
-      if (prop.kind === 'key' || prop.kind === 'lantern') continue;
+      // 钥匙、灯笼（老宅）是小的、不方的东西，大石头（11-26）是圆的，不画侧面
+      if (prop.kind === 'key' || prop.kind === 'lantern' || prop.kind === 'boulder') continue;
       const c = Math.cos(prop.angle);
       const s = Math.sin(prop.angle);
       const at = (lx: number, ly: number): Pt => ({ x: prop.x + lx * c - ly * s, y: prop.y + lx * s + ly * c });

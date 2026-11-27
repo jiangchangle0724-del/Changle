@@ -38,6 +38,7 @@ interface ItemDraft {
   least: number;
   stock: number | null;
   perBuyer: number | null;
+  case: number | null;
   allergens: string;
 }
 interface PointDraft {
@@ -204,6 +205,7 @@ function ItemSheet({ slug, item, sections, canUp, canDown, onSave, onRemove, onM
     least: item && weighed(item.unit) && item.least !== item.step ? amountText(item.least) : "",
     stock: item?.stock == null ? "" : amountText(item.stock),
     perBuyer: item?.perBuyer == null ? "" : amountText(item.perBuyer),
+    case: item?.case == null ? "" : amountText(item.case),
     allergens: item?.allergens ?? "",
   }));
   const [tried, setTried] = useState(false);
@@ -217,6 +219,7 @@ function ItemSheet({ slug, item, sections, canUp, canDown, onSave, onRemove, onM
   const least = byWeight ? (typed.least.trim() ? amount(typed.least) : step) : item && !weighed(item.unit) ? item.least : MILLI;
   const stock = typed.stock.trim() ? amount(typed.stock) : null;
   const perBuyer = typed.perBuyer.trim() ? amount(typed.perBuyer) : null;
+  const size = typed.case.trim() ? amount(typed.case) : null;
   const inSteps = t(byWeight ? "editErrSteps" : "editErrWhole", { step: amountText(step) });
   const wrong = {
     name: typed.name.trim() ? null : tried ? t("editErrName") : "",
@@ -224,12 +227,13 @@ function ItemSheet({ slug, item, sections, canUp, canDown, onSave, onRemove, onM
     least: least !== null && least >= step && least <= QTY_MAX && least % step === 0 ? null : inSteps,
     stock: !typed.stock.trim() ? null : stock === null || stock > STOCK_MAX || stock % step !== 0 ? inSteps : stock < sold ? t("editErrStockLow", { sold: amountText(sold) }) : null,
     perBuyer: !typed.perBuyer.trim() ? null : perBuyer === null || perBuyer > QTY_MAX || perBuyer % step !== 0 ? inSteps : least !== null && perBuyer < least ? t("editErrPerBuyerLow") : null,
+    case: !typed.case.trim() ? null : size === null || size > STOCK_MAX || size % step !== 0 ? inSteps : size <= step ? t("editErrCaseSmall") : null,
   };
   const good = Object.values(wrong).every((one) => one === null);
 
   function done() {
     if (!good || price === null || least === null) return setTried(true);
-    onSave({ ...(item?.id ? { id: item.id, used: item.used, sold: item.sold } : {}), section: typed.section.trim(), name: typed.name.trim(), detail: typed.detail.trim(), photo, price, unit: typed.unit, step, least, stock, perBuyer, allergens: typed.allergens.trim() });
+    onSave({ ...(item?.id ? { id: item.id, used: item.used, sold: item.sold } : {}), section: typed.section.trim(), name: typed.name.trim(), detail: typed.detail.trim(), photo, price, unit: typed.unit, step, least, stock, perBuyer, case: size, allergens: typed.allergens.trim() });
   }
 
   return (
@@ -283,6 +287,9 @@ function ItemSheet({ slug, item, sections, canUp, canDown, onSave, onRemove, onM
       </Field>
       <Field label={t("editPerBuyer", { unit: unitName(typed.unit) })} problem={wrong.perBuyer} hint={t("editOptional")}>
         <input type="text" name="item-perbuyer" inputMode="decimal" maxLength={7} autocomplete="off" value={typed.perBuyer} aria-invalid={wrong.perBuyer ? "true" : undefined} onInput={(event) => set({ perBuyer: event.currentTarget.value })} />
+      </Field>
+      <Field label={t("editCase", { unit: unitName(typed.unit) })} problem={wrong.case} hint={t("editCaseHint")}>
+        <input type="text" name="item-case" inputMode="decimal" maxLength={10} autocomplete="off" value={typed.case} aria-invalid={wrong.case ? "true" : undefined} onInput={(event) => set({ case: event.currentTarget.value })} />
       </Field>
       <Field label={t("editAllergens")} hint={t("editAllergensHint")}>
         <input type="text" name="item-allergens" maxLength={120} autocomplete="off" value={typed.allergens} onInput={(event) => set({ allergens: event.currentTarget.value })} />
@@ -608,7 +615,7 @@ export function Editor({ slug, from, offerId }: { slug: string | null; from: str
               <Rows
                 list={draft.items}
                 what={(item) => item.name}
-                more={(item) => [priceText(item.price, item.unit), item.section, item.stock === null ? "" : t("editRowStock", { n: amountText(item.stock) })].filter(Boolean).join(" · ")}
+                more={(item) => [priceText(item.price, item.unit), item.section, item.stock === null ? "" : t("editRowStock", { n: amountText(item.stock) }), item.case == null ? "" : t("editRowCase", { n: amountText(item.case) })].filter(Boolean).join(" · ")}
                 photo={(item) => item.photo}
                 empty={t("editNoItems")}
                 add={t("editAddItem")}

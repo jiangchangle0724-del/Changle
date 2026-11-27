@@ -9,10 +9,12 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { CrowdIn, CrowdState } from '../crowd';
 import type { EmoteId } from '../emotes';
+import type { AchvId } from '../achievements';
 import type { Goal } from '../goals';
 import type { ItemId } from '../items';
-import type { Look } from '../look';
+import type { GachaId, Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
 import type { Side, Tier } from '../sides';
 
@@ -37,6 +39,8 @@ export interface RoomView {
   hostConnected: boolean;
   seats: Seat[];
   watchers: number;
+  /** 观众（11-26，`/hang-on/watch/`）：在线的观众的 id 和名字（没有就不写）。 */
+  audience?: { id: string; name: string }[];
   /** 房间开了多久（毫秒，房间时钟）。 */
   age: number;
   /**
@@ -54,13 +58,13 @@ export type HostAction =
   | { type: 'END' } // → ended
   | { type: 'KICK'; seat: string };
 
-/** 转发的目标：某个座位，或者主机。 */
-export type RelayTo = { seat: string } | 'host';
+/** 转发的目标：某个座位、主机；观众（11-26）：某个观众、所有观众（只有主机能发给观众）。 */
+export type RelayTo = { seat: string } | 'host' | { watch: string } | 'audience';
 
 export type ClientMsg =
   | { t: 'ping'; id: number }
   | { t: 'act'; action: HostAction }
-  /** 主机 → 某座位，或手柄 → 主机。内容是 LinkMsg，房间不看。 */
+  /** 主机 → 某座位 / 某个观众 / 所有观众，或手柄、观众 → 主机。内容是 LinkMsg，房间不看（观众只能说 crowd）。 */
   | { t: 'relay'; to: RelayTo; data: LinkMsg };
 
 export type FatalKey = 'noRoom' | 'full' | 'ended' | 'badRequest' | 'kicked' | 'hostTaken';
@@ -150,6 +154,9 @@ export interface Snap {
   gt?: number[];
   /** 抢金元宝（A9d）：[要攒几秒, 现在谁一个人抓着, 每个人攒了几秒…]。 */
   gd?: number[];
+  /** 红包雨（11-26）：[还剩几秒, 每个人接到几个…]；天上正在掉的红包 [x, y, x, y…]。 */
+  rn?: number[];
+  rd?: number[];
   /** 端托盘（后厨，A10）：[托盘是第几个物件, 点心翻了没有（1 翻了）]。 */
   ty?: [number, number];
   /** 抓着冰溜子的手（雪山，A10）：每三个数一组 [第几个人, 哪只手, 最多抓几秒]，手机上手要抖。 */
@@ -196,6 +203,10 @@ export interface Results {
   rounds?: number[];
   /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
   envelopes?: { got: number; of: number; fresh: number; total: number };
+  /** 护送大元宝（11-26，大厅里打开了才有）：送到终点没有。 */
+  escort?: boolean;
+  /** 红包雨（11-26）：每个人接到几个（下标和玩家一样）；接到的一共放进扭蛋机几个。 */
+  caught?: number[];
 }
 
 /**
@@ -211,7 +222,17 @@ export type PadCmd =
   | { do: 'mode'; mode: GameMode }
   | { do: 'teams'; on: boolean }
   | { do: 'side'; side: Side }
-  | { do: 'tier'; tier: Tier };
+  | { do: 'tier'; tier: Tier }
+  /** 红包扭蛋机（11-25）：扭一个（大厅里，谁按都行，电视上扭）。 */
+  | { do: 'gacha' }
+  /** 护送大元宝（11-26）：大厅里打开 / 关上。 */
+  | { do: 'escort'; on: boolean }
+  /** 红包雨（11-26，彩蛋小游戏）：结算页上「彩蛋：红包雨」。 */
+  | { do: 'rain' }
+  /** 精彩回放（11-26）：结算页上「▶ 精彩回放」，在电视上慢放。 */
+  | { do: 'replay' }
+  /** 慢一点（11-26，长辈小孩模式）：大厅里全场慢到 0.8 倍 / 照常。 */
+  | { do: 'slow'; on: boolean };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
@@ -227,7 +248,8 @@ export interface Menu {
   tier: Tier;
   tiered: boolean;
   /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）；闯关、大团队带这关拿到过的星（「★★☆」）。 */
-  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string };
+  /** title（11-26）：大厅里写的关名（「3. 筷子桥」，节日关「🎄 …」不编号）；老主机没有就用 n 和 name 拼。 */
+  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string; title?: { zh: string; en: string } };
   players: number;
   /** 这个玩法至少几个人。 */
   min: number;
@@ -237,6 +259,16 @@ export interface Menu {
   results?: Results;
   names?: { name: string; color: string }[];
   par?: number;
+  /** 红包扭蛋机（11-25）：能花的红包、扭一次几个、扭到了哪些（换装时能选）、还剩几样。 */
+  gacha?: { coins: number; price: number; got: GachaId[]; left: number };
+  /** 护送大元宝（11-26）：开着没有（闯关、大团队才有这一项）。 */
+  escort?: boolean;
+  /** 红包雨（11-26）：这一关的红包全拿到了，结算页能进彩蛋。 */
+  rain?: boolean;
+  /** 精彩回放（11-26，电视局的结算页）：这一局录下的那一段是什么事。 */
+  replay?: { zh: string; en: string };
+  /** 慢一点（11-26，长辈小孩模式）：全场慢到 0.8 倍开着没有。 */
+  slow?: boolean;
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */
@@ -251,6 +283,8 @@ export interface Cast {
   teams?: number[];
   /** 抢金元宝（A9d）这一场：打到第几局、每个人赢了几局（手机局的手机上写比分）。 */
   gold?: { round: number; wins: number[] };
+  /** 自制关（11-26，关卡编辑器）：在玩自制关的时候带上它的码，手机自己解开（快照里只有 id）。 */
+  custom?: string;
 }
 
 /**
@@ -263,6 +297,7 @@ export interface Cast {
  * - item：手柄选的道具（A9），和 look 一样。
  * - emote：手柄上点的表情（11-25），只走房间。
  * - fart：手柄上按了放屁键（11-25），只走房间。
+ * - achvHave / achv：成就（11-25）：手柄连上时说自己有哪些；主机告诉手柄新拿到一个。只走房间。
  * - snap / cast：手机局里主机发给每部手机的画面快照和样子名单（见上面 Snap、Cast）。
  */
 export type LinkMsg =
@@ -272,14 +307,24 @@ export type LinkMsg =
   | { k: 'look'; look: Look }
   /** 手柄选的道具（A9），和样子一样只走房间（要可靠），连上时发一次、改了再发。 */
   | { k: 'item'; item: ItemId }
+  /** 长辈小孩模式（11-26）：这个人开 / 关，和道具一样只走房间，连上时说一次、改了再说。 */
+  | { k: 'assist'; on: boolean }
   /** 表情（11-25）：手柄上点了一句，只走房间（要可靠）；主机挡住太密的。 */
   | { k: 'emote'; e: EmoteId }
   /** 放屁键（11-25）：只走房间；主机挑声音、挡住太密的。 */
   | { k: 'fart' }
+  /** 成就（11-25）：手柄连上房间时说自己有哪些（每次重新连上再说一遍）。 */
+  | { k: 'achvHave'; ids: AchvId[] }
+  /** 成就（11-25）：主机告诉手柄新拿到一个，手机记下来。 */
+  | { k: 'achv'; id: AchvId }
   /** 手柄当遥控：按了开始、下一关……（走房间，要可靠）。 */
   | { k: 'cmd'; c: PadCmd }
   /** 主机给手柄的菜单（走房间）。 */
   | { k: 'menu'; m: Menu }
+  /** 观众（11-26）→ 主机：押谁先掉、起哄、投票（走房间，房间只让观众说这个、还限速）。 */
+  | { k: 'crowd'; c: CrowdIn }
+  /** 主机 → 所有观众（11-26）：一份账（见 src/crowd.ts 的 CrowdState），变了就发。 */
+  | { k: 'crowdState'; s: CrowdState }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
   | { k: 'ice'; ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null }
   | { k: 'ping'; id: number; at: number }
@@ -292,6 +337,10 @@ export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/;
 export const SEAT_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 export const MAX_SEATS = 6;
+/** 观众（11-26）最多几个；一个观众每秒最多跟主机说几句（攒着能一下说 CROWD_BURST 句）。 */
+export const MAX_AUDIENCE = 30;
+export const CROWD_RATE = 4;
+export const CROWD_BURST = 8;
 /** 主机断开多久房间作废（契约：30 秒）。 */
 export const HOST_GRACE_MS = 30_000;
 /** 手柄断开多久座位让出来（锁屏、换 Wi-Fi 都要能回来）。 */

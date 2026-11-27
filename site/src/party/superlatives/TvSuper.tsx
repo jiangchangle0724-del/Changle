@@ -1,11 +1,13 @@
-import { Crown, PenLine, Trophy } from "lucide-react";
+import { Check, Crown, PenLine, Sparkles, Trophy } from "lucide-react";
 import { useRef } from "react";
 import { Figure } from "../../components/Figure";
+import { PACK_NAMES, PACKS, type Pack } from "../../data/superlatives";
 import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
 import type { SeatView, SuperView } from "../../shared/protocol";
 import { Bi, DoneBadge, RoundTag, TvClock, TvLineup, TvPodium, TvShow, useArrivals, useBeat, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
+import { flavorOf, mindLine, mindReader } from "./flavor";
 import { useSeatMemory } from "./seats";
 import "../../styles/tv-superlatives.css";
 
@@ -20,12 +22,13 @@ export default function TvSuper({ v, sound }: TvViewProps<SuperView>) {
   const { zh } = useLang();
   const tag = (
     <RoundTag>
-      {v.phase === "ceremony" ? (zh ? `${v.round} 个奖` : `${v.round} awards`) : zh ? `第 ${v.round} 个奖` : `Award ${v.round}`}
-      {v.phase !== "ceremony" && <small>{zh ? ` / 共 ${v.total} 个` : ` of ${v.total}`}</small>}
+      {v.phase === "ceremony" ? (zh ? `${v.round} 个奖` : `${v.round} awards`) : v.phase === "setup" ? (zh ? `${v.total} 个奖` : `${v.total} awards`) : zh ? `第 ${v.round} 个奖` : `Award ${v.round}`}
+      {v.phase !== "ceremony" && v.phase !== "setup" && <small>{zh ? ` / 共 ${v.total} 个` : ` of ${v.total}`}</small>}
     </RoundTag>
   );
   return (
     <TvShow game="superlatives" className="tvs" phase={v.phase} round={tag} clock={v.phase === "vote" ? <TvClock endsAt={v.endsAt} total={VOTE_MS} sound={sound} /> : null} set={<Glitter />}>
+      {v.phase === "setup" && <Setup v={v} />}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
       {v.phase === "reveal" && <Reveal v={v} sound={sound} />}
       {v.phase === "ceremony" && <Ceremony v={v} sound={sound} />}
@@ -36,6 +39,35 @@ export default function TvSuper({ v, sound }: TvViewProps<SuperView>) {
 /** Gold dust drifting down the back wall. */
 function Glitter() {
   return <i className="tvs-glitter" />;
+}
+
+/* ------------------------------------------------------------------ the setup */
+
+/** The host picking the packs on their phone: the packs light up here as they go. */
+function Setup({ v }: { v: SuperView }) {
+  const { players } = useSeats();
+  const on = (p: Pack) => v.packs.includes(p);
+  return (
+    <div className="tvs-vote tvs-setup">
+      <div className="tvs-plaque-wrap">
+        <div className="tvs-plaque">
+          <span className="tvs-trophy" aria-hidden="true">
+            <Trophy size={58} strokeWidth={1.9} />
+          </span>
+          <Bi t={{ zh: "主人在选题库", en: "The host is picking the packs" }} />
+        </div>
+      </div>
+      <ul className="tvs-packs">
+        {PACKS.map((p) => (
+          <li key={p} className={on(p) ? "is-on" : ""}>
+            {on(p) && <Check size={26} strokeWidth={3} aria-hidden="true" />}
+            <Bi t={PACK_NAMES[p]} />
+          </li>
+        ))}
+      </ul>
+      <TvLineup people={players.map((s) => ({ seat: s, state: "idle" as const }))} big={230} />
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ the vote */
@@ -112,6 +144,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
     .filter((r): r is { seat: SeatView; n: number; win: boolean } => !!r.seat);
   const max = Math.max(1, ...rows.map((r) => r.n));
   const key = `${v.round}:${v.winners.join(",")}`;
+  const flavor = flavorOf({ winners: v.winners, counts, voted: v.voted, streak: v.streak, name: (id) => seat(id)?.name ?? "?" });
   // the drum roll, then the name (the winner's penalty lands on the room's clock at 2.6 s)
   useBeat(
     (tl, q) => {
@@ -122,6 +155,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
       tl.fromTo(q(".tvs-winner"), { scale: 0.2, rotate: -12, opacity: 0, y: 60 }, { scale: 1, rotate: 0, opacity: 1, y: 0, duration: 0.8, ease: "back.out(1.9)", stagger: 0.12 }, land);
       tl.fromTo(q(".tvs-winner-name"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.12 }, land + 0.35);
       tl.fromTo(q(".tvs-title-won"), { opacity: 0 }, { opacity: 1, duration: 0.4 }, land + 0.5);
+      tl.fromTo(q(".tvs-flavor"), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4 }, land + 0.9);
       tl.fromTo(q(".tvs-vote-row"), { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.08 }, land + 0.6);
       tl.fromTo(q(".tvs-vote-fill"), { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power2.out", stagger: 0.08 }, land + 0.7);
       tl.call(() => burst({ x: 0.33, y: 0.62, count: 240, spread: 110, power: 26 }), [], land + 0.05);
@@ -154,6 +188,7 @@ function Reveal({ v, sound }: { v: SuperView; sound: boolean }) {
         ))}
       </div>
       <p className="tvs-title-won">{zh ? `「${tr(v.title)}」` : `"${tr(v.title)}"`}</p>
+      {flavor && <p className={`tvs-flavor is-${flavor.kind}`}>{tr(flavor.text)}</p>}
       <aside className="tvs-votes">
         <h2>{zh ? "票数" : "The votes"}</h2>
         <ul>
@@ -184,6 +219,7 @@ function Ceremony({ v, sound }: { v: SuperView; sound: boolean }) {
   const people = ids.map((id) => seat(id)).filter((s): s is SeatView => !!s);
   const rows = people.map((s) => ({ seat: s, score: v.awards[s.id]?.length ?? 0 }));
   const shelf = people.filter((s) => (v.awards[s.id]?.length ?? 0) > 0).sort((a, b) => (v.awards[b.id]?.length ?? 0) - (v.awards[a.id]?.length ?? 0));
+  const mind = mindReader(v.hits ?? {}, v.round);
   return (
     <div className="tvs-ceremony">
       <h1 className="tvs-ceremony-title">
@@ -192,6 +228,12 @@ function Ceremony({ v, sound }: { v: SuperView; sound: boolean }) {
       <TvPodium rows={rows} unit={zh ? "个奖" : "won"} sound={sound} className="tvs-podium" burstX={0.31} />
       <aside className="tvs-honours">
         <h2>{zh ? "今晚的奖" : "Tonight's awards"}</h2>
+        {mind && (
+          <p className="tvs-mind">
+            <Sparkles size={24} strokeWidth={2.4} aria-hidden="true" />
+            {tr(mindLine(mind.ids.map((id) => seat(id)?.name ?? "?"), mind.hits, mind.of))}
+          </p>
+        )}
         <ul>
           {shelf.map((s) => (
             <li key={s.id}>

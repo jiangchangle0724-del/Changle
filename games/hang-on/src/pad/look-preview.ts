@@ -3,6 +3,69 @@
  * 和主机游戏里的 Pixi 画法是两套（手柄页不能带 Pixi），形状尽量一样。
  */
 import { ARM_COLORS, GLOVES, type Look } from '../look';
+import { drawGachaFace, drawGachaGlasses, drawGachaHat, type Pen } from '../look-art';
+
+/** 扭蛋机那 12 样（src/look-art.ts）的笔接到 2D canvas 上。 */
+function canvasPen(ctx: CanvasRenderingContext2D): Pen {
+  const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
+  const pen: Pen = {
+    poly(points, close = true) {
+      ctx.beginPath();
+      ctx.moveTo(points[0] ?? 0, points[1] ?? 0);
+      for (let i = 2; i + 1 < points.length; i += 2) ctx.lineTo(points[i] as number, points[i + 1] as number);
+      if (close) ctx.closePath();
+      return pen;
+    },
+    circle(x, y, r) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      return pen;
+    },
+    ellipse(x, y, rx, ry) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      return pen;
+    },
+    rect(x, y, w, h, radius = 0) {
+      ctx.beginPath();
+      if (radius > 0) ctx.roundRect(x, y, w, h, radius);
+      else ctx.rect(x, y, w, h);
+      return pen;
+    },
+    arc(x, y, r, a0, a1, close = false) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, a0, a1);
+      if (close) ctx.closePath();
+      return pen;
+    },
+    curve(x0, y0, cx, cy, x1, y1) {
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(cx, cy, x1, y1);
+      return pen;
+    },
+    fill(color, alpha = 1) {
+      ctx.save();
+      ctx.globalAlpha *= alpha;
+      ctx.fillStyle = hex(color);
+      ctx.fill();
+      ctx.restore();
+      return pen;
+    },
+    stroke(width, color, alpha = 1) {
+      ctx.save();
+      ctx.globalAlpha *= alpha;
+      ctx.strokeStyle = hex(color);
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+      return pen;
+    },
+  };
+  return pen;
+}
 
 const INK = '#2a1f3a';
 const OUTLINE = '#3a2a2a';
@@ -117,6 +180,9 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
       ctx.closePath();
       ctx.stroke();
     }
+  } else {
+    // 红包扭蛋机（11-25）里扭出来的
+    drawGachaGlasses(canvasPen(ctx), look.glasses, eyeY);
   }
   // 帽子
   const top = -24;
@@ -239,6 +305,8 @@ export function drawLook(canvas: HTMLCanvasElement, look: Look, color: string): 
       ctx.stroke();
       break;
     default:
+      // 红包扭蛋机（11-25）里扭出来的
+      drawGachaHat(canvasPen(ctx), look.hat, top);
       break;
   }
   ctx.restore();
@@ -294,6 +362,8 @@ function drawExtras(ctx: CanvasRenderingContext2D, look: Look, circle: (x: numbe
       ctx.fill();
       break;
     default:
+      // 红包扭蛋机（11-25）里扭出来的
+      drawGachaFace(canvasPen(ctx), look.face);
       break;
   }
 }

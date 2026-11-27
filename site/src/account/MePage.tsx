@@ -15,6 +15,8 @@ import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
 import { EmailChange, EmailPending } from "./EmailChange";
 import { ProfileForm } from "./ProfileForm";
+import { MemberMark } from "./MemberMark";
+import { MemberRow } from "./MemberRow";
 import { PageLoading } from "../games/GameLoading";
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
@@ -166,7 +168,10 @@ function Profile({ onBack }: { onBack: () => void }) {
       <header className="me-head">
         <Face user={me} />
         <div className="me-id">
-          <h1 className="me-name">{me.name}</h1>
+          <h1 className="me-name">
+            {me.name}
+            {me.member && <MemberMark lang={lang} />}
+          </h1>
           <p className="me-tags">
             <span className="tag">{me.city}</span>
             {gender && <span className="tag">{gender}</span>}
@@ -189,6 +194,8 @@ function Profile({ onBack }: { onBack: () => void }) {
       {me.bio && <p className="me-bio">{me.bio}</p>}
       {/* a 换邮箱 waiting its three days, where whoever has this phone sees it (a change they didn't ask for, too) */}
       <EmailPending me={me} onChanged={setMe} />
+      {/* your membership, or the free uses you have left (docs/membership.md) */}
+      <MemberRow me={me} lang={lang} />
       {/* the 3D figure, for the owner while it's a prototype: up here, where it's seen (Steve, Nov 18) */}
       {me.master && (
         <a className="me-3d" href="/me/figure">

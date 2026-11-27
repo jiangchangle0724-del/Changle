@@ -154,6 +154,12 @@ export type RogueView = {
   reshuffled: boolean;
   /** the camera and the nose go once per card: which ones their current holder has used */
   used?: { camera?: boolean; nose?: boolean };
+  /** 剩牌: how many of each rank are still in the deck, in RANKS order (the card up is not in it) */
+  stock?: number[];
+  /** 牌谱: this deck's cards as they came, oldest first: who drew each, who its own penalty landed on */
+  log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
+  /** this deck's penalties by player, the powers' included (the recap when the deck runs out) */
+  tally?: Record<string, number>;
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
@@ -170,14 +176,27 @@ export type TruthView = {
   revealAt: number;
   kind: "truth" | "dare" | null;
   prompt: T | null;
+  /** how often the bottle has picked each player this game: the spinning phone evens it out */
+  picked?: Record<string, number>;
+  /** 听天由命: truth or dare was left to chance */
+  rand?: boolean;
+  /** the card on the table is one the table wrote */
+  own?: boolean;
+  /** the table's own cards still to come, and how many this phone wrote (never their words) */
+  slips?: { truth: number; dare: number; mine: number };
+  /** this phone's player still has their one free swap */
+  swapLeft?: boolean;
 };
 
 export type UcRole = "civ" | "uc" | "blank";
 export type UndercoverView = {
   id: "undercover";
-  phase: "setup" | "word" | "talk" | "vote" | "reveal" | "end";
+  /** guess: the blank was voted out and has one try at the civilians' word */
+  phase: "setup" | "word" | "talk" | "vote" | "guess" | "reveal" | "end";
   uc: number;
   blank: boolean;
+  /** 成人档: the host chose the grown-ups' words */
+  adult: boolean;
   maxSide: number;
   round: number;
   inGame: string[];
@@ -187,12 +206,25 @@ export type UndercoverView = {
   speaker: number;
   endsAt: number;
   desc: Record<string, string>;
+  /**
+   * every round already voted on, oldest first (pk: a run-off between tied players): the typed
+   * lines, then once counted the votes and who went (null: nobody)
+   */
+  said: { round: number; pk?: boolean; desc: Record<string, string>; votes?: Record<string, string>; out?: string | null }[];
+  /** 平票加赛: the players tied at the top; at the reveal they are about to go again, in talk and vote they are */
+  pk: string[];
+  /** who votes this time: everyone still in, or everyone but a run-off's players */
+  voters: string[];
+  /** the blank's guess at the civilians' word, once it is in */
+  guess: { text: string; right: boolean } | null;
+  /** 换一组词: fresh pairs the host has dealt this game */
+  redeals: number;
   voted: string[];
   myVote: string | null;
   votes: Record<string, string> | null;
   out: { pid: string; role: UcRole } | null;
   tie: boolean;
-  winner: "civ" | "uc" | null;
+  winner: "civ" | "uc" | "blank" | null;
   myWord: T | null;
   isBlank: boolean;
   roles: Record<string, UcRole> | null;
@@ -282,9 +314,12 @@ export type WheelView = {
 
 export type SuperView = {
   id: "superlatives";
-  phase: "vote" | "reveal" | "ceremony";
+  /** setup: the host picks the packs and how many awards, then starts */
+  phase: "setup" | "vote" | "reveal" | "ceremony";
   round: number;
   total: number;
+  /** the packs of titles in play (data/superlatives.ts PACKS); empty: every title */
+  packs: string[];
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;
@@ -298,6 +333,10 @@ export type SuperView = {
   counts: Record<string, number> | null;
   winners: string[];
   awards: Record<string, T[]>;
+  /** how often each voter voted for the winner (the mind reader of the night, at the ceremony) */
+  hits: Record<string, number>;
+  /** at the reveal: how many awards in a row this winner has taken (0 at a tie) */
+  streak: number;
 };
 
 export type PunchAnswer = {

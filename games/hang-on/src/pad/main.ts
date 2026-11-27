@@ -14,11 +14,13 @@ import { modeLabel, notReadyText, sideName, tierName } from '../mode-text';
 import { SIDES, TIERS } from '../sides';
 import { renderResults, type ResultsDom } from '../results';
 import type { PhoneView } from './view';
-import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
+import { cleanLook, DEFAULT_LOOK, isLocked, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
 import { itemHint, itemName } from '../item-text';
 import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
 import { installReports, watchCanvas, type ReportContext } from '../report';
+import { achvCount, gotText, loadAchvs, renderAchvList, saveAchvs, trophyToast } from '../achv-ui';
+import type { AchvId } from '../achievements';
 import { sfx } from '../audio/sfx';
 import { drawLook } from './look-preview';
 import { bindControls } from './controls';
@@ -76,6 +78,13 @@ function backToTable(over?: string): void {
   location.assign(`/t/${tableNo}`);
 }
 codeIn.value = (params.get('code') ?? '').toUpperCase().slice(0, 4);
+// 观众（11-26）：「只看，当观众」带上打好的房间码
+const watchLink = (): void => {
+  const c = codeIn.value.trim().toUpperCase();
+  $<HTMLAnchorElement>('watchLink').href = CODE_RE.test(c) ? `../watch/?code=${c}` : '../watch/';
+};
+codeIn.addEventListener('input', watchLink);
+watchLink();
 try {
   nameIn.value = localStorage.getItem('hang-on:name') ?? '';
 } catch {
@@ -149,13 +158,18 @@ function join(code: string, name: string): void {
       lastCast = c;
       view?.cast(c);
     },
+    onAchv: (id) => gotAchv(id),
     onMenu: (m) => {
       lastMenu = m;
       renderMenu();
+      if (dlg.open) renderLook();
     },
   });
+  // 成就（11-25）：告诉主机这部手机上有哪些，主机只报新的
+  link.setAchvs([...myAchvs]);
   link.setLook(look);
   link.setItem(item);
+  link.setAssist(assist);
   $('meName').textContent = name;
   $('join').hidden = true;
   $('pad').hidden = false;
@@ -171,7 +185,7 @@ function fatalLine(key: FatalKey): string {
     case 'noRoom':
       return tr('没有这个房间，再看看房间码。', 'No such room. Check the code again.');
     case 'full':
-      return tr('房间满了（最多 4 个人）。', 'The room is full (4 players max).');
+      return tr('房间满了（最多 6 个人）。可以点下面「只看，当观众」。', 'The room is full (6 players max). Tap "Just watch" below.');
     case 'ended':
       return tableNo ? tr('这局结束了，回到桌上…', 'This game has ended. Back to the table…') : tr('这局结束了。', 'This game has ended.');
     case 'kicked':
@@ -191,6 +205,7 @@ function renderErr(): void {
 
 function fatal(key: FatalKey): void {
   const code = link?.code ?? codeIn.value;
+  if (CODE_RE.test(code)) $<HTMLAnchorElement>('watchLink').href = `../watch/?code=${code}`;
   if (tableNo && (key === 'ended' || key === 'noRoom')) setTimeout(() => backToTable(code), 2500);
   forgetJoin();
   lastFatal = key;
@@ -272,6 +287,8 @@ async function keepAwake(): Promise<void> {
 }
 
 // ---------- 换装 ----------
+/** 主机发来的菜单（手柄当遥控；红包扭蛋机扭到了哪些也在里面，换装要用，所以放在前面）。 */
+let lastMenu: Menu | null = null;
 let look: Look = DEFAULT_LOOK;
 try {
   look = cleanLook(JSON.parse(localStorage.getItem('hang-on:look') ?? 'null'));
@@ -307,18 +324,26 @@ for (const k of LOOK_KEYS) {
   picks.append(row);
   for (const b of [prev, next]) {
     b.addEventListener('click', () => {
-      look = stepLook(look, k, Number(b.dataset.d));
+      look = stepLook(look, k, Number(b.dataset.d), unlocked());
       renderLook();
       if (k === 'voice') void sfx.previewVoice(look.voice);
     });
   }
 }
 
+/** 红包扭蛋机（11-25）里，这台主机上扭到了哪些（菜单带来的；还没连上就是一样都没有）。 */
+function unlocked(): ReadonlySet<string> {
+  return new Set(lastMenu?.gacha?.got ?? []);
+}
+
 function renderLook(): void {
+  const open = unlocked();
   for (const k of LOOK_KEYS) {
     const names = LOOK_NAMES[k] as Record<string, { zh: string; en: string }>;
     $(`lbl-${k}`).textContent = pickLang(LOOK_NAMES.label[k]);
-    $(`val-${k}`).textContent = pickLang(names[look[k]]);
+    // 戴着别处扭到的：这台主机上还没扭到，电视上画默认的
+    const locked = !!lastMenu && isLocked(k, look[k], open);
+    $(`val-${k}`).textContent = pickLang(names[look[k]]) + (locked ? tr('（这台还没扭到）', ' (not won here)') : '');
   }
   for (const b of picks.querySelectorAll<HTMLButtonElement>('button')) {
     const k = b.dataset.k as LookKey;
@@ -350,7 +375,7 @@ $('lookBtn2').addEventListener('click', openLook);
 $('lookDone').addEventListener('click', () => dlg.close());
 dlg.addEventListener('close', closeLook);
 $('lookRandom').addEventListener('click', () => {
-  look = randomLook();
+  look = randomLook(Math.random, unlocked());
   renderLook();
 });
 $('lookReset').addEventListener('click', () => {
@@ -416,6 +441,39 @@ itemDlg.addEventListener('close', () => {
 });
 $('itemBtn').addEventListener('click', openItems);
 $('itemBtn2').addEventListener('click', openItems);
+
+// ---------- 长辈小孩模式（11-26）：自己这个人开 / 关，记在这部手机上，告诉主机 ----------
+let assist = ((): boolean => {
+  try {
+    return localStorage.getItem('hang-on:assist') === '1';
+  } catch {
+    return false;
+  }
+})();
+function renderAssist(): void {
+  for (const id of ['assistBtn', 'assistBtn2']) {
+    const b = $<HTMLButtonElement>(id);
+    b.setAttribute('aria-pressed', String(assist));
+    (b.querySelector('.st') as HTMLElement).textContent = assist ? tr('长辈小孩模式：开', 'Easy hands: on') : tr('长辈小孩模式：关', 'Easy hands: off');
+  }
+}
+function toggleAssist(): void {
+  assist = !assist;
+  try {
+    localStorage.setItem('hang-on:assist', assist ? '1' : '0');
+  } catch {
+    // 记不住就记不住
+  }
+  sfx.tick();
+  renderAssist();
+  link?.setAssist(assist);
+}
+$('assistBtn').addEventListener('click', toggleAssist);
+$('assistBtn2').addEventListener('click', toggleAssist);
+renderAssist();
+onLang(renderAssist);
+// 慢一点（11-26）：全场慢到 0.8 倍，大厅里谁按都行
+$('slowBtn2').addEventListener('click', () => send({ do: 'slow', on: !lastMenu?.slow }));
 // 表情（11-25）：顶栏的 😀 打开一排，点一句发给主机，大屏上自己头顶冒出来
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => link?.emote(e));
 // 放屁键（11-25）：两下至少隔 1.5 秒，太快那一下键抖一抖不发
@@ -434,6 +492,36 @@ fartBtn.addEventListener('click', () => {
   buzz(25);
 });
 $('itemDone').addEventListener('click', () => itemDlg.close());
+
+// ---------- 成就（11-25） ----------
+const myAchvs = new Set<AchvId>(loadAchvs());
+const achvDlg = $<HTMLDialogElement>('achvDlg');
+function renderAchvBtns(): void {
+  const n = achvCount(myAchvs);
+  $('achvSummary').textContent = tr(`成就 ${n}`, `Achievements ${n}`);
+  $('achvBtn2').textContent = `🏆 ${n}`;
+}
+function openAchvs(): void {
+  renderAchvList($('achvList'), myAchvs);
+  achvDlg.showModal();
+}
+/** 主机说新拿到一个：记下来，抖一下；电视局在自己手机上冒一条（手机局的画面上大家都看得到那一条）。 */
+function gotAchv(id: AchvId): void {
+  if (myAchvs.has(id)) return;
+  myAchvs.add(id);
+  saveAchvs(myAchvs);
+  renderAchvBtns();
+  buzz([40, 30, 40]);
+  if (!document.body.classList.contains('viewing')) trophyToast($('trophies'), gotText(id));
+}
+$('achvBtn').addEventListener('click', openAchvs);
+$('achvBtn2').addEventListener('click', openAchvs);
+// 红包扭蛋机（11-25）：在电视上扭给大家看
+$('gachaBtn2').addEventListener('click', () => send({ do: 'gacha' }));
+// 护送大元宝（11-26）：开 / 关
+$('escortBtn2').addEventListener('click', () => send({ do: 'escort', on: !lastMenu?.escort }));
+$('achvDone').addEventListener('click', () => achvDlg.close());
+renderAchvBtns();
 renderItem();
 /** 道具键也连发几帧（和召唤一样）；冷却里主机不算。 */
 let itemFrames = 0;
@@ -451,7 +539,6 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------- 手柄当遥控（电视局里电视那边不用碰）----------
-let lastMenu: Menu | null = null;
 function send(c: PadCmd): void {
   link?.command(c);
   buzz(15);
@@ -489,6 +576,27 @@ function renderMenu(): void {
   $('mResults').hidden = !results;
   $('backBtn').hidden = !m || (m.phase !== 'countdown' && m.phase !== 'playing');
   if (!m) return;
+  // 护送大元宝（11-26）：闯关、大团队才有这个开关，按下去是开着
+  const eb = $<HTMLButtonElement>('escortBtn2');
+  eb.hidden = m.escort === undefined;
+  eb.textContent = m.escort ? tr('🪙 护送 ✓', '🪙 Escort ✓') : tr('🪙 护送', '🪙 Escort');
+  eb.setAttribute('aria-pressed', String(!!m.escort));
+  eb.title = tr('护送大元宝：起点放一个大元宝，扛到终点算数', 'Gold escort: carry the big ingot from the start to the top');
+  // 慢一点（11-26）：全场慢到 0.8 倍，按下去是开着
+  const sb = $<HTMLButtonElement>('slowBtn2');
+  sb.hidden = m.slow === undefined;
+  sb.textContent = m.slow ? '🐢 ✓' : '🐢';
+  sb.setAttribute('aria-pressed', String(!!m.slow));
+  sb.setAttribute('aria-label', m.slow ? tr('慢一点：开（全场 0.8 倍）', 'Slower: on (0.8× speed)') : tr('慢一点：关（全场慢到 0.8 倍）', 'Slower: off (0.8× speed when on)'));
+  // 红包扭蛋机（11-25）：「🎰 🧧 12」，红包不够就灰着，扭完了就不出
+  const g = m.gacha;
+  const gb = $<HTMLButtonElement>('gachaBtn2');
+  gb.hidden = !g || g.left === 0;
+  if (g) {
+    gb.textContent = `🎰 🧧 ${g.coins}`;
+    gb.disabled = g.coins < g.price;
+    gb.setAttribute('aria-label', tr(`红包扭蛋机：攒了 ${g.coins} 个红包，扭一个要 ${g.price} 个`, `Prize machine: ${g.coins} red envelopes, one spin costs ${g.price}`));
+  }
   if (lobby) {
     // 先选单人还是多人（11-13），多人再选玩法，闯关、比谁先最后选难度
     const sides = $('mSides');
@@ -507,7 +615,7 @@ function renderMenu(): void {
     const tiers = $('mTiers');
     tiers.innerHTML = '';
     for (const t of TIERS) radio(tiers, tierName(t), t === m.tier, () => send({ do: 'tier', tier: t }));
-    $('mLevel').textContent = `${m.level.n}. ${pickLang(m.level.name)}${m.level.stars ? ` ${m.level.stars}` : ''}`;
+    $('mLevel').textContent = `${m.level.title ? pickLang(m.level.title) : `${m.level.n}. ${pickLang(m.level.name)}`}${m.level.stars ? ` ${m.level.stars}` : ''}`;
     $('mTeach').textContent = pickLang(m.level.teach);
     $<HTMLButtonElement>('mPrev').disabled = m.level.n <= 1;
     $<HTMLButtonElement>('mNext').disabled = m.level.n >= m.level.of;
@@ -520,13 +628,23 @@ function renderMenu(): void {
   const names = m.names ?? [];
   if (results && m.results) renderResults(menuDom, m.results, (i) => names[i]?.name || `P${i + 1}`, (i) => names[i]?.color ?? '#fff', m.par);
   // 下一关（坐不住是换个场地）、再来一次（比谁先、坐不住是再来一局）、回大厅：电视局的菜单和手机局的结算页都有
-  const nextText = m.mode === 'last' || m.mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  const nextText = m.mode === 'rain' ? tr('接着闯关', 'Back to climbing') : m.mode === 'last' || m.mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   const againText = m.mode === 'climb' || m.mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
   for (const id of ['mNextLevel', 'vNextLevel']) {
     $(id).hidden = !m.hasNext;
     $(id).textContent = nextText;
   }
-  for (const id of ['mAgain', 'vAgain']) $(id).textContent = againText;
+  for (const id of ['mAgain', 'vAgain']) {
+    $(id).textContent = againText;
+    // 红包雨（11-26）只下一次
+    $(id).hidden = m.mode === 'rain';
+  }
+  // 红包雨（11-26）：这一关红包全拿到了，结算页多一个「彩蛋：红包雨」
+  for (const id of ['mRain', 'vRain']) $(id).hidden = !m.rain;
+  // 精彩回放（11-26，电视局）：这一局录下了一段，点了在电视上慢放
+  const rp = $('mReplay');
+  rp.hidden = !m.replay;
+  if (m.replay) rp.textContent = tr(`▶ 精彩回放：${m.replay.zh}`, `▶ Replay: ${m.replay.en}`);
 }
 $('mPrev').addEventListener('click', () => send({ do: 'level', d: -1 }));
 $('mNext').addEventListener('click', () => send({ do: 'level', d: 1 }));
@@ -535,7 +653,9 @@ for (const pre of ['m', 'v']) {
   $(`${pre}NextLevel`).addEventListener('click', () => send({ do: 'next' }));
   $(`${pre}Again`).addEventListener('click', () => send({ do: 'again' }));
   $(`${pre}ToLobby`).addEventListener('click', () => send({ do: 'lobby' }));
+  $(`${pre}Rain`).addEventListener('click', () => send({ do: 'rain' }));
 }
+$('mReplay').addEventListener('click', () => send({ do: 'replay' }));
 // 联机桌（A15）：回桌子。加入那页按一下就走；玩的时候顶栏那个按两下（第一下变红，3 秒内再按一下），这局照玩
 $('tableBtn').hidden = $('tableBtn2').hidden = !tableNo;
 $('tableBtn').addEventListener('click', () => backToTable());
@@ -709,6 +829,7 @@ renderConn();
 onLang(() => {
   renderLook();
   renderItem();
+  renderAchvBtns();
   renderMenu();
   disarmBack();
   renderConn();

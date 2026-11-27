@@ -280,7 +280,7 @@ describe("a dance", () => {
     clock.advance(10);
     s.tick();
     assert.equal(s.d.state.phase, "results");
-    assert.deepEqual(s.d.results, { routineId: "square-easy", difficulty: "easy", beats: 192, players: [], awards: { steady: null, hype: null, effort: null }, bestStreak: 0, bursts: 0, together: 0 });
+    assert.deepEqual(s.d.results, { routineId: "square-easy", difficulty: "easy", beats: 192, players: [], awards: { steady: null, hype: null, effort: null }, bestStreak: 0, bursts: 0, together: 0, golds: 3 });
     assert.equal(last(s.flush().out, "state")?.results?.routineId, "square-easy", "the results go out with the state");
   });
 

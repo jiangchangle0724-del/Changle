@@ -35,7 +35,9 @@ export const NEIGHBOURHOODS: (Text & Center)[] = [
   { zh: "Kerrisdale / Oakridge", en: "Kerrisdale / Oakridge", lat: 49.2297, lng: -123.1267 },
   { zh: "UBC", en: "UBC", lat: 49.2606, lng: -123.246 },
   { zh: "列治文 Richmond Centre / 时代坊", en: "Richmond Centre / Aberdeen", lat: 49.1724, lng: -123.1366 },
-  { zh: "本拿比 Metrotown", en: "Burnaby Metrotown", lat: 49.2276, lng: -123.0076 },
+  // Metropolis at Metrotown, the mall. The point used to sit 550 m west of it, which put The Meat Up
+  // BBQ (5137 Kingsway, 750 m from the mall) past walking 15 minutes (Steve, 2026-11-26).
+  { zh: "本拿比 Metrotown", en: "Burnaby Metrotown", lat: 49.2273, lng: -123.0 },
   { zh: "本拿比 Brentwood", en: "Burnaby Brentwood", lat: 49.2665, lng: -123.0016 },
   { zh: "高贵林 Coquitlam Centre", en: "Coquitlam Centre", lat: 49.2781, lng: -122.7969 },
   { zh: "北温 Lonsdale", en: "North Van Lonsdale", lat: 49.3165, lng: -123.0723 },

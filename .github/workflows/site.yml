@@ -56,6 +56,7 @@ jobs:
       - run: npx tsx tests/station.test.ts
       - run: npx tsx tests/routes.test.ts
       - run: npx tsx tests/duration.test.ts
+      - run: npx tsx tests/truth.test.ts
       - run: npx tsx tests/tools.test.ts
       - run: npx tsx tests/scan.test.ts
       - run: npx tsx tests/split.test.ts
@@ -65,6 +66,7 @@ jobs:
       - run: npx tsx tests/split-sync.test.ts
       - run: npx tsx tests/split-phone.test.ts
       - run: npx tsx tests/figure.test.ts
+      - run: npx tsx tests/limbo-measure.test.ts
       - run: npx tsx tests/handoff.test.ts
       - run: npx tsx --import ./tests/support/cloudflare.mjs tests/hub.test.ts
       - run: npx tsx tests/email-change.test.ts

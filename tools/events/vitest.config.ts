@@ -19,5 +19,7 @@ export default defineConfig({
   ],
   // CSS is skipped in tests (imports come back empty), except the site's tokens, which
   // tests/page.test.ts reads as text to check the page's copy of them
-  test: { css: { include: [/site\/src\/styles\/tokens\.css/] } },
+  // (a whole morning's run in workerd takes a fraction of a second here, but once took 8.9 s on
+  // GitHub's runner, past the default 5: 26 November, after main's merge of #824)
+  test: { css: { include: [/site\/src\/styles\/tokens\.css/] }, testTimeout: 30_000 },
 });

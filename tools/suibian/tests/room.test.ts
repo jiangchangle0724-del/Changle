@@ -528,3 +528,155 @@ test("in round 2 the host searches again with another range: round 1's picks sta
   assert.equal(room.st.phase, "cards");
   assert.equal(room.st.range, "drive25");
 });
+
+test("the top bar's back in round 2 takes the whole table to round 1: the picks stay, the votes go; nothing changed, no new search (Steve, 2026-11-26)", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: true });
+  for (const id of ids.slice(1)) room.handle(id, { t: "mood", picks: {}, done: true });
+  room.flush();
+  room.found(places());
+  const cards = [...room.st.cards];
+  room.handle(ids[1], { t: "ballot", approve: [cards[0]], veto: null, done: true });
+  room.handle(ids[1], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "cards", "only the host");
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "mood");
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "mood", "a second tap on the same corner doesn't go back twice");
+  assert.deepEqual(room.st.members[ids[0]].mood, { ramen: "like" }, "round 1's picks stay");
+  assert.equal(room.st.members[ids[0]].moodDone, false);
+  assert.deepEqual(room.st.members[ids[1]].ballot, { approve: [], veto: null });
+  room.flush();
+  const done = (id: string) => room.handle(id, { t: "mood", picks: room.st.members[id].mood, done: true });
+  // Everyone done again, nothing changed: the same places, Google isn't asked, nothing counted.
+  for (const id of ids) done(id);
+  assert.equal(room.st.phase, "cards");
+  assert.deepEqual([...room.st.cards].sort(), [...cards].sort());
+  assert.equal(room.flush().want, null, "the same top places: their details aren't asked for twice");
+  assert.equal(room.st.searches, 1);
+  // Someone changes their picks: a new search.
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  room.handle(ids[1], { t: "mood", picks: { hotpot: "like" }, done: true });
+  for (const id of [ids[0], ids[2]]) done(id);
+  assert.equal(room.st.phase, "finding");
+  assert.equal(room.st.searches, 2);
+  // Out of searches: the last search's places, ranked for the new picks.
+  room.found(places());
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  room.st.searches = MAX_SEARCHES;
+  room.handle(ids[2], { t: "mood", picks: { ramen: "ban" }, done: true });
+  for (const id of [ids[0], ids[1]]) done(id);
+  assert.equal(room.st.phase, "cards");
+  assert.equal(room.st.searches, MAX_SEARCHES);
+});
+
+test("the top bar's back in round 1 takes the table to the lobby, the picks kept (Steve, 2026-11-26)", () => {
+  const { room, ids } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: false });
+  room.handle(ids[1], { t: "back", phase: "mood" });
+  assert.equal(room.st.phase, "mood", "only the host");
+  room.handle(ids[0], { t: "back", phase: "mood" });
+  assert.equal(room.st.phase, "lobby");
+  assert.deepEqual(room.st.members[ids[0]].mood, { ramen: "like" });
+  room.handle(ids[0], { t: "back", phase: "mood" });
+  room.handle(ids[0], { t: "back" });
+  assert.equal(room.st.phase, "lobby", "the lobby has no step before it");
+});
+
+test("after a restart, phones that were at the table get the usual grace: round 1 neither moves on without them nor waits forever", () => {
+  const { room, ids, advance } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: {}, done: true });
+  room.handle(ids[1], { t: "mood", picks: {}, done: true });
+  // An update restarts the server and drops every phone: only the host's is back so far.
+  room.presence([ids[0]]);
+  room.tick();
+  assert.equal(room.st.phase, "mood", "the others are coming back");
+  assert.ok(room.view(ids[0]).members.every((m) => m.online), "still at the table");
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  assert.equal(room.st.phase, "finding", "one never came back: the round goes on without it");
+});
+
+/** Round 2 with the demo places, nobody liked anything in round 1. */
+function round2() {
+  const s = setup();
+  s.room.handle(s.ids[0], { t: "start" });
+  for (const id of s.ids) s.room.handle(id, { t: "mood", picks: {}, done: true });
+  s.room.flush();
+  s.room.found(s.places());
+  s.room.flush();
+  return s;
+}
+
+test("everyone at the table ticks the same place and nobody vetoes it: a match, and anyone takes it straight to the result (Steve, 2026-11-26)", () => {
+  const { room, ids } = round2();
+  const [a, b] = room.st.cards;
+  assert.deepEqual(room.view(ids[0]).match, []);
+  room.handle(ids[0], { t: "ballot", approve: [a, b], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a], veto: null, done: false });
+  assert.deepEqual(room.view(ids[0]).match, [], "not everyone yet");
+  room.handle(ids[2], { t: "match" });
+  assert.equal(room.st.phase, "cards", "no match, nothing to take");
+  room.handle(ids[2], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a]);
+  room.handle(ids[1], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a, b], "best first");
+  room.handle(ids[2], { t: "ballot", approve: [a], veto: b, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a], "a veto takes a place out");
+  room.handle(ids[2], { t: "match" });
+  assert.equal(room.st.phase, "result", "not only the host");
+  assert.equal(room.st.result!.winner, a);
+});
+
+test("a match takes everyone at the table, not phones that are gone; alone, a tick is just a tick", () => {
+  const { room, ids, advance } = round2();
+  const [a, b] = room.st.cards;
+  room.leave(ids[2]);
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  room.handle(ids[0], { t: "ballot", approve: [a], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[0]).match, [a]);
+  room.leave(ids[1]);
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  assert.deepEqual(room.view(ids[0]).match, []);
+});
+
+test("several matches: the wheel picks among them only", () => {
+  const { room, ids } = round2();
+  const [a, b, c] = room.st.cards;
+  for (const id of ids) room.handle(id, { t: "ballot", approve: [a, b], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a, b, c], veto: null, done: false });
+  room.handle(ids[0], { t: "match" });
+  assert.equal(room.st.phase, "spin");
+  assert.deepEqual([...room.st.result!.tied].sort(), [a, b].sort());
+});
+
+test("换一批: the host brings the next best places of the same search to the top; the votes stay, everyone can look again (Steve, 2026-11-26)", () => {
+  const { room, ids } = round2();
+  const first = room.st.cards.slice(0, TOP_COUNT);
+  const all = [...room.st.cards].sort();
+  assert.ok(room.view(ids[0]).moreLeft >= TOP_COUNT);
+  room.handle(ids[1], { t: "ballot", approve: [first[0]], veto: first[1], done: true });
+  const batch = room.view(ids[0]).batch;
+  room.handle(ids[1], { t: "more", batch });
+  assert.deepEqual(room.st.cards.slice(0, TOP_COUNT), first, "only the host");
+  room.handle(ids[0], { t: "more", batch });
+  const second = room.st.cards.slice(0, TOP_COUNT);
+  assert.ok(second.every((c) => !first.includes(c)), "new places at the top");
+  assert.deepEqual([...room.st.cards].sort(), all, "nothing lost: the first ones are below them");
+  assert.deepEqual(room.st.members[ids[1]].ballot, { approve: [first[0]], veto: first[1] }, "the votes stay");
+  assert.equal(room.st.members[ids[1]].ballotDone, false, "everyone can look again");
+  assert.equal(room.flush().want, null, "no search, no details: Google isn't asked");
+  room.handle(ids[0], { t: "more", batch });
+  assert.deepEqual(room.st.cards.slice(0, TOP_COUNT), second, "a second tap on the same list is ignored");
+  // Until every place has been at the top.
+  while (room.view(ids[0]).moreLeft > 0) room.handle(ids[0], { t: "more", batch: room.view(ids[0]).batch });
+  const last = [...room.st.cards];
+  room.handle(ids[0], { t: "more", batch: room.view(ids[0]).batch });
+  assert.deepEqual(room.st.cards, last);
+});

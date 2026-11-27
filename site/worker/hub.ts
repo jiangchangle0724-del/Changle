@@ -15,6 +15,8 @@ import { afterPause, cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL
 import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut";
 import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
+import { grant, lifeLeft, listMembers, memberOf, memberSchema, revoke, standingOf, useTool } from "./membership";
+import { isCounted, type Standing, type UseResult } from "../src/shared/member";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
 type RoomRpc = { adminKick(pid: string, ban: boolean): Promise<boolean>; pauseAll(keepUid: string): Promise<void> };
@@ -210,6 +212,8 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE INDEX IF NOT EXISTS scenes_user ON scenes (user_id, id)`);
     // 一本正经: how each card plays, and the cards players flag (worker/straightface.ts)
     sfSchema(q);
+    // members and the free uses of the counted tools (worker/membership.ts, docs/membership.md)
+    memberSchema(q);
     // the owner's edits to the site's words: by language and the exact text they replace (src/shared/copy.ts)
     q(`CREATE TABLE IF NOT EXISTS copy (lang TEXT NOT NULL, orig TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lang, orig))`);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
@@ -367,6 +371,9 @@ export class Hub extends DurableObject<HubEnv> {
     const sf = sfPublic(path, m, b, { sql: this.sql, allow: (k, n, w) => this.allow(k, n, w), device: c.device, ip: c.ip, uid: me?.id ?? null });
     if (sf) return sf;
 
+    // ---- membership: what's for sale, open to anyone (the member page, src/member/) ----
+    if (path === "/member" && m === "GET") return ok({ lifeLeft: lifeLeft(this.sql) });
+
     // ---- a code that takes this account to an app on its own domain (MoneyLens) ----
     if (path === "/handoff" && m === "POST") {
       const r = await giveHandoff(this.sql, me, b);
@@ -381,6 +388,8 @@ export class Hub extends DurableObject<HubEnv> {
 
     // ---- me ----
     if (path === "/me" && m === "GET") return ok({ user: this.selfView(me) });
+    // your membership and the free uses left of each counted tool
+    if (path === "/me/member" && m === "GET") return ok({ standing: standingOf(this.sql, me.id, Date.now(), master), lifeLeft: lifeLeft(this.sql) });
     if (path === "/me" && m === "PUT") {
       const p = profileFields(b);
       if ("error" in p) return err(400, p.error);
@@ -632,9 +641,14 @@ export class Hub extends DurableObject<HubEnv> {
     return r ? asUser(r) : null;
   }
 
+  private userByEmail(email: string): U | null {
+    const r = this.one(`SELECT * FROM users WHERE email = ?`, email);
+    return r ? asUser(r) : null;
+  }
+
   private selfView(u: U) {
     const f = this.figure(u.id);
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut, perks: u.perks, emailPending: pendingOf(this.sql, u.id) };
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut, perks: u.perks, member: memberOf(this.sql, u.id, Date.now()), emailPending: pendingOf(this.sql, u.id) };
   }
 
   /**
@@ -836,7 +850,20 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   private publicView(u: U) {
-    return { id: u.id, name: u.name, city: u.city, gender: u.gender, bio: u.bio, av: u.av, ac: u.ac, handle: u.handle, since: u.created_at, ...(u.perks.includes("wish") ? { frame: "gold" } : {}) };
+    return {
+      id: u.id,
+      name: u.name,
+      city: u.city,
+      gender: u.gender,
+      bio: u.bio,
+      av: u.av,
+      ac: u.ac,
+      handle: u.handle,
+      since: u.created_at,
+      ...(u.perks.includes("wish") ? { frame: "gold" } : {}),
+      // a member's mark beside their face (docs/membership.md)
+      ...(memberOf(this.sql, u.id, Date.now()) ? { member: true } : {}),
+    };
   }
 
   /** A reward onto an account (once), and the news to their phone if it's open. */
@@ -1321,6 +1348,21 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
     return accountsThere(this.sql, ids);
   }
 
+  /* ================= the Member door (member.ts): the tools ask before a counted step ================= */
+
+  /** one use of a counted tool by an account: allowed and counted, or not (an unknown tool or account, a banned one: not) */
+  async memberUse(uid: string, tool: string): Promise<UseResult> {
+    const u = this.userById(uid);
+    if (!u || u.banned || !isCounted(tool)) return { ok: false, member: false, left: null };
+    return useTool(this.sql, u.id, tool, Date.now(), this.isMaster(u));
+  }
+
+  /** an account's membership and free uses left; null for an unknown account */
+  async memberStatus(uid: string): Promise<Standing | null> {
+    const u = this.userById(uid);
+    return u ? standingOf(this.sql, u.id, Date.now(), this.isMaster(u)) : null;
+  }
+
   /* ================= 戏精大赏's public library ================= */
 
   /** Up to n approved scenes, at random, in this language (or written in both), none by a banned writer. */
@@ -1532,6 +1574,22 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
   private async admin(me: U, c: Call, path: string, b: Record<string, unknown>): Promise<Reply> {
     const m = c.method;
     const now = Date.now();
+
+    // ---- members: everyone with a membership, and the owner giving or ending one (docs/membership.md) ----
+    if (path === "/admin/members" && m === "GET") return ok({ members: listMembers(this.sql, now), lifeLeft: lifeLeft(this.sql) });
+    if (path === "/admin/members" && m === "POST") {
+      const email = typeof b.email === "string" ? b.email.trim().toLowerCase() : "";
+      const target = typeof b.uid === "string" ? this.userById(b.uid) : email ? this.userByEmail(email) : null;
+      if (!target) return err(404, "no-account");
+      if (b.end === true) {
+        revoke(this.sql, target.id);
+        return ok({ members: listMembers(this.sql, now), lifeLeft: lifeLeft(this.sql) });
+      }
+      const note = typeof b.note === "string" ? b.note.trim().slice(0, 120) : "";
+      const r = grant(this.sql, target.id, b.life === true ? { life: true } : { months: Number(b.months) }, note, me.id, now);
+      if ("error" in r) return err(400, r.error);
+      return ok({ members: listMembers(this.sql, now), lifeLeft: lifeLeft(this.sql) });
+    }
 
     // ---- the site's words, as the owner changed them by long-pressing (src/shared/copy.ts) ----
     if (path === "/admin/copy" && m === "GET") {

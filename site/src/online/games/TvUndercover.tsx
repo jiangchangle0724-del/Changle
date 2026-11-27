@@ -10,24 +10,35 @@ import "../../styles/tv-undercover.css";
 
 const TALK_MS = 40_000;
 const VOTE_MS = 60_000;
+const GUESS_MS = 45_000;
 
 /**
  * 谁是卧底 on the big screen: an interrogation room under one hanging lamp. While the words are
  * read, a card over every head; then whoever is describing stands in the lamp's light, with what
  * everyone has said down the side; the vote lights up who has voted (never for whom); the one
  * voted out takes the stamp of what they really were; at the end both words, and every side.
- * No word, and no role, is on this screen before the game says it.
+ * A tie sends the tied players back under the lamp for a run-off; a blank voted out stands there
+ * guessing the civilians' word. No word, and no role, is on this screen before the game says it.
  */
 export default function TvUndercover({ v, sound }: TvViewProps<UndercoverView>) {
   const { zh } = useLang();
-  const clock = v.phase === "talk" ? <TvClock key={`t${v.round}-${v.speaker}`} endsAt={v.endsAt} total={TALK_MS} sound={sound} /> : v.phase === "vote" ? <TvClock key={`v${v.round}`} endsAt={v.endsAt} total={VOTE_MS} sound={sound} /> : null;
-  const tag = v.round > 0 && v.phase !== "setup" ? <RoundTag>{zh ? `第 ${v.round} 轮` : `Round ${v.round}`}</RoundTag> : null;
+  const runoff = v.pk.length > 0 && (v.phase === "talk" || v.phase === "vote");
+  const clock =
+    v.phase === "talk" ? (
+      <TvClock key={`t${v.round}-${runoff ? "pk" : ""}${v.speaker}`} endsAt={v.endsAt} total={TALK_MS} sound={sound} />
+    ) : v.phase === "vote" ? (
+      <TvClock key={`v${v.round}${runoff ? "pk" : ""}`} endsAt={v.endsAt} total={VOTE_MS} sound={sound} />
+    ) : v.phase === "guess" ? (
+      <TvClock key={`g${v.round}`} endsAt={v.endsAt} total={GUESS_MS} sound={sound} />
+    ) : null;
+  const tag = v.round > 0 && v.phase !== "setup" ? <RoundTag>{zh ? `第 ${v.round} 轮${runoff ? " · 加赛" : ""}` : `Round ${v.round}${runoff ? " · run-off" : ""}`}</RoundTag> : null;
   return (
-    <TvShow game="undercover" className="tvu" phase={v.phase} round={tag} clock={clock} set={<Lamp on={v.phase === "talk" || v.phase === "reveal"} />}>
+    <TvShow game="undercover" className="tvu" phase={v.phase} round={tag} clock={clock} set={<Lamp on={v.phase === "talk" || v.phase === "reveal" || v.phase === "guess"} />}>
       {v.phase === "setup" && <Setup v={v} />}
       {v.phase === "word" && <Words v={v} sound={sound} />}
       {v.phase === "talk" && <Talk v={v} sound={sound} />}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
+      {v.phase === "guess" && <Guess v={v} sound={sound} />}
       {v.phase === "reveal" && <Reveal v={v} sound={sound} />}
       {v.phase === "end" && <End v={v} />}
     </TvShow>
@@ -44,6 +55,9 @@ function Lamp({ on }: { on: boolean }) {
     </>
   );
 }
+
+/** "Amy、Ben" / "Amy and Ben", "Amy, Ben and Cat" */
+const joined = (names: string[], zh: boolean) => (zh || names.length < 2 ? names.join("、") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
 
 const roleName = (r: UcRole, zh: boolean) => (r === "civ" ? (zh ? "平民" : "Civilian") : r === "uc" ? (zh ? "卧底" : "Undercover") : zh ? "白板" : "Blank");
 
@@ -65,6 +79,10 @@ function Setup({ v }: { v: UndercoverView }) {
           <li>
             <span>{zh ? "白板" : "A blank"}</span>
             <b>{v.blank ? (zh ? "有一个" : "One") : zh ? "没有" : "None"}</b>
+          </li>
+          <li>
+            <span>{zh ? "词库" : "Words"}</span>
+            <b>{v.adult ? (zh ? "成人档" : "Adults only") : zh ? "日常" : "Everyday"}</b>
           </li>
           <li>
             <span>{zh ? "在座" : "Seated"}</span>
@@ -98,7 +116,7 @@ function Words({ v, sound }: { v: UndercoverView; sound: boolean }) {
     <div className="tvu-words">
       <h1 className="tvu-head">
         <EyeOff size={54} strokeWidth={2.2} />
-        <Bi t={{ zh: "每个人在偷偷看自己的词", en: "Everyone is reading their word in secret" }} />
+        <Bi t={v.redeals > 0 ? { zh: "换了一组新词，大家再看一次", en: "A fresh pair: everyone looks again" } : { zh: "每个人在偷偷看自己的词", en: "Everyone is reading their word in secret" }} />
       </h1>
       <p className="tvu-sub">
         {zh ? "大多数人是同一个词，卧底的词和大家的很像。记住它，别让人看见。" : "Most share one word; the undercover's is close to it. Remember it, and keep it hidden."}
@@ -148,17 +166,24 @@ function Talk({ v, sound }: { v: UndercoverView; sound: boolean }) {
         )}
       </div>
       <aside className="tvu-said">
-        <h2>{zh ? "说过的话" : "What's been said"}</h2>
+        <h2>{v.pk.length ? (zh ? "平票加赛：再各说一句" : "Tie run-off: one more line each") : zh ? "说过的话" : "What's been said"}</h2>
         <ol>
           {order.map((pid) => {
             const i = v.order.indexOf(pid);
             const state = i < v.speaker ? "done" : i === v.speaker ? "now" : "next";
             const s = seat(pid);
+            // what they typed in the rounds before, newest first: a story that changes gives people away
+            const before = v.said
+              .filter((r) => r.desc[pid])
+              .map((r) => r.desc[pid])
+              .reverse()
+              .slice(0, 2);
             return (
               <li key={pid} className={`is-${state}`}>
                 {s && <FacesIn seats={[s]} size={46} />}
                 <span className="tvu-said-name">{s?.name ?? "?"}</span>
                 <span className="tvu-said-text">{v.desc[pid] ? v.desc[pid] : state === "done" ? (zh ? "（口头说了）" : "(said it aloud)") : state === "now" ? (zh ? "正在说…" : "speaking…") : zh ? "等着说" : "up next"}</span>
+                {before.length > 0 && <span className="tvu-said-before">{`${zh ? "之前：" : "Before: "}${before.join(zh ? " · " : " · ")}`}</span>}
               </li>
             );
           })}
@@ -176,27 +201,36 @@ function Vote({ v, sound }: { v: UndercoverView; sound: boolean }) {
   useArrivals(v.voted, sound);
   const alive = v.alive.map((pid) => seat(pid)).filter((s): s is SeatView => !!s);
   const out = v.inGame.filter((pid) => !v.alive.includes(pid)).map((pid) => seat(pid)).filter((s): s is SeatView => !!s);
-  const voted = v.voted.filter((pid) => v.alive.includes(pid)).length;
+  const voted = v.voted.filter((pid) => v.voters.includes(pid)).length;
+  const runoff = v.pk.length > 0;
+  const names = joined(
+    v.pk.map((pid) => seat(pid)?.name ?? "?"),
+    zh,
+  );
   return (
     <div className="tvu-vote">
       <h1 className="tvu-head">
         <Search size={54} strokeWidth={2.4} />
-        <Bi t={{ zh: "投票：谁是卧底？", en: "Vote: who's the undercover?" }} />
+        <Bi t={runoff ? { zh: "加赛投票：只在平票的人里选", en: "Run-off: vote between the tied" } : { zh: "投票：谁是卧底？", en: "Vote: who's the undercover?" }} />
       </h1>
       <p className="tvu-sub">
-        {zh ? "在手机上投给你怀疑的人，票最多的出局" : "Vote on your phone for who you suspect. The most votes is out."}
+        {runoff ? (zh ? `${names} 平票，其他人在手机上只在他们中间投` : `${names} tied. Everyone else votes between them on their phone.`) : zh ? "在手机上投给你怀疑的人，票最多的出局" : "Vote on your phone for who you suspect. The most votes is out."}
         <span className="tvu-count tabular">
-          <b>{voted}</b>/{alive.length}
+          <b>{voted}</b>/{v.voters.length}
           <small>{zh ? " 投了" : " voted"}</small>
         </span>
       </p>
       <TvLineup
-        people={alive.map((s) => ({
-          seat: s,
-          state: v.voted.includes(s.id) ? "voted" : "idle",
-          badge: v.voted.includes(s.id) ? <DoneBadge /> : undefined,
-          under: v.desc[s.id] ? <span className="tvu-clue">{v.desc[s.id]}</span> : undefined,
-        }))}
+        people={alive.map((s) => {
+          const inRunoff = runoff && v.pk.includes(s.id);
+          return {
+            seat: s,
+            state: inRunoff ? "spot" : v.voted.includes(s.id) ? "voted" : "idle",
+            badge: v.voted.includes(s.id) ? <DoneBadge /> : undefined,
+            tag: inRunoff ? (zh ? "加赛" : "Run-off") : undefined,
+            under: v.desc[s.id] ? <span className="tvu-clue">{v.desc[s.id]}</span> : undefined,
+          };
+        })}
         big={210}
       />
       {out.length > 0 && (
@@ -205,6 +239,49 @@ function Vote({ v, sound }: { v: UndercoverView; sound: boolean }) {
           <FacesIn seats={out} size={40} />
         </p>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ the blank's last guess */
+
+function Guess({ v, sound }: { v: UndercoverView; sound: boolean }) {
+  const { zh } = useLang();
+  const { seat } = useSeats();
+  const who = v.out ? seat(v.out.pid) : undefined;
+  const root = useRef<HTMLDivElement>(null);
+  useBeat(
+    (tl, q) => {
+      if (sound) tl.call(() => sfx.stamp(0.9), [], 0.9);
+      tl.fromTo(q(".tvu-out-fig"), { opacity: 0, y: 60, scale: 0.85 }, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "back.out(1.5)" }, 0.1);
+      stampIn(tl, q(".tvu-out-stamp .tvx-stamp"), 0.8);
+      tl.fromTo(q(".tvu-out-line, .tvu-guess-note"), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4 }, 1.2);
+    },
+    root,
+    [v.round, v.out?.pid ?? ""],
+  );
+  return (
+    <div className="tvu-reveal" ref={root}>
+      <div className="tvu-out is-caught">
+        {who && (
+          <>
+            <span className="tvu-out-fig">
+              <Figure seat={who} />
+            </span>
+            <p className="tvu-out-name">{zh ? `${who.name} 出局` : `${who.name} is out`}</p>
+            <span className="tvu-out-stamp">
+              <Stamp tone="stop" held>
+                {zh ? "白板！" : "The blank!"}
+              </Stamp>
+            </span>
+            <p className="tvu-out-line">{zh ? "最后一搏：正在猜平民的词" : "One last shot: guessing the civilians' word"}</p>
+          </>
+        )}
+      </div>
+      <aside className="tvu-tally">
+        <h2>{zh ? "白板猜词" : "The blank's guess"}</h2>
+        <p className="tvu-guess-note">{zh ? "猜中了，白板一个人赢，其他人全输；猜错了，游戏接着玩。" : "Right, and the blank wins alone while everyone else loses. Wrong, and the game goes on."}</p>
+      </aside>
     </div>
   );
 }
@@ -252,11 +329,36 @@ function Reveal({ v, sound }: { v: UndercoverView; sound: boolean }) {
                 {caught ? (role === "uc" ? (zh ? "卧底！" : "Undercover!") : zh ? "白板！" : "The blank!") : zh ? "平民" : "Civilian"}
               </Stamp>
             </span>
-            <p className="tvu-out-line">{caught ? (zh ? "抓到了！" : "Caught!") : zh ? "冤枉了一个好人" : "An innocent, voted out"}</p>
+            <p className="tvu-out-line">
+              {v.guess
+                ? v.guess.right
+                  ? zh
+                    ? `白板猜中了：${v.guess.text}！`
+                    : `The blank guessed it: ${v.guess.text}!`
+                  : v.guess.text
+                    ? zh
+                      ? `白板猜：${v.guess.text}，没猜中`
+                      : `The blank guessed "${v.guess.text}": wrong`
+                    : zh
+                      ? "白板没猜出来"
+                      : "The blank didn't guess in time"
+                : caught
+                  ? zh
+                    ? "抓到了！"
+                    : "Caught!"
+                  : zh
+                    ? "冤枉了一个好人"
+                    : "An innocent, voted out"}
+            </p>
           </>
+        ) : v.pk.length ? (
+          <div className="tvu-tie">
+            <Bi t={{ zh: "平票，加赛！", en: "A tie: run-off!" }} />
+            <p>{zh ? `${joined(v.pk.map((pid) => seat(pid)?.name ?? "?"), zh)} 再各说一句，其他人只在他们中间投` : `${joined(v.pk.map((pid) => seat(pid)?.name ?? "?"), zh)} say one more line each; the rest vote between them`}</p>
+          </div>
         ) : (
           <div className="tvu-tie">
-            <Bi t={{ zh: "平票，没人出局", en: "A tie. Nobody is out." }} />
+            <Bi t={{ zh: "平票，这轮没人出局", en: "A tie. Nobody is out this round." }} />
             <p>{zh ? "接着描述，再投一轮" : "Describe again, then vote again"}</p>
           </div>
         )}
@@ -292,15 +394,17 @@ function End({ v }: { v: UndercoverView }) {
   const civWin = v.winner === "civ";
   const civ = Object.keys(roles).filter((pid) => roles[pid] === "civ");
   const side = Object.keys(roles).filter((pid) => roles[pid] !== "civ");
-  const people = (ids: string[], won: boolean): Person[] =>
+  // a blank who guessed the word wins alone: the undercovers on their side lose with the civilians
+  const won = (pid: string) => (v.winner === "civ" ? roles[pid] === "civ" : v.winner === "blank" ? roles[pid] === "blank" : roles[pid] !== "civ");
+  const people = (ids: string[]): Person[] =>
     ids
       .map((pid) => seat(pid))
       .filter((s): s is SeatView => !!s)
-      .map((s) => ({ seat: s, state: won ? "win" : "lose", tag: roleName(roles[s.id], zh) }));
+      .map((s) => ({ seat: s, state: won(s.id) ? "win" : "lose", tag: roleName(roles[s.id], zh) }));
   return (
     <div className="tvu-end">
       <h1 className={`tvu-winner ${civWin ? "is-civ" : "is-uc"}`}>
-        <Stamp tone={civWin ? "go" : "stop"}>{civWin ? (zh ? "平民赢了！" : "Civilians win!") : zh ? "卧底赢了！" : "The undercover side wins!"}</Stamp>
+        <Stamp tone={civWin ? "go" : "stop"}>{civWin ? (zh ? "平民赢了！" : "Civilians win!") : v.winner === "blank" ? (zh ? "白板猜中，白板赢了！" : "The blank guessed it and wins!") : zh ? "卧底赢了！" : "The undercover side wins!"}</Stamp>
       </h1>
       {v.pair && (
         <div className="tvu-pair">
@@ -318,8 +422,8 @@ function End({ v }: { v: UndercoverView }) {
         </div>
       )}
       <div className="tvu-sides">
-        <TvLineup people={people(civ, civWin)} big={civ.length > 6 ? 170 : 200} className="tvu-side" />
-        <TvLineup people={people(side, !civWin)} big={200} className="tvu-side is-uc" />
+        <TvLineup people={people(civ)} big={civ.length > 6 ? 170 : 200} className="tvu-side" />
+        <TvLineup people={people(side)} big={200} className="tvu-side is-uc" />
       </div>
     </div>
   );

@@ -73,12 +73,16 @@ export const prefs = {
   set start(v: { center: Center; range: RangeId } | null) {
     set("sb.start", JSON.stringify(v));
   },
-  /** Tables this phone has rated (so the home page stops asking). */
-  rated(code: string): boolean {
-    return (json<string[]>("sb.rated") ?? []).includes(code);
+  /**
+   * Meals this phone has rated (so the home page stops asking): a table and its winner, since a
+   * table can eat twice ("start over") and a code is given out again once its table is gone.
+   */
+  rated(code: string, winner: string): boolean {
+    return (json<string[]>("sb.rated") ?? []).includes(`${code}|${winner.slice(0, 80)}`);
   },
-  markRated(code: string) {
-    set("sb.rated", JSON.stringify([...(json<string[]>("sb.rated") ?? []), code].slice(-30)));
+  markRated(code: string, winner: string) {
+    // The server keeps a last table's name to 80 characters (/api/me/last): the same here.
+    set("sb.rated", JSON.stringify([...(json<string[]>("sb.rated") ?? []), `${code}|${winner.slice(0, 80)}`].slice(-30)));
   },
 };
 

@@ -1,16 +1,19 @@
-import { TITLES } from "../../../data/superlatives";
+import { DEFAULT_PACKS, deckFor, isPack, TITLES } from "../../../data/superlatives";
 import type { T } from "../../../i18n";
 import type { SuperView } from "../../protocol";
-import { byPenalty, clean, range, t, type Api, type GameDef } from "../api";
+import { byPenalty, clean, t, type Api, type GameDef } from "../api";
 
 /**
  * Superlatives: one award a round. Everyone votes (not for themselves); whoever gets the
  * most votes takes the award and drinks. After the last round, an awards ceremony.
+ * It opens on the host's setup: which packs of titles are in play, how many awards.
  */
 type S = {
-  phase: "vote" | "reveal" | "ceremony";
+  phase: "setup" | "vote" | "reveal" | "ceremony";
   round: number;
   total: number;
+  /** the packs in play (a game from before the packs has none: every title) */
+  packs: string[];
   deck: number[];
   title: T;
   custom: boolean;
@@ -21,6 +24,10 @@ type S = {
   counts: Record<string, number> | null;
   winners: string[];
   awards: Record<string, T[]>;
+  /** how often each voter voted for the winner: the mind reader of the night */
+  hits: Record<string, number>;
+  /** the same person winning award after award (a tie breaks it) */
+  streak: { id: string; n: number } | null;
   /** when the moment's stamp lands (the winner's sip, the ceremony's toast); `stamped` once it has */
   stampAt: number;
   stamped: boolean;
@@ -28,13 +35,15 @@ type S = {
 
 const VOTE_MS = 45_000;
 const ROUNDS = 8;
+/** how many awards a night can be set to */
+export const TOTALS = [5, 8, 12];
 /** the drum roll plays out, then the winner's stamp */
 export const STAMP_MS = 2600;
 /** the trophies come out, then the whole table's toast */
 export const TOAST_MS = 3200;
 
 function draw(s: S, api: Api) {
-  if (!s.deck.length) s.deck = api.shuffle(range(TITLES.length));
+  if (!s.deck.length) s.deck = api.shuffle(deckFor(s.packs ?? []));
   s.title = TITLES[s.deck.pop()!];
   s.custom = false;
 }
@@ -86,6 +95,10 @@ function reveal(s: S, api: Api) {
   s.counts = counts;
   s.winners = Object.keys(counts).filter((pid) => counts[pid] === top);
   for (const w of s.winners) (s.awards[w] ??= []).push(s.title);
+  s.hits ??= {};
+  for (const [voter, target] of Object.entries(s.votes)) if (s.winners.includes(target)) s.hits[voter] = (s.hits[voter] ?? 0) + 1;
+  const one = s.winners.length === 1 ? s.winners[0] : null;
+  s.streak = one ? { id: one, n: s.streak?.id === one ? s.streak.n + 1 : 1 } : null;
   s.phase = "reveal";
   api.fx("award", s.winners[0]);
   stampLater(s, api, STAMP_MS);
@@ -99,16 +112,37 @@ function everyoneVoted(s: S, api: Api) {
 export const superlatives: GameDef<S> = {
   id: "superlatives",
   min: 3,
-  init(api) {
-    const s: S = { phase: "vote", round: 1, total: ROUNDS, deck: api.shuffle(range(TITLES.length)), title: TITLES[0], custom: false, ballot: 0, votes: {}, endsAt: 0, counts: null, winners: [], awards: {}, stampAt: 0, stamped: true };
-    draw(s, api);
-    openVote(s, api);
-    return s;
+  init() {
+    // (the deck is dealt when the host starts, from the packs picked by then)
+    return { phase: "setup", round: 1, total: ROUNDS, packs: [...DEFAULT_PACKS], deck: [], title: TITLES[0], custom: false, ballot: 0, votes: {}, endsAt: 0, counts: null, winners: [], awards: {}, hits: {}, streak: null, stampAt: 0, stamped: true };
   },
 
   act(s, pid, g, api) {
     const host = api.isHost(pid);
     switch (g.x) {
+      case "config": {
+        // the host's setup: the packs in play (at least one), how many awards
+        if (!host || s.phase !== "setup") {
+          api.quiet();
+          return;
+        }
+        if (Array.isArray(g.packs)) {
+          const packs = [...new Set(g.packs.filter(isPack))];
+          if (packs.length) s.packs = packs;
+        }
+        if (typeof g.total === "number" && TOTALS.includes(g.total)) s.total = g.total;
+        return;
+      }
+      case "start": {
+        if (!host || s.phase !== "setup") {
+          api.quiet();
+          return;
+        }
+        s.deck = api.shuffle(deckFor(s.packs));
+        draw(s, api);
+        openVote(s, api);
+        return;
+      }
       case "vote": {
         const target = String(g.target ?? "");
         // (players vote for players: someone just watching does neither, host or not)
@@ -195,6 +229,7 @@ export const superlatives: GameDef<S> = {
       phase: s.phase,
       round: s.round,
       total: s.total,
+      packs: s.packs ?? [],
       title: s.title,
       custom: s.custom,
       ballot: s.ballot,
@@ -205,6 +240,8 @@ export const superlatives: GameDef<S> = {
       counts: s.phase === "vote" ? null : s.counts,
       winners: s.phase === "vote" ? [] : s.winners,
       awards: s.awards,
+      hits: s.hits ?? {},
+      streak: s.phase === "reveal" ? (s.streak?.n ?? 0) : 0,
     };
   },
 };

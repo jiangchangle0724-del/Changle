@@ -151,6 +151,45 @@ export class ClockSync {
   }
 }
 
+/**
+ * The changle.ca table these pages came from (`?table=`, the site's NetStage and TvStage send it;
+ * docs/briefs/dance.md), or null when they were opened on their own. A table's number as the site
+ * makes it.
+ */
+export const TABLE: string | null = (() => {
+  const t = new URLSearchParams(location.search).get("table");
+  return t && /^[A-Za-z0-9]{1,8}$/.test(t) ? t : null;
+})();
+
+/**
+ * Back to that table: a phone to its page there (/t/TABLE); the stage to the page it came from, the
+ * TV's (/tv/TABLE) or a phone that only watches (/t/TABLE). `over`: the room has ended, so first a
+ * note for the table (`sessionStorage["dance.over"]`, the stage `"dance.over.tv"` too: the site's
+ * cameBackFromEnd), which then takes everyone back to its lobby.
+ */
+export function tableUrl(stage = false): string | null {
+  if (!TABLE) return null;
+  let fromTv = false;
+  try {
+    fromTv = stage && new URL(document.referrer).pathname.replace(/\/$/, "") === `/tv/${TABLE}`;
+  } catch {
+    // no referrer: a phone's page
+  }
+  return fromTv ? `/tv/${TABLE}` : `/t/${TABLE}`;
+}
+export function backToTable(over: string | null, stage = false): void {
+  const url = tableUrl(stage);
+  if (!url) return;
+  if (over)
+    try {
+      sessionStorage.setItem("dance.over", over);
+      if (stage) sessionStorage.setItem("dance.over.tv", over);
+    } catch {
+      // no session storage: the table sees the room is over from its server
+    }
+  location.assign(url);
+}
+
 /** Keeps the screen on while the page is open (asked again when the page comes back into view). */
 export class ScreenAwake {
   private lock: { release(): Promise<void> } | null = null;

@@ -1,9 +1,10 @@
 import { Camera, DoorOpen, Hand } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { ROGUE_MS, RANKS, RULES, RULE_BY_RANK, ruleWords, SUITS, type Rank } from "../../data/rogue13";
 import { HeldCard, RogueTable, type LeaveTo } from "../../games/rogueCards";
+import { RogueLog } from "../../games/rogueLog";
 import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
@@ -11,7 +12,7 @@ import type { RogueHolders, RogueView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { NetFrame } from "../NetFrame";
 import { useReached, useRoom, useRoomEvent } from "../RoomContext";
-import { useWatching } from "../players";
+import { usePlayers, useWatching } from "../players";
 import { HostButton, HostRow, SeatPicker, TurnLine, useYourTurn, Waiting } from "./common";
 
 const t = (zh: string, en: string): T => ({ zh, en });
@@ -81,7 +82,7 @@ export function useTable(v: RogueView, cardKey: string, openedOn: string) {
 }
 
 export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) {
-  const { me, isHost, g } = useRoom();
+  const { me, isHost, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
   const rule = v.card ? RULE_BY_RANK[v.card.rank] : null;
@@ -110,6 +111,14 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   }, [cardKey]);
   // the card and what it asks come up together, once the table has dealt it
   const up = !!v.card && !table.holding;
+  // the 牌谱, off the pile: what is left of each rank, and the cards turned so far; when the deck
+  // has run out it opens by itself as the deck's recap, and the next drawer can deal from it
+  const [logOpen, setLogOpen] = useState(false);
+  const out = v.left === 0 && !v.card && v.phase === "draw" && !table.holding;
+  useEffect(() => setLogOpen(out), [out]);
+  const seats = usePlayers();
+  const recap = useMemo(() => (out ? seats.map((p) => ({ name: p.name, n: v.tally?.[p.id] ?? 0 })) : null), [out, seats, v.tally]);
+  const canDeal = out && (myTurn || isHost) && !v.interrupt;
 
   const rules = (
     <ul className="rule-list">
@@ -154,8 +163,25 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
           drawLabel={lang === "zh" ? "下滑抽牌" : "Swipe down"}
           shuffling={table.shuffling}
           leaveTo={table.leaveTo}
+          onPile={() => setLogOpen(true)}
         />
       </div>
+      <RogueLog
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+        stock={v.stock ?? []}
+        log={v.log ?? []}
+        nameOf={nameOf}
+        recap={recap}
+        onShuffle={
+          canDeal
+            ? () => {
+                g("draw");
+                haptic(10);
+              }
+            : undefined
+        }
+      />
 
       <AnimatePresence mode="wait">
         {up && v.card && rule && words && (

@@ -25,6 +25,8 @@ import {
 } from './protocol';
 import { ICE_SERVERS } from './ice';
 import { RoomSocket, wsUrl } from './socket';
+import { cleanAchvList, type AchvId } from '../achievements';
+import { cleanCrowdIn, type CrowdIn, type CrowdState } from '../crowd';
 
 export interface PadPeer {
   seat: string;
@@ -41,6 +43,8 @@ export interface PadPeer {
   look: Look;
   /** 手柄选的道具（A9）。 */
   item: ItemId;
+  /** 长辈小孩模式（11-26）开着没有。 */
+  assist: boolean;
   input: PadInput | null;
   /** 上一条输入到的时刻（performance.now()）。 */
   lastInputAt: number;
@@ -55,12 +59,18 @@ export interface HostLinkEvents {
   onInput?(peer: PadPeer, input: PadInput): void;
   onLook?(peer: PadPeer, look: Look): void;
   onItem?(peer: PadPeer, item: ItemId): void;
+  /** 长辈小孩模式（11-26）开了 / 关了。 */
+  onAssist?(peer: PadPeer, on: boolean): void;
   /** 表情（11-25）：已经收拾过（不认识的不报）。 */
   onEmote?(peer: PadPeer, e: EmoteId): void;
   /** 放屁键（11-25）。 */
   onFart?(peer: PadPeer): void;
+  /** 成就（11-25）：手柄说自己有哪些（已经收拾过）。 */
+  onAchvHave?(peer: PadPeer, ids: AchvId[]): void;
   /** 手柄当遥控：按了开始、下一关……。 */
   onCmd?(peer: PadPeer, cmd: PadCmd): void;
+  /** 观众（11-26）说的话：押谁、起哄、投票（已经收拾过）；id 是观众的 id，名字在房间的 audience 里。 */
+  onCrowd?(id: string, c: CrowdIn): void;
   onFatal?(key: FatalKey): void;
   onSocket?(open: boolean): void;
 }
@@ -108,6 +118,12 @@ export class HostLink {
     this.sock.send({ t: 'act', action });
   }
 
+  /** 观众（11-26）：一份账发给所有观众（经房间；没有观众就不发）。 */
+  crowd(s: CrowdState): void {
+    if (!this.room?.audience?.length) return;
+    this.sock.send({ t: 'relay', to: 'audience', data: { k: 'crowdState', s } });
+  }
+
   /** 给一个手柄发小包：直连走通道，不然绕房间。 */
   status(seat: string, s: PadStatus): void {
     const p = this.peers.get(seat);
@@ -136,6 +152,13 @@ export class HostLink {
     this.relay(seat, { k: 'menu', m });
   }
 
+  /** 成就（11-25）：告诉这个手柄新拿到一个（走房间，要可靠）。 */
+  achv(seat: string, id: AchvId): void {
+    const p = this.peers.get(seat);
+    if (!p || !p.connected) return;
+    this.relay(seat, { k: 'achv', id });
+  }
+
   /** 关掉一切（离开页面）。 */
   close(): void {
     clearInterval(this.pingTimer);
@@ -151,7 +174,13 @@ export class HostLink {
         this.ev.onRoom?.(m.room);
         return;
       case 'relay': {
-        if (m.from === 'host') return;
+        if (m.from === 'host' || m.from === 'audience') return;
+        if ('watch' in m.from) {
+          // 观众（11-26）只说 crowd
+          const c = m.data.k === 'crowd' ? cleanCrowdIn(m.data.c) : null;
+          if (c) this.ev.onCrowd?.(m.from.watch, c);
+          return;
+        }
         const p = this.peers.get(m.from.seat);
         if (p) this.onLink(p, m.data, false);
         return;
@@ -170,7 +199,7 @@ export class HostLink {
       seen.add(s.id);
       let p = this.peers.get(s.id);
       if (!p) {
-        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), look: DEFAULT_LOOK, item: DEFAULT_ITEM, input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
+        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), look: DEFAULT_LOOK, item: DEFAULT_ITEM, assist: false, input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
         this.peers.set(s.id, p);
       }
       p.name = s.name;
@@ -201,6 +230,10 @@ export class HostLink {
         p.item = cleanItem(data.item);
         this.ev.onItem?.(p, p.item);
         return;
+      case 'assist':
+        p.assist = data.on === true;
+        this.ev.onAssist?.(p, p.assist);
+        return;
       case 'emote': {
         const e = cleanEmote(data.e);
         if (e) this.ev.onEmote?.(p, e);
@@ -208,6 +241,9 @@ export class HostLink {
       }
       case 'fart':
         this.ev.onFart?.(p);
+        return;
+      case 'achvHave':
+        this.ev.onAchvHave?.(p, cleanAchvList(data.ids));
         return;
       case 'cmd':
         if (data.c && typeof data.c === 'object') this.ev.onCmd?.(p, data.c);

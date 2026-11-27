@@ -506,9 +506,9 @@ export function douglasOpen(events: NormalizedEvent[]): NormalizedEvent[] {
 const SP_STUDENTS = /\b(UBC|AMS|SFU|SFSS|GSS|GSA|undergraduate|graduate students?|students?'? (society|association|union|council))\b/i;
 /** On UBC's or SFU's Burnaby campus: the same. */
 const SP_CAMPUS = /^(V6T|V5A ?1S6)/i;
-/** Sold on Showpass, but not an event: a membership, a pass, a month's admission to a garden. */
+/** Sold on Showpass, but not an event: a membership, a pass, a team's season package, a month's admission to a garden. */
 const SP_NOT_EVENTS =
-  /\b(memberships?|season pass(es)?|season tickets?|gift cards?|subscriptions?|meal subsidy|annual general meeting|AGM|see you next season)\b|\badmission$|\s-\s(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}$/i;
+  /\b(memberships?|season pass(es)?|season tickets?|season packages?|flex packs?|gift cards?|subscriptions?|meal subsidy|annual general meeting|AGM|see you next season)\b|\badmission$|\s-\s(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}$/i;
 
 /**
  * Showpass sells for anyone who has an account, students' clubs included. What's On keeps, as for

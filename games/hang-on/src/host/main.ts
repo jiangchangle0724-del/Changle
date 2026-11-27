@@ -15,13 +15,19 @@ import { heardBy, sfx } from '../audio/sfx';
 import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
-import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_WORDS, fartKind, type EmoteId } from '../emotes';
+import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_REACH, FART_WORDS, fartKind, type EmoteId } from '../emotes';
 import { emotePicker } from '../emote-picker';
+import { AchvRound, type AchvId, type Award } from '../achievements';
+import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLines } from '../achv-ui';
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
-import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { dailyLevel, FEST_LEVELS, festLevel, levelById, levelLabel, LEVELS, levelsFor, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { clock, vancouverDay, type Board, type BoardEntry, type DailyAnswer, type DailyRun } from '../daily';
+import { decodeLevel, isCustom } from '../custom';
+import { FESTS, festNow, type FestId } from '../fest';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
-import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
+import { cleanLook, DEFAULT_LOOK, GACHA, LOOK_NAMES, lockLook, randomLook, type GachaId, type Look } from '../look';
+import { coins, GACHA_PRICE, leftToWin, loadGacha, pull, saveGacha } from './gacha';
 import { cleanItem, ITEM_ICON, ITEM_IDS, itemsIn, type ItemId } from '../items';
 import { itemName } from '../item-text';
 import { CFG, PLAYER_COLORS } from '../physics/config';
@@ -30,7 +36,10 @@ import { createSim, type GameMode, type PadInput, type Rules, type Sim, type Sim
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { CAST_MS, CODE_RE, HOST_KEY_RE, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
-import { encodeSnap, EventWindow } from '../net/snap';
+import { encodeSnap, EventWindow, RemoteSim } from '../net/snap';
+import { Highlights, momentOf, SNAP_EVERY, type Clip } from './highlights';
+import { CrowdBook, FX, fxBanner, SLOW_SCALE, type CheerId, type CrowdIn, type FxId } from '../crowd';
+import { betText, cheersAbove, floatCheer, floatLine, fxName, setFxLayer } from '../crowd-ui';
 import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
@@ -112,7 +121,13 @@ installReports(() => {
 });
 const canvas = $<HTMLCanvasElement>('stage');
 watchCanvas(canvas);
-const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
+/**
+ * 节日关（11-26）：今天是哪个节日（这台主机的日期；`?fest=xmas` 当成圣诞、`?fest=none` 不要节日）。
+ * `?level=fest-xmas` 开节日关就当是这个节日。节日那几天画面挂装饰，有这个节日的关就排在简单那一串最前面。
+ */
+const askedFest = FEST_LEVELS.find((l) => l.id === params.get('level'));
+const fest: FestId | null = askedFest?.fest ?? festNow(new Date(), params.get('fest'));
+const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode, fest });
 /** 玩法（A7）：开局前在大厅里选；`?mode=race` 之类直接开到那个玩法（检查脚本用），`?teams=1` 比谁先分两队。 */
 const MODES: GameMode[] = ['climb', 'team', 'race', 'last', 'gold'];
 let mode: GameMode = MODES.find((m) => m === params.get('mode') && (m !== 'team' || TEAM_LEVELS.length > 0)) ?? 'climb';
@@ -123,13 +138,29 @@ let teamsOn = params.get('teams') === '1';
  */
 let side: Side = cleanSide(params.get('side')) ?? (mode === 'climb' ? 'solo' : 'multi');
 let sideAuto = !params.get('side') && mode === 'climb';
-const askedLevel = LEVELS.find((l) => l.id === params.get('level'));
-let tier: Tier = cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0);
-/** 现在这个玩法、这档难度的那一串关。 */
-const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined, side);
+const askedLevel = LEVELS.find((l) => l.id === params.get('level')) ?? askedFest;
+/**
+ * 每日一关（11-26，14 样的第 13 样）：今天（温哥华的日期）大家同一关。大厅「📅 每日一关」点了这一串就只有这一关
+ * （闯关，难度是它自己的；`?daily=1` 直接开到这里），换玩法、换难度就出来。这一天在闯关里到顶就交成绩，怎么进的这关都算。
+ */
+const today = vancouverDay(Date.now());
+const daily = dailyLevel(today);
+let dailyOn = params.get('daily') === '1';
+if (dailyOn) mode = 'climb';
+/**
+ * 关卡编辑器（11-26，14 样的第 14 样）：`?custom=码` 开别人做的关（码解不开就当没有）。这一串只有这一关，闯关、比谁先都行；
+ * 换难度、换别的玩法就出来，大厅「🛠 自制关」回来。没有星、没有红包、不算成就。
+ */
+const customCode = params.get('custom') ?? '';
+const custom = customCode ? await decodeLevel(customCode) : null;
+let customOn = !!custom && !dailyOn;
+if (customOn && mode !== 'race') mode = 'climb';
+let tier: Tier = dailyOn ? tierOfLevel(daily) : (cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0));
+/** 现在这个玩法、这档难度的那一串关（每日一关只有那一关）。 */
+const listNow = (): Level[] => (dailyOn ? [daily] : customOn && custom ? [custom] : levelsFor(mode, tiered(mode) ? tier : undefined, side, fest));
 /** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
 const levelIndexOf = new Map<string, number>();
-const slot = (): string => `${mode}:${tiered(mode) ? tier : '-'}`;
+const slot = (): string => `${dailyOn ? 'daily' : customOn ? 'custom' : mode}:${tiered(mode) ? tier : '-'}`;
 let levelIndex = Math.max(0, listNow().findIndex((l) => l.id === params.get('level')));
 let level: Level = listNow()[levelIndex] as Level;
 /** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
@@ -148,11 +179,20 @@ const renderOn = params.get('render') !== '0';
 const kbLook: Look = randomLook();
 /** 手机局的房主：0 号颜色；名字和样子用这部手机当手柄时记下的（没有就叫「房主」、随机一个样子）。 */
 const HOST_COLOR = 0;
-let hostLook: Look = stored('hang-on:look', (v) => cleanLook(JSON.parse(v))) ?? randomLook();
+/** 红包扭蛋机（11-25）：花了几个红包、扭到了哪些（记在这台设备上）；扭到的（锁样子用）。放在前面，画大厅的时候就要用。 */
+let gacha = loadGacha();
+let gachaSet: ReadonlySet<string> = new Set(gacha.got);
+let hostLook: Look = stored('hang-on:look', (v) => lockLook(cleanLook(JSON.parse(v)), gachaSet)) ?? randomLook(Math.random, gachaSet);
 const hostName = (): string => stored('hang-on:name', (v) => v.trim().slice(0, 12)) || tr('房主', 'Host');
 /** 道具（A9）：手机局的房主记在这部手机上（和它当手柄时同一个），键盘玩家只记这一回。 */
 let hostItem: ItemId = stored('hang-on:item', cleanItem) ?? 'freeze';
 let kbItem: ItemId = 'freeze';
+/** 长辈小孩模式（11-26）：手机局的房主记在这部手机上（和它当手柄时同一个），键盘玩家只记这一回。 */
+let hostAssist = stored('hang-on:assist', (v) => v === '1') ?? false;
+let kbAssist = false;
+/** 慢一点（11-26）：全场慢到 SLOW_MODE 倍，记在这台主机上。 */
+let slowMode = stored('hang-on:slow', (v) => v === '1') ?? false;
+const SLOW_MODE = 0.8;
 /** 每个人道具没用成（拉面没抓着墙）几次了：小包里带上，手柄看到变了就提示。 */
 let itemFails: number[] = [];
 /** 手机局：样子名单要不要马上补发（有人进出、换样子、换阶段）。 */
@@ -189,6 +229,26 @@ function setLocalItem(id: ItemId): void {
 }
 /** 自己那个人是第几个（没有是 -1）。 */
 const localIndex = (): number => (localOn() ? seatOrder.length : -1);
+const localAssist = (): boolean => (phoneMode ? hostAssist : kbAssist);
+function setLocalAssist(on: boolean): void {
+  if (phoneMode) {
+    hostAssist = on;
+    try {
+      localStorage.setItem('hang-on:assist', on ? '1' : '0');
+    } catch {
+      // 记不住就记不住
+    }
+  } else kbAssist = on;
+  renderAssistBtn();
+  syncPlayers();
+  renderLobby();
+}
+/** 第 i 个人开没开长辈小孩模式（11-26）。 */
+function assistOf(i: number): boolean {
+  if (i === localIndex()) return localAssist();
+  const id = seatOrder[i];
+  return !!(id && link?.peers.get(id)?.assist);
+}
 
 sfx.attach(document);
 // 背景音乐（11-13）：只在开房这台设备上放（电视局是电视，手机局是房主的手机），接在音效上，静音一起管
@@ -223,26 +283,33 @@ function rules(): Rules {
   const stamina = staminaNow();
   const st = stamina ? { stamina } : {};
   if (mode === 'race' && teamsOn) return { mode, teams: teamsFor(playerCount()), ...st };
-  // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机
-  return mode === 'climb' || mode === 'team' ? { mode, helper: true, ...st } : { mode, ...st };
+  // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机；护送大元宝（11-26）大厅里打开了才有
+  return mode === 'climb' || mode === 'team' ? { mode, helper: true, ...(escortOn ? { escort: true } : {}), ...st } : { mode, ...st };
 }
 /** 比谁先分两队时这个人在哪一队（不分队是 undefined）。 */
 const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.rules.mode === 'race' && sim.rules.teams ? i % 2 : undefined);
 /** 头顶上的名字：分队时带上队。 */
 function tagName(i: number, nm: string): string {
   const t = teamOf(i);
-  return t === undefined ? nm : `${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
+  // 长辈小孩模式（11-26）：名字前面一棵小苗
+  const a = assistOf(i) ? '🌱 ' : '';
+  return t === undefined ? `${a}${nm}` : `${a}${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
 }
 function setMode(m: GameMode): void {
-  if (m === mode) return;
+  if (m === mode && !dailyOn) return;
   levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
+  // 自制关闯关、比谁先都能玩；换到别的玩法才出来
+  if (m !== 'climb' && m !== 'race') customOn = false;
   mode = m;
   relist(true);
 }
-/** 难度（闯关、比谁先）。 */
+/** 难度（闯关、比谁先）。在每日一关上点哪个难度都是出来回到那一串。 */
 function setTier(t: Tier): void {
-  if (t === tier || !tiered(mode)) return;
+  if ((t === tier && !dailyOn && !customOn) || !tiered(mode)) return;
   levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
+  customOn = false;
   tier = t;
   relist(true);
 }
@@ -277,7 +344,7 @@ function followCount(): void {
 /** 这一边能选的玩法（大团队要有大关）。 */
 const modesNow = (): GameMode[] => SIDE_MODES[side].filter((m) => m !== 'team' || TEAM_LEVELS.length > 0);
 /** 结算页有没有「下一关」：这一档还有，或者这一档打完了接着下一档。 */
-const hasNext = (): boolean => levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2);
+const hasNext = (): boolean => !dailyOn && !customOn && (mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2));
 /** 下一关：这一档的下一关；这一档打完了是下一档的第一关。 */
 function goNext(): void {
   if (levelIndex < listNow().length - 1) {
@@ -289,6 +356,609 @@ function goNext(): void {
   tier = (tier + 1) as Tier;
   levelIndexOf.set(slot(), 0);
   relist(true);
+}
+// ---------------------------------------------------------------- 观众（11-26，14 样的第 9 样）
+
+/** 观众的账：押谁先掉、押中几次、投票（src/crowd.ts）。 */
+const crowd = new CrowdBook();
+/** 观众的名字（走了的也记着，结算页「最准的观众」要用）。 */
+const watcherNames = new Map<string, string>();
+/** 正在起作用的那一样（力气满是一下子的事，不算）；观众投的慢动作放到什么时候（performance.now），没有是 0。 */
+let crowdFx: FxId | null = null;
+let slowUntil = 0;
+/** 账变了要发给观众；上次发的时候。 */
+let crowdDirty = true;
+let crowdSentAt = 0;
+/** 这一局第一个掉的那一句（大屏右下角的观众条和结算页上写）。 */
+let crowdBetLine = '';
+/** 顶上正中的投票上次画的样子（一样就不重画）。 */
+let voteShown = '';
+
+const audienceNow = (): { id: string; name: string }[] => room?.audience ?? [];
+const watcherName = (id: string): string => watcherNames.get(id) ?? tr('观众', 'A fan');
+/** 第 i 个人押的时候用的 key：座位 id，主机自己（手机局的房主、键盘加入的）是 'local'。 */
+function playerKey(i: number): string {
+  return seatOrder[i] ?? 'local';
+}
+function playerKeys(): string[] {
+  return Array.from({ length: playerCount() }, (_, i) => playerKey(i));
+}
+
+/** 房间的观众名单变了：记名字、发一份账，大屏上的观众条、大厅那一行跟着变。 */
+function noteAudience(r: RoomView): void {
+  for (const w of r.audience ?? []) watcherNames.set(w.id, w.name);
+  crowdDirty = true;
+  renderCrowd();
+}
+
+/** 观众说的话：押谁、起哄、投票；连上来打个招呼就回一份账。 */
+function onCrowd(id: string, c: CrowdIn): void {
+  const now = performance.now();
+  if (c.do === 'hello') crowdDirty = true;
+  else if (c.do === 'bet') {
+    if (crowd.bet(id, c.on, playerKeys())) {
+      crowdDirty = true;
+      renderCrowd();
+    }
+  } else if (c.do === 'cheer') {
+    if (crowd.cheer(id, now)) cheerFrom(id, c.e);
+  } else if (crowd.castVote(id, c.v, now)) {
+    crowdDirty = true;
+    renderVote(now);
+  }
+}
+
+/** 观众起了个哄：大屏右下角往上飘一句、啵一声，手机局跟着快照发到每部手机上。 */
+function cheerFrom(id: string, e: CheerId): void {
+  const who = watcherName(id);
+  showNow({ type: 'cheer', who, cheer: e });
+  floatCheer(who, e);
+}
+
+/** 换阶段：开玩锁上押的（过一会儿开始投票）；不玩了又能押，投出来的那一样不算了。 */
+function crowdPhase(next: Phase): void {
+  if (next === 'playing') {
+    crowd.start(performance.now(), playerKeys());
+    crowdBetLine = '';
+  } else {
+    crowd.stop();
+    crowdFx = null;
+    slowUntil = 0;
+    setFxLayer(null);
+  }
+  // 新的一局（倒数、回大厅）：上一局谁先掉的不说了
+  if (next === 'countdown' || next === 'lobby') {
+    crowdBetLine = '';
+    crowd.first = null;
+  }
+  crowdDirty = true;
+  renderCrowd();
+  renderVote(performance.now());
+}
+
+/** 有人掉了：是这一局第一个掉的，算押中没有；有人押了就飘一句、响一声，手机局也看得到。 */
+function crowdFell(i: number): void {
+  const bets = crowd.betCount;
+  const hits = crowd.fell(playerKey(i));
+  if (!hits) return;
+  crowdDirty = true;
+  if (!bets) return;
+  const names = hits.map(watcherName);
+  crowdBetLine = betText(name(i), names);
+  showNow({ type: 'crowdbet', fell: i, bets, hits: names });
+  floatLine('👀', crowdBetLine, true);
+  renderCrowd();
+}
+
+/** 玩的时候每帧：慢动作到点了停；到点了开一轮投票，投完了让赢的那一样起作用。 */
+function crowdTick(now: number): void {
+  if (phase !== 'playing') return;
+  if (slowUntil && now >= slowUntil) {
+    slowUntil = 0;
+    showNow({ type: 'crowdfx', fx: 'slow', on: false, dir: 1 });
+    crowdFxOff('slow');
+  }
+  const r = crowd.tick(now, audienceNow().length, (fx) => fx !== 'strong' || !!sim.rules.stamina);
+  if (r.open) {
+    showNow({ type: 'crowdvote', a: r.open[0], b: r.open[1] });
+    crowdDirty = true;
+  }
+  if (r.done) {
+    crowdDirty = true;
+    if (r.done.fx) startCrowdFx(r.done.fx, now);
+    else floatLine('👀', tr('观众这轮没投票', 'The crowd sat this one out'));
+  }
+  renderVote(now);
+}
+
+/** 投出来的那一样起作用：物理的交给模拟，慢动作大屏自己放慢；横幅、盖一层、响一声。 */
+function startCrowdFx(fx: FxId, now: number): void {
+  const dir = fx === 'wind' && Math.random() < 0.5 ? -1 : 1;
+  if (fx === 'slow') slowUntil = now + FX.slow.secs * 1000;
+  else sim.startCrowd(fx, dir);
+  crowdFx = fx === 'strong' ? null : fx;
+  showNow({ type: 'crowdfx', fx, on: true, dir });
+  const b = fxBanner(fx, dir);
+  banner(tr(b.zh, b.en), FX[fx].help ? 'good' : 'bad');
+  setFxLayer(crowdFx, dir);
+  crowdDirty = true;
+}
+
+/** 那一样过去了（是正在起作用的那一样才收：前一样晚到的「过了」不碰后一样）。 */
+function crowdFxOff(fx: FxId): void {
+  if (crowdFx !== fx) return;
+  crowdFx = null;
+  setFxLayer(null);
+  crowdDirty = true;
+}
+
+/** 给观众发一份账：变了才发，最密一秒五次；没有观众不发。 */
+function crowdSend(now: number): void {
+  if (!crowdDirty || now - crowdSentAt < 200 || !link || !audienceNow().length) return;
+  crowdDirty = false;
+  crowdSentAt = now;
+  link.crowd(
+    crowd.state(
+      now,
+      {
+        phase,
+        mode,
+        level: level.name ?? { zh: level.id, en: level.id },
+        players: playerKeys().map((key, i) => ({ key, name: name(i), color: sim.players[i]?.color ?? PLAYER_COLORS[i] ?? '#fff' })),
+      },
+      crowdFx,
+    ),
+  );
+}
+
+/** 大屏：顶栏的「👀 3」、右下角的观众条（押谁先掉每个人几票、这一局谁先掉）、大厅里那一行。 */
+function renderCrowd(): void {
+  const list = audienceNow();
+  const n = list.length;
+  $('crowdChip').hidden = !n;
+  $('crowdN').textContent = String(n);
+  $('crowdLobby').textContent = n
+    ? tr(`👀 观众 ${n} 个：${list.map((w) => w.name).join('、')}`, `👀 ${n} watching: ${list.map((w) => w.name).join(', ')}`)
+    : tr('👀 不玩的也能扫码，点「只看，当观众」：押谁先掉、起哄、投票帮一把或捣个乱', '👀 Not playing? Scan and tap "Just watch": bet on who falls first, cheer, vote to help or mess with them');
+  const box = $('crowdBox');
+  box.hidden = !n;
+  if (!n) {
+    cheersAbove(16);
+    return;
+  }
+  const keys = playerKeys();
+  const counts = new Map<string, number>();
+  for (const k of crowd.bets.values()) if (keys.includes(k)) counts.set(k, (counts.get(k) ?? 0) + 1);
+  const t = document.createElement('div');
+  t.className = 't';
+  t.textContent = tr(`👀 观众 ${n} · 押谁先掉`, `👀 ${n} watching · who falls first?`);
+  const rows = keys.flatMap((k, i) => {
+    const c = counts.get(k);
+    if (!c) return [];
+    const r = document.createElement('div');
+    r.className = 'r';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = sim.players[i]?.color ?? '#fff';
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = name(i);
+    const x = document.createElement('b');
+    x.textContent = `×${c}`;
+    r.append(dot, nm, x);
+    return [r];
+  });
+  if (!rows.length) {
+    const r = document.createElement('div');
+    r.className = 'r';
+    r.style.opacity = '.75';
+    r.textContent = crowd.open ? tr('还没人押', 'No bets yet') : tr('这局没人押', 'No bets this round');
+    rows.push(r);
+  }
+  box.replaceChildren(t, ...rows);
+  if (crowdBetLine) {
+    const h = document.createElement('div');
+    h.className = 'hit';
+    h.textContent = crowdBetLine;
+    box.append(h);
+  }
+  cheersAbove(box.offsetHeight + 28);
+}
+
+/** 顶上正中的投票：两样、各几票、还剩几秒。秒数变了、票变了才重画。 */
+function renderVote(now: number): void {
+  const v = crowd.vote;
+  const el = $('crowdVote');
+  if (!v || phase !== 'playing') {
+    el.hidden = true;
+    voteShown = '';
+    return;
+  }
+  const n = crowd.count();
+  const left = Math.max(0, Math.ceil((v.endsAt - now) / 1000));
+  const key = `${v.a}${v.b}${n.join()}${left}`;
+  if (key === voteShown) return;
+  voteShown = key;
+  el.hidden = false;
+  $('voteLeft').textContent = tr(`👀 观众投票 · 还剩 ${left} 秒`, `👀 Crowd vote · ${left}s left`);
+  $('voteA').textContent = `${fxName(v.a)} ${n[0]}`;
+  $('voteB').textContent = `${n[1]} ${fxName(v.b)}`;
+  const all = n[0] + n[1];
+  $('voteBarA').style.width = `${all ? (n[0] / all) * 100 : 50}%`;
+  $('voteBarB').style.width = `${all ? (n[1] / all) * 100 : 50}%`;
+}
+
+/** 结算页：这一局谁先掉、押中没有；最准的观众（这个房间里一共押中最多的）。 */
+function renderCrowdLine(): void {
+  const best = crowd.best();
+  const lines = [crowdBetLine ? `👀 ${crowdBetLine}` : '', best ? tr(`🎯 最准的观众：${watcherName(best.id)}（押中 ${best.hits} 次）`, `🎯 Best guesser: ${watcherName(best.id)} (${best.hits} right)`) : ''].filter(Boolean);
+  const el = $('crowdLine');
+  el.hidden = !lines.length;
+  el.textContent = lines.join('　');
+}
+
+// ---------------------------------------------------------------- 精彩回放（11-26）
+
+const highlights = new Highlights();
+/** 上一张录在局里第几秒、快照的序号、两张之间出的事（跟着下一张走）和它们的编号。 */
+let hlAt = -Infinity;
+let hlSeq = 0;
+let hlK = 0;
+let hlEvents: SimEvent[] = [];
+/** 慢放：原速的几成。 */
+const REPLAY_SPEED = 0.6;
+/** 正在放的：用手机局那一套（RemoteSim）把录下的快照一张张喂进去。 */
+let replay: { view: RemoteSim; clip: Clip; start: number; next: number; t0: number; endAt: number } | null = null;
+
+function resetHighlights(): void {
+  highlights.reset();
+  hlAt = -Infinity;
+  hlEvents = [];
+}
+
+/** 玩的时候每一步调：攒着这一步出的事，到了 0.05 秒录一张。 */
+function recordHighlight(): void {
+  hlEvents.push(...sim.events);
+  if (sim.time - hlAt < SNAP_EVERY) return;
+  highlights.push(sim.time, encodeSnap(sim, hlSeq++, { k: hlK, list: hlEvents }));
+  hlK += hlEvents.length;
+  hlEvents = [];
+  hlAt = sim.time;
+}
+
+/** 结算页上点了：盖住结算页，左上角写「⏪ 精彩回放 · 阿一 松手了」，慢放那一段。 */
+function playReplay(): void {
+  const clip = highlights.best;
+  if (!clip || phase !== 'results' || replay) return;
+  const view = new RemoteSim((id) => levelById(id), sim.level);
+  view.rules = sim.rules;
+  const t0 = (clip.snaps[0] as { t: number }).t;
+  const last = (clip.snaps[clip.snaps.length - 1] as { t: number }).t;
+  const now = performance.now();
+  replay = { view, clip, start: now, next: 0, t0, endAt: now + ((last - t0) / REPLAY_SPEED) * 1000 + 700 };
+  $('results').hidden = true;
+  const badge = $('replayBadge');
+  badge.hidden = false;
+  badge.textContent = replayLabel(clip);
+  $('replaySkip').hidden = false;
+  menuDirty = true;
+}
+
+function replayLabel(clip: Clip): string {
+  return tr(`⏪ 精彩回放 · ${clip.moment.zh}`, `⏪ Replay · ${clip.moment.en}`);
+}
+
+/** 放一帧：到点的快照喂进去（里面的事照样出声、出特效），匀好，画。放完了回结算页。 */
+function drawReplay(now: number, dt: number): void {
+  const r = replay;
+  if (!r) return;
+  const elapsed = ((now - r.start) / 1000) * REPLAY_SPEED;
+  while (r.next < r.clip.snaps.length && (r.clip.snaps[r.next] as { t: number }).t - r.t0 <= elapsed) {
+    const first = r.next === 0;
+    const evs = r.view.apply((r.clip.snaps[r.next] as { s: Parameters<RemoteSim['apply']>[0] }).s, now);
+    if (first) stage.syncPlayers(r.view);
+    if (evs.length) {
+      stage.handleEvents(r.view, evs);
+      sfx.handleEvents(r.view, heard(evs));
+    }
+    r.next++;
+  }
+  r.view.advance(now);
+  stage.updateCamera(r.view, dt);
+  stage.draw(r.view, dt);
+  if (now >= r.endAt) endReplay();
+}
+
+/** 不放了（放完了、点了跳过、换阶段）：结算页回来，画面换回这一局。 */
+function endReplay(): void {
+  if (!replay) return;
+  replay = null;
+  $('replayBadge').hidden = true;
+  $('replaySkip').hidden = true;
+  $('results').hidden = phase !== 'results';
+  stage.syncPlayers(sim);
+  menuDirty = true;
+}
+
+// ---------------------------------------------------------------- 红包雨（11-26，彩蛋小游戏）
+
+/** 红包雨之前在玩什么（玩法、第几关），下完了回去接着玩。 */
+let rainFrom: { mode: GameMode; levelIndex: number } | null = null;
+
+/** 这一关（闯关、大团队）的红包这一局全拿到了：结算页出「彩蛋：红包雨」。 */
+function rainReady(): boolean {
+  const e = lastGoals?.envelopes;
+  return phase === 'results' && (mode === 'climb' || mode === 'team') && !!e && e.of > 0 && e.got >= e.of;
+}
+
+/** 进彩蛋：记下在玩什么，换成红包雨（抢元宝的场地，跟着这一关的世界挑），直接倒数开局。 */
+function startRain(): void {
+  if (!rainReady()) return;
+  rainFrom = { mode, levelIndex };
+  const world = level.world;
+  mode = 'rain';
+  const list = listNow();
+  levelIndex = Math.max(0, list.findIndex((l) => l.world === world));
+  level = list[levelIndex] as Level;
+  renderModes();
+  renderLevel();
+  menuDirty = true;
+  castDirty = true;
+  banner(tr('🧧 找到彩蛋了：红包雨！', '🧧 You found a secret: envelope rain!'));
+  link?.act({ type: 'START' });
+}
+
+/** 红包雨完了：换回原来的玩法和那一关（「接着闯关」再往下走一关）。 */
+function endRain(): void {
+  if (!rainFrom) return;
+  mode = rainFrom.mode;
+  levelIndex = rainFrom.levelIndex;
+  level = listNow()[levelIndex] as Level;
+  rainFrom = null;
+  renderModes();
+  renderLevel();
+  menuDirty = true;
+  castDirty = true;
+}
+
+/** 护送大元宝（11-26）：大厅里开关，开了重摆这一关（起点放一个大元宝）。 */
+let escortOn = false;
+function setEscort(on: boolean): void {
+  if (on === escortOn) return;
+  escortOn = on;
+  renderEscortBtn();
+  menuDirty = true;
+  if (phase === 'lobby') void resetSim();
+}
+/** 大厅里「🪙 护送大元宝」：闯关、大团队才有。 */
+function renderEscortBtn(): void {
+  const b = $<HTMLButtonElement>('escortBtn');
+  b.hidden = mode !== 'climb' && mode !== 'team';
+  b.textContent = escortOn ? tr('🪙 护送大元宝：开', '🪙 Gold escort: on') : tr('🪙 护送大元宝：关', '🪙 Gold escort: off');
+  b.setAttribute('aria-pressed', String(escortOn));
+  b.title = tr('起点放一个大元宝，扛到终点算数（不送也能过关）', 'A big gold ingot waits at the start. Carry it to the top for a bonus (you can finish without it)');
+}
+/**
+ * 节日关（11-26，14 样的第 12 样）：节日那几天有这个节日的关，大厅里一个键直接去玩
+ * （闯关、比谁先简单那一串的第一关；在别的玩法换成闯关）。正在这关上就不出。
+ */
+function renderFestBtn(): void {
+  const b = $<HTMLButtonElement>('festBtn');
+  const fl = festLevel(fest);
+  b.hidden = !fl || !fest || level.id === fl.id;
+  if (!fl || !fest) return;
+  const f = FESTS[fest];
+  b.textContent = tr(`${f.emoji} 去玩${f.zh}关`, `${f.emoji} Play the ${f.en} level`);
+}
+function playFest(): void {
+  if (!festLevel(fest) || phase !== 'lobby') return;
+  levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
+  customOn = false;
+  if (mode !== 'climb' && mode !== 'race') mode = 'climb';
+  tier = 0;
+  levelIndexOf.set(slot(), 0);
+  relist(true);
+}
+// ---------------------------------------------------------------- 每日一关和排行榜（11-26，14 样的第 13 样）
+/** 大厅、倒数、手柄菜单写的关名：每日一关「📅 筷子桥」不编号，别的照 `levelLabel`。 */
+function titleNow(): { zh: string; en: string } {
+  if (!dailyOn) return levelLabel(level, levelIndex, listNow());
+  const n = level.name ?? { zh: level.id, en: level.id };
+  return { zh: `📅 ${n.zh}`, en: `📅 ${n.en}` };
+}
+/** 正在闯今天的每日一关（怎么进的这关都算）。 */
+const dailyNow = (): boolean => mode === 'climb' && level.id === daily.id;
+/** 大厅第二排：不在每日一关上是「📅 每日一关」（去玩），在上面是「🏆 今日排行」；带着自制关来的，不在它上面时「🛠 自制关」。 */
+function renderDailyBtn(): void {
+  const b = $<HTMLButtonElement>('dailyBtn');
+  b.textContent = dailyNow() ? tr('🏆 今日排行', "🏆 Today's board") : tr('📅 每日一关', '📅 Daily level');
+  const c = $<HTMLButtonElement>('customBtn');
+  c.hidden = !custom || customOn;
+  if (custom) c.textContent = tr(`🛠 自制关：${custom.name?.zh ?? ''}`, `🛠 Custom: ${custom.name?.en ?? ''}`);
+}
+/** 回到带来的自制关（闯关；正在比谁先就留着）。 */
+function startCustom(): void {
+  if (phase !== 'lobby' || !custom || customOn) return;
+  levelIndexOf.set(slot(), levelIndex);
+  customOn = true;
+  dailyOn = false;
+  if (mode !== 'race') mode = 'climb';
+  levelIndexOf.set(slot(), 0);
+  relist(true);
+}
+function startDaily(): void {
+  if (phase !== 'lobby' || dailyOn) return;
+  levelIndexOf.set(slot(), levelIndex);
+  dailyOn = true;
+  customOn = false;
+  mode = 'climb';
+  tier = tierOfLevel(daily);
+  levelIndexOf.set(slot(), 0);
+  relist(true);
+}
+/** 这台主机在排行榜上的随机号（`hang-on:board-id`）：同一台一天一榜只留最好的一次，不给别人看。 */
+const boardId = ((): string => {
+  try {
+    const v = localStorage.getItem('hang-on:board-id');
+    if (v && /^[A-Za-z0-9]{16}$/.test(v)) return v;
+  } catch {
+    // 记不住就每次新的
+  }
+  const abc = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const id = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => abc[x % abc.length]).join('');
+  try {
+    localStorage.setItem('hang-on:board-id', id);
+  } catch {
+    // 同上
+  }
+  return id;
+})();
+/** 这一局交成绩交得怎么样了（是哪一局的：换了局就不显示）。 */
+let dailyRes: { sim: Sim; state: 'sending' } | { sim: Sim; state: 'done'; a: DailyAnswer } | { sim: Sim; state: 'failed' } | null = null;
+/** 到顶了：今天的每日一关就把成绩交上去（时间是模拟的秒，「慢一点」不影响）。 */
+async function submitDaily(): Promise<void> {
+  const s = sim;
+  const run: DailyRun = {
+    day: today,
+    level: daily.id,
+    players: s.players.length,
+    seconds: Math.round(s.time * 100) / 100,
+    falls: s.players.reduce((n, p) => n + p.deaths, 0),
+    names: s.players.map((_, i) => name(i)),
+    ...(s.players.some((_, i) => assistOf(i)) ? { assist: true } : {}),
+    who: boardId,
+  };
+  dailyRes = { sim: s, state: 'sending' };
+  renderDailyLine();
+  try {
+    const r = await fetch(new URL('/hang-on/api/daily', location.origin), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(run) });
+    if (!r.ok) throw new Error(String(r.status));
+    dailyRes = { sim: s, state: 'done', a: (await r.json()) as DailyAnswer };
+  } catch {
+    dailyRes = { sim: s, state: 'failed' };
+  }
+  renderDailyLine();
+}
+/** 结算页的一行：交上去了没有、排第几。 */
+function renderDailyLine(): void {
+  const el = $('dailyLine');
+  const r = dailyRes?.sim === sim ? dailyRes : null;
+  el.hidden = !r;
+  $('dailyBoardBtn').hidden = !r || r.state === 'failed';
+  if (!r) return;
+  if (r.state === 'sending') el.textContent = tr('📅 每日一关：成绩交上去了……', '📅 Daily level: sending your time…');
+  else if (r.state === 'failed') el.textContent = tr('📅 每日一关：成绩没交上去（网不好），这次不算', '📅 Daily level: could not send your time (connection), so this run does not count');
+  else {
+    const { side, rank, of, best } = r.a;
+    const solo = side === 'solo';
+    const who = solo ? tr('人', 'players') : tr('队', 'teams');
+    const board = solo ? tr('单人榜', 'solo board') : tr('多人榜', 'team board');
+    el.textContent =
+      rank === null
+        ? tr(`📅 每日一关：今天${board}已经满 ${of} ${who}，这次没排进去`, `📅 Daily level: the ${board} already has ${of} ${who} today and this run did not make it`)
+        : tr(`📅 每日一关：${board}第 ${rank} 名，今天一共 ${of} ${who}${best ? '' : '（今天你们还有更快的一次）'}`, `📅 Daily level: #${rank} on the ${board}, ${of} ${who} today${best ? '' : ' (your best today is faster)'}`);
+  }
+}
+/** 今日排行：今天这一关的单人榜、多人榜各前 10。 */
+const boardDlg = $<HTMLDialogElement>('boardDlg');
+async function openBoard(): Promise<void> {
+  const [, m, d] = today.split('-').map(Number) as [number, number, number];
+  const dn = daily.name ?? { zh: daily.id, en: daily.id };
+  $('boardTitle').textContent = tr(`📅 每日一关 · ${m} 月 ${d} 日 · ${dn.zh}`, `📅 Daily level · ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${d} · ${dn.en}`);
+  const body = $('boardBody');
+  body.replaceChildren(boardNote(tr('正在拿排行榜……', 'Loading the board…')));
+  if (!boardDlg.open) boardDlg.showModal();
+  try {
+    const url = new URL('/hang-on/api/daily', location.origin);
+    url.search = new URLSearchParams({ day: today, level: daily.id, who: boardId }).toString();
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(String(r.status));
+    renderBoard((await r.json()) as Board);
+  } catch {
+    body.replaceChildren(boardNote(tr('排行榜打不开（网不好），等会儿再试', 'Could not load the board (connection). Try again in a bit')));
+  }
+}
+function boardNote(text: string): HTMLElement {
+  const p = document.createElement('p');
+  p.className = 'bnote';
+  p.textContent = text;
+  return p;
+}
+/** 两个榜：名次、名字（玩家自己起的，只当文字放）、几个人、用时、摔了几次；这台主机的那条亮一点。 */
+function renderBoard(b: Board): void {
+  const body = $('boardBody');
+  body.replaceChildren();
+  for (const side of ['solo', 'multi'] as const) {
+    const h = document.createElement('h3');
+    h.textContent = side === 'solo' ? tr(`单人榜 · ${b.count.solo} 人`, `Solo · ${b.count.solo}`) : tr(`多人榜 · ${b.count.multi} 队`, `Teams · ${b.count.multi}`);
+    body.append(h);
+    const list: BoardEntry[] = b[side];
+    if (!list.length) {
+      body.append(boardNote(tr('还没人上榜，第一个就是你们', 'Nobody yet. Be the first')));
+      continue;
+    }
+    const ol = document.createElement('ol');
+    list.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (e.me) li.className = 'me';
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = String(i + 1);
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = `${e.assist ? '🌱 ' : ''}${e.names.join(tr('、', ', '))}`;
+      const t = document.createElement('span');
+      t.className = 'time';
+      t.textContent = e.seconds < 60 ? tr(`${clock(e.seconds)} 秒`, `${clock(e.seconds)} s`) : clock(e.seconds);
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = [side === 'multi' ? tr(`${e.players} 人`, `${e.players} players`) : '', tr(`摔 ${e.falls} 次`, `${e.falls} ${e.falls === 1 ? 'fall' : 'falls'}`)].filter(Boolean).join(' · ');
+      li.append(rank, who, t, n);
+      ol.append(li);
+    });
+    body.append(ol);
+    const mine = b.mine[side];
+    if (mine !== null && mine > list.length) body.append(boardNote(tr(`这台设备今天排第 ${mine}`, `This screen is #${mine} today`)));
+  }
+}
+$('dailyBtn').addEventListener('click', () => {
+  sfx.tick();
+  if (dailyNow()) void openBoard();
+  else startDaily();
+});
+$('customBtn').addEventListener('click', () => {
+  sfx.tick();
+  startCustom();
+});
+$('dailyBoardBtn').addEventListener('click', () => void openBoard());
+$('boardDone').addEventListener('click', () => boardDlg.close());
+/** 慢一点（11-26，长辈小孩模式）：全场慢到 0.8 倍，记在这台主机上。 */
+function setSlow(on: boolean): void {
+  if (on === slowMode) return;
+  slowMode = on;
+  try {
+    localStorage.setItem('hang-on:slow', on ? '1' : '0');
+  } catch {
+    // 记不住就记不住
+  }
+  renderSlowBtn();
+  menuDirty = true;
+}
+function renderSlowBtn(): void {
+  const b = $<HTMLButtonElement>('slowBtn');
+  b.textContent = slowMode ? tr('🐢 慢一点：开', '🐢 Slower: on') : tr('🐢 慢一点：关', '🐢 Slower: off');
+  b.setAttribute('aria-pressed', String(slowMode));
+  b.title = tr('全场慢到 0.8 倍，家里有老人小孩时开', 'Everything runs at 0.8× speed. Good when grandparents or kids play');
+}
+/** 这台设备上自己玩的人（手机局的房主、键盘加入的）的长辈小孩模式开关；没有自己玩的人就不出。 */
+function renderAssistBtn(): void {
+  const b = $<HTMLButtonElement>('assistBtn');
+  b.hidden = !localOn();
+  const on = localAssist();
+  b.textContent = on ? tr('🌱 长辈小孩模式：开', '🌱 Easy hands: on') : tr('🌱 长辈小孩模式：关', '🌱 Easy hands: off');
+  b.setAttribute('aria-pressed', String(on));
+  b.title = tr('掉的时候手碰到东西自己抓住，站稳了自己松开；抓得远一点、不会手酸、身子轻一点', 'Hands grab on their own while falling and let go once you stand; longer reach, no tired hands, a lighter body');
 }
 function setTeams(on: boolean): void {
   if (on === teamsOn) return;
@@ -317,6 +987,9 @@ function radioBtn(box: HTMLElement, label: string, on: boolean, click: () => voi
  * 闯关、比谁先最后选难度。
  */
 function renderModes(): void {
+  renderEscortBtn();
+  renderSlowBtn();
+  renderAssistBtn();
   const sides = $('sides');
   sides.innerHTML = '';
   for (const s of SIDES) radioBtn(sides, sideName(s), s === side, () => setSide(s));
@@ -375,6 +1048,8 @@ async function start(): Promise<void> {
         syncPlayers();
         renderLobby();
         renderLatency();
+        renderNote();
+        noteAudience(r);
       },
       onPeers: () => {
         // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒；菜单也是
@@ -391,6 +1066,10 @@ async function start(): Promise<void> {
         syncPlayers();
         renderLobby();
       },
+      onAssist: () => {
+        syncPlayers();
+        renderLobby();
+      },
       onEmote: (peer, e) => {
         const i = seatOrder.indexOf(peer.seat);
         if (i >= 0) emoteFrom(i, e);
@@ -399,7 +1078,13 @@ async function start(): Promise<void> {
         const i = seatOrder.indexOf(peer.seat);
         if (i >= 0) fartFrom(i);
       },
+      onAchvHave: (peer, ids) => {
+        // 手机上记着的加进来（这一场拿到、还没传到的也留着）
+        const have = haveOf(peer.seat);
+        for (const id of ids) have.add(id);
+      },
       onCmd: (_peer, c) => runCmd(c),
+      onCrowd: (id, c) => onCrowd(id, c),
       onFatal: (key) => fatal(key),
       onSocket: (open) => {
         socketDown = !open;
@@ -420,9 +1105,12 @@ function renderNote(): void {
   // 手机局屏幕小、触屏开的电视局没有键盘：底下那条只在断线时出来
   // 房间已经关了（fatal 那张卡在说为什么）就不再说「正在重连」
   const down = socketDown && !lastFatal;
-  $('note').classList.toggle('quiet', (phoneMode || touchHost) && !down);
+  // 有人进来了（手机、键盘）：那条「只在一台电脑上开、键盘怎么玩」用不着了，大厅的卡片长了（座位、观众那一行），别压着底下那排键
+  const joined = (room?.seats.length ?? 0) > 0 || keyboard;
+  const quiet = (phoneMode || touchHost || joined) && !down;
+  $('note').classList.toggle('quiet', quiet);
   // 底下那条不出来时大厅也不用给它留地方（开始那一排贴在底下时贴到屏幕底，不是悬在半中间）
-  document.body.classList.toggle('quiet-note', (phoneMode || touchHost) && !down);
+  document.body.classList.toggle('quiet-note', quiet);
   $('note').innerHTML = down
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
     : phoneMode || touchHost
@@ -514,6 +1202,12 @@ $('fatalTableBtn').addEventListener('click', () => backToTable(false));
 function onPhase(next: Phase): void {
   const prev = phase;
   phase = next;
+  // 精彩回放（11-26）：换阶段就不放了；新的一局重新录，一局完了收下还在录的
+  endReplay();
+  // 观众（11-26）：开玩就锁上押的、过一会儿开始投票；不玩了又能押，投出来的那一样不算了
+  crowdPhase(next);
+  if (next === 'countdown') resetHighlights();
+  if (next === 'results') highlights.close();
   $('lobby').hidden = next !== 'lobby';
   $('countdown').hidden = next !== 'countdown';
   $('results').hidden = next !== 'results';
@@ -526,7 +1220,9 @@ function onPhase(next: Phase): void {
   // 坐不住：数还有几个人挂着，不数摔了几次
   $('deathChip').hidden = !playing || mode === 'last';
   $('aliveChip').hidden = !playing || mode !== 'last';
-  $('goldChip').hidden = !playing || mode !== 'gold';
+  $('goldChip').hidden = !playing || (mode !== 'gold' && mode !== 'rain');
+  // 红包雨借抢元宝的比分条，前面不要元宝
+  $('goldIcon').hidden = mode === 'rain';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   // 手机局：倒数和玩的时候房主的摇杆、抓键压在画面上；页面的样式（横过来的提示）按阶段走
@@ -534,6 +1230,8 @@ function onPhase(next: Phase): void {
   document.body.dataset.phase = next;
   castDirty = true;
   menuDirty = true;
+  // 红包雨（11-26）完了回大厅：先换回闯关
+  if (next === 'lobby' && mode === 'rain') endRain();
   if (next === 'lobby') void resetSim();
   // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
   // 结算页的「再来一次」「下一关」从头开；从大厅开局时人数和摆关卡时不一样也重摆
@@ -586,7 +1284,7 @@ function name(i: number): string {
 /** 倒数时写的：不是闯关就带上玩法，分难度的带上难度。 */
 function countLabel(): string {
   const pre = [mode === 'climb' ? '' : modeName(mode), tiered(mode) ? tierName(tier) : ''].filter(Boolean);
-  return [...pre, levelTitle(level, levelIndex)].join(' · ');
+  return [...pre, pickLang(titleNow())].join(' · ');
 }
 
 /** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
@@ -597,6 +1295,7 @@ function fullResults(): Results {
     ...resultsOf(sim),
     ...(lastGoals ? { goals: lastGoals.goals, envelopes: lastGoals.envelopes } : {}),
     ...(sim.rules.mode === 'gold' ? goldTotals() : {}),
+    ...(sim.escort ? { escort: sim.escort.done } : {}),
   };
 }
 
@@ -639,6 +1338,7 @@ function goldScore(): string {
  */
 function goldWin(w: number | undefined): void {
   if (w === undefined) return;
+  award(roundNow().onWin([w], roundEnd()));
   roundWins[w] = (roundWins[w] ?? 0) + 1;
   castDirty = true;
   const done = (roundWins[w] ?? 0) >= CFG.goldRounds;
@@ -674,6 +1374,8 @@ function goldWin(w: number | undefined): void {
 /** 闯关、大团队：到顶了，算这一局的小目标、记下拿到的星和红包。 */
 function scoreGoals(): void {
   if (sim.rules.mode !== 'climb' && sim.rules.mode !== 'team') return;
+  // 自制关（11-26）：没有星、没有红包
+  if (isCustom(sim.level)) return;
   const got = sim.envelopes.flatMap((e, k) => (e.got ? [k] : []));
   const goals = goalsOf(sim.level, sim.players.length, { time: sim.time, deaths: sim.players.map((p) => p.deaths), envelopes: got.length });
   const rec = record(sim.level.id, goals, got);
@@ -703,11 +1405,22 @@ function showResults(): void {
   renderResults(resultsDom, fullResults(), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   const next = $<HTMLButtonElement>('nextBtn');
   next.hidden = !hasNext();
-  next.textContent = mode === 'last' || mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  next.textContent = mode === 'rain' ? tr('接着闯关', 'Back to climbing') : mode === 'last' || mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
+  // 红包雨（11-26）：彩蛋只下一次，不能再来；这一关红包全拿到了才出「彩蛋：红包雨」
+  $('againBtn').hidden = mode === 'rain';
+  $('rainBtn').hidden = !rainReady();
+  // 观众（11-26）：这一局谁先掉、押中没有；最准的观众
+  renderCrowdLine();
+  // 每日一关（11-26）：交上去了没有、排第几
+  renderDailyLine();
+  // 精彩回放（11-26）：这一局录下了一段才有
+  const hl = highlights.best;
+  $('replayBtn').hidden = !hl;
+  if (hl) $('replayBtn').textContent = tr(`▶ 精彩回放：${hl.moment.zh}`, `▶ Replay: ${hl.moment.en}`);
   // 电视局：手机上也能选下一步（电视那边可以不碰）
   $('padHint').hidden = phoneMode;
-  $('padHint').textContent = tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone');
+  $('padHint').textContent = hasNext() ? tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone') : tr('手机上按「再来一次」「回大厅」都行', 'Anyone can pick Again or Lobby on their phone');
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -718,9 +1431,14 @@ $('startBtn').addEventListener('click', () => {
 // 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
 $('againBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('nextBtn').addEventListener('click', () => {
+  // 红包雨下完了：换回闯关，接着下一关
+  if (mode === 'rain') endRain();
   goNext();
   link?.act({ type: 'START' });
 });
+$('rainBtn').addEventListener('click', startRain);
+$('replayBtn').addEventListener('click', playReplay);
+$('replaySkip').addEventListener('click', endReplay);
 // 表情（11-25）：这台设备上玩的人（手机局的房主、电视局里键盘加入的）顶栏的 😀
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => {
   const i = localIndex();
@@ -755,6 +1473,8 @@ lobbyBtn.addEventListener('click', () => {
 $('kbBtn').addEventListener('click', () => {
   keyboard = !keyboard;
   renderButtons();
+  renderAssistBtn();
+  renderNote();
   syncPlayers();
   renderLobby();
 });
@@ -785,6 +1505,8 @@ function renderButtons(): void {
   // 表情、放屁键（11-25）：这台设备上有人在玩（手机局的房主、电视局里键盘加入的）才有 😀 和 💨
   $('emoteBtn').hidden = !localOn();
   $('fartBtn').hidden = !localOn();
+  renderAchvBtn();
+  renderGachaBtn();
   modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
   modeBtn.title = phoneMode
     ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')
@@ -811,9 +1533,9 @@ function pickLevel(i: number): void {
 function renderLevel(): void {
   const list = listNow();
   if (phase === 'lobby') syncMusic();
-  $('levelName').textContent = levelTitle(level, levelIndex);
+  $('levelName').textContent = pickLang(titleNow());
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
-  if (mode === 'climb' || mode === 'team') {
+  if ((mode === 'climb' || mode === 'team') && !isCustom(level)) {
     const keys = goalTargets(level, Math.max(1, playerCount())).map((g) => g.key);
     const stars = document.createElement('span');
     stars.className = 'stars';
@@ -821,12 +1543,22 @@ function renderLevel(): void {
     stars.setAttribute('aria-label', tr(`拿到过 ${starsOf(level.id).length} 颗星，一共 ${keys.length} 颗`, `${starsOf(level.id).length} of ${keys.length} stars`));
     $('levelName').append(stars);
   }
-  const allEnv = LEVELS.reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
+  // 节日关（11-26）的红包也算：节日那几天才拿得到
+  const allEnv = [...LEVELS, ...FEST_LEVELS].reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
   const et = $('envTotal');
   et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
   et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
+  // 红包扭蛋机的键跟着攒的红包变（11-25）
+  renderGachaBtn();
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
-  $('levelTeach').textContent = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
+  const teach = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
+  // 节日关（11-26）：前面写「🎄 圣诞限定」；今天的每日一关（闯关）前面写「📅 每日一关」
+  const f = level.fest ? FESTS[level.fest] : null;
+  const pre = f ? `${f.emoji} ${tr(`${f.zh}限定`, `${f.en} special`)} · ` : dailyNow() ? `📅 ${tr('每日一关', 'Daily level')} · ` : '';
+  // 自制关（11-26）：没有「这关教」，写它是哪来的
+  $('levelTeach').textContent = isCustom(level) ? tr('🛠 自制关：关卡编辑器做的，没有星和红包', '🛠 Custom level from the editor: no stars or envelopes') : pre + teach;
+  renderFestBtn();
+  renderDailyBtn();
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
   $<HTMLButtonElement>('levelNext').disabled = levelIndex >= list.length - 1;
 }
@@ -857,7 +1589,7 @@ function playerNames(): string[] {
 function playerLook(i: number): Look {
   if (i === localIndex()) return localLook();
   const id = seatOrder[i];
-  return (id && link?.peers.get(id)?.look) || DEFAULT_LOOK;
+  return lockLook((id && link?.peers.get(id)?.look) || DEFAULT_LOOK, gachaSet);
 }
 /** 大厅里座位变了就重排玩家；玩的时候只跟着座位的来去增减，颜色跟座位走。 */
 function syncPlayers(): void {
@@ -878,7 +1610,9 @@ function syncPlayers(): void {
     if (!p || !peer) return;
     p.color = PLAYER_COLORS[peer.color] ?? p.color;
     sim.setItem(i, peer.item);
-    const look = peer.look ?? DEFAULT_LOOK;
+    sim.setAssist(i, peer.assist);
+    // 扭蛋机里的没在这台设备上扭到的，画默认的（11-25）
+    const look = lockLook(peer.look ?? DEFAULT_LOOK, gachaSet);
     stage.setPlayerStyle(i, { name: tagName(i, peer.name), color: p.color, look });
     sfx.setVoice(i, look.voice);
   });
@@ -888,6 +1622,7 @@ function syncPlayers(): void {
     if (p) {
       p.color = PLAYER_COLORS[localColor()] ?? p.color;
       sim.setItem(i, localItem());
+      sim.setAssist(i, localAssist());
       stage.setPlayerStyle(i, { name: tagName(i, localName()), color: p.color, look: localLook() });
       sfx.setVoice(i, localLook().voice);
     }
@@ -998,6 +1733,7 @@ function emoteFrom(i: number, e: EmoteId): void {
   const p = sim.players[i];
   showNow({ type: 'emote', player: i, emote: e, x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
   if (phase === 'lobby') sayInLobby(i, emoteWords(e), EMOTE_SHOW_S);
+  award(roundNow().onEmote(i));
 }
 
 /**
@@ -1011,7 +1747,226 @@ function fartFrom(i: number): void {
   const p = sim.players[i];
   showNow({ type: 'fart', player: i, kind: fartKind(), x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
   if (phase === 'lobby') sayInLobby(i, FART_WORDS, 1.4);
+  // 成就「熏到人了」：旁边（FART_REACH 以内）有活着的别人
+  const stank = !!p && sim.players.some((q, j) => j !== i && !q.dead && Math.hypot(q.body.x - p.body.x, q.body.y - p.body.y) <= FART_REACH);
+  award(roundNow().onFart(i, stank));
 }
+
+// ---------------------------------------------------------------- 成就（11-25）
+
+/** 各人有哪些：手柄按座位（连上时自己说、这一场拿到的加进去），这台设备上玩的人是 local（记在这台设备上）。 */
+const achvHave = new Map<string, Set<AchvId>>();
+let achvSim: Sim | null = null;
+let achvRound: AchvRound | null = null;
+
+/** 这一局的成就账（换了局面就重新记）。 */
+function roundNow(): AchvRound {
+  if (!achvRound || achvSim !== sim) {
+    achvSim = sim;
+    achvRound = new AchvRound({ mode: sim.rules.mode, tier: tierOfLevel(sim.level), long: !!sim.level.long });
+  }
+  return achvRound;
+}
+
+/** 到顶、赢了那一下的账。 */
+function roundEnd(): Parameters<AchvRound['onWin']>[1] {
+  return {
+    players: sim.players.length,
+    deaths: sim.players.reduce((n, p) => n + p.deaths, 0),
+    envelopes: { got: sim.envelopes.filter((e) => e.got).length, of: sim.envelopes.length },
+    goals: lastGoals?.goals ?? null,
+    escort: !!sim.escort?.done,
+  };
+}
+
+/** 第 i 个人是谁：手柄的座位，或者这台设备上玩的人（local）。 */
+function achvKey(i: number): string | null {
+  if (i === localIndex()) return 'local';
+  return seatOrder[i] ?? null;
+}
+
+function haveOf(key: string): Set<AchvId> {
+  let have = achvHave.get(key);
+  if (!have) {
+    have = new Set(key === 'local' ? loadAchvs() : []);
+    achvHave.set(key, have);
+  }
+  return have;
+}
+
+/**
+ * 发成就：以前拿过的不报。新的：记下（手柄的告诉那部手机记，这台设备上的记在这台设备上），
+ * 大屏上冒一条、响一声，手机局跟着快照发到每部手机。
+ */
+function award(list: readonly Award[]): void {
+  // 自制关（11-26）不算成就：谁都能做一关出生点挨着终点的
+  if (isCustom(sim.level)) return;
+  const fresh: { name: string; id: AchvId }[] = [];
+  for (const a of list) {
+    const key = achvKey(a.player);
+    if (!key) continue;
+    const have = haveOf(key);
+    if (have.has(a.id)) continue;
+    have.add(a.id);
+    if (key === 'local') {
+      saveAchvs(have);
+      renderAchvBtn();
+    } else link?.achv(key, a.id);
+    const p = sim.players[a.player];
+    showNow({ type: 'achv', player: a.player, id: a.id, x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
+    fresh.push({ name: name(a.player), id: a.id });
+  }
+  // 几个人一起拿到的写在一条里
+  for (const line of unlockLines(fresh)) trophyToast($('trophies'), line);
+}
+
+/** 大厅里这台设备上玩的人的「🏆 3/19」。 */
+function renderAchvBtn(): void {
+  const b = $<HTMLButtonElement>('achvBtn');
+  b.hidden = !localOn();
+  b.textContent = `🏆 ${achvCount(haveOf('local'))}`;
+}
+$('achvBtn').addEventListener('click', () => {
+  renderAchvList($('achvList'), haveOf('local'));
+  $<HTMLDialogElement>('achvDlg').showModal();
+});
+$('achvDone').addEventListener('click', () => $<HTMLDialogElement>('achvDlg').close());
+
+// ---------------------------------------------------------------- 红包扭蛋机（11-25）
+
+let gachaBusy = false;
+const gachaDlg = $<HTMLDialogElement>('gachaDlg');
+const reduceMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** 这一样叫什么（那一项的名字）。 */
+function gachaName(id: GachaId): string {
+  const g = GACHA.find((x) => x.id === id);
+  if (!g) return id;
+  const names = LOOK_NAMES[g.key] as Record<string, { zh: string; en: string }>;
+  const n = names[id];
+  return n ? tr(n.zh, n.en) : id;
+}
+
+/** 预览一样：默认的糯米团戴上它（嗓子画不出来，写个「喵」）。 */
+function gachaPreview(c: HTMLCanvasElement, id: GachaId): void {
+  const g = GACHA.find((x) => x.id === id);
+  drawLook(c, g ? ({ ...DEFAULT_LOOK, [g.key]: id } as Look) : DEFAULT_LOOK, PLAYER_COLORS[localColor()] ?? '#F28CA6');
+}
+
+/** 大厅里的「🎰 扭蛋机 · 🧧 12」。 */
+function renderGachaBtn(): void {
+  const have = coins(gacha, envelopeTotal());
+  const b = $('gachaBtn');
+  // 手机局的大厅挤：只写 🎰 和红包数，名字放在读屏的标签里
+  b.textContent = phoneMode ? `🎰 🧧 ${have}` : tr(`🎰 扭蛋机 · 🧧 ${have}`, `🎰 Prize machine · 🧧 ${have}`);
+  b.setAttribute('aria-label', tr(`红包扭蛋机：能扭的红包 ${have} 个`, `Prize machine: ${have} red envelopes to spend`));
+}
+
+/** 对话框里的那一行、扭的键、12 样的格子（打开的时候、扭完的时候画）；扭的时候照扭之前的画（不先露出来）。 */
+function renderGacha(save = gacha): void {
+  const have = coins(save, envelopeTotal());
+  const left = leftToWin(save);
+  renderGachaBtn();
+  $('gachaLine').textContent = left
+    ? tr(`攒的红包能扭：🧧 ${have}　扭一个要 🧧 ${GACHA_PRICE}　还有 ${left} 样没扭到`, `Red envelopes to spend: 🧧 ${have}   One spin: 🧧 ${GACHA_PRICE}   ${left} prizes left`)
+    : tr('12 样都扭到了！换装的时候都能选。', 'All 12 prizes won! Pick them under Customize.');
+  const go = $<HTMLButtonElement>('gachaPull');
+  go.textContent = left ? tr(`扭一个（🧧 ${GACHA_PRICE}）`, `Spin (🧧 ${GACHA_PRICE})`) : tr('扭完了', 'All won');
+  go.disabled = gachaBusy || !left || have < GACHA_PRICE;
+  const list = $('gachaPrizes');
+  list.replaceChildren(
+    ...GACHA.map((g) => {
+      const li = document.createElement('li');
+      const got = save.got.includes(g.id);
+      li.className = `gp${got ? ' got' : ''}`;
+      if (got) {
+        const c = document.createElement('canvas');
+        c.width = 120;
+        c.height = 120;
+        c.setAttribute('aria-hidden', 'true');
+        gachaPreview(c, g.id);
+        const nm = document.createElement('small');
+        nm.textContent = g.key === 'voice' ? `🐱 ${gachaName(g.id)}` : gachaName(g.id);
+        li.append(c, nm);
+      } else {
+        const q = document.createElement('span');
+        q.className = 'q';
+        q.textContent = '？';
+        q.setAttribute('aria-label', tr('还没扭到', 'Not won yet'));
+        li.append(q);
+      }
+      return li;
+    }),
+  );
+}
+
+function openGacha(): void {
+  renderGacha();
+  $('gachaPrize').hidden = true;
+  if (!gachaDlg.open) gachaDlg.showModal();
+}
+
+/**
+ * 扭一个：红包不够、扭完了就说一声；不然扭把手转两圈、球晃一晃、掉出一个蛋、蛋打开是新东西
+ * （减少动效时直接打开）。扭到的记下来，菜单发给手柄（换装时就能选了），大家的样子重新锁一遍。
+ */
+function gachaPull(): void {
+  if (gachaBusy) return;
+  const r = pull(gacha, envelopeTotal());
+  if (!r.ok) {
+    banner(r.why === 'done' ? tr('12 样都扭到了', 'All 12 prizes already won') : tr(`红包不够：还差 🧧 ${r.need} 个，去闯关拿`, `Not enough red envelopes: ${r.need} more. Go climb for them`), 'bad');
+    return;
+  }
+  const before = gacha;
+  gacha = r.save;
+  gachaSet = new Set(gacha.got);
+  saveGacha(gacha);
+  gachaBusy = true;
+  renderGacha(before);
+  $('gachaPrize').hidden = true;
+  const m = $('machine');
+  const reveal = (): void => {
+    m.classList.remove('spin', 'drop');
+    gachaPreview($<HTMLCanvasElement>('prizeLook'), r.id);
+    $('prizeName').textContent = tr(`${gachaName(r.id)}！`, `${gachaName(r.id)}!`);
+    $('gachaPrize').hidden = false;
+    music.flourish();
+    gachaBusy = false;
+    renderGacha();
+    syncPlayers();
+    renderLobby();
+    menuDirty = true;
+  };
+  if (reduceMotion()) {
+    reveal();
+    return;
+  }
+  m.classList.add('spin');
+  for (let k = 0; k < 6; k++) setTimeout(() => sfx.tick(), k * 150);
+  setTimeout(() => m.classList.add('drop'), 900);
+  setTimeout(reveal, 1500);
+}
+
+$('gachaBtn').addEventListener('click', openGacha);
+$('slowBtn').addEventListener('click', () => {
+  sfx.tick();
+  setSlow(!slowMode);
+});
+$('assistBtn').addEventListener('click', () => {
+  sfx.tick();
+  setLocalAssist(!localAssist());
+});
+$('escortBtn').addEventListener('click', () => {
+  sfx.tick();
+  setEscort(!escortOn);
+});
+$('festBtn').addEventListener('click', () => {
+  sfx.tick();
+  playFest();
+});
+$('gachaPull').addEventListener('click', gachaPull);
+$('gachaDone').addEventListener('click', () => gachaDlg.close());
+renderGachaBtn();
 
 /** 座位卡头上挂那个人刚说的一句（还没到点的话）。 */
 function withSay<T extends HTMLElement>(card: T, i: number): T {
@@ -1034,10 +1989,10 @@ function renderLobby(): void {
   seats.forEach((s, i) => {
     const peer = link?.peers.get(s.id);
     const sub = !s.connected ? tr('掉线', 'Offline') : peer?.direct ? tr('直连', 'Direct') : peer?.relayed ? tr('绕路', 'Relayed') : tr('连接中', 'Connecting');
-    box.append(withSay(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', peer?.look ?? DEFAULT_LOOK, sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
+    box.append(withSay(seatCard((peer?.assist ? '🌱 ' : '') + s.name, PLAYER_COLORS[s.color] ?? '#fff', lockLook(peer?.look ?? DEFAULT_LOOK, gachaSet), sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
   });
   if (localOn()) {
-    const card = withSay(seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length), items ? localItem() : undefined), seats.length);
+    const card = withSay(seatCard((localAssist() ? '🌱 ' : '') + localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length), items ? localItem() : undefined), seats.length);
     // 手机局：点自己那张卡换个样子（随机），这部手机以后当手柄也用这个
     if (phoneMode) {
       const b = document.createElement('button');
@@ -1046,7 +2001,7 @@ function renderLobby(): void {
       b.setAttribute('aria-label', tr('换个样子', 'New look'));
       b.append(...card.childNodes);
       b.addEventListener('click', () => {
-        hostLook = randomLook();
+        hostLook = randomLook(Math.random, gachaSet);
         try {
           localStorage.setItem('hang-on:look', JSON.stringify(hostLook));
         } catch {
@@ -1144,6 +2099,11 @@ function renderAll(): void {
   if (lastFatal) $('fatalLine').textContent = fatalLine(lastFatal);
   if (phase === 'results') showResults();
   if (phase === 'countdown') $('countLevel').textContent = countLabel();
+  if (replay) $('replayBadge').textContent = replayLabel(replay.clip);
+  renderCrowd();
+  voteShown = '';
+  renderSlowBtn();
+  renderAssistBtn();
   syncPlayers();
 }
 onLang(renderAll);
@@ -1310,13 +2270,28 @@ function sendStatus(): void {
 
 function onEvents(): void {
   for (const ev of sim.events) {
+    // 成就（11-25）：松手、召唤、接住、红包、道具、被撞晕、掉进汤里
+    award(roundNow().onEvent(ev));
+    // 精彩回放（11-26）：值得回放的事记一下，从事前 3 秒录到事后 1.5 秒
+    const hm = momentOf(ev, sim.time, name);
+    if (hm) highlights.mark(hm);
     if (ev.type === 'win' && sim.rules.mode === 'gold') {
       goldWin(ev.who?.[0]);
       continue;
     }
+    if (ev.type === 'win' && sim.rain) {
+      // 红包雨（11-26）：接到的都放进扭蛋机
+      gacha = { ...gacha, bonus: (gacha.bonus ?? 0) + sim.rain.caught.reduce((s, n) => s + n, 0) };
+      saveGacha(gacha);
+      renderGachaBtn();
+    }
     if (ev.type === 'win') {
       music.win();
       scoreGoals();
+      // 每日一关（11-26）：今天这一关在闯关里到顶就交成绩
+      if (sim.rules.mode === 'climb' && dailyNow() && !sim.rain) void submitDaily();
+      // 成就：到顶（大家）、比谁先和坐不住赢的人
+      award(roundNow().onWin(ev.who, roundEnd()));
       // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
       banner(resultsTitle(resultsOf(sim), name));
       const won = sim;
@@ -1325,10 +2300,19 @@ function onEvents(): void {
       }, 2600);
     }
     if (ev.type === 'death' || ev.type === 'out') music.duck();
+    // 观众（11-26）：这一局第一个掉的，押中没有；投出来的那一样过去了
+    if (ev.type === 'death' || ev.type === 'out') crowdFell(ev.player);
+    if (ev.type === 'crowdfx' && !ev.on) crowdFxOff(ev.fx);
     if (ev.type === 'drone' && ev.phase === 'arrive') banner(tr('🛸 外卖到了！抓住袋子底下的横杆，带你去下一个检查点', '🛸 Delivery! Grab the bar under the bag for a lift to the next checkpoint'));
     // 端托盘（后厨，A10）
     if (ev.type === 'tray' && ev.phase === 'spill') banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
     if (ev.type === 'tray' && ev.phase === 'home') banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+    // 护送大元宝（11-26）
+    if (ev.type === 'escort' && ev.phase === 'home') {
+      banner(tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it!'));
+      music.flourish();
+    }
+    if (ev.type === 'escort' && ev.phase === 'back') banner(tr('大元宝掉了，回到检查点', 'The ingot fell. It is back at the checkpoint'), 'bad');
     // 涨潮（A12）
     if (ev.type === 'tide') {
       const tb = tideBanner(ev.phase, sim.level.world);
@@ -1377,6 +2361,7 @@ function castFor(seat: string): Cast {
     mode: sim.rules.mode,
     ...(sim.rules.teams ? { teams: sim.rules.teams } : {}),
     ...(sim.rules.mode === 'gold' ? { gold: { round: goldRound, wins: goldWins() } } : {}),
+    ...(isCustom(sim.level) && customCode ? { custom: customCode } : {}),
   };
 }
 
@@ -1405,6 +2390,7 @@ function menuFor(): Menu {
       n: levelIndex + 1,
       of: list.length,
       name: level.name ?? { zh: level.id, en: level.id },
+      title: titleNow(),
       teach: withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()),
       // 小目标的星（A9b）：这台主机上这一关拿到过的（闯关、大团队）
       ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),
@@ -1416,6 +2402,12 @@ function menuFor(): Menu {
     ...(phase === 'results'
       ? { results: fullResults(), names: sim.players.map((p, i) => ({ name: name(i), color: p.color })), ...(level.par ? { par: level.par.seconds } : {}) }
       : {}),
+    gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
+    ...(mode === 'climb' || mode === 'team' ? { escort: escortOn } : {}),
+    slow: slowMode,
+    ...(rainReady() ? { rain: true } : {}),
+    // 精彩回放在电视上放（手机局里只有房主的手机放，别的手机不出这个键）
+    ...(phase === 'results' && !phoneMode && highlights.best ? { replay: { zh: highlights.best.moment.zh, en: highlights.best.moment.en } } : {}),
   };
 }
 
@@ -1429,13 +2421,20 @@ function runCmd(c: PadCmd): void {
       link?.act({ type: 'START' });
       break;
     case 'again':
-      if (phase !== 'results') return;
+      if (phase !== 'results' || mode === 'rain') return;
       link?.act({ type: 'START' });
       break;
     case 'next':
       if (phase !== 'results' || !hasNext()) return;
+      if (mode === 'rain') endRain();
       goNext();
       link?.act({ type: 'START' });
+      break;
+    case 'rain':
+      startRain();
+      break;
+    case 'replay':
+      playReplay();
       break;
     case 'lobby':
       if (phase === 'lobby') return;
@@ -1466,10 +2465,26 @@ function runCmd(c: PadCmd): void {
       setTier(t);
       break;
     }
+    case 'gacha':
+      // 红包扭蛋机（11-25）：手柄上按了扭一个，在电视上扭给大家看
+      if (phase !== 'lobby') return;
+      openGacha();
+      gachaPull();
+      break;
     case 'teams':
       if (phase !== 'lobby') return;
       sfx.tick();
       setTeams(!!c.on);
+      break;
+    case 'slow':
+      if (phase !== 'lobby') return;
+      sfx.tick();
+      setSlow(!!c.on);
+      break;
+    case 'escort':
+      if (phase !== 'lobby') return;
+      sfx.tick();
+      setEscort(!!c.on);
       break;
     default:
       return;
@@ -1537,7 +2552,8 @@ function frameBody(now: number): void {
   last = now;
   feedInputs();
   if (phase === 'playing') {
-    acc += dt * stage.timeScale;
+    // 观众投的慢动作（11-26）、大厅里开的「慢一点」（长辈小孩模式）：大屏自己放慢
+    acc += dt * stage.timeScale * (now < slowUntil ? SLOW_SCALE : 1) * (slowMode ? SLOW_MODE : 1);
     while (acc >= DT) {
       sim.step(DT);
       stage.handleEvents(sim, sim.events);
@@ -1545,6 +2561,7 @@ function frameBody(now: number): void {
       tension.events(sim.events);
       if (phoneMode) recent.push(sim.events);
       onEvents();
+      recordHighlight();
       acc -= DT;
     }
     // 背景音乐跟着局面紧张起来（有人一只手挂在深坑上、贴着要命的东西、在往下掉、快到了）
@@ -1558,7 +2575,10 @@ function frameBody(now: number): void {
     renderButtons();
   }
   broadcast(now);
-  if (renderOn) {
+  crowdTick(now);
+  crowdSend(now);
+  if (renderOn && replay) drawReplay(now, dt);
+  else if (renderOn) {
     stage.updateCamera(sim, dt);
     stage.draw(sim, dt);
   }
@@ -1569,6 +2589,10 @@ function frameBody(now: number): void {
   // 抢金元宝（A9d）：第几局、比分
   if (mode === 'gold' && phase === 'playing') {
     renderGoldScore($('goldScore'), goldRound, goldWins(), name, (i) => sim.players[i]?.color ?? '#fff');
+  }
+  // 红包雨（11-26）：还剩几秒、每个人接到几个
+  if (mode === 'rain' && phase === 'playing' && sim.rain) {
+    renderGoldScore($('goldScore'), 0, sim.rain.caught.slice(0, sim.players.length), name, (i) => sim.players[i]?.color ?? '#fff', tr(`🧧 还剩 ${Math.ceil(sim.rain.left)} 秒`, `🧧 ${Math.ceil(sim.rain.left)} s left`));
   }
   // 红包（A9b）：这一局拿到几个了
   const envN = sim.envelopes.length;
@@ -1595,6 +2619,15 @@ requestAnimationFrame(frame);
   get seatOrder() {
     return seatOrder;
   },
+  /** 观众（11-26）：账、正在起作用的那一样；马上开一轮投票。 */
+  get crowd() {
+    return crowd;
+  },
+  get crowdFx() {
+    return crowdFx;
+  },
+  crowdVoteNow: () => crowd.voteNow(performance.now()),
+  crowdFxNow: (fx: FxId) => phase === 'playing' && startCrowdFx(fx, performance.now()),
   get level() {
     return level;
   },

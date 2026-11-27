@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { bus, clave, ctxTimeAt, tone, voice, type Bus } from "../../lib/audio/engine";
+import { haptic } from "../../lib/sfx";
 import { FOLLOW_DEG } from "../../shared/engine/games/limbo";
 import type { LimboKind } from "../../shared/protocol";
 import { speaker, type Lang, type Line } from "./voice";
@@ -19,6 +20,9 @@ import { speaker, type Lang, type Line } from "./voice";
  * it (「再往后仰」「回来一点」「往左歪」), again every few seconds while you stay off the bar, and 「到位了」
  * (「跟住了」 at a moving bar) when you get back on after being off. Blind lean says nothing: not
  * seeing is the game.
+ * And through the chest, on phones that can (Android; iPhone Safari has no vibration): one long buzz
+ * for lean back, two short for come up, three for tilt, one tap for there, each time a line is said,
+ * and a thud for a wobble. The phone is pressed to the body: a buzz is felt before a sound is heard.
  */
 
 export type Say = "down" | "up" | "side" | "on" | null;
@@ -48,6 +52,9 @@ export type Measure = {
   lost?: number;
   /** hold steady: when the last wobble was (performance time, 0 for none) */
   wobbleAt?: number;
+  /** at the bar, and tilted enough, as the measuring hook judges them (with a little give once there, measure.ts); without them, the lean and tilt are compared as they stand */
+  over?: boolean;
+  sideOver?: boolean;
 };
 
 /** What to say to someone at this kind of bar, from what the phone measures. */
@@ -69,10 +76,10 @@ function coachingOf(kind: LimboKind, m: Measure): Coaching {
     return { say: d < 0 ? "down" : "up", urgency: Math.max(m.lost ?? 0, far(Math.abs(d) - FOLLOW_DEG, 30)), hold: 0, wobbleAt: 0 };
   }
   const wobbleAt = m.wobbleAt ?? 0;
-  if (m.lean < m.target) return { say: "down", urgency: far(m.target - m.lean, 40), hold: 0, wobbleAt };
+  if (!(m.over ?? m.lean >= m.target)) return { say: "down", urgency: far(m.target - m.lean, 40), hold: 0, wobbleAt };
   const side = m.side ?? 0;
   const want = m.want ?? 0;
-  if (kind === "tilt" && want !== 0 && !(want > 0 ? side >= want : side <= want)) return { say: "side", urgency: 0, hold: 0, wobbleAt };
+  if (kind === "tilt" && want !== 0 && !(m.sideOver ?? (want > 0 ? side >= want : side <= want))) return { say: "side", urgency: 0, hold: 0, wobbleAt };
   return { say: "on", urgency: 0, hold: m.hold ?? 0, wobbleAt };
 }
 
@@ -100,7 +107,11 @@ function clicks(b: Bus, at: number) {
 function buzz(b: Bus) {
   tone(b, { f: 98, type: "square", peak: 0.16, attack: 0.005, decay: 0.15, wet: 0.1 });
   tone(b, { f: 147, type: "sawtooth", peak: 0.06, attack: 0.005, decay: 0.12, wet: 0.1 });
+  haptic(45);
 }
+
+/** What each line feels like through the chest (ms on, off, on…): long for back, short and double for up, triple for a tilt, a tap for there. */
+const FELT: Record<Line, number[]> = { down: [70], up: [25, 45, 25], left: [20, 35, 20, 35, 20], right: [20, 35, 20, 35, 20], on: [15], kept: [15] };
 
 type Hum = { osc: OscillatorNode; low: OscillatorNode; amp: GainNode };
 function makeHum(b: Bus): Hum {
@@ -146,9 +157,11 @@ export function startCoach(read: () => Coaching, grid?: Grid, lang: Lang = "zh")
   let spokenUntil = 0;
   let awayFrom = 0;
   const speak = (line: Line, t: number) => {
+    // (said once, and felt once, whether or not the line is recorded: the repeats go by spokeAt)
+    spokeAt = t;
+    haptic(FELT[line]);
     const dur = words.say(line);
     if (!dur) return;
-    spokeAt = t;
     spokenUntil = t + dur;
     // the music under the words, then back to where the coach has it
     const g = b.music.gain;

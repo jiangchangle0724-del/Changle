@@ -5,14 +5,14 @@
 // that it never passes `stock`: an order that would take more than is left fails as a whole.
 // Every order carries a `rev` that goes up with each change; a change made from an older reading
 // changes nothing and says so, and the caller reads again.
-import type { Application, ApplicationState, MyOffer, MyShop } from "../api";
+import type { Application, ApplicationState, HomeOffer, HomeShop, MyOffer, MyShop } from "../api";
 import { DECLARATION, type Decision, type NewApplication } from "../engine/apply";
 import type { Edit, Used } from "../engine/edit";
 import { PHOTO_RE } from "../engine/ids";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
 import type { NewShop, ShopWords } from "../engine/shop";
-import type { DeliveryRule, Item, Offer, OfferBook, OfferStatus, Order, OrderLine, PickupPoint, Roster, Shop } from "../engine/types";
+import { weighed, type DeliveryRule, type Item, type Offer, type OfferBook, type OfferStatus, type Order, type OrderLine, type PickupPoint, type Roster, type Shop, type ShopKind, type Unit } from "../engine/types";
 import type { RosterEntry } from "../engine/view";
 
 type Row = Record<string, unknown>;
@@ -36,6 +36,7 @@ const itemOf = (r: Row): Item => ({
   least: num(r.least),
   stock: numOrNull(r.stock),
   perBuyer: numOrNull(r.per_buyer),
+  case: numOrNull(r.case_qty),
   sold: num(r.sold),
   allergens: text(r.allergens),
 });
@@ -53,7 +54,7 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
         "SELECT f.id AS offer_id, f.title, f.note, f.status AS offer_status, f.closes_at, f.roster, s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ?",
       )
       .bind(offerId),
-    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
+    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
     db.prepare("SELECT id, name, address, hours FROM pickup_points WHERE offer_id = ? ORDER BY pos").bind(offerId),
     db.prepare("SELECT id, label, min_total, fee, free_from, hours FROM delivery_rules WHERE offer_id = ? ORDER BY pos").bind(offerId),
   ]);
@@ -338,6 +339,61 @@ export async function saveShopWords(db: D1Database, shopId: string, words: ShopW
     .run();
 }
 
+/** Whether a shop is shown on the tool's home: its own people choose (shown unless they say not). */
+export async function shopListed(db: D1Database, shopId: string): Promise<boolean> {
+  const row = await db.prepare("SELECT listed FROM shops WHERE id = ?").bind(shopId).first<Row>();
+  return num(row?.listed ?? 1) === 1;
+}
+
+export async function setShopListed(db: D1Database, shopId: string, listed: boolean): Promise<void> {
+  await db.prepare("UPDATE shops SET listed = ? WHERE id = ?").bind(listed ? 1 : 0, shopId).run();
+}
+
+/**
+ * The tool's home: the group buys open now at live shops that are shown there, soonest to close
+ * first (40 at most), each with what its card says; and those shops, newest first (60 at most).
+ * Only what the group buys' and shops' own pages show already.
+ */
+export async function homeBook(db: D1Database, now: number): Promise<{ offers: HomeOffer[]; shops: HomeShop[] }> {
+  const rows = (await db.prepare("SELECT f.id, f.title, f.closes_at, f.roster, s.slug, s.name, s.kind FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.status = 'open' AND f.closes_at > ? AND s.status = 'live' AND s.listed = 1 ORDER BY f.closes_at LIMIT 40").bind(now).all<Row>()).results;
+  const shopRows = (await db.prepare("SELECT slug, name, kind, about FROM shops WHERE status = 'live' AND listed = 1 ORDER BY created_at DESC LIMIT 60").all<Row>()).results;
+  const open = new Map<string, number>();
+  for (const row of rows) open.set(text(row.slug), (open.get(text(row.slug)) ?? 0) + 1);
+  const shops = shopRows.map((row) => ({ slug: text(row.slug), name: text(row.name), kind: row.kind as ShopKind, about: text(row.about), open: open.get(text(row.slug)) ?? 0 }));
+  if (!rows.length) return { offers: [], shops };
+
+  const ids = rows.map((row) => text(row.id));
+  const marks = ids.map(() => "?").join(", ");
+  const [items, points, rules, orders] = await db.batch<Row>([
+    db.prepare(`SELECT offer_id, name, unit, photo FROM items WHERE offer_id IN (${marks}) ORDER BY offer_id, pos`).bind(...ids),
+    db.prepare(`SELECT offer_id, COUNT(*) AS n FROM pickup_points WHERE offer_id IN (${marks}) GROUP BY offer_id`).bind(...ids),
+    db.prepare(`SELECT offer_id, label, free_from FROM delivery_rules WHERE offer_id IN (${marks}) ORDER BY offer_id, pos`).bind(...ids),
+    db.prepare(`SELECT offer_id, COUNT(*) AS n FROM orders WHERE offer_id IN (${marks}) AND status != 'cancelled' GROUP BY offer_id`).bind(...ids),
+  ]);
+  const of = <T>(list: Row[], id: string, pick: (row: Row) => T): T[] => list.filter((row) => row.offer_id === id).map(pick);
+  const offers = rows.map((row): HomeOffer => {
+    const id = text(row.id);
+    const goods = of(items.results, id, (item) => ({ name: text(item.name), unit: item.unit as Unit, photo: typeof item.photo === "string" && PHOTO_RE.test(item.photo) ? item.photo : null }));
+    const areas = of(rules.results, id, (rule) => ({ label: text(rule.label), freeFrom: rule.free_from === null ? null : num(rule.free_from) }));
+    const free = areas.map((area) => area.freeFrom).filter((cents): cents is number => cents !== null);
+    return {
+      id,
+      title: text(row.title),
+      closesAt: num(row.closes_at),
+      shop: { slug: text(row.slug), name: text(row.name), kind: row.kind as ShopKind },
+      orders: row.roster === "off" ? null : num(of(orders.results, id, (count) => count.n)[0] ?? 0),
+      photo: goods.find((item) => item.photo)?.photo ?? null,
+      goods: goods.slice(0, 12).map((item) => item.name),
+      items: goods.length,
+      weighed: goods.some((item) => weighed(item.unit)),
+      pickups: num(of(points.results, id, (count) => count.n)[0] ?? 0),
+      areas: areas.map((area) => area.label),
+      freeFrom: free.length ? Math.min(...free) : null,
+    };
+  });
+  return { offers, shops };
+}
+
 /** A shop's group buys as anyone may see them (no drafts), the one that closes last first. */
 export async function shopOffers(db: D1Database, shopId: string): Promise<Offer[]> {
   const rows = (await db.prepare("SELECT id, shop_id, title, note, status, closes_at, roster FROM offers WHERE shop_id = ? AND status != 'draft' ORDER BY closes_at DESC LIMIT 30").bind(shopId).all<Row>()).results;
@@ -506,9 +562,9 @@ export async function insertOffer(db: D1Database, shopId: string, offer: NewOffe
       db.prepare("INSERT INTO offers (id, shop_id, title, note, status, closes_at, roster, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(id, shopId, offer.title, offer.note, offer.open ? "open" : "draft", offer.closesAt, offer.roster, now),
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'), json_extract(j.value, '$.photo'),
-             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.case'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j`,
         )
         .bind(id, withIds(offer.items)),
@@ -558,12 +614,12 @@ export async function saveEdit(db: D1Database, offerId: string, edit: Edit, newI
       // (WHERE true: without it SQLite reads the ON of ON CONFLICT as the join's. A picture stays as it is: the document has none.)
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'),
-             json_extract(j.value, '$.photo'), json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.photo'), json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.case'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j WHERE true
            ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, section = excluded.section, name = excluded.name, detail = excluded.detail, photo = excluded.photo, price = excluded.price, unit = excluded.unit,
-             step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, allergens = excluded.allergens
+             step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, case_qty = excluded.case_qty, allergens = excluded.allergens
            WHERE items.offer_id = ?1`,
         )
         .bind(offerId, withIds(edit.items)),

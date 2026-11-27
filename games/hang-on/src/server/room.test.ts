@@ -2,11 +2,12 @@
  * 房间逻辑，用手拨的时钟直接驱动：进出房、座位、阶段、转发、主机 30 秒不回来房间作废、座位宽限。
  */
 import { describe, expect, test } from 'vitest';
-import { HOST_GRACE_MS, IDLE_MS, PAD_GRACE_MS, type ServerMsg } from '../net/protocol';
+import { CROWD_BURST, CROWD_RATE, HOST_GRACE_MS, IDLE_MS, MAX_AUDIENCE, PAD_GRACE_MS, type ServerMsg } from '../net/protocol';
 import { cleanName, makeCode, NO_ROOM, Room, type From, type Out } from './room';
 
 const HOST: From = { role: 'host', seat: null };
-const WATCH: From = { role: 'watch', seat: null };
+const WATCH: From = { role: 'watch', seat: 'watch-00000001' };
+const watcher = (n: number): From => ({ role: 'watch', seat: `w-${String(n).padStart(8, '0')}` });
 const ANN: From = { role: 'pad', seat: 'ann-00000001' };
 const BOB: From = { role: 'pad', seat: 'bob-00000002' };
 const pad = (n: number): From => ({ role: 'pad', seat: `pad-${String(n).padStart(8, '0')}` });
@@ -24,17 +25,42 @@ const lastRoom = (out: Out[]) => {
 };
 
 describe('进出房', () => {
-  test('主机进来，手柄分到座位和颜色，观众只计数', () => {
+  test('主机进来，手柄分到座位和颜色，观众不占座位', () => {
     const { r } = room();
     expect(r.connect(HOST)).toBeNull();
     expect(r.connect(ANN, '  Ann  ')).toBeNull();
     expect(r.connect(BOB)).toBeNull();
-    expect(r.connect(WATCH)).toBeNull();
+    expect(r.connect(WATCH, '小王')).toBeNull();
     const v = lastRoom(r.flush().out)!;
     expect(v.hostConnected).toBe(true);
     expect(v.seats.map((s) => [s.name, s.color])).toEqual([['Ann', 0], ['糯米团', 1]]);
     expect(v.watchers).toBe(1);
+    expect(v.audience).toEqual([{ id: WATCH.seat, name: '小王' }]);
     expect(v.phase).toBe('lobby');
+  });
+
+  test('观众（11-26）：没带 id 进不来；刷新了还是他（不多算）；走了就没了；满了进不来', () => {
+    const { r } = room();
+    expect(r.connect({ role: 'watch', seat: null })).toBe('badRequest');
+    expect(r.connect(WATCH, '小王')).toBeNull();
+    expect(r.connect(WATCH, '老王')).toBeNull();
+    expect(r.view().audience).toEqual([{ id: WATCH.seat, name: '老王' }]);
+    r.disconnect(WATCH);
+    expect(r.view().watchers).toBe(0);
+    expect(r.view().audience).toBeUndefined();
+    for (let i = 1; i <= MAX_AUDIENCE; i++) expect(r.connect(watcher(i), `观众${i}`)).toBeNull();
+    expect(r.connect(watcher(MAX_AUDIENCE + 1))).toBe('full');
+    expect(r.connect(pad(1))).toBeNull(); // 观众满了不碍着手柄
+    expect(r.view().watchers).toBe(MAX_AUDIENCE);
+  });
+
+  test('老房间（存的时候还没有观众名单）照样能进观众', () => {
+    const now = 1_000_000;
+    const d = Room.create('ABCD', now);
+    delete (d as { audience?: unknown }).audience;
+    const r = new Room(d, () => now);
+    expect(r.connect(WATCH, '小王')).toBeNull();
+    expect(r.view().audience?.length).toBe(1);
   });
 
   test('第 7 个手柄进不来，掉线的座位回来还是原来的颜色', () => {
@@ -168,6 +194,51 @@ describe('转发', () => {
       { to: { seat: ANN.seat }, msg: { t: 'relay', from: 'host', data: { k: 'ping', id: 7, at: 123.4 } } },
       { to: 'host', msg: { t: 'relay', from: { seat: ANN.seat }, data: { k: 'pong', id: 7, at: 123.4 } } },
     ]);
+  });
+
+  test('观众（11-26）：只能跟主机说 crowd；主机能发给某个观众、所有观众；发给不在的观众不送', () => {
+    const { r } = room();
+    r.connect(HOST);
+    r.connect(ANN);
+    r.connect(WATCH, '小王');
+    r.flush();
+    r.handle(WATCH, { t: 'relay', to: 'host', data: { k: 'crowd', c: { do: 'cheer', e: 'lol' } } });
+    r.handle(WATCH, { t: 'relay', to: 'host', data: { k: 'input', i: { ax: 1, ay: 0, gl: true, gr: false } } });
+    r.handle(WATCH, { t: 'relay', to: { seat: ANN.seat! }, data: { k: 'crowd', c: { do: 'hello' } } });
+    r.handle(watcher(9), { t: 'relay', to: 'host', data: { k: 'crowd', c: { do: 'hello' } } }); // 没进来的
+    const state = { k: 'crowdState', s: { phase: 'lobby' } } as never;
+    r.handle(HOST, { t: 'relay', to: 'audience', data: state });
+    r.handle(HOST, { t: 'relay', to: { watch: WATCH.seat! }, data: state });
+    r.handle(HOST, { t: 'relay', to: { watch: 'w-nobody-0' }, data: state });
+    expect(msgs(r.flush().out)).toEqual([
+      { to: 'host', msg: { t: 'relay', from: { watch: WATCH.seat }, data: { k: 'crowd', c: { do: 'cheer', e: 'lol' } } } },
+      { to: 'audience', msg: { t: 'relay', from: 'host', data: state } },
+      { to: { watch: WATCH.seat }, msg: { t: 'relay', from: 'host', data: state } },
+    ]);
+  });
+
+  test('观众说话限速：一下最多 CROWD_BURST 句，之后每秒 CROWD_RATE 句', () => {
+    const { r, clock } = room();
+    r.connect(HOST);
+    r.connect(WATCH, '小王');
+    r.flush();
+    const say = () => r.handle(WATCH, { t: 'relay', to: 'host', data: { k: 'crowd', c: { do: 'cheer', e: 'clap' } } });
+    for (let i = 0; i < CROWD_BURST + 5; i++) say();
+    expect(msgs(r.flush().out).length).toBe(CROWD_BURST);
+    clock.advance(1000);
+    for (let i = 0; i < CROWD_BURST; i++) say();
+    expect(msgs(r.flush().out).length).toBe(CROWD_RATE);
+  });
+
+  test('观众 ping 得到 pong；房间结束观众一起下线', () => {
+    const { r, clock } = room();
+    r.connect(HOST);
+    r.connect(WATCH, '小王');
+    r.flush();
+    r.handle(WATCH, { t: 'ping', id: 5 });
+    expect(msgs(r.flush().out)).toEqual([{ to: { watch: WATCH.seat }, msg: { t: 'pong', id: 5, at: clock.now } }]);
+    r.handle(HOST, { t: 'act', action: { type: 'END' } });
+    expect(closes(r.flush().out)).toContainEqual({ close: 'audience', key: 'ended' });
   });
 
   test('ping 得到房间时钟的 pong', () => {

@@ -47,6 +47,42 @@ instead, `site/src/party/dj/`.)
   (from its start, chats between dances counted), to sit down for a few minutes and have some
   water (`Results.remind`, `finish()` in `src/server/session.ts`). A word, not a lock: the host can
   start the next dance at once.
+- **Gold moves** (as in the dance games): the last beat of every 64 of a dance (8 eight-counts, the
+  end of a long phrase) and its very last beat, none in the 16 before the last (`isGoldBeat` in
+  `src/shared/show.ts`). The TV and the phones say it's coming four beats ahead (「金色动作还有 3
+  拍」, then 「就是这一拍，用力！」) and light the count gold; on it the coach lights up all over. A
+  player who moves on it (on the beat at medium and hard, near it on easy: `goldOk`/`goldHit` in
+  `src/shared/taps.ts`) gets 「金色！」 on the phone for a moment and a buzz (phones that can; not
+  iPhones), and their little dancer a gold ring and sparks. The phones' pulses say when their
+  verdict is on a gold move (`g`); once every dancer's has come (or a second after it was heard)
+  the TV cheers beside the floor's combo, 「金色动作！N 人跳中」, with fireworks when half or more
+  got it. The results count each dancer's (`PlayerResult.gold` of `Results.golds`); none in the
+  metronome.
+- **The camera mode** (as Just Dance 2026's Camera Controller, which is solo; here every player can
+  have their own): 开摄像头 on a phone, which then stands 2 to 3 m away facing its player, and its
+  camera watches the whole body. The pose model is MediaPipe's Pose Landmarker (its lite model,
+  `assets/camera/pose_landmarker_lite.task`, Apache 2.0, from Google's model store) run on the phone
+  by the `@mediapipe/tasks-vision` package's WebAssembly (with SIMD, and without for older phones);
+  the build copies both to `/party/camera/`, and the phone page loads `/party/camera.js` with them
+  only when its player turns the camera on (about 0.2 MB of script, 11 MB of WebAssembly and 6 MB
+  of model the first time; the page itself stays as small). The picture never leaves the phone.
+  `src/client/camera/`: `sense.ts` opens the camera, runs the model on each frame (GPU, else CPU),
+  keeps to the player it saw first when others walk through, draws the body on the preview (the
+  front camera as a mirror) and says whether it sees all of them (头到脚都在 / 往后退一点);
+  `body.ts` turns a body into its bones' directions (upper arms, forearms, thighs, shins, feet and
+  the back, with the coach's sides: the player's right is the coach's R, everyone's mirror; towards
+  the camera counted half), the coach's worked out from its Pose with the rig's own sizes, turns
+  and bends (`coach/sizes.ts`), a player's from the model's landmarks; `match.ts` judges each beat:
+  where the player's moves from half a beat before it to a quarter after best line up with the
+  coach's (poses, and how each part moves: the same way as the coach's, and at least a share as
+  much, so standing still or a shaky picture isn't dancing; weighted to the parts the move is
+  about), and if
+  alike enough (`ALIKE`: 0.55 easy, 0.62 medium, 0.7 hard; guesses to tune with real dancers) the
+  beat was danced then, else not. It tells the page's judge beat by beat (`BeatJudge.decide` in
+  `src/shared/taps.ts`), which settles each beat a little later for it (`lagMs`), and from there all
+  is as with the motion sensor: the verdicts, the bars, the TV's floor, the results. The phone shows
+  像老师 N% while a dance plays. In WeChat the camera may not open: the page says to open it in
+  the browser.
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): it opens its room as it loads (a
   reload goes back into its own: the code is in the address) and has nothing to press (Steve,
   12 Nov: the phones pick the songs and start them; the TV speaks the host's phone's language,
@@ -150,6 +186,14 @@ instead, `site/src/party/dj/`.)
   count, what's next, the big button and how hard you're moving; the player's own results. For the host: pick a dance or a song, steer it, measure
   the TV's delay, the 120 BPM metronome (the timing test in `docs/field-notes/2026-11-01.md`), end
   the room. Each phone tells the room its language (`lang`): the TV speaks the host's.
+- **From a changle.ca table** (the site's `site/src/party/dance/link.ts`): the phones come with
+  `?table=` (kept in the address as they join) and the stage too; both pages then have 回到桌子 /
+  Back to the table in their top bar (a phone to `/t/TABLE`; the stage to the page that sent it,
+  `/tv/TABLE` for the TV, else `/t/TABLE`: `tableUrl` in `src/client/common.ts`). When the room ends,
+  1.5 s later each page goes back there, leaving `sessionStorage["dance.over"]` = the code (the stage
+  `"dance.over.tv"` too), so the table takes everyone back to its lobby. `GET /party/api/rooms/CODE`
+  says how the room is going (`{ exists, phase: "lobby" | "playing" | "over" }`), which the table
+  asks every 8 s while its players are away.
 - **测量 / Timing**: the speaker's clock in big digits, for the field test (a photo of the two
   screens side by side shows the error); on a phone its button, on the speaker page `?timing`.
 
@@ -163,7 +207,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 110 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judges: 124 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -205,6 +249,14 @@ Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears)
 Cat stands still; the speaker page draws the 3D coach in software (`?gl=any`). Checked: the pulses
 reach the TV, Ann's moves count on the beat, Cat is in no results. It saves screenshots of the TV
 in the folder given. About a minute and a half.
+
+`scripts/camera-check.cjs` (the same Worker) dances the short test dance in the camera mode: Ann's
+and Bob's cameras are pretend ones (no camera, no model: `partyDebug.camera`), Ann dancing the
+coach's moves and Bob standing still; Cat's is Chromium's fake camera playing `CAMERA_Y4M` (a
+picture of someone, e.g. the coach from /party/moves mirrored, made a .y4m with ffmpeg) through the
+real pose model, opened from the button. Checked: Ann on at least 80% of the beats, Bob moved on at
+most 35%, Cat's camera sees head to toe, no page errors. Screenshots of the phones in the folder
+given. About a minute.
 
 ## Live
 

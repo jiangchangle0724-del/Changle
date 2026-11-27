@@ -35,11 +35,11 @@ export function sampleBook(now: number): OfferBook {
     shop: { id: "sshop000001", slug: "rice-test", name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com", permit: "", status: "live" },
     offer: { id: "aaaa2222", shopId: "sshop000001", title: "本周大米团 · 周五到货", note: "", status: "open", closesAt: now + 86_400_000, roster: "names" },
     items: [
-      { id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, sold: 0, allergens: "" },
-      { id: "pearl", section: "米面", name: "东北珍珠米 15lb", detail: "", photo: null, price: 2250, unit: "bag", step: 1000, least: 1000, stock: null, perBuyer: null, sold: 0, allergens: "" },
-      { id: "millet", section: "米面", name: "黄小米 2lb", detail: "", photo: null, price: 880, unit: "pack", step: 1000, least: 1000, stock: null, perBuyer: 2000, sold: 0, allergens: "" },
-      { id: "eggs", section: "蛋肉", name: "土鸡蛋 30 枚", detail: "", photo: null, price: 1350, unit: "box", step: 1000, least: 1000, stock: 10_000, perBuyer: null, sold: 0, allergens: "蛋" },
-      { id: "lamb", section: "蛋肉", name: "手切羊肉片", detail: "按磅称重", photo: null, price: 1699, unit: "lb", step: 500, least: 1000, stock: null, perBuyer: null, sold: 0, allergens: "" },
+      { id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, case: null, sold: 0, allergens: "" },
+      { id: "pearl", section: "米面", name: "东北珍珠米 15lb", detail: "", photo: null, price: 2250, unit: "bag", step: 1000, least: 1000, stock: null, perBuyer: null, case: null, sold: 0, allergens: "" },
+      { id: "millet", section: "米面", name: "黄小米 2lb", detail: "", photo: null, price: 880, unit: "pack", step: 1000, least: 1000, stock: null, perBuyer: 2000, case: null, sold: 0, allergens: "" },
+      { id: "eggs", section: "蛋肉", name: "土鸡蛋 30 枚", detail: "", photo: null, price: 1350, unit: "box", step: 1000, least: 1000, stock: 10_000, perBuyer: null, case: null, sold: 0, allergens: "蛋" },
+      { id: "lamb", section: "蛋肉", name: "手切羊肉片", detail: "按磅称重", photo: null, price: 1699, unit: "lb", step: 500, least: 1000, stock: null, perBuyer: null, case: null, sold: 0, allergens: "" },
     ],
     points: [
       { id: "west", name: "温哥华西区", address: "", hours: "周五 4–7pm" },

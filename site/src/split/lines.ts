@@ -7,6 +7,7 @@
 import type { Lang } from "../i18n";
 import type { Sent } from "./changes";
 import { balances, expensesOf, type Expense, type Ledger, type Settlement } from "./core";
+import type { Person } from "./people";
 import { summaryOf, type Most } from "./summary";
 import { dayBefore, dayName, localDay, money } from "./format";
 import { NAME_MAX, NOTE_MAX, tidy } from "./ops";
@@ -69,6 +70,20 @@ export function summaryLines(l: Ledger, me: string | undefined, lang: Lang): { t
     ...(s.spentMost ? [most("summarySpentMost", s.spentMost)] : []),
   ];
 }
+
+/**
+ * One member's sums on a line, for 每个人: "付了 $120.00 · 摊 $87.50 · 已收 $20.00" (what they sent
+ * or received only when there is some). Someone with nothing at all has 还没有账.
+ */
+export function personLine(p: Person, currency: string, lang: Lang): string {
+  if (!p.paid && !p.share && !p.sent && !p.received) return say(lang, "personNothing");
+  const part = (w: Word, n: number) => `${say(lang, w)} ${money(n, currency, lang)}`;
+  return [part("personPaid", p.paid), part("personShare", p.share), ...(p.sent ? [part("personSent", p.sent)] : []), ...(p.received ? [part("personReceived", p.received)] : [])].join(" · ");
+}
+
+/** Where one member stands, in a word and a sum: 该收 $12.50, 该给 $12.50, or 两清 with none. */
+export const personStands = (p: Pick<Person, "net">): { word: Word; amount: number | null } =>
+  p.net > 0 ? { word: "personGets", amount: p.net } : p.net < 0 ? { word: "personOwes", amount: -p.net } : { word: "personSquare", amount: null };
 
 /** An expense's tip and tax, said in the currency it was paid in ("小费 $18.00 · 税 $5.25"); null with neither. */
 export function extrasText(tip: number | null | undefined, tax: number | null | undefined, currency: string, lang: Lang): string | null {

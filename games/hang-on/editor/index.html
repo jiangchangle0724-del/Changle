@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>抓紧了 · Hang On · 关卡编辑器</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1d2a4a">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Noto+Sans+SC:wght@500;700&display=swap">
+<style>
+  /* 关卡编辑器（11-26，14 样的第 14 样）：上面名字、世界、大小；中间画关；工具一排（电脑在左边，窄屏在下面）；底下撤销、试玩、分享。 */
+  :root {
+    --bg: #1d2a4a; --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .72); --card: #f8efe2; --card-ink: #2a1f3a;
+    --p3: #8EC5E8; --good: #9BCF83; --warn: #F8C56D; --bad: #ef5a5a; --gold: #f6c453;
+    --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  html { touch-action: manipulation; -webkit-text-size-adjust: 100%; height: 100%; }
+  *, *::before, *::after { touch-action: manipulation; box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.5; overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input { -webkit-user-select: text; user-select: text; }
+  button, select, input { font: inherit; }
+  .app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-columns: minmax(0, 1fr);
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  .top { grid-row: 1; } .board { grid-row: 2; } .tools { grid-row: 3; } .foot { grid-row: 4; background: var(--panel); }
+  @media (min-width: 900px) and (min-height: 560px) {
+    .app { grid-template-columns: 112px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+    .top { grid-column: 1 / 3; grid-row: 1; }
+    .tools { grid-column: 1; grid-row: 2 / 4; flex-direction: column; overflow-y: auto; overflow-x: hidden; padding: 8px !important; }
+    .tools .tool { width: 96px; }
+    .board { grid-column: 2; grid-row: 2; }
+    .foot { grid-column: 2; grid-row: 3; }
+  }
+  .top { display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex-wrap: wrap; background: var(--panel); }
+  .top h1 { font-family: var(--font-display); font-weight: 800; font-size: 18px; margin: 0 6px 0 0; white-space: nowrap; }
+  .top a.back { color: var(--ink); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; opacity: .85; }
+  .top input, .top select { min-height: 44px; border-radius: 12px; border: 2px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color: var(--ink); padding: 6px 10px; }
+  .top input { width: 12em; max-width: 40vw; }
+  .top select option { color: #2a1f3a; }
+  .top .grow { flex: 1; }
+  .lang { min-height: 44px; min-width: 56px; border-radius: 999px; border: 2px solid currentColor; background: transparent; color: inherit; font-weight: 700; font-size: 14px; cursor: pointer; opacity: .85; }
+  .board { position: relative; min-height: 0; }
+  #ed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #ed.select { cursor: default; }
+  .hint { position: absolute; left: 10px; right: 10px; bottom: 8px; margin: 0; font-size: 13px; color: var(--ink-soft); pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.6); line-height: 1.5; }
+  @media (max-height: 500px) { .hint { display: none; } }
+  .warn { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: var(--warn); color: var(--card-ink); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 6px 14px; max-width: calc(100% - 20px); }
+  .tools { display: flex; gap: 6px; padding: 6px 10px; overflow-x: auto; background: var(--panel); scrollbar-width: none; }
+  .tools::-webkit-scrollbar { display: none; }
+  .tool { flex: none; min-width: 64px; min-height: 52px; border: 2px solid transparent; border-radius: 14px; background: rgba(255,255,255,.08); color: var(--ink); cursor: pointer;
+    display: grid; justify-items: center; align-content: center; gap: 0; padding: 4px 6px; font-size: 12px; font-weight: 700; line-height: 1.2; }
+  .tool span { font-size: 20px; line-height: 1.1; }
+  .tool[aria-checked="true"] { border-color: var(--gold); background: rgba(246,196,83,.18); }
+  .tool:focus-visible, .btn:focus-visible, .chip:focus-visible, .lang:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .picks { display: flex; gap: 6px; padding: 6px 10px 0; overflow-x: auto; scrollbar-width: none; align-items: center; }
+  .picks::-webkit-scrollbar { display: none; }
+  .picks .lab { font-size: 12px; opacity: .7; flex: none; }
+  .chip { flex: none; min-height: 44px; border-radius: 999px; border: 2px solid transparent; background: rgba(255,255,255,.08); color: var(--ink); padding: 4px 12px 4px 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+  .chip i { width: 22px; height: 22px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25); }
+  .chip[aria-checked="true"] { border-color: var(--gold); }
+  .bottom { display: flex; gap: 8px; padding: 8px 10px; flex-wrap: wrap; align-items: center; }
+  .btn { border: 0; border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 14px; cursor: pointer; min-height: 44px; background: rgba(255,255,255,.12); color: var(--ink); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+  .btn.main { background: var(--ink); color: var(--card-ink); }
+  .bottom .grow { flex: 1; }
+  .sel { font-size: 13px; color: var(--ink-soft); }
+
+  /* 试玩：整页盖上 */
+  #play { position: fixed; inset: 0; background: var(--bg); z-index: 5; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .pbar { position: absolute; top: env(safe-area-inset-top, 0px); left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 10px max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); }
+  .pbar .chipx { background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .pbar .btn { background: var(--panel); }
+  .keys { position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--panel); border-radius: 14px; padding: 8px 14px; font-size: 13px; margin: 0; max-width: calc(100vw - 32px); text-align: center; pointer-events: none; }
+  .pad { position: absolute; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 92px; height: 92px; border-radius: 50%; border: 3px solid rgba(255,255,255,.55); background: rgba(255,255,255,.12);
+    color: var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 18px; display: grid; place-items: center; touch-action: none; }
+  .pad.l { right: calc(130px + env(safe-area-inset-right, 0px)); border-color: #63b3ed; }
+  .pad.r { right: calc(22px + env(safe-area-inset-right, 0px)); border-color: #f6ad55; }
+  .pad.down { background: rgba(255,255,255,.35); }
+  .stick { position: absolute; left: calc(30px + env(safe-area-inset-left, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.45); touch-action: none; }
+  .stick .knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(255,255,255,.75); }
+  .won { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10,12,30,.45); }
+  .won .card, dialog { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 20px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+  .won h2 { font-family: var(--font-display); font-weight: 800; font-size: 26px; margin: 0 0 4px; }
+  .won .row, dialog .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .won .btn, dialog .btn { background: rgba(42,31,58,.1); color: var(--card-ink); }
+  .won .btn.main, dialog .btn.main { background: var(--card-ink); color: var(--ink); }
+
+  dialog { border: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; }
+  dialog::backdrop { background: rgba(10, 12, 30, .6); }
+  dialog h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0 0 8px; }
+  dialog h2:focus { outline: none; }
+  dialog p { margin: 0 0 10px; font-size: 14px; line-height: 1.65; }
+  .link { display: grid; gap: 6px; margin: 12px 0; }
+  .link b { font-size: 13px; }
+  .link .url { font-size: 13px; background: rgba(42,31,58,.07); color: var(--card-ink); border: 0; border-radius: 10px; padding: 10px; min-height: 44px; width: 100%; text-overflow: ellipsis; }
+  .link .row { margin-top: 0; }
+  .mine { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  .mine li { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 14px; background: rgba(42,31,58,.06); }
+  .mine li .nm { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mine li small { opacity: .6; font-size: 12px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <a class="back" href="/hang-on/" data-en="← Hang On">← 抓紧了</a>
+    <h1 data-en="Level editor">关卡编辑器</h1>
+    <input id="name" maxlength="20" placeholder="起个名字" data-en-ph="Name your level" aria-label="关的名字" data-en-label="Level name">
+    <select id="world" aria-label="世界" data-en-label="World"></select>
+    <select id="size" aria-label="大小" data-en-label="Size"></select>
+    <span class="grow"></span>
+    <button class="lang" id="langBtn" type="button">EN</button>
+  </header>
+  <nav class="tools" id="tools" role="radiogroup" aria-label="工具" data-en-label="Tools"></nav>
+  <main class="board" id="board">
+    <canvas id="ed" aria-label="关卡" data-en-label="Level"></canvas>
+    <p class="warn" id="warn" hidden></p>
+    <p class="hint" id="hint"></p>
+  </main>
+  <div class="foot">
+    <div class="picks" id="picks"></div>
+    <div class="bottom">
+      <button class="btn" id="undoBtn" type="button" aria-label="撤销" data-en-label="Undo">↶</button>
+      <button class="btn" id="redoBtn" type="button" aria-label="重做" data-en-label="Redo">↷</button>
+      <button class="btn" id="delBtn" type="button" disabled data-en="🗑 Delete">🗑 删掉</button>
+      <button class="btn" id="fitBtn" type="button" data-en="⤢ Fit">⤢ 看全</button>
+      <span class="sel" id="sel"></span>
+      <span class="grow"></span>
+      <button class="btn" id="newBtn" type="button" data-en="New">新的</button>
+      <button class="btn" id="mineBtn" type="button" data-en="📂 My levels">📂 我的关</button>
+      <button class="btn main" id="testBtn" type="button" data-en="▶ Try it">▶ 试玩</button>
+      <button class="btn main" id="shareBtn" type="button" data-en="🔗 Share">🔗 分享</button>
+    </div>
+  </div>
+</div>
+
+<div id="play" hidden>
+  <canvas id="stage"></canvas>
+  <div class="pbar">
+    <button class="btn" id="backBtn" type="button" data-en="← Back to editing">← 回去改</button>
+    <button class="btn" id="restartBtn" type="button" data-en="Restart">重来</button>
+    <span class="chipx">⏱ <b id="clock">0.0</b></span>
+    <span class="chipx">💀 <b id="falls">0</b></span>
+  </div>
+  <p class="keys" id="keys" data-en="WASD or the mouse to aim, Q and E (or the mouse buttons) to grab">WASD 或鼠标指方向，Q、E（或鼠标左右键）抓</p>
+  <div id="touch" hidden>
+    <div class="stick" id="stick" aria-hidden="true"><div class="knob" id="knob"></div></div>
+    <button class="pad l" id="padL" type="button" aria-label="左手抓" data-en-label="Left hand grab" data-en="Left">左手</button>
+    <button class="pad r" id="padR" type="button" aria-label="右手抓" data-en-label="Right hand grab" data-en="Right">右手</button>
+  </div>
+  <div class="won" id="won" hidden>
+    <div class="card">
+      <h2 data-en="Made it!">到顶了！</h2>
+      <p id="wonLine"></p>
+      <div class="row"><button class="btn main" id="againBtn" type="button" data-en="Again">再来一次</button><button class="btn" id="back2Btn" type="button" data-en="Back to editing">回去改</button></div>
+    </div>
+  </div>
+</div>
+
+<dialog id="shareDlg" aria-label="分享" data-en-label="Share">
+  <h2 tabindex="-1" autofocus data-en="Share this level">分享这一关</h2>
+  <p data-en="The whole level is in the link; nothing is saved on a server. Open the first link on the big screen and everyone plays it.">整关都在链接里，不存在服务器上。第一个链接在大屏上打开，大家就玩这一关。</p>
+  <div class="link"><b data-en="Play it on the big screen">在大屏上玩</b><input class="url" id="playUrl" readonly aria-label="在大屏上玩的链接" data-en-label="Link to play on the big screen">
+    <div class="row"><button class="btn main" id="copyPlay" type="button" data-en="Copy link">复制链接</button><a class="btn" id="openPlay" target="_blank" rel="noopener" data-en="Open">打开</a></div></div>
+  <div class="link"><b data-en="Keep editing (send it to a friend to change)">接着改（发给朋友改）</b><input class="url" id="editUrl" readonly aria-label="接着改的链接" data-en-label="Link to keep editing">
+    <div class="row"><button class="btn" id="copyEdit" type="button" data-en="Copy link">复制链接</button></div></div>
+  <div class="row"><button class="btn main" id="shareDone" type="button" data-en="Done">好了</button></div>
+</dialog>
+
+<dialog id="mineDlg" aria-label="我的关" data-en-label="My levels">
+  <h2 tabindex="-1" autofocus data-en="My levels">我的关</h2>
+  <p id="mineNone" data-en="Levels you share are kept here, on this device.">分享过的关存在这台设备上，在这里打开。</p>
+  <ul class="mine" id="mineList"></ul>
+  <div class="row"><button class="btn main" id="mineDone" type="button" data-en="Done">好了</button></div>
+</dialog>
+
+<script type="module" src="/src/editor/main.ts"></script>
+</body>
+</html>

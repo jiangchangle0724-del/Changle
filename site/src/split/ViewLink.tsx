@@ -18,7 +18,8 @@ import { Skeleton } from "../ui/Skeleton";
 import { Tabs } from "../ui/Tabs";
 import { expensesOf, settlement, type Ledger } from "./core";
 import { viewKeyOf, viewLink, viewText } from "./invite";
-import { Crew, ExpenseList, Standing } from "./LedgerPage";
+import { Crew, ExpenseList, ExpenseSearch, Standing } from "./LedgerPage";
+import { SEARCH_FROM } from "./search";
 import { viewNet } from "./net";
 import { Bar, copyText, Sentences } from "./parts";
 import { SettleView } from "./SettleView";
@@ -157,6 +158,7 @@ export function Viewing({ id, view }: { id: string; view: string }) {
   const { lang } = useStore();
   const [seen, setSeen] = useState<Seen>("loading");
   const [tab, setTab] = useState<View>("list");
+  const [query, setQuery] = useState("");
   /** the latest read asked for: an earlier one that answers after it is let go */
   const asked = useRef(0);
   const look = useCallback(async () => {
@@ -233,7 +235,8 @@ export function Viewing({ id, view }: { id: string; view: string }) {
         <section className="split-panel" id="split-list" role="tabpanel" aria-labelledby="split-list-tab">
           {expensesOf(ledger).length > 0 && <Standing ledger={ledger} me={undefined} lang={lang} rollFrom={null} />}
           <Crew ledger={ledger} lang={lang} />
-          <ExpenseList ledger={ledger} me={undefined} lang={lang} landed={null} onLanded={() => {}} />
+          {(expensesOf(ledger).length >= SEARCH_FROM || query) && <ExpenseSearch value={query} onChange={setQuery} lang={lang} />}
+          <ExpenseList ledger={ledger} me={undefined} lang={lang} landed={null} onLanded={() => {}} query={query} />
         </section>
       ) : (
         <section className="split-panel" id="split-settle" role="tabpanel" aria-labelledby="split-settle-tab">

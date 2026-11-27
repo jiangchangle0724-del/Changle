@@ -1,5 +1,5 @@
 /** The small pieces 两清's screens share: the top bar, a figure that rolls to its new value, copying, the keypad. */
-import { ChevronLeft, Delete, X } from "lucide-react";
+import { ChevronLeft, Delete, Plus, X } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Lang } from "../i18n";
 import { reduced } from "../lib/motion";
@@ -115,12 +115,14 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-const KEYS: Key[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back"];
+const KEYS: Key[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back", "+"];
+/** where the keys that aren't digits sit (split.css: the + down the right at the top, delete under it, 0 twice as wide) */
+const PLACE: Partial<Record<Key, string>> = { ".": " is-point", "0": " is-zero", back: " is-back", "+": " is-plus" };
 
 /**
- * The keypad on 记一笔: twelve keys under the thumb, so the amount is typed without waiting for the
+ * The keypad on 记一笔: thirteen keys under the thumb, so the amount is typed without waiting for the
  * phone's keyboard (which covers half the screen and differs between phones). The point is off for
- * a currency with no decimals.
+ * a currency with no decimals. Its + adds another amount to the one typed (input.ts).
  */
 export function Keypad({ onKey, decimals, lang }: { onKey: (k: Key) => void; decimals: Decimals; lang: Lang }) {
   return (
@@ -129,15 +131,15 @@ export function Keypad({ onKey, decimals, lang }: { onKey: (k: Key) => void; dec
         <button
           key={k}
           type="button"
-          className="split-key"
+          className={`split-key${PLACE[k] ?? ""}`}
           disabled={k === "." && decimals === 0}
-          aria-label={k === "back" ? say(lang, "backspace") : k === "." ? say(lang, "point") : undefined}
+          aria-label={k === "back" ? say(lang, "backspace") : k === "." ? say(lang, "point") : k === "+" ? say(lang, "plus") : undefined}
           onClick={() => {
             haptic();
             onKey(k);
           }}
         >
-          {k === "back" ? <Delete aria-hidden="true" /> : k}
+          {k === "back" ? <Delete aria-hidden="true" /> : k === "+" ? <Plus aria-hidden="true" /> : k}
         </button>
       ))}
     </div>

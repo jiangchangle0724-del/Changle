@@ -31,6 +31,9 @@ export function offerPage(book: OfferBook, standing: readonly RosterEntry[], now
       least: item.least,
       left: leftOf(item),
       perBuyer: item.perBuyer,
+      // (how much the orders hold: only where it fills a case, which is the point of showing it)
+      case: item.case,
+      held: item.case === null ? null : item.sold,
       allergens: item.allergens,
     })),
     points: book.points,

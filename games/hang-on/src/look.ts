@@ -4,14 +4,15 @@
  * 这个文件手柄页也要用，不能 import Pixi。
  */
 
-export const HATS = ['none', 'knob', 'chef', 'bow', 'crown', 'ears', 'bun', 'beanie', 'halo'] as const;
-export const GLASSES = ['none', 'round', 'shades', 'monocle', 'star'] as const;
+// 每一项最后几个是红包扭蛋机（11-25）里扭出来的（GACHA），扭到之前选不了
+export const HATS = ['none', 'knob', 'chef', 'bow', 'crown', 'ears', 'bun', 'beanie', 'halo', 'caishen', 'tiger', 'lion', 'helmet', 'party'] as const;
+export const GLASSES = ['none', 'round', 'shades', 'monocle', 'star', 'heart', 'threed', 'ski'] as const;
 export const EYES = ['round', 'happy', 'sleepy', 'wink', 'big'] as const;
-export const FACES = ['none', 'mustache', 'freckles', 'bandage', 'beard'] as const;
+export const FACES = ['none', 'mustache', 'freckles', 'bandage', 'beard', 'blush', 'paint'] as const;
 /** 袖子（胳膊）的颜色。没有蓝和橙：那是手套的颜色，袖子用了就分不清左右手。 */
-export const ARMS = ['noodle', 'chili', 'matcha', 'sesame', 'taro'] as const;
+export const ARMS = ['noodle', 'chili', 'matcha', 'sesame', 'taro', 'rose'] as const;
 /** 嗓子：摔下去时怎么叫。auto = 按座位分四个音高。 */
-export const VOICES = ['auto', 'high', 'low', 'duck', 'robot', 'opera'] as const;
+export const VOICES = ['auto', 'high', 'low', 'duck', 'robot', 'opera', 'meow'] as const;
 
 export type Hat = (typeof HATS)[number];
 export type Glasses = (typeof GLASSES)[number];
@@ -46,6 +47,7 @@ export const ARM_COLORS: Record<Arms, string> = {
   matcha: '#8fc77a',
   sesame: '#5a5048',
   taro: '#a98bd6',
+  rose: '#f28fb8',
 };
 
 type Name = { zh: string; en: string };
@@ -70,6 +72,11 @@ export const LOOK_NAMES: { [K in LookKey]: Record<Look[K], Name> } & { label: Re
     bun: { zh: '丸子头', en: 'Hair bun' },
     beanie: { zh: '毛线帽', en: 'Beanie' },
     halo: { zh: '光环', en: 'Halo' },
+    caishen: { zh: '财神帽', en: 'Fortune hat' },
+    tiger: { zh: '虎头帽', en: 'Tiger hat' },
+    lion: { zh: '舞狮头', en: 'Lion dance' },
+    helmet: { zh: '宇航头盔', en: 'Space helmet' },
+    party: { zh: '派对帽', en: 'Party hat' },
   },
   glasses: {
     none: { zh: '不戴', en: 'None' },
@@ -77,6 +84,9 @@ export const LOOK_NAMES: { [K in LookKey]: Record<Look[K], Name> } & { label: Re
     shades: { zh: '墨镜', en: 'Shades' },
     monocle: { zh: '单片镜', en: 'Monocle' },
     star: { zh: '星星镜', en: 'Stars' },
+    heart: { zh: '爱心镜', en: 'Hearts' },
+    threed: { zh: '3D 眼镜', en: '3D glasses' },
+    ski: { zh: '滑雪镜', en: 'Ski goggles' },
   },
   eyes: {
     round: { zh: '圆眼', en: 'Round' },
@@ -91,6 +101,8 @@ export const LOOK_NAMES: { [K in LookKey]: Record<Look[K], Name> } & { label: Re
     freckles: { zh: '雀斑', en: 'Freckles' },
     bandage: { zh: '创可贴', en: 'Band-aid' },
     beard: { zh: '络腮胡', en: 'Beard' },
+    blush: { zh: '红脸蛋', en: 'Rosy cheeks' },
+    paint: { zh: '京剧脸谱', en: 'Opera mask' },
   },
   arms: {
     noodle: { zh: '面条', en: 'Noodle' },
@@ -98,6 +110,7 @@ export const LOOK_NAMES: { [K in LookKey]: Record<Look[K], Name> } & { label: Re
     matcha: { zh: '抹茶', en: 'Matcha' },
     sesame: { zh: '芝麻', en: 'Sesame' },
     taro: { zh: '芋头', en: 'Taro' },
+    rose: { zh: '桃花', en: 'Blossom' },
   },
   voice: {
     auto: { zh: '默认', en: 'Default' },
@@ -106,8 +119,57 @@ export const LOOK_NAMES: { [K in LookKey]: Record<Look[K], Name> } & { label: Re
     duck: { zh: '鸭子', en: 'Duck' },
     robot: { zh: '机器人', en: 'Robot' },
     opera: { zh: '歌剧', en: 'Opera' },
+    meow: { zh: '喵', en: 'Meow' },
   },
 };
+
+// ---------------------------------------------------------------- 红包扭蛋机（11-25，14 样的第 5 样）
+
+/**
+ * 扭蛋机里的 12 样：扭到之前大家都选不了，扭到了这台设备（主机）上的人都能选。
+ * id 就是那一项的值（各项里不重名）。
+ */
+export const GACHA = [
+  { id: 'caishen', key: 'hat' },
+  { id: 'tiger', key: 'hat' },
+  { id: 'lion', key: 'hat' },
+  { id: 'helmet', key: 'hat' },
+  { id: 'party', key: 'hat' },
+  { id: 'heart', key: 'glasses' },
+  { id: 'threed', key: 'glasses' },
+  { id: 'ski', key: 'glasses' },
+  { id: 'blush', key: 'face' },
+  { id: 'paint', key: 'face' },
+  { id: 'rose', key: 'arms' },
+  { id: 'meow', key: 'voice' },
+] as const satisfies readonly { id: string; key: LookKey }[];
+
+export type GachaId = (typeof GACHA)[number]['id'];
+/** 扭到了哪些（不认识的不要，按表里的顺序）。 */
+export function cleanGacha(x: unknown): GachaId[] {
+  if (!Array.isArray(x)) return [];
+  const have = new Set(x.filter((v) => typeof v === 'string'));
+  return GACHA.map((g) => g.id).filter((id) => have.has(id));
+}
+
+/** 这一项的这个值是扭蛋机里的、还没扭到。 */
+export function isLocked(key: LookKey, value: string, unlocked: ReadonlySet<string>): boolean {
+  return GACHA.some((g) => g.key === key && g.id === value) && !unlocked.has(value);
+}
+
+/** 还没扭到的换回默认（手柄在别的地方扭到的，到这台设备上不算）。 */
+export function lockLook(look: Look, unlocked: ReadonlySet<string>): Look {
+  const out = { ...look };
+  for (const k of LOOK_KEYS) if (isLocked(k, out[k], unlocked)) (out as Record<LookKey, string>)[k] = DEFAULT_LOOK[k];
+  return out;
+}
+
+/** 这一项现在能选的（扭蛋机里的只要扭到的）。 */
+export function choices<K extends LookKey>(key: K, unlocked: ReadonlySet<string>): readonly Look[K][] {
+  return (LOOK_LISTS[key] as readonly Look[K][]).filter((v) => !isLocked(key, v, unlocked));
+}
+
+const NONE: ReadonlySet<string> = new Set();
 
 /** 把网上来的东西收拾成合法的 Look（不认识的值回默认）。 */
 export function cleanLook(raw: unknown): Look {
@@ -123,14 +185,20 @@ export function cleanLook(raw: unknown): Look {
   };
 }
 
-export function randomLook(random: () => number = Math.random): Look {
-  const one = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)] as T;
-  return { hat: one(HATS), glasses: one(GLASSES), eyes: one(EYES), face: one(FACES), arms: one(ARMS), voice: one(VOICES) };
+/** 随机一个样子（扭蛋机里的只从扭到的里挑）。 */
+export function randomLook(random: () => number = Math.random, unlocked: ReadonlySet<string> = NONE): Look {
+  const one = <K extends LookKey>(key: K): Look[K] => {
+    const list = choices(key, unlocked);
+    return list[Math.floor(random() * list.length)] as Look[K];
+  };
+  return { hat: one('hat'), glasses: one('glasses'), eyes: one('eyes'), face: one('face'), arms: one('arms'), voice: one('voice') };
 }
 
-/** 换到这一项的上一个 / 下一个。 */
-export function stepLook(look: Look, key: LookKey, dir: number): Look {
-  const list = LOOK_LISTS[key] as readonly string[];
-  const i = (list.indexOf(look[key]) + dir + list.length * 4) % list.length;
+/** 换到这一项的上一个 / 下一个（扭蛋机里没扭到的跳过）。 */
+export function stepLook(look: Look, key: LookKey, dir: number, unlocked: ReadonlySet<string> = NONE): Look {
+  const list = choices(key, unlocked) as readonly string[];
+  const at = list.indexOf(look[key]);
+  // 现在戴的是没扭到的（别处扭的）：往后一个就是第一个
+  const i = at < 0 ? (dir > 0 ? 0 : list.length - 1) : (at + dir + list.length * 4) % list.length;
   return { ...look, [key]: list[i] } as Look;
 }

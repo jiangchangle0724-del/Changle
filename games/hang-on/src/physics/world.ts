@@ -34,10 +34,12 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
+import type { AchvId } from '../achievements';
+import { FX, type CheerId, type FxId, type SimFx } from '../crowd';
 import type { EmoteId } from '../emotes';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
-import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
+import { forPlayers, gateAt, leverRect, opensOf, type BoulderDef, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
+import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, scrollFrame, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -128,6 +130,8 @@ export interface Arm {
   slipCd: number;
   /** 没抓东西的手，手心嵌在台子、动台这些硬东西里头多少秒了（unstickHands）。 */
   stuckT: number;
+  /** 长辈小孩模式（11-26）：这只手抓着的是掉的时候自己抓住的（没按键）。按一下键、站稳了就松开。 */
+  auto: boolean;
 }
 
 export type Face = 'idle' | 'grab' | 'fly' | 'scream' | 'win';
@@ -180,6 +184,9 @@ export interface Player {
   floating: boolean;
   /** 力气（A11 手酸）：1 是满的，挂着往下掉，站着回来，到 0 两只手都松开。没开手酸时一直是 1。 */
   stamina: number;
+  /** 长辈小孩模式（11-26）：开着没有；站稳了几秒（自己抓住的手站稳了就松开）。 */
+  assist: boolean;
+  steadyT: number;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -237,7 +244,7 @@ export interface Noodle {
 }
 
 export interface Prop {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern' | 'boulder';
   rb: RB;
   w: number;
   h: number;
@@ -249,7 +256,7 @@ export interface Prop {
 }
 
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
-export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide';
+export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide' | 'scroll';
 
 /**
  * 玩法（A7，开局前在大厅里选）：
@@ -258,14 +265,21 @@ export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide';
  * - race 比谁先：各跑各的（或者分两队），先到终点的赢；每个人（每队）有自己的检查点，到了终点就停在那。
  * - last 坐不住：摔了不复活，平台一块块塌，一个地方抓久了手会滑，最后还挂着的赢。
  * - gold 抢金元宝（A9d）：场地中间一个金元宝，抓在手里（只有你一个人抓着）攒够 CFG.goldHold 秒赢一局；摔了回自己那边。
+ * - rain 红包雨（11-26，彩蛋小游戏）：大厅里选不到。闯关、大团队一关的红包全拿到了，结算页出「彩蛋：红包雨」；
+ *   抢元宝的场地上天上掉红包，40 秒，身体或手碰到就算接到，接得多的赢；摔了回自己那边。
  */
-export type GameMode = 'climb' | 'team' | 'race' | 'last' | 'gold';
+export type GameMode = 'climb' | 'team' | 'race' | 'last' | 'gold' | 'rain';
 export interface Rules {
   mode: GameMode;
   /** 比谁先分两队时：每个人在第几队（0 或 1）。不写就是各跑各的。 */
   teams?: number[];
   /** 卡太久来帮手（A9c，外卖无人机）：主机开局时给闯关、大团队打开；回放、验收、测试默认没有（回放不变）。 */
   helper?: boolean;
+  /**
+   * 护送大元宝（11-26）：闯关、大团队里起点放一个大元宝，扛到终点算数（附加的，不送也能过关）。
+   * 大厅里打开才有；回放、验收、测试没有（回放不变）。
+   */
+  escort?: boolean;
   /**
    * 手酸（A11）：中等、困难的关里挂着会累（见 CFG.stamina*）。主机按选的难度给；验收按关的难度给。
    * 不写就是抓多久都行（简单、别的玩法）。
@@ -327,6 +341,10 @@ export type SimEvent =
   | { type: 'vent'; index: number; phase: 'warn' | 'on'; x: number; y: number }
   /** 端托盘（后厨，A10）：点心翻了（spill）、托盘回到存档的地方（back）、端进终点了（home）；x、y 是托盘在哪。 */
   | { type: 'tray'; phase: 'spill' | 'back' | 'home'; x: number; y: number }
+  /** 护送大元宝（11-26）：扛着的时候掉了，回到它到过的检查点（back）；送进终点（home）。 */
+  | { type: 'escort'; phase: 'back' | 'home'; x: number; y: number }
+  /** 红包雨（11-26）：谁接到一个（x、y 是在哪接到的）。 */
+  | { type: 'raincatch'; player: number; x: number; y: number }
   /**
    * 老宅找钥匙（A10）：第几把钥匙头一回被人抓住（found）、开了门（unlock，x、y 是门的中间）、掉了回到存档的地方（back）；
    * 有人碰着它那扇锁着的门、钥匙还没开（locked，隔 CFG.lockedHint 秒报一次，x、y 是门的中间）。
@@ -344,7 +362,20 @@ export type SimEvent =
   /** 表情（11-25）：不是物理的事，主机收到手柄的表情直接交给画面、声音和手机局的快照；x、y 是说话时人在哪（声音左右用）。 */
   | { type: 'emote'; player: number; emote: EmoteId; x: number; y: number }
   /** 放屁键（11-25）：也不是物理的事，和表情一样由主机直接交出去；kind 是哪种声音（主机挑，大家听到同一种），x、y 是人在哪。 */
-  | { type: 'fart'; player: number; kind: number; x: number; y: number };
+  | { type: 'fart'; player: number; kind: number; x: number; y: number }
+  /** 成就（11-25）：也不是物理的事，主机算出谁新拿到了哪个，交给画面、声音和手机局的快照。 */
+  | { type: 'achv'; player: number; id: AchvId; x: number; y: number }
+  /**
+   * 观众（11-26）：也不是物理的事，主机直接交给画面、声音和手机局的快照：谁（观众的名字）起了什么哄；
+   * 开了一轮投票（左边帮一把、右边捣个乱）；这一局第一个掉的是谁、几个观众押了、押中的观众叫什么。
+   */
+  /** 推大石头（11-26）：第几块石头掉出关卡，回到原地了（x、y 是回到哪）。 */
+  | { type: 'boulder'; index: number; phase: 'back'; x: number; y: number }
+  | { type: 'cheer'; who: string; cheer: CheerId }
+  | { type: 'crowdvote'; a: FxId; b: FxId }
+  | { type: 'crowdbet'; fell: number; bets: number; hits: string[] }
+  /** 观众投出来的那一样开始（主机报）、过了（物理报，慢动作是主机报）；刮风往哪边（1 右、-1 左）。 */
+  | { type: 'crowdfx'; fx: FxId; on: boolean; dir: number };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */
@@ -448,6 +479,17 @@ export class Sim {
    */
   readonly keys: { prop: number; gate: number; found: boolean; used: boolean; cp: number; lostT: number; home: Pt }[] = [];
   readonly lanterns: { prop: number; cp: number; lostT: number; home: Pt }[] = [];
+  /**
+   * 红包雨（11-26）：天上正在掉的红包（编号、位置、往下掉多快、左右晃的相位）、每个人接到几个、还剩几秒、下一个什么时候掉。
+   * 随机数自己带种子（同一局一样，测试好测）。
+   */
+  rain: { drops: { id: number; x: number; y: number; vy: number; ph: number }[]; caught: number[]; left: number; nextT: number; seq: number; seed: number } | null = null;
+  /** 护送大元宝（11-26）：哪个物件、到过哪个检查点、掉了多久、起点、有人碰过没有、送到了没有。 */
+  escort: { prop: number; cp: number; lostT: number; home: Pt; touched: boolean; done: boolean } | null = null;
+  /** 推大石头（11-26）：每块是第几个物件、原地在哪、掉出关卡几秒了。 */
+  readonly boulders: { prop: number; home: Pt; lostT: number }[] = [];
+  /** 观众投票（11-26）：正在起作用的那一样（变轻、变重、刮风）、还剩几秒、风往哪边（1 右、-1 左）。 */
+  crowd: { fx: Exclude<SimFx, 'strong'>; t: number; dir: number } | null = null;
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
   readonly lamps: { x: number; y: number; r: number; on: boolean }[] = [];
   /** 太空站的拉杆（A10）：把手在哪（抓的是这块地形）、有没有人抓着。 */
@@ -461,6 +503,8 @@ export class Sim {
   private readonly spinners: { def: SpinnerDef; rb: RB }[] = [];
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
+  /** 长辈小孩模式（11-26）抓的范围大一点。 */
+  private readonly grabShapeEasy: RAPIER.Ball;
   /** 查胳膊摆的地方空不空用的：比手和每节小 2 px，贴着表面不算碰着。 */
   private readonly handTest: RAPIER.Ball;
   private readonly segTest: RAPIER.Capsule;
@@ -508,6 +552,7 @@ export class Sim {
     world.numSolverIterations = CFG.solverIterations;
     this.world = world;
     this.grabShape = new RAPIER.Ball(GRAB_R);
+    this.grabShapeEasy = new RAPIER.Ball(GRAB_R + CFG.assistReach);
     this.handTest = new RAPIER.Ball(CFG.handR - 2);
     this.segTest = new RAPIER.Capsule(Math.max(1, CFG.segLen / 2 - CFG.segR), Math.max(1, CFG.segR - 2));
 
@@ -519,6 +564,7 @@ export class Sim {
     for (const def of level.ropes ?? []) this.addRope(def.anchor, def.segments, def.segLen);
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
+    for (const def of level.boulders ?? []) this.addBoulder(def);
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.pendulums ?? []) this.addPendulum(def);
     for (const def of level.winds ?? []) this.winds.push({ def, on: false, warn: false });
@@ -550,6 +596,14 @@ export class Sim {
       this.addCrate({ x: level.ingot.x - 23, y: level.ingot.y - 13, w: 46, h: 26, mass: 0.6 }, 0.9);
       (this.props[prop] as Prop).kind = 'ingot';
       this.gold = { prop, holdT: this.players.map(() => 0), need: CFG.goldHold, lostT: 0, holder: -1 };
+    }
+    // 红包雨（11-26）
+    if (rules.mode === 'rain') this.rain = { drops: [], caught: this.players.map(() => 0), left: CFG.rainTime, nextT: 0.6, seq: 0, seed: 20261126 };
+    // 护送大元宝（11-26）：悬在第一第二个人头顶上，开局落下来
+    if (rules.escort && (rules.mode === 'climb' || rules.mode === 'team') && !level.arena) {
+      const home = { x: level.spawn.x + 22, y: level.spawn.y - 80 };
+      const prop = this.addCarry('ingot', home, CFG.escortW, CFG.escortH, CFG.escortMass);
+      this.escort = { prop, cp: -1, lostT: 0, home, touched: false, done: false };
     }
   }
 
@@ -698,6 +752,95 @@ export class Sim {
     this.props.push({ kind: 'crate', rb, w: def.w, h: def.h, x: def.x + def.w / 2, y: def.y + def.h / 2, angle: 0 });
   }
 
+  /**
+   * 推大石头（11-26）：一个圆的动态刚体，按半径加重（小的一个人拽得动，大的得三个人）；滚得动（角阻尼小），能抓（和箱子一样是 prop）。
+   */
+  private addBoulder(def: BoulderDef): void {
+    const r = def.r ?? CFG.boulderR;
+    const rb = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(def.x, def.y).setLinearDamping(0.1).setAngularDamping(CFG.boulderDamp).setCcdEnabled(true),
+    );
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(r)
+        .setMass(CFG.boulderMass * (r / CFG.boulderR))
+        .setFriction(def.material ? frictionOf(def.material) : CFG.boulderFriction)
+        .setCollisionGroups(groups(GROUP.PROP, GROUP.TERRAIN | GROUP.PLAYER | GROUP.PROP)),
+      rb,
+    );
+    const index = this.props.length;
+    this.info.set(col.handle, { kind: 'prop', prop: index });
+    this.props.push({ kind: 'boulder', rb, w: r * 2, h: r * 2, x: def.x, y: def.y, angle: 0 });
+    this.boulders.push({ prop: index, home: { x: def.x, y: def.y }, lostT: 0 });
+  }
+
+  /** 推大石头（11-26）每一步：掉出关卡的石头过一会儿回到原地（报 boulder back）；卷屏的关落在屏幕后面也算，回到屏幕里。 */
+  private tickBoulders(dt: number): void {
+    this.boulders.forEach((b, i) => {
+      const prop = this.props[b.prop] as Prop;
+      // 掉出关卡，或者（卷屏）落在屏幕后面
+      if (prop.y <= this.level.deathY && !this.behindScrollAt(prop)) {
+        b.lostT = 0;
+        return;
+      }
+      b.lostT += dt;
+      if (b.lostT < CFG.boulderBack) return;
+      b.lostT = 0;
+      const at = this.backSpot(b.home);
+      this.dropProp(prop);
+      prop.rb.setTranslation(at, true);
+      prop.rb.setLinvel({ x: 0, y: 0 }, true);
+      prop.rb.setAngvel(0, true);
+      prop.rb.setRotation(0, true);
+      prop.x = at.x;
+      prop.y = at.y;
+      prop.angle = 0;
+      this.events.push({ type: 'boulder', index: i, phase: 'back', x: at.x, y: at.y });
+    });
+  }
+
+  /** 卷屏（11-26）：这会儿「屏幕」在哪；没有卷屏是 null。 */
+  get scrollView(): Rect | null {
+    return scrollFrame(this.level, this.time);
+  }
+
+  /** 卷屏：这个点在不在屏幕里（离两头都至少 CFG.scrollMargin）。 */
+  private inScroll(f: Rect, p: Pt): boolean {
+    const m = CFG.scrollMargin;
+    return this.level.scroll?.dir === 'up' ? p.y >= f.y + m && p.y <= f.y + f.h - m : p.x >= f.x + m && p.x <= f.x + f.w - m;
+  }
+
+  /** 卷屏：复活在屏幕里最靠前的检查点（出生点也算）；屏幕里一个都没有是 null（等一等）。 */
+  private scrollAnchor(): Pt | null {
+    const f = this.scrollView;
+    if (!f) return null;
+    const spots = [this.level.spawn, ...(this.level.checkpoints ?? [])];
+    for (let j = spots.length - 1; j >= 0; j--) if (this.inScroll(f, spots[j] as Pt)) return spots[j] as Pt;
+    return null;
+  }
+
+  /** 卷屏：这个人落在屏幕后面那条边外头了（往右卷是左边，往上卷是下边）。 */
+  private behindScroll(p: Player): boolean {
+    return this.behindScrollAt(p.body);
+  }
+
+  /** 卷屏：这个点落在屏幕后面那条边外头了。 */
+  private behindScrollAt(q: Pt): boolean {
+    const f = this.scrollView;
+    if (!f) return false;
+    return this.level.scroll?.dir === 'up' ? q.y > f.y + f.h + CFG.scrollGrace : q.x < f.x - CFG.scrollGrace;
+  }
+
+  /**
+   * 卷屏：东西（托盘、钥匙、灯笼、大元宝、大石头）回存档的地方时，那里已经不在屏幕里了，就放到屏幕里最靠前的检查点上
+   * （复活的人头顶上一点），不然落在屏幕后面再也拿不回来。没有卷屏、存档的地方还在屏幕里就照旧。
+   */
+  private backSpot(at: Pt): Pt {
+    const f = this.scrollView;
+    if (!f || this.inScroll(f, at)) return at;
+    const a = this.scrollAnchor();
+    return a ? { x: a.x + 45, y: a.y - 40 } : at;
+  }
+
   /** 蒸笼喷汽（后厨，A10）：蒸笼本身是普通的台子（能站能抓），汽柱只是个范围，喷的时候在 tickVents 里往上托。 */
   private addVent(def: VentDef): void {
     const material = def.material ?? 'wood';
@@ -747,7 +890,7 @@ export class Sim {
   }
 
   /** 钥匙、手提的灯笼（老宅，A10）：一个轻的小方块（at 是中心），能抓能拽能丢。返回它是第几个物件。 */
-  private addCarry(kind: 'key' | 'lantern', at: Pt, w: number, h: number, mass: number): number {
+  private addCarry(kind: 'key' | 'lantern' | 'ingot', at: Pt, w: number, h: number, mass: number): number {
     const rb = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setTranslation(at.x, at.y).setLinearDamping(0.3).setAngularDamping(1.5).setCcdEnabled(true),
     );
@@ -914,7 +1057,7 @@ export class Sim {
       let on = this.players.some((p) => !p.dead && !p.done && circleHitsRect(p.body, CFG.bodyR, top));
       if (!on)
         on = this.props.some(
-          (pr) => pr.kind === 'crate' && pr.y + pr.h / 2 >= pl.y - reach && pr.y + pr.h / 2 <= pl.y + reach && pr.x + pr.w / 2 > pl.x && pr.x - pr.w / 2 < pl.x + pl.w,
+          (pr) => (pr.kind === 'crate' || pr.kind === 'boulder') && pr.y + pr.h / 2 >= pl.y - reach && pr.y + pr.h / 2 <= pl.y + reach && pr.x + pr.w / 2 > pl.x && pr.x - pr.w / 2 < pl.x + pl.w,
         );
       if (on !== pl.on) {
         pl.on = on;
@@ -1075,6 +1218,103 @@ export class Sim {
   }
 
   /**
+   * 红包雨（11-26）每一步：隔一会儿从顶上随便哪儿掉一个红包，慢慢往下飘、左右晃；活着的人身体或手碰到就接到
+   * （报 raincatch）；掉出场地的不要了。时间到了接得最多的赢（几个人一样多都算赢，一个都没接到就没人赢）。
+   */
+  private tickRain(dt: number): void {
+    const r = this.rain;
+    if (!r || this.won) return;
+    while (r.caught.length < this.players.length) r.caught.push(0);
+    const rnd = (): number => {
+      // mulberry32
+      r.seed = (r.seed + 0x6d2b79f5) | 0;
+      let t = r.seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    r.left -= dt;
+    r.nextT -= dt;
+    while (r.nextT <= 0) {
+      const w = this.level.w;
+      r.drops.push({ id: r.seq++, x: 90 + rnd() * (w - 180), y: -30, vy: CFG.rainFall * (0.8 + rnd() * 0.6), ph: rnd() * Math.PI * 2 });
+      r.nextT += CFG.rainGap * (0.7 + rnd() * 0.6);
+    }
+    const reachB = CFG.bodyR + CFG.rainReach;
+    const reachH = CFG.handR + CFG.rainReach;
+    r.drops = r.drops.filter((d) => {
+      d.y += d.vy * dt;
+      d.x += Math.sin(this.time * 2.2 + d.ph) * 34 * dt;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const near = dist(p.body, d) <= reachB || p.arms.some((a) => dist(a.hand, d) <= reachH);
+        if (!near) continue;
+        r.caught[p.id] = (r.caught[p.id] ?? 0) + 1;
+        this.events.push({ type: 'raincatch', player: p.id, x: d.x, y: d.y });
+        return false;
+      }
+      return d.y < this.level.h + 40;
+    });
+    if (r.left > 0) return;
+    r.left = 0;
+    const best = Math.max(0, ...r.caught.slice(0, this.players.length));
+    const winners = best > 0 ? this.players.filter((p) => (r.caught[p.id] ?? 0) === best).map((p) => p.id) : [];
+    this.won = true;
+    this.winT = 0;
+    this.winners = winners;
+    for (const id of winners) (this.players[id] as Player).face = 'win';
+    this.events.push({ type: 'win', who: winners });
+  }
+
+  /**
+   * 观众投票（11-26）：主机让投出来的那一样起作用。力气满是一下子的事（每个人的手酸加满）；
+   * 变轻、变重改重力，刮风全场往一边吹，几秒以后自己过去（报 crowdfx off）。新的一样顶掉还在起作用的。
+   * 只有主机在有观众时调，回放（录像）里没有观众，所以回放不变。
+   */
+  startCrowd(fx: SimFx, dir = 1): void {
+    if (fx === 'strong') {
+      for (const p of this.players) p.stamina = 1;
+      return;
+    }
+    this.crowd = { fx, t: FX[fx].secs, dir: dir < 0 ? -1 : 1 };
+    this.crowdGravity();
+  }
+
+  private crowdGravity(): void {
+    const fx = this.crowd?.fx;
+    const k = fx === 'float' ? CFG.crowdFloatG : fx === 'heavy' ? CFG.crowdHeavyG : 1;
+    this.world.gravity = { x: 0, y: CFG.gravity * k };
+    // 睡着的（停着不动的）也要醒过来照新的重力走
+    if (k !== 1) for (const p of this.players) if (!p.dead) p.rb.wakeUp();
+  }
+
+  /** 观众投票每一步：刮风就全场吹（和阵风一个推法，站在东西上的算站稳了不吹），时间到了这一样过去。 */
+  private tickCrowd(dt: number): void {
+    const c = this.crowd;
+    if (!c) return;
+    if (c.fx === 'wind') {
+      const accel = CFG.crowdWindAccel * dt;
+      const blow = (rb: RB, k: number): void => {
+        const v = rb.linvel();
+        const along = v.x * c.dir;
+        if (along >= CFG.crowdWindMax) return;
+        rb.setLinvel({ x: v.x + c.dir * Math.min(accel * k, CFG.crowdWindMax - along), y: v.y }, true);
+      };
+      for (const p of this.players) {
+        if (p.dead || p.done || p.ground || p.itemOn === 'freeze') continue;
+        blow(p.rb, 1);
+        for (const arm of p.arms) for (const rb of arm.segs) blow(rb, 0.6);
+      }
+      for (const prop of this.props) if (prop.rb.isDynamic()) blow(prop.rb, 0.8);
+    }
+    c.t -= dt;
+    if (c.t > 0) return;
+    this.crowd = null;
+    this.crowdGravity();
+    this.events.push({ type: 'crowdfx', fx: c.fx, on: false, dir: c.dir });
+  }
+
+  /**
    * 蒸笼喷汽（后厨，A10）每一步：快喷了、喷了报一声；喷着的那几摞把汽柱里的身体、胳膊、箱子、托盘往上托
    * （往上的速度没到 ventLift 就加，汽柱最上面那几成越往上越弱）。冻住的人不动（钉住了）。
    */
@@ -1130,7 +1370,8 @@ export class Sim {
     tr.grace = Math.max(0, tr.grace - dt);
     const a = Math.atan2(Math.sin(prop.angle), Math.cos(prop.angle));
     tr.tiltT = Math.abs(a) > CFG.traySpill ? tr.tiltT + dt : 0;
-    const fell = prop.y > this.deathLine();
+    // 卷屏（11-26）：落在屏幕后面也算翻了
+    const fell = prop.y > this.deathLine() || this.behindScrollAt(prop);
     if (fell || this.trayBurnt(prop) || (tr.grace <= 0 && tr.tiltT >= CFG.traySpillTime)) {
       tr.spilled = true;
       tr.spillT = 0;
@@ -1171,7 +1412,7 @@ export class Sim {
     if (!tr) return;
     const prop = this.props[tr.prop] as Prop;
     const spots = this.level.tray ?? [];
-    const at = spots[Math.min(spots.length - 1, tr.cp + 1)] ?? spots[0] ?? { x: prop.x, y: prop.y };
+    const at = this.backSpot(spots[Math.min(spots.length - 1, tr.cp + 1)] ?? spots[0] ?? { x: prop.x, y: prop.y });
     for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
     prop.rb.setTranslation(at, true);
     prop.rb.setLinvel({ x: 0, y: 0 }, true);
@@ -1222,18 +1463,38 @@ export class Sim {
   }
 
   /**
+   * 护送大元宝（11-26）每一步：有人碰过就记下；中心进了终点（外扩 CFG.escortHomeR）就算送到了，报一声，以后不再管；
+   * 掉出去了照钥匙的办法回到它到过的检查点（没人碰过的悄悄回起点，不报）。
+   */
+  private tickEscort(dt: number): void {
+    const e = this.escort;
+    if (!e || e.done || this.won) return;
+    const prop = this.props[e.prop] as Prop;
+    if (!e.touched && this.heldProp(e.prop)) e.touched = true;
+    const g = this.level.goal;
+    const r = CFG.escortHomeR;
+    if (prop.x > g.x - r && prop.x < g.x + g.w + r && prop.y > g.y - r && prop.y < g.y + g.h + r) {
+      e.done = true;
+      this.events.push({ type: 'escort', phase: 'home', x: prop.x, y: prop.y });
+      return;
+    }
+    if (this.tickLost(e, prop, dt) && e.touched) this.events.push({ type: 'escort', phase: 'back', x: prop.x, y: prop.y });
+  }
+
+  /**
    * 钥匙、灯笼（老宅，A10）：掉下去、碰到要命的东西 CFG.keyBack 秒就回来（回到它到过的最后一个大家激活过的检查点，
    * 没到过就回开局的地方），抓着它的手松开。也在这里存档：离激活过的检查点不到 CFG.keyCpR 就算它到过。回来了返回 true。
    */
   private tickLost(c: { cp: number; lostT: number; home: Pt }, prop: Prop, dt: number): boolean {
     const cps = this.level.checkpoints ?? [];
     for (let j = c.cp + 1; j <= this.checkpoint && j < cps.length; j++) if (dist(prop, cps[j] as Pt) < CFG.keyCpR) c.cp = j;
-    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h));
+    // 卷屏（11-26）：落在屏幕后面也算丢了
+    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h)) || this.behindScrollAt(prop);
     c.lostT = lost ? c.lostT + dt : 0;
     if (c.lostT < CFG.keyBack) return false;
     const cp = cps[c.cp];
-    // 存档的检查点：放在复活的人头顶上一点、第一第二个人中间，掉下来落在脚边
-    const at = cp ? { x: cp.x + 45, y: cp.y - 40 } : c.home;
+    // 存档的检查点：放在复活的人头顶上一点、第一第二个人中间，掉下来落在脚边（卷屏：那里不在屏幕里了就放到屏幕里）
+    const at = this.backSpot(cp ? { x: cp.x + 45, y: cp.y - 40 } : c.home);
     this.dropProp(prop);
     prop.rb.setTranslation(at, true);
     prop.rb.setLinvel({ x: 0, y: 0 }, true);
@@ -1268,7 +1529,7 @@ export class Sim {
       const on = !p.dead && !p.done && inZone(p.body);
       if (on === p.floating) continue;
       p.floating = on;
-      p.rb.setGravityScale(on ? 0 : 1, true);
+      p.rb.setGravityScale(on ? 0 : p.assist ? CFG.assistGravity : 1, true);
       for (const arm of p.arms) {
         for (const rb of arm.segs) {
           rb.setGravityScale(on ? 0 : CFG.armGravity, true);
@@ -1493,6 +1754,8 @@ export class Sim {
       itemFailAt: -10,
       floating: false,
       stamina: 1,
+      assist: false,
+      steadyT: 0,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -1559,7 +1822,7 @@ export class Sim {
         ),
       );
     }
-    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0, stuckT: 0 };
+    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0, stuckT: 0, auto: false };
   }
 
   private removePlayer(): void {
@@ -1575,7 +1838,7 @@ export class Sim {
   /** 第 i 个玩家的复活点：最近激活的检查点，没有就是起点；几个人并排错开。 */
   private spawnPoint(i: number): Pt {
     // 抢金元宝：每个人站自己那个位置（摔了也回那）
-    const sp = this.rules.mode === 'gold' ? this.level.spawns : undefined;
+    const sp = this.rules.mode === 'gold' || this.rules.mode === 'rain' ? this.level.spawns : undefined;
     if (sp?.length) return sp[i % sp.length] as Pt;
     // 比谁先：回自己（自己那一队）到过的检查点
     const at = this.rules.mode === 'race' ? (this.cpOf[this.teamOf(i)] ?? -1) : this.checkpoint;
@@ -1590,7 +1853,7 @@ export class Sim {
    * 照常的位置空着就不动，所以回放里没人挡道的复活和以前一模一样。
    */
   private respawnPoint(i: number): Pt {
-    const s = this.spawnPoint(i);
+    const s = this.respawnBase(i);
     const minGap = CFG.bodyR * 2;
     const others = this.players.filter((q) => q.id !== i && !q.dead && !q.done).map((q) => q.body);
     const gap = (x: number): number => others.reduce((m, b) => Math.min(m, Math.hypot(b.x - x, b.y - s.y)), Infinity);
@@ -1613,7 +1876,13 @@ export class Sim {
       }
     }
     // 两边都站不住：回 1 号的位置（每一关都保证那里有落脚），和别人叠着也比掉下去好
-    return best ?? this.spawnPoint(0);
+    return best ?? this.respawnBase(0);
+  }
+
+  /** 复活照常回哪：检查点（spawnPoint）；卷屏（11-26）回屏幕里最靠前的检查点（出生点也算），到没到过都一样。 */
+  private respawnBase(i: number): Pt {
+    const anchor = this.level.scroll ? this.scrollAnchor() : null;
+    return anchor ? { x: anchor.x + i * 30, y: anchor.y } : this.spawnPoint(i);
   }
 
   /** 开局放人的位置：前 4 个人照关卡摆的（回放靠它）；第 5、6 个人那里站不住就往旁边找。 */
@@ -1668,6 +1937,24 @@ export class Sim {
   setItem(i: number, item: ItemId | null): void {
     const p = this.players[i];
     if (p) p.item = item;
+  }
+
+  /**
+   * 长辈小孩模式（11-26）：第 i 个人开 / 关。开着：掉的时候手碰到能抓的自己抓住、站稳了自己松开，抓的范围大一点，
+   * 不会手酸，身子轻一点。关上时自己抓住的手跟着按键走（没按着就松开）。
+   */
+  setAssist(i: number, on: boolean): void {
+    const p = this.players[i];
+    if (!p || p.assist === on) return;
+    p.assist = on;
+    p.steadyT = 0;
+    if (!on) for (const arm of p.arms) arm.auto = false;
+    if (!p.floating) p.rb.setGravityScale(on ? CFG.assistGravity : 1, true);
+  }
+
+  /** 长辈小孩模式：这会儿在往下掉（没站在东西上、不在失重区里、往下快过 assistCatchVy），手碰到就抓。 */
+  private catching(p: Player): boolean {
+    return !p.ground && !p.floating && p.body.vy > CFG.assistCatchVy;
   }
 
   /** 这一局用不用得了道具：闯关和大团队用得了。 */
@@ -1761,10 +2048,19 @@ export class Sim {
     for (const p of this.players) {
       // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      // 长辈小孩模式（11-26）：站稳了几秒
+      p.steadyT = p.assist && p.ground ? p.steadyT + dt : 0;
       p.arms.forEach((arm, k) => {
         if (arm.slipCd > 0) arm.slipCd = Math.max(0, arm.slipCd - dt);
+        // 按着键就是自己在抓：自己抓住的那只手交回给按键（松开键就松手）
+        if (p.grab[k]) arm.auto = false;
         if (p.grab[k] && !arm.grip && arm.slipCd <= 0) this.tryGrab(p, k);
-        else if (!p.grab[k] && arm.grip) this.release(p, k);
+        else if (!p.grab[k] && arm.grip && !arm.auto) this.release(p, k);
+        else if (p.assist && !p.grab[k] && !arm.grip && arm.slipCd <= 0 && this.catching(p)) {
+          // 长辈小孩模式：掉的时候手碰到能抓的自己抓住
+          this.tryGrab(p, k);
+          if (arm.grip) arm.auto = true;
+        } else if (arm.auto && arm.grip && p.steadyT >= CFG.assistLetGo) this.release(p, k);
         if (arm.grip) {
           arm.grip.t += dt;
           // 坐不住：一个地方抓太久手就滑了，一会儿抓不了（按着键也不会马上又抓回去）；雪山的冰溜子抓久了也滑
@@ -1799,11 +2095,15 @@ export class Sim {
     this.tickTide(dt);
     this.lifeAndDeath(dt);
     this.tickGold(dt);
+    this.tickRain(dt);
+    this.tickCrowd(dt);
+    this.tickBoulders(dt);
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();
     this.tickTray(dt);
     this.tickKeys(dt);
+    this.tickEscort(dt);
     this.tickLamps();
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);
@@ -1962,7 +2262,7 @@ export class Sim {
       p.pendingAct = null;
       if (!act || p.dead || p.done || act !== 'summon') continue;
       // 坐不住摔了就出局；比谁先各跑各的没有队友可以拉
-      if (this.rules.mode === 'last' || this.rules.mode === 'gold' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
+      if (this.rules.mode === 'last' || this.rules.mode === 'gold' || this.rules.mode === 'rain' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
       const who: number[] = [];
       for (const q of this.players) {
         if (!q.dead || q.done) continue;
@@ -2113,7 +2413,9 @@ export class Sim {
     const arm = p.arms[k] as Arm;
     const h = arm.hand;
     let best: { col: Col; point: Pt; d: number; info: ColInfo } | null = null;
-    this.world.intersectionsWithShape(h, 0, this.grabShape, (col) => {
+    // 长辈小孩模式（11-26）抓的范围大一点
+    const reach = p.assist ? GRAB_R + CFG.assistReach : GRAB_R;
+    this.world.intersectionsWithShape(h, 0, p.assist ? this.grabShapeEasy : this.grabShape, (col) => {
       const info = this.info.get(col.handle);
       // 关掉的碰撞体（消失中的饼干）这一步查询还查得到，自己跳过
       if (!info || !col.isEnabled()) return true;
@@ -2126,7 +2428,7 @@ export class Sim {
       const proj = col.projectPoint(h, true);
       if (!proj) return true;
       const d = proj.isInside ? 0 : dist(proj.point, h);
-      if (d <= GRAB_R && (!best || d < best.d)) best = { col, point: { x: proj.point.x, y: proj.point.y }, d, info };
+      if (d <= reach && (!best || d < best.d)) best = { col, point: { x: proj.point.x, y: proj.point.y }, d, info };
       return true;
     });
     if (!best) return;
@@ -2188,6 +2490,11 @@ export class Sim {
     }
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      // 长辈小孩模式（11-26）不会手酸
+      if (p.assist) {
+        p.stamina = 1;
+        continue;
+      }
       const hands = p.arms.reduce((n, a) => n + (a.grip ? 1 : 0), 0);
       if (p.ground || p.floating || hands === 0) {
         p.stamina = Math.min(1, p.stamina + (p.ground || p.floating ? rest : CFG.staminaAir) * dt);
@@ -2214,6 +2521,7 @@ export class Sim {
     this.world.removeImpulseJoint(g.tether, true);
     this.grips.delete(g.joint);
     arm.grip = null;
+    arm.auto = false;
     // 松开的是队友，而队友此刻悬空又没抓着别的：记下来，几秒内摔死就是背叛
     if (g.kind === 'player' && g.player !== undefined && !p.dead) {
       const victim = this.players[g.player];
@@ -2543,6 +2851,8 @@ export class Sim {
       if (p.done) continue;
       if (!p.dead && p.body.y > this.level.deathY) this.kill(p, 'fall', p.body);
       else if (!p.dead && this.tideY !== null && p.body.y > this.tideY) this.kill(p, 'tide', { x: p.body.x, y: this.tideY });
+      // 卷屏（11-26）：落在屏幕后面被甩掉
+      else if (!p.dead && this.behindScroll(p)) this.kill(p, 'scroll', p.body);
       if (!p.dead) {
         const hit = this.hazardHit(p);
         if (hit) this.kill(p, hit.cause, hit.at);
@@ -2555,6 +2865,8 @@ export class Sim {
           continue;
         }
         if (p.deadT >= CFG.respawnDelay) {
+          // 卷屏：屏幕里还没有能复活的检查点，等一等
+          if (this.level.scroll && !this.scrollAnchor()) continue;
           const s = this.respawnPoint(p.id);
           this.pushTide(s.y);
           this.teleport(p.id, s.x, s.y);
@@ -2632,7 +2944,7 @@ export class Sim {
     if (this.won || this.players.length === 0) return;
     if (this.rules.mode === 'race') return this.checkRace();
     if (this.rules.mode === 'last') return this.checkLast();
-    if (this.rules.mode === 'gold') return;
+    if (this.rules.mode === 'gold' || this.rules.mode === 'rain') return;
     // 端托盘的关：托盘也要端进终点（点心没翻）
     const allIn = this.players.every((p) => !p.dead && this.inGoal(p)) && (!this.tray || this.tray.home);
     if (allIn) {

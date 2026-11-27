@@ -380,17 +380,21 @@ export function buildFigure(parts: Parts, w: Wardrobe, shadowMat: THREE.Material
   return { root, pelvis, chest, neck, head, shoulders: [L[0], R[0]], elbows: [L[1], R[1]], thighs: [L[2], R[2]], knees: [L[3], R[3]], ankles: [L[4], R[4]], chestMesh, shadow, meshes };
 }
 
-/** Put the rig in this pose (where it stands, `x` and `z`, is the world's to place). `breath` (0..1) swells the chest. */
-export function applyJoints(rig: Rig, j: Joints, breath: number) {
+/**
+ * Put the rig in this pose (where it stands, `x` and `z`, is the world's to place). `breath` (0..1)
+ * swells the chest. `tremor` (−1..1, the world's noise) is the strain of a deep lean: the chest, arms
+ * and head shake with it and the hips dip a hair, the feet stay planted.
+ */
+export function applyJoints(rig: Rig, j: Joints, breath: number, tremor = 0) {
   rig.root.scale.setScalar(j.scale);
-  rig.pelvis.position.set(0, j.hipY, j.hipZ);
+  rig.pelvis.position.set(0, j.hipY - Math.abs(tremor) * 0.004, j.hipZ);
   rig.pelvis.rotation.x = j.pelvisX;
-  rig.chest.rotation.set(j.chestX, 0, j.chestZ);
+  rig.chest.rotation.set(j.chestX + tremor * 1.8 * RAD, 0, j.chestZ + tremor * 0.8 * RAD);
   rig.chestMesh.scale.set(1 + breath * 0.025, 1 + breath * 0.012, 1 + breath * 0.04);
-  rig.neck.rotation.x = j.neckX;
-  rig.head.rotation.set(0, j.headY, 0);
+  rig.neck.rotation.x = j.neckX + tremor * 1.2 * RAD;
+  rig.head.rotation.set(0, j.headY, tremor * 0.9 * RAD);
   for (let i = 0; i < 2; i++) {
-    rig.shoulders[i].rotation.set(j.shoulderX[i], 0, j.shoulderZ[i]);
+    rig.shoulders[i].rotation.set(j.shoulderX[i] + tremor * 1.5 * RAD, 0, j.shoulderZ[i] + (i ? -1 : 1) * tremor * 2.6 * RAD);
     rig.elbows[i].rotation.x = j.elbow[i];
     rig.thighs[i].rotation.x = j.thigh[i];
     rig.knees[i].rotation.x = j.knee[i];

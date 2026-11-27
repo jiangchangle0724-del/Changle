@@ -1,4 +1,5 @@
-import { fullDeck, ROGUE_MS, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
+import { fullDeck, RANKS, ROGUE_MS, ROGUE_NOTES as N, RULE_BY_RANK, ruleWords, type Rank } from "../../../data/rogue13";
+import type { T } from "../../../i18n";
 import type { RogueHolders, RoguePhase, RogueView } from "../../protocol";
 import { byPenalty, intIn, range, type Api, type GameDef } from "../api";
 
@@ -23,6 +24,10 @@ type S = {
   interrupt: Interrupt | null;
   /** the camera and the nose go once per card: which ones their current holder has used (tables from before this field have none) */
   used?: { camera?: boolean; nose?: boolean };
+  /** this deck's cards as they came (牌谱): the card, who drew it, who its own penalty landed on (tables from before this field start theirs late) */
+  log?: { c: number; by: string; hit: string[] }[];
+  /** this deck's penalties by player, the powers' included (the deck's recap when it runs out) */
+  tally?: Record<string, number>;
 };
 
 const HOLD_KEY: Partial<Record<Rank, keyof RogueHolders>> = { "2": "buddy", "5": "camera", "6": "nose", "8": "wc", "10": "trouble" };
@@ -41,8 +46,31 @@ function noteFor(s: S, api: Api) {
   return s.card !== null ? ruleWords(RULE_BY_RANK[DECK[s.card].rank], api.customPenalty).title : undefined;
 }
 
+/** One more against each of them in this deck's tally. */
+function count(s: S, who: string[]) {
+  const t = (s.tally ??= {});
+  for (const id of who) t[id] = (t[id] ?? 0) + 1;
+}
+
+/** The card's own penalty: the stamp, and the names on the card's line of the deck's log. */
 function pen(s: S, api: Api, who: string[], kind: "sip" | "full", note = noteFor(s, api), delay = 0) {
   api.penalty(who, kind, note, { buddy: s.holders.buddy, delay });
+  const line = s.log?.[s.log.length - 1];
+  if (line && line.c === s.card) line.hit.push(...who);
+  count(s, who);
+}
+
+/** A power's penalty: it lands during someone else's card, so it stays off that card's line (it still counts in the deck's tally). */
+function penPower(s: S, api: Api, who: string[], note: T) {
+  api.penalty(who, "sip", note, { buddy: s.holders.buddy });
+  count(s, who);
+}
+
+/** How many of each rank are still in the deck, in RANKS order (剩牌). */
+function stockOf(deck: number[]) {
+  const n = RANKS.map(() => 0);
+  for (const c of deck) n[RANKS.indexOf(DECK[c].rank)] += 1;
+  return n;
 }
 
 function endSub(s: S, api: Api) {
@@ -84,11 +112,11 @@ function resolveNose(s: S, api: Api, timedOut: boolean) {
   s.interrupt = null;
   api.clear("nose");
   if (missing.length && timedOut) {
-    pen(s, api, missing, "sip", N.noseMiss);
+    penPower(s, api, missing, N.noseMiss);
     return;
   }
   const tapped = Object.entries(it.taps).sort((a, b) => b[1] - a[1]);
-  if (tapped.length) pen(s, api, [tapped[0][0]], "sip", N.noseSlow);
+  if (tapped.length) penPower(s, api, [tapped[0][0]], N.noseSlow);
 }
 
 export const rogue: GameDef<S> = {
@@ -109,6 +137,8 @@ export const rogue: GameDef<S> = {
       sevens: null,
       interrupt: null,
       used: {},
+      log: [],
+      tally: {},
     };
   },
 
@@ -125,11 +155,14 @@ export const rogue: GameDef<S> = {
           s.holders = {};
           s.wcUsed = false;
           s.used = {};
+          s.log = [];
+          s.tally = {};
           s.reshuffled = true;
           api.fx("shuffle");
         }
         s.card = s.deck.pop() ?? 0;
         s.drawer = drawer;
+        (s.log ??= []).push({ c: s.card, by: drawer, hit: [] });
         api.fx("card", drawer);
         const rank = DECK[s.card].rank;
         const rule = RULE_BY_RANK[rank];
@@ -306,7 +339,7 @@ export const rogue: GameDef<S> = {
         const target = g.target ? String(g.target) : null;
         s.interrupt = null;
         api.clear("camera");
-        if (target && api.has(target) && target !== pid) pen(s, api, [target], "sip", N.camera);
+        if (target && api.has(target) && target !== pid) penPower(s, api, [target], N.camera);
         return;
       }
       case "nose": {
@@ -328,7 +361,7 @@ export const rogue: GameDef<S> = {
         const target = String(g.target ?? "");
         if (pid !== s.holders.trouble || !api.has(target) || target === pid) return;
         api.fx("trouble", pid);
-        pen(s, api, [target], "sip", N.trouble);
+        penPower(s, api, [target], N.trouble);
         return;
       }
       case "wc": {
@@ -337,7 +370,7 @@ export const rogue: GameDef<S> = {
           api.fx("wc", pid);
           return;
         }
-        pen(s, api, [pid], "sip", byPenalty(api, N.wc, N.wcCustom));
+        penPower(s, api, [pid], byPenalty(api, N.wc, N.wcCustom));
         return;
       }
     }
@@ -400,6 +433,9 @@ export const rogue: GameDef<S> = {
       wcUsed: s.wcUsed,
       used: s.used ?? {},
       reshuffled: s.reshuffled,
+      stock: stockOf(s.deck),
+      log: (s.log ?? []).map((e) => ({ rank: DECK[e.c].rank, suit: DECK[e.c].suit, by: e.by, hit: e.hit })),
+      tally: s.tally ?? {},
       garden: s.garden,
       grab: s.grab ? { next: s.grab.next, claimed: s.grab.claimed, endsAt: s.grab.endsAt } : null,
       sevens: s.sevens ? { n: s.sevens.n, speaker: s.sevens.speaker, endsAt: s.sevens.endsAt, log: s.sevens.log } : null,

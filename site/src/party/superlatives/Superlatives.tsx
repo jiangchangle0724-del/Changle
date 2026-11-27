@@ -1,6 +1,6 @@
-import { Check, PenLine, Shuffle } from "lucide-react";
+import { Check, ImageDown, PenLine, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TITLES } from "../../data/superlatives";
+import { DEFAULT_PACKS, deckFor, PACKS, TITLES, type Pack } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import type { PenaltyCall } from "../../components/PenaltyStamp";
@@ -10,8 +10,12 @@ import { Deck } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
+import { flavorOf, mindReader } from "./flavor";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
-import { AwardCard, AwardReveal, Ceremony } from "./parts";
+import { posterOf } from "./poster";
+import { AV_COLORS, colorFor } from "../../account/Avatar";
+import { PosterSheet } from "./PosterSheet";
+import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import "../../styles/party.css";
 
 /** the drum roll plays out, then the winner's stamp; the trophies come out, then the table's toast */
@@ -20,7 +24,7 @@ const TOAST_MS = 3200;
 
 type Mode = "secret" | "point";
 type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
-type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
+type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; packs?: Pack[]; hits?: Record<string, number>; streak?: { id: string; n: number } | null; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
 
 /** One phone: pass it round for a secret ballot, or count fingers and tap the winner. */
 export function Superlatives({ onBack }: { onBack: () => void }) {
@@ -34,8 +38,10 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
 function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang } = useStore();
   const zh = lang === "zh";
+  // the packs of titles in play (a game saved before the packs was dealt from every title, by place)
+  const [packs, setPacks] = useState<Pack[]>(saved ? (saved.packs ?? [...PACKS]) : DEFAULT_PACKS);
   const [firstDeck] = useState(() => {
-    const deck = new Deck<T>(TITLES);
+    const deck = new Deck<T>(deckFor(packs).map((i) => TITLES[i]));
     if (saved) deck.restore(saved.cards);
     return deck;
   });
@@ -54,7 +60,11 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [pick, setPick] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>(saved?.picked ?? []);
   const [awards, setAwards] = useState<Record<string, T[]>>(saved?.awards ?? {});
+  // who voted with the room how often (the mind reader of the night), and the same winner again and again
+  const [hits, setHits] = useState<Record<string, number>>(saved?.hits ?? {});
+  const [streak, setStreak] = useState<{ id: string; n: number } | null>(saved?.streak ?? null);
   const [paid, setPaid] = useState(saved?.paid ?? false);
+  const [poster, setPoster] = useState(false);
   const [advance, setAdvance] = useState(saved?.advance ?? false);
   const penalty = usePenalty();
   const pen = usePenaltyText();
@@ -63,7 +73,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
   // Hide private ballots again: a game picked up later starts that voter at the hand-over.
   const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i } : phase;
-  useKeepProgress<Kept>({ mode, total, round, title, written, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
+  useKeepProgress<Kept>({ mode, total, round, title, written, packs, hits, streak, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
 
   // each moment of the game starts at the top of the screen, and its first 350 ms belong to the moment before
   const moment = phase.k === "pass" || phase.k === "ballot" ? `${phase.k}:${phase.i}` : phase.k;
@@ -78,6 +88,13 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setPick(null);
     setPicked([]);
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
+  };
+
+  /** Other packs at the setup: a new deck from them, and a new first title on the card. */
+  const pickPacks = (next: Pack[]) => {
+    setPacks(next);
+    deck.current = new Deck<T>(deckFor(next).map((i) => TITLES[i]));
+    setTitle(deck.current.draw().card);
   };
 
   /** The next title from the deck (fingers already counted for the old one don't carry over). */
@@ -123,12 +140,20 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     return true;
   };
 
-  const reveal = (winners: string[], counts: Record<string, number>) => {
+  const reveal = (winners: string[], counts: Record<string, number>, ballots: Record<string, string> = votes) => {
     setAwards((a) => {
       const next = { ...a };
       for (const w of winners) next[w] = [...(next[w] ?? []), title];
       return next;
     });
+    // (pointing together casts no ballots: the mind reader is a secret-ballot thing)
+    setHits((h) => {
+      const next = { ...h };
+      for (const [voter, target] of Object.entries(ballots)) if (winners.includes(target)) next[voter] = (next[voter] ?? 0) + 1;
+      return next;
+    });
+    const one = winners.length === 1 ? winners[0] : null;
+    setStreak((st) => (one ? { id: one, n: st?.id === one ? st.n + 1 : 1 } : null));
     setPhase({ k: "reveal", winners, counts });
     stampLater({ who: winners.map((w) => name[w]), kind: "sip", note: zh ? title.zh : title.en }, STAMP_MS);
   };
@@ -149,7 +174,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     const counts: Record<string, number> = {};
     for (const t of Object.values(next)) counts[t] = (counts[t] ?? 0) + 1;
     const top = Math.max(...Object.values(counts));
-    reveal(Object.keys(counts).filter((id) => counts[id] === top), counts);
+    reveal(Object.keys(counts).filter((id) => counts[id] === top), counts, next);
   };
 
   const next = () => {
@@ -222,7 +247,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         {lastVoter ? (zh ? "投好了，揭晓" : "Done. Reveal") : zh ? "投好了，交给下一位" : "Done. Pass it on"}
       </button>
     ) : phase.k === "point" ? (
-      <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} aria-disabled={fresh} onClick={guard(() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1]))))}>
+      <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} aria-disabled={fresh} onClick={guard(() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1])), {}))}>
         {zh ? "颁奖" : "Give the award"}
       </button>
     ) : phase.k === "reveal" ? (
@@ -259,6 +284,8 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                   </button>
                 ))}
               </div>
+              <span className="field-label">{zh ? "题库" : "Title packs"}</span>
+              <PackChips picked={packs} onChange={pickPacks} />
             </div>
           </div>
         )}
@@ -366,13 +393,25 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               title={title}
               winners={phase.winners.map((id) => ({ id, name: name[id], face: face(id), count: phase.counts[id] ?? 0 }))}
               nominees={mode === "secret" ? Object.keys(phase.counts).map((id) => ({ id, name: name[id], face: face(id), count: phase.counts[id] })) : []}
+              flavor={flavorOf({ winners: phase.winners, counts: phase.counts, voted: mode === "secret" ? Object.keys(votes) : [], streak: streak?.n ?? 0, name: (id) => name[id] ?? "?" })}
             />
           </>
         )}
 
         {phase.k === "ceremony" && (
           <>
-            <Ceremony shelves={players.map((p) => ({ id: p.id, name: p.name, face: face(p.id), awards: awards[p.id] ?? [] }))} />
+            <Ceremony
+              shelves={players.map((p) => ({ id: p.id, name: p.name, face: face(p.id), awards: awards[p.id] ?? [] }))}
+              mind={(() => {
+                const m = mindReader(hits, round);
+                return m && { names: m.ids.map((id) => name[id] ?? "?"), hits: m.hits, of: m.of };
+              })()}
+            />
+            <button type="button" className="btn btn-ghost btn-block" onClick={() => setPoster(true)}>
+              <ImageDown size={16} />
+              {zh ? "颁奖海报" : "The awards poster"}
+            </button>
+            <PosterSheet open={poster} onClose={() => setPoster(false)} poster={() => posterOf({ lang: zh ? "zh" : "en", people: players.map((p) => ({ id: p.id, name: p.name, color: AV_COLORS[colorFor(p.name)] })), awards, hits, round })} />
           </>
         )}
 

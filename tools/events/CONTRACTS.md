@@ -30,7 +30,9 @@ The Worker runs on Cloudflare's free plan (Steve's decision, Oct 31). Per invoca
   (`src/store.ts`), whatever the count.
 - **The Chinese is written every hour, at :05** (`src/ai.ts`, a second cron): the events the
   published page shows, not over yet, that have no Chinese name or whose text changed since. Each
-  step is one Workers AI request for 15 events (`@cf/qwen/qwen3-30b-a3b-fp8`), three steps at a time,
+  step is one Workers AI request for 15 events (`AI_MODELS`: `@cf/google/gemma-4-26b-a4b-it`, and
+  `@cf/qwen/qwen3.8-27b` only when Gemma can't be asked; until 20 November `@cf/qwen/qwen3-30b-a3b-fp8`,
+  retired that day), three steps at a time,
   each handed its own 15 by id (with offsets they took the same ones, one step's writes shifting the next's),
   at most 10 rounds (30 steps and the publish) or 12 minutes; then it publishes again, unless the
   morning's run is under way. Workers AI's free allowance is 10,000 neurons a day: the first pass

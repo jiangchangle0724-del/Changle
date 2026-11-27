@@ -12,6 +12,8 @@ export interface StatusForHealth {
   sources: { id: string; name: string; enabled: number; lastOkRun: string | null; lastError: string | null }[];
   /** The newest runs first: how many events each run published in the end. */
   history: { run: string; count: number }[];
+  /** The latest run's steps, the AI's ("ai") among them: what it was asked, wrote, and why not. */
+  steps?: { source: string; found: number | null; updated: number | null; error: string | null }[];
 }
 
 export interface Problem {
@@ -61,6 +63,12 @@ export function checkHealth(status: StatusForHealth, now = Date.now()): Health {
   const before = status.history.filter((h) => h.run < day).slice(0, 7).map((h) => h.count);
   const usual = median(before);
   if (run && before.length >= 3 && run.count < usual / 2) problems.push({ key: "drop", text: `${md(day)}只读到 ${run.count} 个活动，前几天一般有 ${Math.round(usual)} 个。` });
+  // The AI asked all day and wrote nothing: the model gone (as Qwen 3 on 20 November), the
+  // allowance used up every hour. A day when some of it failed and some was written is fine.
+  const ai = (status.steps ?? []).filter((s) => s.source === "ai");
+  const aiError = ai.find((s) => s.error)?.error;
+  if (ai.length && aiError && ai.every((s) => !s.updated))
+    problems.push({ key: "ai", text: `中文名和介绍最近一个也没写成（AI 试了 ${ai.length} 次，${ai.reduce((n, s) => n + (s.found ?? 0), 0)} 个活动），最后的错误是 ${scrub(aiError).slice(0, 200)}。` });
   return { day, ok: problems.length === 0, problems };
 }
 

@@ -5,6 +5,8 @@ import m0002 from "../../migrations/0002_notices.sql";
 import m0003 from "../../migrations/0003_test_shop_address.sql";
 import m0004 from "../../migrations/0004_applications.sql";
 import m0005 from "../../migrations/0005_photos.sql";
+import m0006 from "../../migrations/0006_listed.sql";
+import m0007 from "../../migrations/0007_case.sql";
 
 // (a file that has been applied on the live database is never edited again: a change is a new file, added here)
 const MIGRATIONS: [name: string, sql: string][] = [
@@ -13,6 +15,8 @@ const MIGRATIONS: [name: string, sql: string][] = [
   ["0003_test_shop_address", m0003],
   ["0004_applications", m0004],
   ["0005_photos", m0005],
+  ["0006_listed", m0006],
+  ["0007_case", m0007],
 ];
 
 /** A migration file as statements: comments dropped, split at each ";". (No ";" inside a string or a comment in these files.) */

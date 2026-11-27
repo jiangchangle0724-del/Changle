@@ -16,6 +16,17 @@ const BASE = process.env.BASE || "http://127.0.0.1:8787";
 const TV_DELAY = Number(process.env.TV_DELAY || 180);
 const LIMIT_MS = 30; // A1's acceptance: clocks within 30 ms
 
+
+/** A host's button while a dance plays: held for 0.85 s, as it has to be (join.ts holdButton), not tapped. */
+async function hold(page, name) {
+  const b = page.getByRole("button", { name });
+  await b.scrollIntoViewIfNeeded();
+  const box = await b.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(850);
+  await page.mouse.up();
+}
 (async () => {
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   const errors = [];
@@ -116,7 +127,9 @@ const LIMIT_MS = 30; // A1's acceptance: clocks within 30 ms
     flashes.push({ phone: names[i], flashes: errs.length, meanMs: +(errs.reduce((a, b) => a + b, 0) / (errs.length || 1)).toFixed(1), p90AbsMs: +p90.toFixed(1), maxAbsMs: +(abs.at(-1) ?? 0).toFixed(1) });
   }
 
-  // the end
+  // the end: the metronome is stopped first (结束房间 isn't there while it plays)
+  await hold(ann, "停下，回大厅");
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby", null, { timeout: 10000 });
   await ann.getByRole("button", { name: "结束房间" }).click();
   await ann.getByRole("button", { name: "确定结束房间" }).click();
   const ended = await phones[1].getByText("The room has ended").first().waitFor({ timeout: 5000 }).then(() => true, () => false);

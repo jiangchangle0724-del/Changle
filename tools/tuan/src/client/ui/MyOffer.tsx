@@ -16,7 +16,7 @@ import { ApiFail, getMyOffer, moveOffer, moveOrder, session } from "../api";
 import { inWeChat, t, unitName, whenText } from "../i18n";
 import { Copyable, CopyButton, IconBack, IconCheck, IconClock, Lines, money, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 import { offerState, onReturn, shutOut, stateWord, troubleOf, TroublePanel, type Trouble } from "./My";
-import { amountOf, dueAll, goodsText, ordersAt, phoneLink, phoneText, placesText } from "./sheets";
+import { amountOf, caseText, dueAll, goodsText, ordersAt, phoneLink, phoneText, placesText } from "./sheets";
 
 type Tab = "orders" | "goods" | "places";
 type Filter = "all" | "new" | "unpaid" | "unpicked" | "cancelled";
@@ -136,6 +136,8 @@ export function MyOfferView({ offerId }: { offerId: string }) {
     unpicked: standing.filter((order) => order.pickedAt === null).length,
     cancelled: page.orders.length - standing.length,
   };
+  // items whose last case the orders haven't filled
+  const short = summary.items.filter((item) => item.case !== null && item.case.part > 0).length;
   const passes = (order: Order): boolean =>
     (filter === "cancelled"
       ? order.status === "cancelled"
@@ -229,6 +231,12 @@ export function MyOfferView({ offerId }: { offerId: string }) {
         {t(summary.unweighed ? "dueEstimate" : "due")} {money(dueAll(standing))} · {t("statPaid")} {money(summary.paidTotal)}
         {summary.unweighed > 0 && ` · ${t("statWeigh")} ${summary.unweighed}`}
       </p>
+      {/* (an item that comes only by the case, its last case not full: worth a word in the group before orders close) */}
+      {short > 0 && (
+        <button type="button" class="link-btn case-warn" onClick={() => setTab("goods")}>
+          {t("casesShort", { n: short })}
+        </button>
+      )}
 
       <div class="seg" role="group" aria-label={offer.title}>
         {(["orders", "goods", "places"] as const).map((one) => (
@@ -307,6 +315,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
                     <td>
                       {amountOf(item.unit, item.qty)}
                       {weighed(item.unit) && item.actual !== null && <span class="hint actual">{t("weighed", { w: amountOf(item.unit, item.actual) })}</span>}
+                      {item.case && <span class={item.case.short ? "hint case-line case-line-short" : "hint case-line"}>{caseText(item.unit, item.case)}</span>}
                     </td>
                     <td>{item.orders}</td>
                     <td>{money(item.amount)}</td>
@@ -455,6 +464,8 @@ const chainWords = (page: MyOfferPage): ChainWords => ({
   none: t("chainNone"),
   least: (n) => t("chainLeast", { n }),
   perBuyer: (n) => t("chainPerBuyer", { n }),
+  caseSize: (n) => t("chainCaseSize", { n }),
+  caseShort: (n) => t("chainCaseShort", { n }),
   and: t("chainAnd"),
   unit: Object.fromEntries(UNITS.map((unit) => [unit, unitName(unit)])) as Record<Unit, string>,
 });

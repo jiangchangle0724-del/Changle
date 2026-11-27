@@ -3,14 +3,21 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AI_BATCH,
   AI_MODEL,
+  AI_MODELS,
+  aiNote,
+  ask,
   AI_VERSION,
   INSTRUCTIONS,
   TITLE_MAX,
+  TITLE_ZH_MAX,
+  tooLong,
   about,
   answerText,
   labelsOf,
   catchUp,
+  corrected,
   grounded,
+  simplified,
   messages,
   readAnswer,
   settle,
@@ -74,8 +81,9 @@ describe("what the AI is asked", () => {
       { id: "b", title: "SYML: Beard Tour", venue: null, description: null, labels: '["Music","Rock"]' },
     ]);
     expect(system).toEqual({ role: "system", content: INSTRUCTIONS });
-    expect(user.content.endsWith("\n/no_think")).toBe(true);
-    expect(JSON.parse(user.content.replace(/\n\/no_think$/, ""))).toEqual([
+    // (Qwen's /no_think is added by ask, for Qwen only)
+    expect(user.content).not.toContain("no_think");
+    expect(JSON.parse(user.content)).toEqual([
       { n: 1, title: "Family Stay and Play", venue: "Firehall Branch", labels: "Storytimes, Families", about: "Drop in to explore books and toys." },
       { n: 2, title: "SYML: Beard Tour", labels: "Music, Rock" },
     ]);
@@ -84,6 +92,51 @@ describe("what the AI is asked", () => {
     expect(labelsOf('["a","b","c","d","e","f","g"]')).toBe("a, b, c, d, e, f");
     expect(labelsOf("not json")).toBe("");
     expect(labelsOf(null)).toBe("");
+  });
+
+  it("asks Gemma 4 first, and Qwen 3.8 (told /no_think) only when Gemma can't be asked at all", async () => {
+    expect(AI_MODELS).toEqual(["@cf/google/gemma-4-26b-a4b-it", "@cf/qwen/qwen3.8-27b"]);
+    const input = { messages: [{ role: "system", content: "rules" }, { role: "user", content: "[1]" }], max_tokens: 10, temperature: 0 };
+    const calls: [string, string][] = [];
+    const gone = (model: string) => Object.assign(new Error(`5028: ${model} was deprecated on 2026-11-20.`), { status: 410 });
+    const answers: RunModel = async (model, i) => {
+      calls.push([model, (i.messages as { content: string }[])[1].content]);
+      if (model === AI_MODELS[0]) throw gone(model);
+      return { choices: [{ message: { content: "[]" } }] };
+    };
+    expect(await ask(answers, input)).toEqual({ text: "[]", model: "@cf/qwen/qwen3.8-27b" });
+    expect(calls).toEqual([
+      ["@cf/google/gemma-4-26b-a4b-it", "[1]"],
+      ["@cf/qwen/qwen3.8-27b", "[1]\n/no_think"],
+    ]);
+    // the first one answering: only it is asked
+    calls.length = 0;
+    expect(await ask(async (model, i) => (calls.push([model, String((i.messages as { content: string }[])[1].content)]), { response: "ok" }), input)).toEqual({ text: "ok", model: AI_MODELS[0] });
+    expect(calls).toHaveLength(1);
+    // none: the last one's error
+    await expect(ask(async (model) => Promise.reject(gone(model)), input)).rejects.toThrow("5028: @cf/qwen/qwen3.8-27b was deprecated");
+    // each is told not to think first; an answer with no text is no answer: on to the next, and when
+    // none has any, the error shows what the last one sent
+    const sent: Record<string, unknown>[] = [];
+    const empty: RunModel = async (model, i) => (sent.push(i), model === AI_MODELS[0] ? { choices: [{ message: { content: null, reasoning_content: "Let me think…" }, finish_reason: "length" }] } : { response: "[]" });
+    expect(await ask(empty, input)).toEqual({ text: "[]", model: AI_MODELS[1] });
+    expect(sent.map((i) => i.chat_template_kwargs)).toEqual([{ enable_thinking: false }, { enable_thinking: false }]);
+    expect(sent[0]).toMatchObject({ max_tokens: 10, temperature: 0 });
+    await expect(ask(async () => ({ choices: [{ message: { content: "" } }] }), input)).rejects.toThrow('@cf/qwen/qwen3.8-27b answered no text: {"choices":[{"message":{"content":""}}]}');
+    expect(aiNote({ asked: 15, wrote: 14, failed: 1, error: null, model: AI_MODELS[0] })).toBe("1 not usable");
+    expect(aiNote({ asked: 15, wrote: 12, failed: 3, error: null, model: AI_MODELS[0], why: { "long name": 2, praise: 1 } })).toBe("3 not usable (long name 2, praise 1)");
+    expect(aiNote({ asked: 15, wrote: 15, failed: 0, error: null, model: AI_MODELS[1] })).toBe("by @cf/qwen/qwen3.8-27b");
+    expect(aiNote({ asked: 15, wrote: 0, failed: 0, error: "5028" })).toBeNull();
+  });
+
+  it("reads the answer's text whichever shape it comes in", () => {
+    expect(answerText({ response: "[1]" })).toBe("[1]");
+    expect(answerText({ response: [{ n: 1 }] })).toBe('[{"n":1}]');
+    expect(answerText({ response: "", choices: [{ message: { content: "[2]" } }] })).toBe("[2]");
+    expect(answerText({ choices: [{ message: { content: [{ type: "text", text: "[3" }, { type: "text", text: "]" }] } }] })).toBe("[3]");
+    expect(answerText({ choices: [{ text: "[4]" }] })).toBe("[4]");
+    expect(answerText({ choices: [{ message: { content: null, reasoning_content: "…" } }] })).toBe("");
+    expect(answerText(null)).toBe("");
   });
 
   it("the instructions keep names as they are, except the local teams Chinese readers know, and guess nothing", () => {
@@ -145,6 +198,40 @@ describe("what it may say", () => {
   const e = { id: "x", title: "Saliah in Vancouver", venue: "Celebrities Nightclub", description: null, labels: '["Music","Dance/Electronic"]' };
   const w = (summaryZh: string, titleZh = "Saliah 温哥华演出") => ({ titleZh, summaryZh, category: null });
 
+  it("no professional game unless the source says pro, and Canada's hockey on ice: put right, not asked again", () => {
+    const game = (title: string, description: string | null = null) => ({ ...e, title, venue: "Doug Mitchell Thunderbird Sports Centre", description, labels: null });
+    const ubc = game("UBC Women's Hockey vs Trinity Western University");
+    expect(corrected(w("UBC 女子冰球队的职业冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), ubc)).toEqual(w("UBC 女子冰球队的冰球比赛", "UBC 女子冰球对阵 Trinity Western University"));
+    expect(corrected(w("Richmond Sockeyes 主场的职业比赛"), game("Richmond Sockeyes v. Ridge Meadows Flames"))).toEqual(w("Richmond Sockeyes 主场的比赛"));
+    // the source says pro: as written
+    const canucks = w("温哥华加人队的职业冰球比赛", "Canucks vs. Flames");
+    expect(corrected(canucks, game("Vancouver Canucks vs. Calgary Flames"))).toBe(canucks);
+    // 职业 that means a career, not a professional
+    const careers = w("与职业顾问一对一谈求职和职业规划", "职业顾问咨询");
+    expect(corrected(careers, { ...e, title: "Ask a Career Counsellor", venue: "Central Library" })).toBe(careers);
+    // hockey is on ice; field hockey, and lacrosse (长曲棍球), are as written
+    expect(corrected(w("看一场大学曲棍球比赛", "UBC 女子曲棍球对阵 Trinity Western University"), game("UBC Women's Hockey at Trinity Western University"))).toEqual(w("看一场大学冰球比赛", "UBC 女子冰球对阵 Trinity Western University"));
+    const field = w("大学男子曲棍球比赛", "UBC 男子曲棍球对阵 India FHC");
+    expect(corrected(field, game("UBC Men's Field Hockey vs India FHC"))).toBe(field);
+    const lacrosse = w("长曲棍球比赛", "Vancouver Warriors 对阵 Saskatchewan Rush");
+    expect(corrected(lacrosse, game("Vancouver Warriors vs. Saskatchewan Rush"))).toBe(lacrosse);
+  });
+
+  it("migration 0008 gives the answers turned down their tries again, and nothing else", async () => {
+    const run = (await import("../migrations/0008_ai_retry.sql")).default as string;
+    expect(run.replace(/^--.*\n/gm, "").trim()).toBe("UPDATE events SET ai_tries = 0 WHERE ai_hash LIKE '!%';");
+  });
+
+  it("simplified characters only: the traditional ones a model slips in are simplified", () => {
+    expect(simplified("UBC 女子冰球對陣 Trinity Western University")).toBe("UBC 女子冰球对阵 Trinity Western University");
+    expect(simplified("與家人一起欣賞節日音樂會")).toBe("与家人一起欣赏节日音乐会");
+    expect(simplified("温哥华加人队对阵卡尔加里火焰队")).toBe("温哥华加人队对阵卡尔加里火焰队");
+    expect(readAnswer('[{"n":1,"t":"UBC 女子冰球對陣 TWU","s":"大學女子冰球比賽，歡迎觀看。","c":"outdoors"}]', 1)).toEqual([{ titleZh: "UBC 女子冰球对阵 TWU", summaryZh: "大学女子冰球比赛，欢迎观看。", category: "outdoors" }]);
+    expect(INSTRUCTIONS).toContain("只用简体字");
+    expect(INSTRUCTIONS).toContain("Field Hockey 才是曲棍球");
+    expect(INSTRUCTIONS).not.toContain("职业冰球比赛");
+  });
+
   it("no praise the source doesn't give, and no people or country it doesn't name", () => {
     expect(grounded(w("电子舞曲现场演出"), e)).toBe(true);
     expect(grounded(w("知名阿拉伯DJ Saliah带来电子音乐演出"), e)).toBe(false);
@@ -166,7 +253,7 @@ describe("writing and keeping it", () => {
     await storeEvents(env.DB, RUN, [event(1), event(2, { category: "family" }), event(3, { start: "2026-11-30T10:00:00-07:00" })]);
     const { run, asked } = model();
     const r = await writeSome(env.DB, run, RUN, NOW, W.toMs);
-    expect(r).toEqual({ asked: 3, wrote: 3, failed: 0, error: null });
+    expect(r).toEqual({ asked: 3, wrote: 3, failed: 0, error: null, model: AI_MODEL });
     expect(asked[0].map((i) => i.title)).toEqual(["Event 1", "Event 2", "Event 3"]);
     expect(await row("vpl:e1")).toMatchObject({ title_zh: "中文名1", summary_zh: "一句中文介绍，说说这是什么样的活动。", summary_by: "ai", category: "arts", category_by: "ai", ai_tries: 0 });
     // the parsers' category stays
@@ -213,9 +300,17 @@ describe("writing and keeping it", () => {
       { n: items[0].n, t: "阿曼达·马歇尔：肮脏三十巡演", s: "摇滚音乐现场演出", c: "shows" },
       { n: items[1].n, t: "Saliah 温哥华演出", s: "知名阿拉伯DJ带来电子音乐演出", c: "nightlife" },
     ]);
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL, why: { praise: 1 } });
     expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: "Amanda Marshall - The Dirty 30 Tour", summary_zh: "摇滚音乐现场演出" });
     expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
+  });
+
+  it("a long name is a long Chinese one: teams and artists kept in English can be long by themselves", () => {
+    expect(tooLong("Coquitlam Express 对阵 Prince George Spruce Kings")).toBe(false);
+    expect(tooLong("LIGHTNING TEMPLE WIZARDS 与 CHRISTOPHER HERNANDEZ 演出")).toBe(false);
+    expect(tooLong("一场在温哥华市中心举办的、面向所有年龄段观众的大型节日灯光庆祝活动")).toBe(true);
+    expect(tooLong("x".repeat(TITLE_MAX + 1))).toBe(true);
+    expect(tooLong("中".repeat(TITLE_ZH_MAX))).toBe(false);
   });
 
   it("a name over TITLE_MAX isn't kept, unless it's Ticketmaster's own: there the sentence is kept with the source's name", async () => {
@@ -256,7 +351,7 @@ describe("writing and keeping it", () => {
     await storeEvents(env.DB, RUN, [event(1), event(2)]);
     // the first comes back without Chinese, every time
     const { run } = model((items) => items.map((i) => ({ n: i.n, t: "x", s: i.title === "Event 1" ? "no Chinese" : "一句中文介绍，说说这是什么样的活动。", c: null })));
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL, why: { unreadable: 1 } });
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     expect(await row("vpl:e1")).toMatchObject({ title_zh: null, ai_tries: 3 });
@@ -270,7 +365,7 @@ describe("writing and keeping it", () => {
     const baby = (n: number) => event(n, { title: "Babytime", description: "Songs and rhymes for babies." });
     await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3), event(4)]);
     const { run, asked } = model();
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 2, failed: 0, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 2, failed: 0, error: null, model: AI_MODEL });
     // the soonest date stands for them all
     expect(asked[0].map((i) => i.title)).toEqual(["Babytime", "Event 4"]);
     for (const id of ["vpl:e1", "vpl:e2", "vpl:e3"]) expect(await row(id)).toMatchObject({ title_zh: "中文名1", summary_by: "ai", category: "arts", ai_tries: 0 });
@@ -313,9 +408,9 @@ describe("writing and keeping it", () => {
     const ai = { ...env, AI: { run } } as unknown as Env;
     const ids = (list: NormalizedEvent[]) => list.map((e) => `vpl:${e.sourceEventId}`);
     const second = await translateStep(ai, { runId: RUN, ids: [...ids(many.slice(AI_BATCH)), "vpl:e90", "vpl:e91"], part: 1 }, NOW);
-    expect(second).toEqual({ asked: 5, wrote: 5, failed: 0, error: null });
+    expect(second).toEqual({ asked: 5, wrote: 5, failed: 0, error: null, model: AI_MODEL });
     const first = await translateStep(ai, { runId: RUN, ids: ids(many.slice(0, AI_BATCH)), part: 0 }, NOW);
-    expect(first).toEqual({ asked: AI_BATCH, wrote: AI_BATCH, failed: 0, error: null });
+    expect(first).toEqual({ asked: AI_BATCH, wrote: AI_BATCH, failed: 0, error: null, model: AI_MODEL });
     expect(asked.flat().some((i) => i.title === "Event 90" || i.title === "Event 91")).toBe(false);
     const log = (await env.DB.prepare("SELECT part, found, updated, error FROM fetch_log WHERE run_id = ?1 AND source = 'ai' ORDER BY id").bind(RUN).all()).results;
     expect(log).toEqual([
