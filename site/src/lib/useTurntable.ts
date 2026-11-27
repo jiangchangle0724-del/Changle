@@ -25,6 +25,11 @@ export type TurntableOptions = {
   disabled?: boolean;
   /** Online: fired when this phone's hand starts a motion, so the other phones can replay it. */
   onPlan?: (plan: SpinPlan) => void;
+  /**
+   * Which slots a real spin may land on (a fair bottle: not the same person twice). The coast keeps
+   * going in its own direction to the next allowed slot; a nudge that only snaps is left alone.
+   */
+  allow?: (index: number) => boolean;
 };
 
 export type Turntable = {
@@ -56,7 +61,7 @@ export type Turntable = {
  * Slot i's resting angle is i * step; the front is where (i * step + rotation) ≡ 0 (mod 360).
  */
 export function useTurntable(opts: TurntableOptions): Turntable {
-  const { count, onTick, onSettle, onPlan, snap = true, friction = 1.4, disabled = false } = opts;
+  const { count, onTick, onSettle, onPlan, allow, snap = true, friction = 1.4, disabled = false } = opts;
   const step = 360 / Math.max(1, count);
   const rotation = useMotionValue(0);
   const [frontIndex, setFrontIndex] = useState(0);
@@ -71,8 +76,8 @@ export function useTurntable(opts: TurntableOptions): Turntable {
   const captured = useRef(false);
   const travel = useRef(0);
   const anim = useRef<ReturnType<typeof animate> | null>(null);
-  const cbs = useRef({ onTick, onSettle, onPlan });
-  cbs.current = { onTick, onSettle, onPlan };
+  const cbs = useRef({ onTick, onSettle, onPlan, allow });
+  cbs.current = { onTick, onSettle, onPlan, allow };
   const quiet = useRef(false);
 
   const indexAt = useCallback((r: number) => mod(Math.round(-r / step), count), [step, count]);
@@ -126,13 +131,15 @@ export function useTurntable(opts: TurntableOptions): Turntable {
         return;
       }
       const distance = v / friction;
-      const target = snapTarget(current + distance);
+      let target = snapTarget(current + distance);
+      const allowed = cbs.current.allow;
+      if (allowed && snap) for (let n = 0; n < count && !allowed(indexAt(target)); n++) target += Math.sign(v) * step;
       const duration = Math.min(4.6, Math.max(0.7, Math.log(Math.abs(v) / 12) / friction));
       setSpinning(true);
       cbs.current.onPlan?.({ index: indexAt(target), delta: target - current, duration });
       anim.current = animate(rotation, target, { duration, ease: expoOut, onComplete: finish });
     },
-    [finish, friction, rotation, snapTarget],
+    [finish, friction, rotation, snapTarget, indexAt, count, step, snap],
   );
 
   const angleOf = (e: { clientX: number; clientY: number }) =>

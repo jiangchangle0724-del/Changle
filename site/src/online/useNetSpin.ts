@@ -19,6 +19,7 @@ export function useNetSpin({
   rest,
   friction,
   tick = 0.6,
+  allow,
 }: {
   scope: SpinScope;
   count: number;
@@ -27,12 +28,15 @@ export function useNetSpin({
   rest: number;
   friction?: number;
   tick?: number;
+  /** The slots a spin may land on (useTurntable's `allow`). */
+  allow?: (index: number) => boolean;
 }) {
   const { me, act } = useRoom();
   const [weak, setWeak] = useState(0);
   const table = useTurntable({
     count: Math.max(1, count),
     friction,
+    allow,
     disabled: !canSpin,
     onTick: () => {
       sfx.tick(tick);
