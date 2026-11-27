@@ -7,6 +7,8 @@ import { isUnit, weighed, type DeliveryRule, type Item, type PickupPoint, type R
 
 export const TITLE_MAX = 60;
 export const OFFER_NOTE_MAX = 2000;
+/** The merchant's line on when and where the goods that are in can be had. */
+export const ARRIVED_NOTE_MAX = 200;
 export const ITEMS_MAX = 200;
 export const PLACES_MAX = 12;
 /** A group buy closes within this long of being made. */

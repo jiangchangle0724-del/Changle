@@ -33,7 +33,7 @@ export const offerDoc = (closesAt: number) => ({
 export function sampleBook(now: number): OfferBook {
   return {
     shop: { id: "sshop000001", slug: "rice-test", name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com", permit: "", status: "live" },
-    offer: { id: "aaaa2222", shopId: "sshop000001", title: "本周大米团 · 周五到货", note: "", status: "open", closesAt: now + 86_400_000, roster: "names" },
+    offer: { id: "aaaa2222", shopId: "sshop000001", title: "本周大米团 · 周五到货", note: "", status: "open", closesAt: now + 86_400_000, roster: "names", arrived: null },
     items: [
       { id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, case: null, sold: 0, allergens: "" },
       { id: "pearl", section: "米面", name: "东北珍珠米 15lb", detail: "", photo: null, price: 2250, unit: "bag", step: 1000, least: 1000, stock: null, perBuyer: null, case: null, sold: 0, allergens: "" },

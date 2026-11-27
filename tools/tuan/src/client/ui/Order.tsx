@@ -9,7 +9,7 @@ import { TAIL_RE } from "../../engine/phone";
 import { weighed } from "../../engine/types";
 import { ApiFail, cancelOrder, getOrder, rememberOrder, tailOf, takeHanded } from "../api";
 import { t, unitName, whenText } from "../i18n";
-import { Copyable, CopyButton, emailIn, IconCheck, Lines, money, qtyText, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
+import { ArrivedNote, Copyable, CopyButton, emailIn, IconCheck, Lines, money, qtyText, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 
 export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
   useLang();
@@ -114,6 +114,8 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
           {order.picked && <span class="chip chip-good">{t("pickedYes")}</span>}
         </p>
         {fresh && !gone && <p>{t("placedLine")}</p>}
+        {/* the goods are in: come for yours, or it's on its way (not once it's handed over) */}
+        {offer.arrived && !gone && !order.picked && <ArrivedNote line={t(order.how === "pickup" ? "arrivedPickup" : "arrivedDelivery")} note={offer.arrived.note} />}
       </section>
 
       {!gone && (
