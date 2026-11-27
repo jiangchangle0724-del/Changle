@@ -131,6 +131,8 @@ def t_truth(host, everyone, watcher, names):
 
 def t_superlatives(host, everyone, watcher, names):
     T.start_game(host, everyone, "superlatives")
+    host.get_by_role("button", name="开始颁奖").click()
+    ok(until(lambda: view(host)["phase"] == "vote"), "[superlatives] the host started the awards")
     time.sleep(0.6)
     mirrors(watcher, "[superlatives]")
     for g in players_of(everyone, watcher):

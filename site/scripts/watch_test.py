@@ -206,6 +206,9 @@ def no_errors(t):
 
 def t_superlatives(t):
     t.start("superlatives")
+    ok(t.wait_phase("setup"), "superlatives: the host's setup first")
+    ok(until(lambda: t.tv.locator(".tvs-packs li.is-on").count() == 3, 5000), "superlatives: the packs picked light up on the big screen")
+    t.host.get_by_role("button", name="开始颁奖").click()
     ok(t.wait_phase("vote"), "superlatives: the vote is up on the screens")
     t.tv.wait_for_timeout(1500)
     shot(t.screens, "sup-01-vote")

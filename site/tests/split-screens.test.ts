@@ -32,7 +32,7 @@ import { asAmountText, press, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
-import { byDay, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
+import { byDay, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, personLine, personStands, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
 import { inLedger, summaryOf } from "../src/split/summary";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
@@ -41,6 +41,8 @@ import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/his
 import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
+import { peopleOf, statementOf } from "../src/split/people";
+import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
@@ -1348,6 +1350,92 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(twinsOf([{ said: a, kept: false }, { said: a, kept: true }], l), [null, null], "the first left out by hand: the second is the one recorded");
   eq(twinsOf([{ said: said(2000, "McDonald's"), kept: true }, { said: said(2000, "McDonald's"), kept: true }], l), [{ ledger: mc }, { ledger: mc }], "both like one recorded: both say so");
   eq(twinsOf([{ said: receipt, kept: true }, { said: said(900, "Wendy's", "2026-10-15"), kept: true }, { said: slip, kept: true }], l), [null, null, { row: 0 }], "a slip two rows after its receipt: that row's bill");
+}
+
+// ---------- 21. 每个人: everyone's sums, and one person's statement ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }, { id: "j", name: "Jason" }];
+  const start = startLedger("X", "周末", "CAD", people);
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 12000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0, date: "2026-11-20" };
+  const taxi: Expense = { kind: "expense", id: "e2", at: 2, payer: "w", amount: 3000, note: "", merchant: "Uber", split: { how: "equal", among: ["s", "w"] }, rot: 0, date: "2026-11-21" };
+  const gone: Expense = { ...taxi, id: "e3", at: 3, amount: 99900, gone: 4 };
+  const back = { kind: "transfer" as const, id: "t1", at: 5, from: "w", to: "s", amount: 2000 };
+  const l: Ledger = { ...start, entries: [dinner, taxi, gone, back] };
+  const [steve, wang, mei, jason] = peopleOf(l);
+  eq(steve, { id: "s", paid: 12000, share: 5500, sent: 0, received: 2000, net: 4500 }, "Steve: paid $120, his share $40 + $15, received $20 from 小王: gets $45 back");
+  eq(wang, { id: "w", paid: 3000, share: 5500, sent: 2000, received: 0, net: -500 }, "小王: paid $30, share $55, sent $20: owes $5");
+  eq([mei.net, jason], [-4000, { id: "j", paid: 0, share: 0, sent: 0, received: 0, net: 0 }], "阿美 owes her $40; Jason, in nothing, is at zero; an expense taken out counts for nobody");
+  eq(peopleOf(l).map((p) => p.net), l.members.map((m) => balances(l)[m.id]), "where each stands is the ledger's own balance");
+  eq(personLine(steve, "CAD", "zh"), "付了 $120.00 · 摊 $55.00 · 已收 $20.00", "Steve's line: paid, share, received");
+  eq(personLine(wang, "CAD", "en"), "Paid $30.00 · Share $55.00 · Sent $20.00", "小王's, in English: what he sent instead");
+  eq(personLine(mei, "CAD", "zh"), "付了 $0.00 · 摊 $40.00", "阿美's: nothing paid, and nothing sent or received to say");
+  eq([personLine(jason, "CAD", "zh"), personLine(jason, "CAD", "en")], ["还没有账", "Nothing yet"], "Jason's: nothing yet");
+  eq([personStands(steve), personStands(wang), personStands(jason)], [{ word: "personGets", amount: 4500 }, { word: "personOwes", amount: 500 }, { word: "personSquare", amount: null }], "where they stand: gets back, owes, square");
+  const mine = statementOf(l, "s");
+  eq(mine.expenses.map((x) => [x.expense.id, x.paid, x.share]), [["e2", 0, 1500], ["e1", 12000, 4000]], "Steve's statement: the taxi (newest day first), his share of it; dinner, what he paid and his share; not the one taken out");
+  eq(mine.transfers.map((t) => t.id), ["t1"], "and the transfer he received");
+  eq([statementOf(l, "m").expenses.map((x) => x.expense.id), statementOf(l, "m").transfers], [["e1"], []], "阿美's: only dinner, and no transfers");
+  eq(statementOf(l, "j"), { expenses: [], transfers: [] }, "Jason's: nothing");
+  const onlyPaid: Ledger = { ...l, entries: [{ ...dinner, split: { how: "equal", among: ["w", "m"] } }] };
+  eq(statementOf(onlyPaid, "s").expenses.map((x) => [x.paid, x.share]), [[12000, 0]], "paid for the others and none of it his: there, with no share");
+
+  // random ledgers: the sums are the ledger's, and each statement adds up to its row
+  let bad = "";
+  for (let seed = 1; seed <= 400 && !bad; seed++) {
+    const r = randomLedger(seed);
+    const rows = peopleOf(r);
+    const total = spent(r);
+    const moved = r.entries.filter((e) => e.kind === "transfer" && e.gone === undefined && r.members.some((m) => m.id === e.from) && r.members.some((m) => m.id === e.to) && e.from !== e.to && e.amount > 0).reduce((a, e) => a + e.amount, 0);
+    if (rows.reduce((a, p) => a + p.net, 0) !== 0) bad = `seed ${seed}: the nets don't add up to zero`;
+    else if (rows.some((p) => p.net !== balances(r)[p.id])) bad = `seed ${seed}: a net isn't the ledger's balance`;
+    else if (rows.reduce((a, p) => a + p.paid, 0) !== total || rows.reduce((a, p) => a + p.share, 0) !== total) bad = `seed ${seed}: paid or shared doesn't come to what was spent`;
+    else if (rows.reduce((a, p) => a + p.sent, 0) !== moved || rows.reduce((a, p) => a + p.received, 0) !== moved) bad = `seed ${seed}: sent or received doesn't come to the transfers`;
+    for (const p of rows) {
+      if (bad) break;
+      const st = statementOf(r, p.id);
+      if (st.expenses.reduce((a, x) => a + x.paid, 0) !== p.paid || st.expenses.reduce((a, x) => a + x.share, 0) !== p.share) bad = `seed ${seed} ${p.id}: the statement's expenses don't come to the row`;
+      else if (st.transfers.reduce((a, t) => a + (t.from === p.id ? t.amount : 0), 0) !== p.sent || st.transfers.reduce((a, t) => a + (t.to === p.id ? t.amount : 0), 0) !== p.received) bad = `seed ${seed} ${p.id}: the statement's transfers don't come to the row`;
+      else if (st.expenses.some((x) => !x.paid && !x.share)) bad = `seed ${seed} ${p.id}: an expense that isn't theirs is on their statement`;
+      const order = byDay(expensesOf(r)).flatMap(([, day]) => day.map((e) => e.id)).filter((id) => st.expenses.some((x) => x.expense.id === id));
+      if (!bad && JSON.stringify(order) !== JSON.stringify(st.expenses.map((x) => x.expense.id))) bad = `seed ${seed} ${p.id}: the statement isn't in the list's order`;
+    }
+  }
+  ok(!bad, `400 random ledgers: everyone's nets are the balances and add up to zero, paid and shared each come to what was spent, and every statement adds up to its row${bad ? ` (${bad})` : ""}`);
+}
+
+// ---------- 22. 搜索账目: what a search finds ----------
+{
+  eq([bareText("McDonald's"), bareText("ＴＩＭ Hortons"), bareText(" 晚 饭！")], ["mcdonalds", "timhortons", "晚饭"], "compared on letters and digits alone, in one case and one width");
+  eq(
+    [sumOf("42"), sumOf("42.5"), sumOf("$42.50"), sumOf("42。50"), sumOf("1,234.50"), sumOf("４２"), sumOf("JP¥4,200"), sumOf("CAD 42.50"), sumOf("abc"), sumOf("a4"), sumOf("42.505"), sumOf("4 2"), sumOf("")],
+    [{ whole: 42, part: null }, { whole: 42, part: "5" }, { whole: 42, part: "50" }, { whole: 42, part: "50" }, { whole: 1234, part: "50" }, { whole: 42, part: null }, { whole: 4200, part: null }, { whole: 42, part: "50" }, null, null, null, null, null],
+    "a sum typed: dollars, cents as typed, a sign, a Chinese full stop, thousands, wide digits, a sign with its country, a code; not words, a letter stuck to digits, three decimals, a space inside, nothing",
+  );
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const l: Ledger = { ...startLedger("X", "周末", "CAD", people), entries: [] };
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 4250, note: "晚饭", merchant: "Deer Garden", place: "Vancouver, BC", payment: "Visa", split: { how: "equal", among: ["s", "w"] }, rot: 0 };
+  const usd: Expense = { ...dinner, id: "e2", payer: "w", amount: 4200, note: "", merchant: undefined, place: undefined, payment: undefined, paidIn: { currency: "USD", amount: 3000, rate: "1.4" } };
+  const find = (e: Expense, typed: string, me?: string, lang: "zh" | "en" = "zh") => matches(e, l, typed, me, lang);
+  eq(["", "  "].map((q) => find(dinner, q)), [true, true], "nothing typed: every expense");
+  eq(["晚", "deer", "DEERGARDEN", "deer-garden", "vancouver", "VISA", "steve"].map((q) => find(dinner, q)), [true, true, true, true, true, true, true], "the note, the business (with or without its space), the place, the payment, who paid");
+  eq([find(dinner, "你", "s"), find(dinner, "you", "s", "en"), find(dinner, "你", "w"), find(dinner, "Steve", "s")], [true, true, false, true], "你 is whoever reads it, when they paid; their own name finds it too");
+  eq(["42", "42.5", "42.50", "$42.50", "42.51", "4", "4250", "425"].map((q) => find(dinner, q)), [true, true, true, true, false, false, false, false], "a sum: the dollars find $42.00 to $42.99, with cents only that; not a part of it");
+  eq(["30", "30.00", "42", "29"].map((q) => find(usd, q)), [true, true, true, false], "paid in US dollars: what was paid there finds it, and what it counts for here");
+  eq(["小王", "晚", "zzz", "!!!"].map((q) => find(usd, q)), [true, false, false, false], "a note it doesn't have, or nothing but punctuation, finds nothing");
+  const yen: Ledger = { ...startLedger("Y", "东京", "JPY", people), entries: [] };
+  const ramen: Expense = { ...dinner, id: "e3", amount: 3200, note: "拉面" };
+  eq(["3200", "3200.5", "32"].map((q) => matches(ramen, yen, q, undefined, "zh")), [true, false, false], "in yen: whole yen, no cents to find");
+  let bad = "";
+  for (let seed = 1; seed <= 200 && !bad; seed++) {
+    const r = randomLedger(seed);
+    for (const e of expensesOf(r)) {
+      if (!matches(e, r, "", undefined, "zh")) bad = `seed ${seed} ${e.id}: nothing typed left it out`;
+      else if (e.note.trim() && bareText(e.note) && !matches(e, r, e.note, undefined, "en")) bad = `seed ${seed} ${e.id}: its own note didn't find it`;
+      else if (!matches(e, r, money(e.amount, r.currency, "zh"), undefined, "zh")) bad = `seed ${seed} ${e.id}: its own amount didn't find it`;
+      if (bad) break;
+    }
+  }
+  ok(!bad, `200 random ledgers: nothing typed finds all, and each expense's own note and own amount find it${bad ? ` (${bad})` : ""}`);
 }
 
 if (failed) {

@@ -29,6 +29,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
+import { deckFor, TITLES as SUPER_TITLES } from "../src/data/superlatives";
 import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
 import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
@@ -888,9 +889,36 @@ test("buddy: penalized player calls the 2-holder", () => {
 
 type V<K extends GameView["id"]> = Extract<GameView, { id: K }>;
 
+test("superlatives: the host's setup (packs, how many awards), then the first ballot", () => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "superlatives" });
+  let v = t.view<V<"superlatives">>("p1");
+  ok(v.phase === "setup" && v.total === 8 && v.packs.join() === "daily,table,vancouver", "opens on the setup: 8 awards, the everyday packs");
+  t.g("p1", "config", { total: 12, packs: ["spicy"] });
+  ok(t.view<V<"superlatives">>("p1").total === 8, "only the host sets it up");
+  t.g("p0", "config", { total: 12, packs: ["spicy", "nope", "spicy"] });
+  v = t.view<V<"superlatives">>("p1");
+  ok(v.total === 12 && v.packs.join() === "spicy", "12 awards, the spicy pack (unknown and repeated names dropped)");
+  t.g("p0", "config", { packs: [] });
+  ok(t.view<V<"superlatives">>("p1").packs.join() === "spicy", "at least one pack stays on");
+  t.g("p0", "config", { total: 7 });
+  ok(t.view<V<"superlatives">>("p1").total === 12, "an award count that isn't offered changes nothing");
+  ok(nothing(t.g("p1", "start")), "only the host starts");
+  t.g("p0", "start");
+  v = t.view<V<"superlatives">>("p1");
+  ok(v.phase === "vote" && v.round === 1 && v.total === 12, "started: voting on round 1 of 12");
+  const spicy = deckFor(["spicy"]).map((i) => SUPER_TITLES[i].zh);
+  ok(spicy.includes(v.title.zh), "the title comes from the pack picked");
+  t.g("p0", "skip");
+  ok(spicy.includes(t.view<V<"superlatives">>("p1").title.zh), "and so does the next one");
+  ok(nothing(t.g("p0", "config", { total: 5 })), "no setting up once started");
+});
+
 test("superlatives: secret votes, award, ceremony", () => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   let v = t.view<V<"superlatives">>("p1");
   ok(v.phase === "vote" && v.round === 1, "voting on round 1");
   t.g("p1", "vote", { target: "p1" });
@@ -944,6 +972,7 @@ test("superlatives: secret votes, award, ceremony", () => {
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   const ballot = t.view<V<"superlatives">>("p0").ballot;
   t.g("p1", "vote", { target: "p2", ballot });
   t.g("p0", "skip");
@@ -5178,6 +5207,7 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   const su = setup(4);
   su.act("p0", { a: "penalty", text: PEN });
   su.act("p0", { a: "start", game: "superlatives" });
+  su.g("p0", "start");
   for (const [a, b] of [["p0", "p2"], ["p1", "p2"], ["p2", "p3"], ["p3", "p2"]]) su.g(a, "vote", { target: b });
   (su.eng.d.game!.s as { round: number; total: number }).round = (su.eng.d.game!.s as { total: number }).total;
   su.advance(2700); // (the host moves on once the winner's stamp has landed)
@@ -5351,6 +5381,7 @@ test("just watching: the players are the ring and every list; a watcher is never
 
   // 最佳称号: the three players vote for each other
   t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "start");
   ok(nothing(t.g("p2", "vote", { target: "p0" })), "superlatives: the watcher's vote changes nothing");
   t.g("p1", "vote", { target: "p2" });
   ok(t.view<V<"superlatives">>("p0").voted.length === 0, "superlatives: nobody can vote for the watcher");

@@ -72,8 +72,8 @@ export const copied = (page: Page) => page.evaluate(() => (window as unknown as 
 
 /**
  * Every button, link and field in sight is at least 44 by 44 (a choice's whole row counts for its
- * radio or its tick box), and nothing reaches past the screen's edges (but the section chips, which scroll
- * sideways inside their own strip).
+ * radio or its tick box), and nothing reaches past the screen's edges (but what scrolls sideways inside
+ * its own strip: the section chips, and this phone's orders on home).
  */
 export async function fits(page: Page, where: string): Promise<void> {
   // (sizes are measured when nothing is still moving: a stepper popping in is smaller for a moment)
@@ -99,7 +99,7 @@ export async function fits(page: Page, where: string): Promise<void> {
     }
     const wide: string[] = [];
     for (const el of document.querySelectorAll("#app *")) {
-      if (el.closest(".tabs") && !el.matches(".tabs")) continue;
+      if (el.closest(".tabs, .again") && !el.matches(".tabs, .again")) continue;
       const box = el.getBoundingClientRect();
       if (box.left < -0.5 || box.right > window.innerWidth + 0.5) wide.push(`${name(el)} ${Math.round(box.left)}…${Math.round(box.right)}`);
     }

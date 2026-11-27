@@ -1,6 +1,7 @@
-import { Crown, PenLine, Trophy } from "lucide-react";
+import { Check, Crown, PenLine, Trophy } from "lucide-react";
 import { useRef } from "react";
 import { Figure } from "../../components/Figure";
+import { PACK_NAMES, PACKS, type Pack } from "../../data/superlatives";
 import { sfx } from "../../lib/sfx";
 import { SeatFace } from "../../online/People";
 import type { SeatView, SuperView } from "../../shared/protocol";
@@ -20,12 +21,13 @@ export default function TvSuper({ v, sound }: TvViewProps<SuperView>) {
   const { zh } = useLang();
   const tag = (
     <RoundTag>
-      {v.phase === "ceremony" ? (zh ? `${v.round} 个奖` : `${v.round} awards`) : zh ? `第 ${v.round} 个奖` : `Award ${v.round}`}
-      {v.phase !== "ceremony" && <small>{zh ? ` / 共 ${v.total} 个` : ` of ${v.total}`}</small>}
+      {v.phase === "ceremony" ? (zh ? `${v.round} 个奖` : `${v.round} awards`) : v.phase === "setup" ? (zh ? `${v.total} 个奖` : `${v.total} awards`) : zh ? `第 ${v.round} 个奖` : `Award ${v.round}`}
+      {v.phase !== "ceremony" && v.phase !== "setup" && <small>{zh ? ` / 共 ${v.total} 个` : ` of ${v.total}`}</small>}
     </RoundTag>
   );
   return (
     <TvShow game="superlatives" className="tvs" phase={v.phase} round={tag} clock={v.phase === "vote" ? <TvClock endsAt={v.endsAt} total={VOTE_MS} sound={sound} /> : null} set={<Glitter />}>
+      {v.phase === "setup" && <Setup v={v} />}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
       {v.phase === "reveal" && <Reveal v={v} sound={sound} />}
       {v.phase === "ceremony" && <Ceremony v={v} sound={sound} />}
@@ -36,6 +38,35 @@ export default function TvSuper({ v, sound }: TvViewProps<SuperView>) {
 /** Gold dust drifting down the back wall. */
 function Glitter() {
   return <i className="tvs-glitter" />;
+}
+
+/* ------------------------------------------------------------------ the setup */
+
+/** The host picking the packs on their phone: the packs light up here as they go. */
+function Setup({ v }: { v: SuperView }) {
+  const { players } = useSeats();
+  const on = (p: Pack) => v.packs.includes(p);
+  return (
+    <div className="tvs-vote tvs-setup">
+      <div className="tvs-plaque-wrap">
+        <div className="tvs-plaque">
+          <span className="tvs-trophy" aria-hidden="true">
+            <Trophy size={58} strokeWidth={1.9} />
+          </span>
+          <Bi t={{ zh: "主人在选题库", en: "The host is picking the packs" }} />
+        </div>
+      </div>
+      <ul className="tvs-packs">
+        {PACKS.map((p) => (
+          <li key={p} className={on(p) ? "is-on" : ""}>
+            {on(p) && <Check size={26} strokeWidth={3} aria-hidden="true" />}
+            <Bi t={PACK_NAMES[p]} />
+          </li>
+        ))}
+      </ul>
+      <TvLineup people={players.map((s) => ({ seat: s, state: "idle" as const }))} big={230} />
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ the vote */

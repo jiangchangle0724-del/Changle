@@ -644,6 +644,80 @@
   font-size: var(--text-sm);
   font-weight: 400;
 }
+/* 搜索账目: a field over the list, the light along its edge while it is typed in */
+.split-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  margin: var(--space-4) 0 var(--space-1);
+  padding-inline-start: var(--space-3);
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  cursor: text;
+}
+.split-search:focus-within {
+  border-color: var(--gel);
+}
+.split-search > svg {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--color-text-2);
+}
+.split-search > input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  caret-color: var(--gel);
+}
+.split-search > input::placeholder {
+  color: var(--color-text-3);
+}
+.split-search > input:focus-visible {
+  outline: none;
+}
+.split-search-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: var(--r-pill);
+  color: var(--color-text-2);
+  background: transparent;
+  cursor: pointer;
+}
+.split-search-clear svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+/* what a search found */
+.split-found {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+
+/* 每个人's statement: where the sums leave them, the last line, set apart */
+.split-summary > .is-total {
+  border-bottom: 0;
+}
+.split-summary > .is-total dt {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-summary > .is-total dd {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
 /* the tip and tax on a receipt, under its photos in the receipt's sheet */
 .split-extras {
   margin-top: var(--space-2);

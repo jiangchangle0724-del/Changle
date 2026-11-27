@@ -1,10 +1,51 @@
-import { Crown, Trophy } from "lucide-react";
+import { Check, Crown, Trophy } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
+import { countFor, PACK_NAMES, PACKS, type Pack } from "../../data/superlatives";
 import type { T } from "../../i18n";
 import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { Both } from "../common";
+
+/**
+ * The packs of titles in play, as chips: at least one stays on. Without `onChange` they only show
+ * what the host picked (the other phones at an online table).
+ */
+export function PackChips({ picked, onChange }: { picked: readonly string[]; onChange?: (next: Pack[]) => void }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const toggle = (p: Pack) => {
+    const on = picked.includes(p);
+    if (on && picked.length === 1) return;
+    sfx.tap();
+    onChange?.(on ? (picked.filter((x) => x !== p) as Pack[]) : [...(picked as Pack[]), p]);
+  };
+  return (
+    <div className="sup-packs">
+      <div className="sup-pack-row" role="group" aria-label={zh ? "题库" : "Title packs"}>
+        {PACKS.map((p) => {
+          const on = picked.includes(p);
+          const name = zh ? PACK_NAMES[p].zh : PACK_NAMES[p].en;
+          // (the other phones only read the host's choice: the packs on as lit chips, the rest plain)
+          if (!onChange)
+            return (
+              <span key={p} className={`chip ${on ? "chip-selected" : ""}`}>
+                {on && <Check size={14} strokeWidth={3} aria-hidden="true" />}
+                {name}
+              </span>
+            );
+          return (
+            <button key={p} type="button" className="chip" aria-pressed={on} onClick={() => toggle(p)}>
+              {on && <Check size={14} strokeWidth={3} aria-hidden="true" />}
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      <p className="sup-pack-count">{zh ? `共 ${countFor(picked)} 个称号` : `${countFor(picked)} titles`}</p>
+    </div>
+  );
+}
 
 /** The award up for grabs this round. */
 export function AwardCard({ title, round, total, custom }: { title: T; round: number; total: number; custom?: boolean }) {

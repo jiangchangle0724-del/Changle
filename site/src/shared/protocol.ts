@@ -286,9 +286,12 @@ export type WheelView = {
 
 export type SuperView = {
   id: "superlatives";
-  phase: "vote" | "reveal" | "ceremony";
+  /** setup: the host picks the packs and how many awards, then starts */
+  phase: "setup" | "vote" | "reveal" | "ceremony";
   round: number;
   total: number;
+  /** the packs of titles in play (data/superlatives.ts PACKS); empty: every title */
+  packs: string[];
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;

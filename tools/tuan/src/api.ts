@@ -99,6 +99,45 @@ export interface OfferPage {
 }
 
 /** A shop's own page: who they are, and their group buys (not drafts), the one that closes last first. */
+/** A group buy open now, as the tool's home shows it: enough for a card, and to find it by what's in it. */
+export interface HomeOffer {
+  id: string;
+  title: string;
+  closesAt: number;
+  shop: { slug: string; name: string; kind: ShopKind };
+  /** Orders in so far, where the group buy's page shows its list; null where the merchant keeps it hidden. */
+  orders: number | null;
+  /** The first picture of its goods there is. */
+  photo: string | null;
+  /** The names of its first goods. */
+  goods: string[];
+  /** How many goods it has. */
+  items: number;
+  /** Whether some of its goods are sold by weight. */
+  weighed: boolean;
+  pickups: number;
+  /** Where it delivers, as the merchant wrote it. */
+  areas: string[];
+  /** Cents of goods from which delivery is free somewhere; null where it never is. */
+  freeFrom: number | null;
+}
+
+/** A shop the home shows, with how many group buys it has open. */
+export interface HomeShop {
+  slug: string;
+  name: string;
+  kind: ShopKind;
+  about: string;
+  open: number;
+}
+
+/** The tool's home: the group buys open now at the shops that are shown there (soonest to close first), and those shops. */
+export interface HomePage {
+  offers: HomeOffer[];
+  shops: HomeShop[];
+  now: number;
+}
+
 export interface ShopPage {
   shop: ShopCard;
   offers: { id: string; title: string; closesAt: number; state: OfferState }[];
@@ -109,6 +148,8 @@ export interface ShopPage {
 export interface MyShopPage {
   shop: ShopCard;
   status: ShopStatus;
+  /** Shown on the tool's home. */
+  listed: boolean;
 }
 
 /** Placing an order, and changing one (the phone number of an order can't be changed). */
