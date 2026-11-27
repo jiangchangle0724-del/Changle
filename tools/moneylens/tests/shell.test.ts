@@ -404,22 +404,33 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.equal(tables(empty), 0);
 });
 
-test("the events log keeps twelve months and five hundred lines", async () => {
+test("the events log keeps twelve months and five hundred lines, and as many wrong proofs beside them", async () => {
   const cfg = config();
   const db = sqlite();
   const DAY = 24 * 60 * MINUTE;
   await enter(db, A, T0, cfg);
-  const fill = (from: number, lines: number): void => {
-    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, 'sign-out', NULL)`);
-    for (let i = 1; i <= lines; i++) insert.run(from + i);
+  const fill = (from: number, lines: number, kind = "sign-out"): void => {
+    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, ?, NULL)`);
+    for (let i = 1; i <= lines; i++) insert.run(from + i, kind);
   };
   fill(T0, 700);
-  const count = (): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events`).all()[0] as { n: number }).n);
+  const count = (where = "1"): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
+  const oldest = (where: string): number => Number((db.raw.prepare(`SELECT MIN(at) AS at FROM events WHERE ${where}`).all()[0] as { at: number }).at);
   assert.equal(count(), 701);
   // the next sign-in keeps the newest five hundred
   await enter(db, A, T0 + DAY, cfg);
   assert.equal(count(), 500);
-  // and one more than twelve months later keeps nothing older than that
+  assert.equal(oldest("1"), T0 + 202);
+  // Wrong proofs are counted apart from everything else. Thirty of them, and then any number of other lines: the
+  // thirty are all still kept (the review of the door, finding 2). And of wrong proofs too, the newest five hundred.
+  fill(T0 + DAY, 30, "unlock-failed");
+  fill(T0 + DAY + 100, 700);
+  await enter(db, A, T0 + DAY + 1000, cfg);
+  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'"), oldest("kind != 'unlock-failed'")], [30, 500, T0 + DAY + 302]);
+  fill(T0 + DAY + 5000, 700, "unlock-failed");
+  await enter(db, A, T0 + DAY + 9000, cfg);
+  assert.deepEqual([count("kind = 'unlock-failed'"), oldest("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, T0 + DAY + 5201, 500]);
+  // and one more than twelve months later keeps nothing older than that, of either
   const later = await enter(db, A, T0 + 368 * DAY, cfg);
   assert.equal(count(), 1);
   // what is shown is the newest fifty

@@ -164,6 +164,15 @@ test("only the app's page, /enter and POST /api answer, with the same headers on
   const again: Jar = new Map();
   await send(server, "/enter", null, again, { method: "GET", origin: null });
   assert.notEqual(again.get("__Host-ml-n"), jar.get("__Host-ml-n"));
+  // only from this origin's own page (or a browser that does not say where from): sent to /enter from anywhere else, a browser is shown the page and no sign-in is begun
+  for (const from of ["cross-site", "same-site", "none"]) {
+    const sent: Jar = new Map();
+    const shown = await send(server, "/enter", null, sent, { method: "GET", origin: null, headers: { "Sec-Fetch-Site": from } });
+    assert.deepEqual([shown.status, shown.headers.get("Location"), [...sent]], [302, `${ORIGIN}/`, []], from);
+  }
+  const own: Jar = new Map();
+  assert.equal(new URL((await send(server, "/enter", null, own, { method: "GET", origin: null, headers: { "Sec-Fetch-Site": "same-origin" } })).headers.get("Location")!).origin, MAIN);
+  assert.equal(own.size, 1);
 });
 
 test("a request whose Origin is not this origin gets nothing, sync included (T-22)", async () => {

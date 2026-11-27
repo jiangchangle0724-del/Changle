@@ -11,10 +11,11 @@
  * Guesses are counted for the account, not for the session or the way in: ten wrong in an hour,
  * thirty in a day, and then every proof is turned away unlooked at, the right one too, until
  * time has passed. Counting only what was wrong and answering what was right would be counting
- * nothing. So someone who holds the mailbox can keep the owner out for a day at a time by
- * guessing wrong on purpose. They could already do worse with the mailbox (start the vault's
- * erasing, sign the owner out); what they cannot do is read. Each wrong proof is a line in the
- * events log (SEC-17), where the owner sees it.
+ * nothing. So someone who holds the mailbox can keep the owner out for as long as they keep at
+ * it, by guessing wrong on purpose thirty times a day. They could already do worse with the
+ * mailbox (start the vault's erasing, sign the owner out); what they cannot do is read. Each
+ * wrong proof is a line in the events log (SEC-17). (Whether the owner is sure to see it there
+ * is the events screen's to settle: the log shows its newest fifty lines.)
  *
  * A session that has shown a proof is "unlocked", until it ends or says it has locked. Sync is
  * for unlocked sessions only (account.ts): a session that has not unlocked reads nothing, not

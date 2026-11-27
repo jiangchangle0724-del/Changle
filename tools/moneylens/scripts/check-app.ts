@@ -131,8 +131,27 @@ try {
   await page.getByRole("button", { name: "再试一次" }).click();
   await title(page, "把账单变成一本看得懂的账").waitFor();
 
-  // ---- signing in: to the main site with a nonce, back with a code, and the code is traded and gone from the address
+  // ---- told to slow down (too many requests from this address in a minute): said so, and not as the server's fault
+  const slowDown = { status: 429, contentType: "application/json", body: JSON.stringify({ ok: false, why: "slow-down" }) };
+  await page.route("**/api/vault", (route) => route.fulfill(slowDown));
+  await page.reload();
+  await title(page, "请求太多了").waitFor();
+  await page.getByText("这一会儿请求太多了，过一分钟再试。").waitFor();
+  assert.equal(await page.getByText("服务器没答上来").count(), 0);
+  await screen(page, "busy");
+  await page.unroute("**/api/vault");
+  await page.getByRole("button", { name: "再试一次" }).click();
+  await title(page, "把账单变成一本看得懂的账").waitFor();
+
+  // ---- a sign-in starts at a press on this page. The address of /enter typed in, or followed from anywhere else, shows the page and begins nothing.
   assert.equal((await peek(`${server.base}/test/who`, JSON.stringify({ id: ACCOUNT }))).status, 200);
+  await page.goto(`${ORIGIN}/enter`);
+  await title(page, "把账单变成一本看得懂的账").waitFor();
+  assert.equal(page.url(), `${ORIGIN}/`);
+  assert.equal(asked.filter((line) => line.startsWith(`GET ${MAIN}`)).length, 0, "a sign-in was begun with nothing pressed");
+  assert.equal((await standing(page)).status, 401);
+
+  // ---- signing in: to the main site with a nonce, back with a code, and the code is traded and gone from the address
   await page.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
   await title(page, "先定一个口令").waitFor();
   assert.equal(page.url(), `${ORIGIN}/`, "the code is still in the address");
@@ -171,6 +190,37 @@ try {
   assert.deepEqual([await first.getAttribute("type"), await first.inputValue()], ["text", PASSPHRASE]);
   await page.getByRole("button", { name: "隐藏" }).first().click();
   assert.equal(await first.getAttribute("type"), "password");
+
+  // ---- a vault that is made and not kept is not left lying: fifteen quiet minutes on the recovery code's screen, and its key and its code are dropped.
+  // (On a second page of the same session, while this one still waits at the passphrase: the clock that is moved is the whole browser's.)
+  const waited = await context.newPage();
+  watch(waited);
+  await waited.clock.install();
+  await waited.goto(`${ORIGIN}/`);
+  await title(waited, "先定一个口令").waitFor();
+  await waited.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await waited.getByLabel("再输一遍", { exact: true }).fill(PASSPHRASE);
+  await waited.getByRole("button", { name: "下一步" }).click();
+  await title(waited, "把恢复码抄下来").waitFor();
+  const dropped = (await waited.locator(".code span").allInnerTexts()).join("-");
+  assert.match(dropped, /^([0-9A-HJKMNP-TV-Z]{4}-){8}[0-9A-HJKMNP-TV-Z]{2}$/);
+  // (a press a minute before the time is up starts the count again, as with an open vault)
+  await waited.clock.fastForward("14:00");
+  await waited.keyboard.press("Shift");
+  await waited.clock.fastForward("14:00");
+  assert.ok(await title(waited, "把恢复码抄下来").isVisible(), "the code was dropped fifteen minutes after it was shown, though a key was pressed since");
+  await waited.clock.fastForward("01:01");
+  await title(waited, "先定一个口令").waitFor();
+  await waited.getByText("超过 15 分钟没有动静，刚才那把钥匙和恢复码丢掉了，什么都没有存。重新定一次口令。").waitFor();
+  assert.equal(await waited.getByLabel("口令", { exact: true }).inputValue(), "");
+  assert.equal(await waited.locator(".code").count(), 0);
+  assert.ok(!(await waited.content()).includes(dropped), "the dropped code is still in the page");
+  assert.equal(times("vault/start"), 0);
+  assert.deepEqual((await standing(waited)).vault, null);
+  await screen(waited, "new-vault-timed-out");
+  await waited.close();
+  // (the first page is in front again: the clipboard is written only by the page that is looked at)
+  await page.bringToFront();
   await second.fill(PASSPHRASE);
   await next.click();
 
@@ -187,10 +237,18 @@ try {
   assert.equal(await page.evaluate("navigator.clipboard.readText()"), code);
   await screen(page, "recovery-code");
   await page.getByLabel("我已经把恢复码抄下来，放在安全的地方了").check();
+  // told to slow down, nothing is kept and the screen says so; the code stays, and the next press keeps the vault
+  await page.route("**/api/vault/start", (route) => route.fulfill(slowDown));
+  await create.click();
+  await page.getByRole("alert").filter({ hasText: "这一会儿请求太多了，保险库还没建好。过一分钟再点一次。恢复码不变。" }).waitFor();
+  assert.equal((await page.locator(".code span").allInnerTexts()).join("-"), code);
+  await page.unroute("**/api/vault/start");
+  assert.deepEqual((await standing(page)).vault, null);
   await create.click();
   await title(page, "保险库打开了").waitFor();
   await page.getByText("已经和服务器对过。").waitFor();
-  assert.equal(times("vault/start"), 1);
+  // (asked twice: the first never reached the server)
+  assert.equal(times("vault/start"), 2);
   const made = await standing(page);
   assert.deepEqual([made.status, typeof made.vault, made.unlocked], [200, "string", true]);
   await screen(page, "open");
@@ -321,8 +379,8 @@ try {
   // ---- nothing was asked of anyone but this origin, and of the main site for the one hop of each sign-in (T-8)
   const elsewhere = asked.filter((line) => !line.includes(` ${ORIGIN}/`) && !/^GET https:\/\/main\.changle\.test\/tools\/finance\?handoff=[A-Za-z0-9_-]{43}$/.test(line));
   assert.deepEqual(elsewhere, [], "the page asked somewhere else");
-  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), and the two requests cut off on purpose
-  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /net::ERR_FAILED/];
+  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), told to slow down (429), and the two requests cut off on purpose
+  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /status of 429 \(/, /net::ERR_FAILED/];
   assert.deepEqual(errors.filter((line) => !expected.some((known) => known.test(line))), []);
   for (const known of expected) assert.ok(errors.some((line) => known.test(line)), `nothing matched ${known}`);
   console.log(`the app in the browser: ok (${shots || "no"} pictures)`);

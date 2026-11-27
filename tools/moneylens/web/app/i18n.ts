@@ -19,6 +19,7 @@ const STRINGS = {
   offlineBody: { zh: "检查一下网络，再试一次。", en: "Check your connection, then try again." },
   serverTitle: { zh: "服务器没答上来", en: "The server didn't answer properly" },
   serverBody: { zh: "不是你的问题。过一会儿再试一次。", en: "Nothing you did. Try again in a little while." },
+  busyTitle: { zh: "请求太多了", en: "Too many requests" },
 
   // ---------- signed out ----------
   outTitle: { zh: "把账单变成一本看得懂的账", en: "Bank statements, turned into a ledger you can read" },
@@ -35,6 +36,7 @@ const STRINGS = {
 
   // ---------- a new vault: the passphrase ----------
   newTitle: { zh: "先定一个口令", en: "First, a passphrase" },
+  newTimedOut: { zh: "超过 15 分钟没有动静，刚才那把钥匙和恢复码丢掉了，什么都没有存。重新定一次口令。", en: "More than 15 quiet minutes went by, so that key and its recovery code were dropped. Nothing was stored. Choose the passphrase again." },
   newLead: { zh: "口令用来给你的账加密。我们不知道它，也没法帮你找回，所以要定一个你记得住、别人猜不到的。", en: "The passphrase encrypts your records. We never learn it and cannot recover it for you, so make it one you will remember and nobody would guess." },
   passphrase: { zh: "口令", en: "Passphrase" },
   passphraseAgain: { zh: "再输一遍", en: "Once more" },
@@ -63,6 +65,7 @@ const STRINGS = {
   keeping: { zh: "正在建保险库", en: "Creating your vault" },
   keepOffline: { zh: "没连上，保险库还没建好。检查一下网络，再点一次。恢复码不变。", en: "Couldn't connect, so the vault isn't created yet. Check your connection and press again. The code stays the same." },
   keepServer: { zh: "服务器没答上来，保险库还没建好。过一会儿再点一次。恢复码不变。", en: "The server didn't answer properly, so the vault isn't created yet. Press again in a little while. The code stays the same." },
+  keepBusy: { zh: "这一会儿请求太多了，保险库还没建好。过一分钟再点一次。恢复码不变。", en: "Too many requests just now, so the vault isn't created yet. Press again in a minute. The code stays the same." },
   keepAnother: { zh: "这个账号已经有一个保险库了，可能是刚在另一台设备上建的。这一个不建了，去打开那一个。", en: "This account already has a vault, perhaps just made on another device. This one won't be created: open that one." },
 
   // ---------- opening a vault ----------

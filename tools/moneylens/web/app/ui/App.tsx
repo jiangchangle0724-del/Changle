@@ -20,8 +20,8 @@ export const IDLE_MS = 15 * 60_000;
 type View =
   | { at: "starting" }
   | { at: "signed-out"; note?: Key }
-  | { at: "trouble"; why: "offline" | "server" }
-  | { at: "new" }
+  | { at: "trouble"; why: "offline" | "server" | "busy" }
+  | { at: "new"; note?: Key }
   | { at: "code"; draft: Draft }
   | { at: "locked"; vault: string; note?: Key }
   | { at: "open"; vault: OpenVault };
@@ -67,11 +67,14 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     },
     [ask],
   );
-  // Fifteen minutes with nothing pressed, and the vault locks; and it locks when the page is left (VAULT-3).
-  const isOpen = view.at === "open";
+  // Fifteen minutes with nothing pressed, and the vault locks; and it locks when the page is left (VAULT-3). A vault
+  // that is made and not yet kept (the recovery code's screen) has a key in memory too: after the same fifteen minutes
+  // the key and the code are dropped and the person starts over. Nothing of it was on the server.
+  const held = view.at === "open" ? "open" : view.at === "code" ? "made" : null;
   useEffect(() => {
-    if (!isOpen) return;
-    const watch = watchIdle(IDLE_MS, () => lockUp("autoLocked"), browserClock);
+    if (!held) return;
+    const quiet = (): void => (held === "open" ? lockUp("autoLocked") : setView((now) => (now.at === "code" ? { at: "new", note: "newTimedOut" } : now)));
+    const watch = watchIdle(IDLE_MS, quiet, browserClock);
     const pressed = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
     for (const name of pressed) window.addEventListener(name, watch.touch, { passive: true });
     // (seen again after the browser was put away or the machine slept: the timer may have stood still meanwhile)
@@ -81,8 +84,11 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     document.addEventListener("visibilitychange", seen);
     window.addEventListener("focus", watch.look);
     window.addEventListener("pageshow", watch.look);
-    // (the tab is closed, or the page is left for another: a page that comes back from the browser's own keeping comes back locked)
-    const left = (): void => lockUp(undefined, true);
+    // (the tab is closed, or the page is left for another: a page that comes back from the browser's own keeping comes
+    // back locked. A vault not yet kept has nothing on the server to lock; the fifteen minutes still run for it.)
+    const left = (): void => {
+      if (held === "open") lockUp(undefined, true);
+    };
     window.addEventListener("pagehide", left);
     return () => {
       watch.stop();
@@ -92,7 +98,7 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
       window.removeEventListener("pageshow", watch.look);
       window.removeEventListener("pagehide", left);
     };
-  }, [isOpen, lockUp]);
+  }, [held, lockUp]);
 
   const signedOut = (note?: Key): void => setView({ at: "signed-out", note });
   /** Ends the session on the server. Only when the server says it is over is this browser said to be signed out. */
@@ -108,8 +114,8 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
         {view.at === "starting" && <Starting />}
         {view.at === "signed-out" && <SignedOut note={view.note} />}
         {view.at === "trouble" && <Trouble why={view.why} again={start} />}
-        {view.at === "new" && <NewVault made={(made) => setView({ at: "code", draft: made })} signOut={signOut} />}
-        {view.at === "code" && <RecoveryCode ask={ask} draft={view.draft} done={() => setView({ at: "open", vault: view.draft.vault })} another={start} signedOut={() => signedOut()} />}
+        {view.at === "new" && <NewVault note={view.note} made={(made) => setView({ at: "code", draft: made })} signOut={signOut} />}
+        {view.at === "code" && <RecoveryCode ask={ask} draft={view.draft} done={() => setView((now) => (now.at === "code" && now.draft === view.draft ? { at: "open", vault: now.draft.vault } : now))} another={start} signedOut={() => signedOut()} />}
         {view.at === "locked" && <Unlock ask={ask} vault={view.vault} note={view.note} opened={(vault) => setView({ at: "open", vault })} signedOut={() => signedOut()} signOut={signOut} />}
         {view.at === "open" && <Home ask={ask} vault={view.vault} lock={() => lockUp()} locked={() => lockUp()} signedOut={() => signedOut()} signOut={signOut} />}
       </main>
@@ -180,11 +186,11 @@ function SignedOut({ note }: { note?: Key }) {
   );
 }
 
-function Trouble({ why, again }: { why: "offline" | "server"; again: () => void }) {
+function Trouble({ why, again }: { why: "offline" | "server" | "busy"; again: () => void }) {
   return (
     <section class="hero">
-      <Title>{t(why === "offline" ? "offlineTitle" : "serverTitle")}</Title>
-      <p class="lead">{t(why === "offline" ? "offlineBody" : "serverBody")}</p>
+      <Title>{t(why === "offline" ? "offlineTitle" : why === "busy" ? "busyTitle" : "serverTitle")}</Title>
+      <p class="lead">{t(why === "offline" ? "offlineBody" : why === "busy" ? "busy" : "serverBody")}</p>
       <button type="button" class="btn btn-primary btn-lg" onClick={again}>
         {t("retry")}
       </button>
@@ -192,7 +198,7 @@ function Trouble({ why, again }: { why: "offline" | "server"; again: () => void 
   );
 }
 
-function NewVault({ made, signOut }: { made: (draft: Draft) => void; signOut: () => Promise<boolean> }) {
+function NewVault({ note, made, signOut }: { note?: Key; made: (draft: Draft) => void; signOut: () => Promise<boolean> }) {
   const [first, setFirst] = useState("");
   const [second, setSecond] = useState("");
   const [problem, setProblem] = useState<Key | null>(null);
@@ -214,6 +220,7 @@ function NewVault({ made, signOut }: { made: (draft: Draft) => void; signOut: ()
     <form class="hero" onSubmit={submit} noValidate>
       <Title>{t("newTitle")}</Title>
       <p class="lead">{t("newLead")}</p>
+      {note && !problem && <Note>{t(note)}</Note>}
       <div class="panel">
         <SecretField id="passphrase" label="passphrase" value={first} onInput={setFirst} autoComplete="new-password" invalid={problem !== null && problem !== "mismatch"} describedBy="passphrase-hint" disabled={busy} />
         <p class="hint" id="passphrase-hint">
@@ -242,7 +249,7 @@ function RecoveryCode({ ask, draft: made, done, another, signedOut }: { ask: Ask
     setBusy(false);
     if (said === "ok") done();
     else if (said === "signed-out") signedOut();
-    else setProblem(said === "offline" ? "keepOffline" : said === "another" ? "keepAnother" : "keepServer");
+    else setProblem(said === "offline" ? "keepOffline" : said === "another" ? "keepAnother" : said === "busy" ? "keepBusy" : "keepServer");
   };
   return (
     <section class="hero">

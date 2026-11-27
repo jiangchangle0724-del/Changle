@@ -34,7 +34,12 @@ import { packPulled, packPushed, unpackPush } from "./wire";
 /** Sign-ins one account may make in an hour. Eight sessions are kept, so signing in over and over pushes other devices out. */
 export const SIGN_INS_PER_HOUR = 12;
 const HOUR = 3_600_000;
-/** Events are kept twelve months (SEC-17), and never more than this many. */
+/**
+ * Events are kept twelve months (SEC-17), and never more than this many of each of two sorts: wrong proofs, and
+ * everything else. The two are counted apart, so that no number of sign-ins, sign-outs or unlockings pushes a wrong
+ * proof out of what is kept (the review of the door, finding 2). What is shown is the newest lines of both together:
+ * a screen that shows the wrong proofs whatever came after them is the events screen's to add.
+ */
 const EVENTS_KEPT = 366 * 24 * HOUR;
 const EVENTS_MOST = 500;
 const EVENTS_SHOWN = 50;
@@ -54,6 +59,16 @@ function whose(db: Db): { id: string; owner: boolean } | null {
 
 function note(db: Db, kind: EventKind, session: string | null, now: number): void {
   db.sql.exec(`INSERT INTO events (at, kind, session) VALUES (?, ?, ?)`, now, kind, session);
+}
+
+/**
+ * Lets go of the lines that are too old, and of those past the most that are kept. Done wherever lines are written
+ * that nothing else counts: at each sign-in, and at each proof shown (a right proof can be shown any number of times).
+ */
+function tidyEvents(db: Db, now: number): void {
+  db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
+  db.sql.exec(`DELETE FROM events WHERE kind = 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+  db.sql.exec(`DELETE FROM events WHERE kind != 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind != 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -110,8 +125,7 @@ export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "n
       // (whether it is the owner's is what the accounts service says now, not what it said last time)
       db.sql.exec(`UPDATE account SET owner = ? WHERE one = 1`, made.owner ? 1 : 0);
       note(db, "sign-in", made.session, now);
-      db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
-      db.sql.exec(`DELETE FROM events WHERE n <= (SELECT n FROM events ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+      tidyEvents(db, now);
     });
   } catch (error) {
     if (error === REFUSED) return "refused";
@@ -252,12 +266,14 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
         const tried = tryUnlock(db, body.id, asked.proofs?.[0], session.id, now);
         if (tried.ok) {
           note(db, "unlocked", session.id, now);
+          tidyEvents(db, now);
           tidyUnlocked(db);
           return { status: 200, json: { ok: true, wrapper: tried.wrapper } };
         }
         if (tried.why === "too-many") return { status: 429, json: { ok: false, why: "too-many", again: tried.again } };
         if (tried.why === "no-way") return no(404, "no-way");
         note(db, "unlock-failed", session.id, now);
+        tidyEvents(db, now);
         return { status: 422, json: { ok: false, why: "wrong-secret", left: tried.left } };
       });
     }

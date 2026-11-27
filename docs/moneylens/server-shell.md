@@ -49,8 +49,10 @@ The logic stays in plain functions on a `Db`, tested on Node's SQLite as `chunks
 ## A request's way in
 
 1. `GET /enter`: with the gate open, sets the nonce cookie and sends the browser to
-   `https://changle.ca/tools/finance?handoff=<nonce>`. With the gate closed, a short page in both
-   languages and nothing else. No other GET exists until the app's pages do.
+   `https://changle.ca/tools/finance?handoff=<nonce>`. Only when the browser says the request
+   came from this origin's own page (`Sec-Fetch-Site: same-origin`, or no such header): from
+   anywhere else the browser is sent to `/` and nothing is begun (assessment 1.10, "Where a
+   sign-in starts"). With the gate closed, a short page in both languages and nothing else.
 2. Everything under `/api/` is POST, with the exact configured Origin (`fromOurOrigin`; the
    expected origin is a setting, `ORIGIN`, never taken from the request), a stated
    `Content-Type`, and a `Content-Length` under the route's cap. No `Access-Control-*` header is
@@ -116,7 +118,8 @@ which is what the accounts chat's contract asks (`accounts-requests.md`).
 - What costs something beyond the request itself is counted by the address it came from before
   it is done, with Cloudflare's rate limiter: twenty trades of a code and three hundred other
   requests a minute (`TRADES`, `ASKS`; `ratelimits` in `wrangler.jsonc`; assessment 1.8, "What a
-  stranger can make the server do"). With the gate open and no limiter bound, nothing is
+  stranger can make the server do"). An address is an IPv4 address or the first 64 bits of an
+  IPv6 one (`addressKey` in `request.ts`). With the gate open and no limiter bound, nothing is
   answered. A rule in Cloudflare's dashboard that stops requests before they reach the Worker
   is still to be set before Phase 3.
 

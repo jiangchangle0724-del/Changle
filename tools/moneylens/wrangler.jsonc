@@ -53,5 +53,8 @@
     // Quotas (LIM-2), when the defaults are to be changed: QUOTA_VAULT_BYTES (10485760),
     // QUOTA_WRITES_PER_DAY (300).
   },
-  "observability": { "enabled": true }
+  // What Cloudflare keeps of this Worker's runs: only what the code itself writes (the kind of an
+  // error, never its words: OBS-1). No line for each request: such a line would carry the
+  // request's address and headers, and a request here carries a session's cookie.
+  "observability": { "enabled": true, "redact_query_string": true, "logs": { "enabled": true, "invocation_logs": false } }
 }

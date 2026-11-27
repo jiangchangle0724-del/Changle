@@ -83,7 +83,7 @@ export type Standing =
   | { at: "signed-out"; why: "no-session" | "not-admitted" | "closed" }
   | { at: "no-vault" }
   | { at: "vault"; vault: string; kinds: string[]; unlocked: boolean }
-  | { at: "trouble"; why: "offline" | "server" };
+  | { at: "trouble"; why: "offline" | "server" | "busy" };
 
 /** Asks the server where this browser stands: signed in or not, and whether there is a vault. */
 export async function standing(ask: Ask): Promise<Standing> {
@@ -91,6 +91,8 @@ export async function standing(ask: Ask): Promise<Standing> {
   if (!answer) return { at: "trouble", why: "offline" };
   if (answer.status === 401) return { at: "signed-out", why: "no-session" };
   if (answer.status === 403) return answer.json.why === "not-admitted" || answer.json.why === "closed" ? { at: "signed-out", why: answer.json.why } : { at: "trouble", why: "server" };
+  // (too many requests from this address in a minute: nothing is wrong with the server, and in a minute it can be asked again)
+  if (answer.status === 429) return { at: "trouble", why: "busy" };
   if (answer.status !== 200 || answer.json.ok !== true) return { at: "trouble", why: "server" };
   const { vault, ways, unlocked } = answer.json;
   if (vault === null) return { at: "no-vault" };
@@ -136,12 +138,14 @@ export async function draft(passphrase: string): Promise<{ ok: true; draft: Draf
  * holds as it answered the first time. "another": this account already has another vault (made on another device
  * since this page was opened): this draft is to be dropped, and that vault opened.
  */
-export async function keep(ask: Ask, made: Draft): Promise<"ok" | "another" | "signed-out" | "offline" | "server"> {
+export async function keep(ask: Ask, made: Draft): Promise<"ok" | "another" | "signed-out" | "busy" | "offline" | "server"> {
   const answer = await ask("vault/start", { vault: made.vault.id, ways: made.ways });
   if (!answer) return "offline";
   if (answer.status === 200 && answer.json.ok === true && answer.json.vault === made.vault.id) return "ok";
   if (answer.status === 409) return "another";
   if (answer.status === 401 || answer.status === 403) return "signed-out";
+  // (too many requests from this address in a minute: nothing was kept, and nothing is wrong with the server)
+  if (answer.status === 429) return "busy";
   return "server";
 }
 
@@ -206,11 +210,14 @@ export async function lock(ask: Ask, parting = false): Promise<void> {
 }
 
 /**
- * Signs this browser out. True when the server says the session is over: it ended it now, or there was none (401).
+ * Signs this browser out. True when the server says the session is over for this browser: it ended it now, there was
+ * none (401), or the account is no longer let in (403 "not-admitted", which takes the cookie away, or "closed").
  * False when nothing says so (no answer, or one that was not about that): the session may still be there, and the
  * screen must not say otherwise.
  */
 export async function leave(ask: Ask): Promise<boolean> {
   const answer = await ask("session/end");
-  return answer !== null && (answer.status === 200 || answer.status === 401);
+  if (answer === null) return false;
+  if (answer.status === 200 || answer.status === 401) return true;
+  return answer.status === 403 && (answer.json.why === "not-admitted" || answer.json.why === "closed");
 }

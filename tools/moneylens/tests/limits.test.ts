@@ -70,7 +70,7 @@ async function served(vars: Record<string, string>, limits: { trades?: Limit; as
     return [answer.status, ((await answer.json()) as { why?: string }).why ?? "", answer.headers.getSetCookie()];
   };
   const trade = (headers: Record<string, string | null> = {}, body = JSON.stringify({ code: CODE })) => post("/api/session", { Cookie: `__Host-ml-n=${NONCE}`, ...headers }, body);
-  return { asked, post, trade, get: (path: string) => entry.fetch(new Request(`${ORIGIN}${path}`), env) };
+  return { asked, env, post, trade, get: (path: string) => entry.fetch(new Request(`${ORIGIN}${path}`), env) };
 }
 const OPEN = { GATE: "list", ALLOWED_ACCOUNTS: A };
 
@@ -92,6 +92,36 @@ test("a trade is counted by the address it came from before anyone is asked, and
   await other.trade({ "CF-Connecting-IP": "198.51.100.9", "X-Forwarded-For": "192.0.2.1", "X-Real-IP": "192.0.2.2", Forwarded: "for=192.0.2.3" });
   await other.trade({ "CF-Connecting-IP": null, "X-Forwarded-For": "192.0.2.1" });
   assert.deepEqual(other.asked.filter((line) => line.startsWith("TRADES")), ['TRADES {"key":"198.51.100.9"}', 'TRADES {"key":"nowhere"}']);
+  // one machine's IPv6 addresses are one count, for trades and for everything else (request.ts, `addressKey`)
+  const six = await served(OPEN);
+  for (const from of ["2001:db8:1:2::1", "2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:DB8:1:2:0:0:0:9"]) {
+    await six.trade({ "CF-Connecting-IP": from });
+    await six.post("/api/sessions", { Cookie: session(A), "CF-Connecting-IP": from });
+  }
+  await six.trade({ "CF-Connecting-IP": "2001:db8:1:3::1" });
+  assert.deepEqual(six.asked.filter((line) => /^(TRADES|ASKS)/.test(line)), [...Array.from({ length: 3 }, () => ['TRADES {"key":"2001:db8:1:2::/64"}', 'ASKS {"key":"2001:db8:1:2::/64"}']).flat(), 'TRADES {"key":"2001:db8:1:3::/64"}']);
+});
+
+test("a sign-in starts at this origin's own page: a browser sent to /enter from anywhere else is shown the page, and nothing is begun (the review of the door, finding 6)", async () => {
+  const { asked, get } = await served(OPEN);
+  const { default: entry } = await worker;
+  const env = (await served(OPEN)).env;
+  const enter = async (headers: Record<string, string>): Promise<[number, string | null, string[]]> => {
+    const answer = await entry.fetch(new Request(`${ORIGIN}/enter`, { headers, redirect: "manual" }), env);
+    return [answer.status, answer.headers.get("Location"), answer.headers.getSetCookie()];
+  };
+  // from the app's own page, and from a browser that does not say: on to the main site, with a nonce in a cookie
+  for (const headers of [{ "Sec-Fetch-Site": "same-origin" }, {}] as Record<string, string>[]) {
+    const [status, to, cookies] = await enter(headers);
+    assert.equal(status, 302);
+    assert.match(to ?? "", /^https:\/\/changle\.ca\/tools\/finance\?handoff=[A-Za-z0-9_-]{43}$/);
+    assert.equal(cookies.length, 1);
+    assert.match(cookies[0]!, /^__Host-ml-n=[A-Za-z0-9_-]{43}; /);
+  }
+  // from another site, from the main site, from a link in a message or a typed address: the page, and no nonce
+  for (const from of ["cross-site", "same-site", "none", "", "SAME-ORIGIN", "same-origin, cross-site"]) assert.deepEqual(await enter({ "Sec-Fetch-Site": from, Referer: `${ORIGIN}/`, Origin: ORIGIN }), [302, `${ORIGIN}/`, []], from);
+  assert.deepEqual(asked, []);
+  assert.equal((await get("/")).status, 200);
 });
 
 test("a trade that asks nobody is not counted", async () => {

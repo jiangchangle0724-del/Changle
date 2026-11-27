@@ -96,6 +96,8 @@ test("where things stand: signed out, no vault yet, a vault and whether this ses
     [{ status: 403, json: { ok: false, why: "not-admitted" } }, { at: "signed-out", why: "not-admitted" }],
     [{ status: 403, json: { ok: false, why: "closed" } }, { at: "signed-out", why: "closed" }],
     [{ status: 403, json: { ok: false, why: "origin" } }, { at: "trouble", why: "server" }],
+    // (told to slow down: nothing is wrong with the server, and it is not said to be)
+    [{ status: 429, json: { ok: false, why: "slow-down" } }, { at: "trouble", why: "busy" }],
     [{ status: 500, json: {} }, { at: "trouble", why: "server" }],
     [{ status: 200, json: { ok: false } }, { at: "trouble", why: "server" }],
     [{ status: 200, json: { ok: true, vault: 5, ways: [] } }, { at: "trouble", why: "server" }],
@@ -184,6 +186,9 @@ test("a vault is made on the device, kept by the server with its two ways in, an
   // with no answer, or an answer that says nothing of the session, it is not said to be over
   assert.equal(await leave(async () => null), false);
   for (const status of [403, 404, 429, 500, 503]) assert.equal(await leave(async () => ({ status, json: {} })), false, String(status));
+  // an account that is no longer let in is signed out (the server takes its cookie away), and so is everyone with the gate shut
+  for (const why of ["not-admitted", "closed"]) assert.equal(await leave(async () => ({ status: 403, json: { ok: false, why } })), true, why);
+  for (const [status, why] of [[403, "origin"], [429, "slow-down"], [200.5, "not-admitted"], [404, "not-admitted"]] as const) assert.equal(await leave(async () => ({ status, json: { ok: false, why } })), false, `${status} ${why}`);
   // and what is asked is to end this session, as the page goes on (nothing here is a parting request)
   const asked: unknown[][] = [];
   const noting: Ask = async (...args) => (asked.push(args), { status: 200, json: {} });
@@ -300,6 +305,7 @@ test("keeping a vault: what each answer means", async () => {
     [{ status: 409, json: { ok: false, why: "another-vault" } }, "another"],
     [{ status: 401, json: {} }, "signed-out"],
     [{ status: 403, json: {} }, "signed-out"],
+    [{ status: 429, json: { ok: false, why: "slow-down" } }, "busy"],
     [{ status: 400, json: {} }, "server"],
     [{ status: 500, json: {} }, "server"],
     [null, "offline"],

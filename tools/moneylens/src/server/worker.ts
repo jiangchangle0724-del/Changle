@@ -15,7 +15,8 @@
  *   and nothing else is handed out.
  * - `GET /enter` starts a sign-in: a nonce in a cookie only this origin can set, and on to the
  *   main site, which asks the accounts service for a handoff code bound to that nonce and sends
- *   the browser back with it (ARCH-3).
+ *   the browser back with it (ARCH-3). Only from this origin's own page: a browser sent to
+ *   /enter from anywhere else is shown the page.
  * - Everything else is `POST /api/...`, and is refused unless its `Origin` is exactly the one
  *   this Worker is set to answer on (SEC-4; the expected origin is a setting, never read off the
  *   request), the gate is open (SEC-10), its body is of the stated kind and no longer than that
@@ -50,7 +51,7 @@ import type { Db } from "./chunks";
 import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
 import { configOf, listed, type Config, type Settings } from "./gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "./registry";
-import { fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
+import { addressKey, fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
 import { hashOf, newToken } from "./sessions";
 import { HEAD_MAX } from "./wire";
 
@@ -83,8 +84,8 @@ const isLimiter = (x: unknown): x is Limiter => typeof x === "object" && x !== n
  */
 async function within(limiter: Limiter, request: Request): Promise<boolean> {
   try {
-    // (the address is Cloudflare's own word for where the request came from; a caller cannot set it)
-    return (await limiter.limit({ key: request.headers.get("CF-Connecting-IP") || "nowhere" })).success !== false;
+    // (the address is Cloudflare's own word for where the request came from; a caller cannot set it. One machine's IPv6 addresses are one key: request.ts)
+    return (await limiter.limit({ key: addressKey(request.headers.get("CF-Connecting-IP")) })).success !== false;
   } catch (e) {
     console.error("moneylens: the limiter failed", e instanceof Error ? e.name : typeof e);
     return true;
@@ -216,6 +217,11 @@ async function page(request: Request, env: Env, config: Config, path: string): P
 function enter(request: Request, config: Config): Response {
   if (request.method !== "GET" && request.method !== "HEAD") return reply(405, JSON.stringify({ ok: false, why: "get-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "GET, HEAD" });
   if (config.gate.mode === "closed") return reply(403, SHUT, "text/html; charset=utf-8");
+  // A sign-in starts at a press on this origin's own page. Come to from anywhere else (another site, a link in a
+  // message, an address typed in), the browser is shown that page instead: nobody is signed in without having pressed
+  // anything (the review of the door, finding 6). A browser that does not say where a request came from is let on.
+  const from = request.headers.get("Sec-Fetch-Site");
+  if (from !== null && from !== "same-origin") return reply(302, null, null, [], { Location: `${config.origin}/` });
   const nonce = newToken();
   const cookie = nonceCookie(nonce);
   if (!cookie) return refuse(500, "unavailable");

@@ -106,3 +106,44 @@ export function labelOf(userAgent: unknown): string {
   const system = /\biPhone\b/.test(ua) ? "iPhone" : /\biPad\b/.test(ua) ? "iPad" : /\bAndroid\b/.test(ua) ? "Android" : /\bWindows\b/.test(ua) ? "Windows" : /\bCrOS\b/.test(ua) ? "ChromeOS" : /\bMac OS X\b|\bMacintosh\b/.test(ua) ? "Mac" : /\bLinux\b/.test(ua) ? "Linux" : "";
   return browser && system ? `${browser} on ${system}` : browser || system || "Browser";
 }
+
+/**
+ * What the requests of one machine are counted under (worker.ts, `within`), from the address Cloudflare says a
+ * request came from. An IPv4 address is counted by itself. An IPv6 address is counted by its first 64 bits: one
+ * machine, and usually one household, holds every address under them, and could otherwise give each request an
+ * address of its own (the review of the door, finding 1). An IPv4 address written as an IPv6 one is that IPv4
+ * address. Text that is no address is one key for all such text.
+ */
+export function addressKey(address: unknown): string {
+  const text = typeof address === "string" ? address.toLowerCase() : "";
+  const quad = (four: string): string | null => {
+    const parts = four.split(".");
+    return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255) ? parts.map(Number).join(".") : null;
+  };
+  if (!text.includes(":")) return quad(text) ?? "nowhere";
+  const halves = text.split("::");
+  if (halves.length > 2) return "nowhere";
+  // (each half is groups of up to four hex digits; the last group of all may be an IPv4 address, which is two groups)
+  const groupsOf = (half: string, last: boolean): number[] | null => {
+    if (half === "") return [];
+    const out: number[] = [];
+    const parts = half.split(":");
+    for (const [at, part] of parts.entries()) {
+      if (last && at === parts.length - 1 && part.includes(".")) {
+        const four = quad(part)?.split(".").map(Number);
+        if (!four) return null;
+        out.push(four[0]! * 256 + four[1]!, four[2]! * 256 + four[3]!);
+      } else if (/^[0-9a-f]{1,4}$/.test(part)) out.push(parseInt(part, 16));
+      else return null;
+    }
+    return out;
+  };
+  const head = groupsOf(halves[0]!, halves.length === 1);
+  const tail = halves.length === 2 ? groupsOf(halves[1]!, true) : [];
+  if (!head || !tail) return "nowhere";
+  const gap = 8 - head.length - tail.length;
+  if (halves.length === 1 ? gap !== 0 : gap < 1) return "nowhere";
+  const groups = [...head, ...Array.from({ length: gap }, () => 0), ...tail];
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) return [groups[6]! >> 8, groups[6]! & 255, groups[7]! >> 8, groups[7]! & 255].join(".");
+  return `${groups.slice(0, 4).map((group) => group.toString(16)).join(":")}::/64`;
+}

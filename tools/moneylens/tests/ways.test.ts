@@ -326,6 +326,38 @@ test("wrong proofs are counted for the account: ten in an hour, thirty in a day,
   assert.equal((await ask(other, early.hash, "vault/unlock", T0 + 6 * MINUTE, { id: p.wrapper.id, proof: p.proof })).status, 429);
 });
 
+test("showing proofs does not grow the events log without end, and right proofs do not push a wrong one out of it (the review of the door, finding 2)", async () => {
+  const db = sqlite();
+  const maker = await device(db, T0);
+  const vault = newId();
+  const [byPassphrase, byRecovery] = pair(vault);
+  assert.equal((await ask(db, maker.hash, "vault/start", T0, { vault, ways: [byPassphrase, byRecovery] })).status, 200);
+  const count = (where: string): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
+  const fill = (at: number, lines: number, kind: string): void => {
+    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, ?, NULL)`);
+    for (let i = 0; i < lines; i++) insert.run(at + i, kind);
+  };
+  const unlock = async (now: number, proof: string): Promise<number> => (await ask(db, maker.hash, "vault/unlock", now, { id: byPassphrase.wrapper.id, proof })).status;
+  // three wrong proofs, and then the right one six hundred times from the one session (a right proof is not counted, and each is a line)
+  for (let i = 0; i < 3; i++) assert.equal(await unlock(T0 + 1 + i, newToken()), 422);
+  for (let i = 0; i < 600; i++) assert.equal(await unlock(T0 + 10 + i, byPassphrase.proof), 200);
+  // five hundred lines of everything else are kept, the newest; the three wrong proofs are all still there
+  assert.deepEqual([count("kind = 'unlocked'"), count("kind != 'unlock-failed'"), count("kind = 'unlock-failed'")], [500, 500, 3]);
+  assert.deepEqual((await kinds(db, maker.hash, T0 + 700)).slice(0, 2), ["unlocked", "unlocked"]);
+  // of wrong proofs too no more than five hundred are kept, and a wrong proof is where that is seen to
+  fill(T0 + 1000, 520, "unlock-failed");
+  assert.equal(count("kind = 'unlock-failed'"), 523);
+  assert.equal(await unlock(T0 + 2000, newToken()), 422);
+  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, 500]);
+  // and a line older than twelve months goes at the next proof shown, right or wrong
+  for (const [n, proof, status] of [[1, byPassphrase.proof, 200], [2, newToken(), 422]] as const) {
+    fill(T0 - 367 * DAY, 4, n === 1 ? "sign-out" : "unlock-failed");
+    assert.equal(count(`at < ${T0 - 366 * DAY}`), 4);
+    assert.equal(await unlock(T0 + 3000 + n, proof), status);
+    assert.equal(count(`at < ${T0 - 366 * DAY}`), 0);
+  }
+});
+
 test("the functions themselves: who is unlocked, and what is no session or no time", async () => {
   const db = sqlite();
   const d = await device(db, T0);
