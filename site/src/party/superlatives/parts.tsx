@@ -1,4 +1,4 @@
-import { Check, Crown, Trophy } from "lucide-react";
+import { Check, Crown, Mic, Sparkles, Trophy } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { countFor, PACK_NAMES, PACKS, type Pack } from "../../data/superlatives";
 import type { T } from "../../i18n";
@@ -6,6 +6,7 @@ import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
 import { useStore } from "../../store";
 import { Both } from "../common";
+import { mindLine, SPEECH, type Flavor } from "./flavor";
 
 /**
  * The packs of titles in play, as chips: at least one stays on. Without `onChange` they only show
@@ -71,8 +72,9 @@ export function AwardCard({ title, round, total, custom }: { title: T; round: nu
 export type Nominee = { id: string; name: string; face: (size: number) => ReactNode; count: number };
 
 /** "And the award goes to…": the winner, then everyone's votes as bars. */
-export function AwardReveal({ title, winners, nominees }: { title: T; winners: Nominee[]; nominees: Nominee[] }) {
+export function AwardReveal({ title, winners, nominees, flavor }: { title: T; winners: Nominee[]; nominees: Nominee[]; flavor?: Flavor | null }) {
   const { lang } = useStore();
+  const zh = lang === "zh";
   const ref = useRef<HTMLDivElement>(null);
   const key = winners.map((w) => w.id).join(",");
   useEffect(() => {
@@ -91,6 +93,7 @@ export function AwardReveal({ title, winners, nominees }: { title: T; winners: N
       .fromTo(q(".winner"), { scale: 0.2, rotate: -12, opacity: 0 }, { scale: 1, rotate: 0, opacity: 1, duration: 0.8, ease: "back.out(2)", stagger: 0.12, clearProps: "transform,opacity" }, 1.05)
       .call(() => sfx.crown(), [], 1.05)
       .fromTo(q(".confetti i"), { y: 0, x: 0, opacity: 1, rotate: 0 }, { y: () => gsap.utils.random(-160, -60), x: () => gsap.utils.random(-140, 140), rotate: () => gsap.utils.random(-260, 260), opacity: 0, duration: 1.6, ease: "power2.out", stagger: 0.01 }, 1.1)
+      .fromTo(q(".reveal-flavor, .reveal-speech"), { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.1, clearProps: "transform,opacity" }, 1.5)
       .fromTo(q(".vote-row"), { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.07, clearProps: "transform,opacity" }, 1.6)
       .fromTo(q(".vote-row .vote-fill"), { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "settle", stagger: 0.07, clearProps: "transform" }, 1.7);
     return () => {
@@ -119,7 +122,12 @@ export function AwardReveal({ title, winners, nominees }: { title: T; winners: N
           ))}
         </span>
       </div>
-      <p className="hint reveal-title">{lang === "zh" ? `「${title.zh}」` : `"${title.en}"`}</p>
+      {flavor && <p className={`reveal-flavor is-${flavor.kind}`}>{zh ? flavor.text.zh : flavor.text.en}</p>}
+      <p className="hint reveal-title">{zh ? `「${title.zh}」` : `"${title.en}"`}</p>
+      <p className="reveal-speech">
+        <Mic size={14} strokeWidth={2.4} aria-hidden="true" />
+        {zh ? SPEECH.zh : SPEECH.en}
+      </p>
       <ul className="vote-rows">
         {nominees
           .filter((n) => n.count > 0)
@@ -142,7 +150,7 @@ export function AwardReveal({ title, winners, nominees }: { title: T; winners: N
 export type Shelf = { id: string; name: string; face: (size: number) => ReactNode; awards: T[] };
 
 /** The end of the night: everyone's trophies, the most decorated on top. */
-export function Ceremony({ shelves }: { shelves: Shelf[] }) {
+export function Ceremony({ shelves, mind }: { shelves: Shelf[]; mind?: { names: string[]; hits: number; of: number } | null }) {
   const { lang } = useStore();
   const ref = useRef<HTMLDivElement>(null);
   const sorted = shelves.slice().sort((a, b) => b.awards.length - a.awards.length);
@@ -154,6 +162,12 @@ export function Ceremony({ shelves }: { shelves: Shelf[] }) {
   return (
     <div className="ceremony" ref={ref}>
       <h2 className="ceremony-title">{lang === "zh" ? "颁奖典礼" : "The Awards"}</h2>
+      {mind && (
+        <p className="ceremony-mind">
+          <Sparkles size={16} strokeWidth={2.4} aria-hidden="true" />
+          {lang === "zh" ? mindLine(mind.names, mind.hits, mind.of).zh : mindLine(mind.names, mind.hits, mind.of).en}
+        </p>
+      )}
       <ul className="shelves">
         {sorted.map((s) => (
           <li key={s.id} className={`shelf ${top > 0 && s.awards.length === top ? "is-mvp" : ""}`}>
