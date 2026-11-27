@@ -1126,7 +1126,9 @@ shown a right proof, or made the vault, since it signed in: it notes that once, 
 its own (`opened`: the session and the time of the first), keeps the note when the session
 locks, and drops it with the session, at the next tidying after it ended. The list of sessions
 gives both, and a session that is unlocked counts as having opened whether or not it was noted
-(one that unlocked before the table existed). Nothing a session may do goes by the note: sync
+(one that unlocked before the table existed). A session that had opened the vault and locked
+it again before the table existed is listed as not having opened it, until it ends: when the
+table came, that could only be a session of the owner's own. Nothing a session may do goes by the note: sync
 and, later, erasing go by "unlocked" alone. The table is newer than the databases made before
 it, whose tables were made at the account's first sign-in, so each of the three things that
 touch it (an unlocking, the list of sessions, a tidying) makes sure of it first; none of them

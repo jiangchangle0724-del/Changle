@@ -92,3 +92,72 @@ resolved or not, and its `todo` test made a plain test if it is; what you ran an
 could not; what only a deployment can show; and the obligations you would put on the next
 slices (erasing and resetting a vault, the weekly sweep, changing a passphrase and a new
 recovery code, the import page).
+
+## Second look (2026-11-27): your two findings, at a new head
+
+The head is the commit that adds this section (`git diff 8c4988d1..HEAD`: `62f57830` is your
+three files as you wrote them, `191715ef` is the changes, and the last one is this card and one
+sentence of the assessment). The same worktree rules and the same commands as before; the
+author ran the platform tests, the browser check and the page checks at `191715ef` and they
+pass.
+
+What was done:
+
+1. **"Vault locked" on a device's own word (finding 1).** Your second fix, and the one thing it
+   needs from the server. The server now notes which sessions have opened the vault since they
+   signed in: a table of its own, `opened`, in `ways.ts` (the session and the time of the
+   first), written by `tryUnlock` when a proof is right and by `unlockMaker`, kept by `lock`,
+   and dropped by `tidyUnlocked` with sessions that are gone. `openedSessions` is the noted ones
+   and the unlocked ones, and the `sessions` answer gives `opened` beside `unlocked`
+   (`account.ts`). The screen says one of three things of a device (`Devices.tsx`): it holds the
+   vault open; it opened the vault and then said it had locked; it has not opened the vault
+   since this sign-in. "Locked" is said of no device. Where a device other than this one has
+   opened the vault, a sentence says what that means. Assessment 1.9 ("Unlocked, and having
+   opened"), 1.10 and its limits.
+   - Counting per page (your first fix) is not done. With it, "locked" would still be the
+     device's own word for a device that means harm, which is the case this screen is for.
+   - The table is newer than the databases made before it: tables are made at an account's
+     first sign-in, and the owner's database exists. So whatever touches it makes sure of it
+     first (`openedTable`): an unlocking, the list of devices, a tidying. `tests/ways.test.ts`
+     drops the table before each of them.
+   - A session that unlocked before the table was there, and is still unlocked, counts as
+     having opened (the `UNION`). One that opened and locked before then is listed as not
+     having opened until it ends: only a session of the owner's own, once.
+   - Nothing a session may do goes by `opened`.
+   - The page takes `opened` as it takes the rest: an answer in which a device holds the vault
+     open without having opened it is not an answer.
+2. **"No other device is signed in" over a list that shows one (finding 2).** `outcomeOf`:
+   "none" is said only when the list read afterwards shows no other device. When none were
+   signed out and the list shows one, or could not be read, nothing is said.
+3. **The advice.** Turned round as you said: the main site first, then here. It names the main
+   site's page as the site names it ("your profile at changle.ca"), not its button, whose words
+   can be changed there.
+4. **"Back" twice.** When the step is no longer the list (signed out meanwhile, or "forward"
+   onto the recovery code's screen), the page now goes back off it (`history.back()` in the
+   layout effect of `App.tsx`, after `listing` is put out) instead of leaving an ordinary step
+   behind.
+5. **Found by the author's own checks:** one wait in `scripts/check-app.ts` had no limit. With
+   one of the checks taken out, a `popstate` never came and the script waited for it for
+   ever. It listens for five seconds now.
+
+What changed under your tests: a `Device` says whether it has `opened`, so
+`second-devices.test.ts` no longer passes the type check (the two devices in your test of
+finding 2). Your test of finding 1 asserts that the browser with two tabs is listed as
+unlocked; with the fix chosen it is listed as not unlocked, and as having opened. Both are
+yours to restate or settle.
+
+What to look for this time:
+
+- **Finding 1.** Is it resolved by this? Is there still a state in which the screen says of a
+  device something that only the device vouches for. Can "has not opened the vault since this
+  sign-in" be false: a note lost, tidied too early, a race between an unlocking and a list.
+- **`opened`.** The table made on a database that exists. The tidying, and whether anything
+  grows without a bound. Whether the note tells anyone something they should not learn.
+  Whether anything is allowed or refused by it.
+- **Finding 2**, and the other answers `outcomeOf` can now give.
+- **`history.back()` in the effect.** Can it go back twice, or off the page. A fresh load on
+  the step when nobody is signed in.
+- **The words**, in both languages: do they claim only what is known.
+
+Hand back a section "Second look" at the end of `reviews/devices.md`, with its first line
+brought up to date, and your test files.
