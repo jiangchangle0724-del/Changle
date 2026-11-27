@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.18, 27 November 2026. It records the choices the requirements leave to this document
+Version 0.19, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -48,7 +48,9 @@ sign-in starts only at a press on the app's own page (1.10), wrong proofs are ke
 events log (1.8), an unkept vault's key is dropped after fifteen quiet minutes (1.10), and four
 sentences that the code did not keep are corrected (1.8, 1.9, 1.10). Version 0.18 records the
 first deployment: since 27 November 2026 the Worker answers at money.changle.ca, with the gate
-open to the owner's account alone (1.8, "What the first deployment showed").
+open to the owner's account alone (1.8, "What the first deployment showed"). Version 0.19 adds
+what was seen once the gate was open: who is let in, the limiter limiting, and two things
+Cloudflare adds to the pages of the zone.
 
 ## 1. The vault
 
@@ -980,10 +982,35 @@ domain. Its logs kept nothing of those requests: with the line for each request 
 its own (its bot check) at the end of every HTML page of the zone. Neither page's policy lets
 an inline script run, so it changes the bytes of the page and not what the page does; switching
 it off is a setting of the whole zone and was left alone. The build runs on Node 24, the tests
-on Node 22. Still to be seen on a deployment: what the reviews list under "Only a deployment
-can show" that needs a signed-in session or a phone (the limiters answering, the word sent as
-a page is left, the idle lock on phones, the passphrase's cost on a slow phone, a largest
-push's time on the Free plan).
+on Node 22.
+
+With the gate open to the owner (the second deployment, the same day), asked from outside
+again: the page is handed out with its own policy, and the script, the styles and the fonts
+with a year's keeping; a request with no cookie is "signed out" (and not "not set up": both
+limiters are bound); a cookie naming a made-up account is "not admitted" and is taken away;
+a made-up code with no nonce asks nobody; `/enter` come to from another site, from the main
+site or from a typed address goes to the page and sets no cookie. One sign-in was made in the
+owner's own browser session, as far as the screen that asks for a passphrase and no further:
+the code was gone from the address, the server said "no vault yet", one session, one line in
+the events log; signing out ended it. The page's script could not read the session's cookie,
+and the browser's storage held nothing. The limiter limits: of 26 made-up codes sent from one
+address in two seconds, twenty were asked about and six were told to slow down. Cloudflare's
+logs kept nothing of any of it.
+
+Two things Cloudflare adds that the code does not ask for, both settings of the whole zone and
+left as they were. First, its script monitor (Page Shield) puts a report-only policy on some
+answers of the page, and with it the browser reports to an address of Cloudflare's the scripts
+the page loads and the addresses it connects to. Those are addresses only (no contents, no
+cookie, no fragment), and Cloudflare carries every request anyway; but it is the browser
+telling a third address what the page does, which "the page asks nothing of any other origin"
+(T-8) does not cover. Second, its analytics beacon and its bot check are written into every
+HTML page; the page's policy lets neither load or run. Whether to switch these off for this
+hostname is the owner's to decide before Phase 3, and the privacy notice has to name what
+stays on.
+
+Still to be seen on a deployment: what the reviews list under "Only a deployment can show"
+that needs a phone or real use (the word sent as a page is left, the idle lock on phones, the
+passphrase's cost on a slow phone, a largest push's time on the Free plan).
 
 **Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
 design on the device's side for proving that a session has the vault unlocked. The weekly sweep

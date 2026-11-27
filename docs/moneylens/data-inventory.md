@@ -23,6 +23,7 @@ against the code.
 | AI requests, only if the user opted in: cleaned description text, debit or credit, the user's category names (AI-3) | The user's transactions, in the browser | Not stored by MoneyLens. Passes through the proxy to the provider | In transit: the operator's proxy (no body logging, AI-7) and the provider | The provider's stated retention |
 | Usage counters: users, import successes and failures, record counts, AI calls and cost, errors | The server | MoneyLens metrics, aggregate only | Operator | 13 months |
 | Network logs: IP address, URL, time | Every request | Cloudflare | Operator, limited; Cloudflare | The platform's log retention (to confirm and state) |
+| Reports the browser sends because of settings of the changle.ca zone (seen on the first deployment, 2026-11-27): for some page loads, the addresses of the scripts the page loaded and of the requests it made (Cloudflare's script monitor); for failed requests, the address that failed (network error reports). Addresses only: no contents, no cookie, no fragment | Some page loads | Cloudflare | Cloudflare | To decide before Phase 3: switch off for money.changle.ca, or name in the privacy notice |
 | Support and privacy email | The sender | The operator's mailbox | Operator | 24 months |
 
 Not collected: online-banking credentials, full account or card numbers, the account holder's name
