@@ -289,8 +289,12 @@ export const W = {
   historyRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
   historyRenameSomeone: { zh: "改名：改成 {name}", en: "Renamed someone {name}" },
   historyRemove: { zh: "去掉了一个人：{who}", en: "Removed: {who}" },
-  historyCategory: { zh: "分类改成 {kind}", en: "Category now {kind}" },
-  historyCategoryGone: { zh: "去掉了分类", en: "Category removed" },
+  historyCategory: { zh: "分类改成 {kind}", en: "category now {kind}" },
+  historyCategoryGone: { zh: "去掉了分类", en: "category taken off" },
+  // 退款 (2026-11-26): money that came back, in the record
+  historyRefund: { zh: "记了一笔退款：{what}", en: "New refund: {what}" },
+  historyRefundOn: { zh: "改成退款", en: "now a refund" },
+  historyRefundOff: { zh: "改成花销", en: "now an expense" },
   // 分类 (2026-11-26): the seven kinds of spending (categories.ts)
   catFood: { zh: "餐饮", en: "Food & drink" },
   catGroceries: { zh: "超市", en: "Groceries" },

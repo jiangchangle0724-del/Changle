@@ -140,6 +140,22 @@ test("an expense paid in another currency keeps both amounts, and a change to it
   assert.deepEqual(now(room.push("key", [edit({ amount: 9000, paidIn: { currency: "USD", amount: 5, rate: "0" } })], NOW)), ["nothing", 4170, null], "one with no rate changes nothing, the amount included");
 });
 
+test("退款: money that came back is kept as a refund, and refund said any other way isn't a change", () => {
+  const { room } = make();
+  const refundOf = (got: ReturnType<typeof room.push>) => (got.ok ? got.ledger.entries.map((e) => (e as Expense).refund ?? null) : got.error);
+  assert.deepEqual(refundOf(room.push("key", [expense("e1", { amount: 9000, refund: true, tip: 500 })], NOW)), [true], "a refund goes in as one");
+  assert.ok(!("tip" in (room.snapshot()!.ledger.entries[0] as Expense)), "and keeps no tip");
+  for (const refund of ["yes", false, 1]) {
+    assert.deepEqual(room.push("key", JSON.parse(JSON.stringify([expense("e2", { refund: refund as true })])), NOW), { ok: false, error: "bad" }, `refund: ${JSON.stringify(refund)} isn't a change`);
+  }
+  const said = { payer: "s", amount: 9000, note: "", split: { how: "equal" as const, among: ["s", "w", "m"] } };
+  const edit = (to: Record<string, unknown>): unknown => ({ id: `c${++n}`, at: NOW, change: { do: "edit", entry: "e1", to: { ...said, ...to } } });
+  assert.deepEqual(refundOf(room.push("key", [edit({ refund: null })], NOW)), [null], "an edit saying null makes it an expense");
+  assert.deepEqual(refundOf(room.push("key", [edit({ refund: true })], NOW)), [true], "and true a refund again");
+  assert.deepEqual(refundOf(room.push("key", [edit({ note: "押金" })], NOW)), [true], "an edit that doesn't say leaves it");
+  assert.deepEqual(room.push("key", [edit({ refund: "no" })], NOW), { ok: false, error: "bad" }, "and one saying anything else isn't a change");
+});
+
 test("a request with anything in it that isn't a change is turned away whole", () => {
   const { room, store } = make();
   const good = expense("e1");
