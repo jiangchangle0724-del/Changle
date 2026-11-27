@@ -13,6 +13,14 @@
  * shows the application's ordering, not the platform's scheduling.
  *
  * No network, no Wrangler. Every account id, code, token, label and blob is invented here.
+ *
+ * Brought to the door's head (C10, 342bbbb3) by the reviewer of C10. Only what that branch's four
+ * changes force was changed: the harness binds two limiters that always say yes (`TRADES`,
+ * `ASKS`); `vault/start` is sent with its two ways in (`waysFor`, as tests/shell.test.ts makes
+ * them); the push limit is four bytes longer; and the owner's gate now has its list, so the test
+ * that pinned a made-up id reaching an object in owner mode now pins that it does not. The two
+ * `todo` tests (findings 1 and 3) are plain tests: both findings are resolved at this head, and the
+ * finding 3 test now goes through the Worker and the object instead of restating a constant.
  */
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -144,6 +152,9 @@ function harness(settings: Settings = {}) {
     GATE: "list",
     ALLOWED_ACCOUNTS: `${A},${B}`,
     ...settings,
+    // (C10: the gate open needs two limiters; these always let the request through)
+    TRADES: { limit: async () => ({ success: true }) },
+    ASKS: { limit: async () => ({ success: true }) },
     ACCOUNTS: {
       async redeem(code: string, audience: string) {
         redeems++;
@@ -298,6 +309,12 @@ function harness(settings: Settings = {}) {
 }
 type Harness = ReturnType<typeof harness>;
 const statusOf = async (h: Harness, cookie: string) => (cookie ? (await h.send("/api/vault", cookie)).status : 0);
+/** C10: a `vault/start` body, with the vault's two ways in as a device hands them over (the server does not look inside them). */
+const startBody = (vault: string) =>
+  JSON.stringify({
+    vault,
+    ways: (["passphrase", "recovery"] as const).map((kind) => ({ wrapper: { v: 1, id: newId(), vault, kind, salt: "c2FsdA", wrapped: "d3JhcHBlZA" }, params: { v: 1, kind, salt: "cHJvb2Y" }, proof: newToken() })),
+  });
 
 // =============================================================================================
 // The previous reviewer's tests (Codex, for 189ad559), with the stand-ins the new head needs
@@ -310,8 +327,8 @@ test("C9: shell ignores forged routing headers/body accounts and isolates every 
     const b = await h.login(B);
     const vaultA = newId();
     const vaultB = newId();
-    assert.equal((await h.send("/api/vault/start", a, JSON.stringify({ vault: vaultA }))).status, 200);
-    assert.equal((await h.send("/api/vault/start", b, JSON.stringify({ vault: vaultB }))).status, 200);
+    assert.equal((await h.send("/api/vault/start", a, startBody(vaultA))).status, 200);
+    assert.equal((await h.send("/api/vault/start", b, startBody(vaultB))).status, 200);
     const chunk = newId();
     const blob = new Uint8Array(64).fill(17);
     assert.equal(unpackPushed(new Uint8Array(await (await h.send("/api/sync/push", b, packPush(vaultB, [{ id: chunk, base: 0, blob }]))).arrayBuffer()))?.ok, true);
@@ -380,10 +397,12 @@ test("C9: revocation while a body is pending is enforced by the second session c
         controller = c;
       },
     });
-    const pending = h.fetch(new Request(`${ORIGIN}/api/vault/start`, { method: "POST", headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json", "Content-Length": "50" }, body, duplex: "half" } as RequestInit));
+    // (C10: a whole vault/start body, so that the request reaches the second check and is not refused for its form first)
+    const sent = new TextEncoder().encode(startBody(newId()));
+    const pending = h.fetch(new Request(`${ORIGIN}/api/vault/start`, { method: "POST", headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json", "Content-Length": String(sent.length) }, body, duplex: "half" } as RequestInit));
     await checked.promise;
     await h.internal.accountChanged(A);
-    controller.enqueue(encode({ vault: newId() }));
+    controller.enqueue(sent);
     controller.close();
     assert.equal((await pending).status, 401);
     assert.equal(store.raw.prepare("SELECT count(*) AS n FROM vault").get()!.n, 0);
@@ -707,11 +726,13 @@ test("second: a deletion while a body is on its way: the request is refused and 
         controller = c;
       },
     });
-    const pending = h.fetch(new Request(`${ORIGIN}/api/vault/start`, { method: "POST", headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json", "Content-Length": "50" }, body, duplex: "half" } as RequestInit));
+    // (C10: a whole vault/start body, so that the request reaches the second check and is not refused for its form first)
+    const sent = new TextEncoder().encode(startBody(newId()));
+    const pending = h.fetch(new Request(`${ORIGIN}/api/vault/start`, { method: "POST", headers: { Cookie: cookie, Origin: ORIGIN, "Content-Type": "application/json", "Content-Length": String(sent.length) }, body, duplex: "half" } as RequestInit));
     await checked.promise;
     h.deleteAccount(A);
     await h.internal.accountGone(A);
-    controller.enqueue(encode({ vault: newId() }));
+    controller.enqueue(sent);
     controller.close();
     const response = await pending;
     assert.equal(response.status, 401);
@@ -766,20 +787,20 @@ test("second: taking an account off the list stops it at once; putting it back b
   }
 });
 
-test("second: owner gate: a made-up account in a cookie reaches an object and writes nothing there (the cost 1.8 states)", async () => {
+test("second: owner gate: a made-up account in a cookie reaches no object and writes nothing (C10: the owner's gate has its list)", async () => {
   const h = harness({ GATE: "owner" });
   try {
     const before = h.counts().vaultCalls;
     const response = await h.send("/api/vault", `__Host-ml=uinvented99.${newToken()}`);
-    assert.equal(response.status, 401);
-    assert.equal(h.counts().vaultCalls, before + 1);
+    assert.equal(response.status, 403);
+    assert.equal(h.counts().vaultCalls, before);
     assert.equal(h.tablesOf("uinvented99"), 0);
   } finally {
     h.close();
   }
 });
 
-test("second: finding 1, owner gate: an account id that cannot be the owner's still reaches a Durable Object", { todo: "finding 1: owner mode routes any made-up id to an object (no limit in code)" }, async () => {
+test("second: finding 1 (resolved at C10), owner gate: an account id that cannot be the owner's reaches no Durable Object", async () => {
   const h = harness({ GATE: "owner" });
   try {
     for (let i = 0; i < 20; i++) await h.send("/api/vault", `__Host-ml=uinvented${String(i).padStart(3, "0")}.${newToken()}`);
@@ -869,7 +890,7 @@ test("second: a blob taken out of a push is a view of its own bytes only, and a 
   try {
     const cookie = await h.login(A);
     const vault = newId();
-    assert.equal((await h.send("/api/vault/start", cookie, JSON.stringify({ vault }))).status, 200);
+    assert.equal((await h.send("/api/vault/start", cookie, startBody(vault))).status, 200);
     const blobs = [new Uint8Array(40).fill(1), new Uint8Array(41).fill(2)];
     const ids = [newId(), newId()];
     const push = packPush(
@@ -900,7 +921,7 @@ test("second: a push body larger than its stated length, or with no length, is n
     const noLength = new Request(`${ORIGIN}/api/sync/push`, { method: "POST", headers: { Origin: ORIGIN, Cookie: cookie, "Content-Type": "application/octet-stream" }, body: new Uint8Array(8) });
     noLength.headers.delete("Content-Length");
     assert.equal((await h.fetch(noLength)).status, 411);
-    assert.equal((await h.send("/api/sync/push", cookie, new Uint8Array(8), { "Content-Length": String(LIMITS.batchBytes + HEAD_MAX + 1) })).status, 413);
+    assert.equal((await h.send("/api/sync/push", cookie, new Uint8Array(8), { "Content-Length": String(4 + LIMITS.batchBytes + HEAD_MAX + 1) })).status, 413);
     assert.equal((await h.send("/api/vault", cookie, "{}", { "Content-Length": "4097" })).status, 413);
     assert.equal((await h.send("/api/vault", cookie, "{}", { "Content-Type": "text/plain" })).status, 415);
   } finally {
@@ -908,10 +929,18 @@ test("second: a push body larger than its stated length, or with no length, is n
   }
 });
 
-test("second: finding 3, the Worker's push limit is four bytes short of the largest frame `unframe` and `pushChunks` accept", { todo: "finding 3: PUSH_MAX leaves out the frame's four length bytes" }, () => {
-  // A frame whose head is exactly HEAD_MAX bytes and whose blobs are exactly batchBytes is a frame (unframe) and within
-  // pushChunks's own limit; the Worker and the object refuse it as too big.
-  const PUSH_MAX = LIMITS.batchBytes + HEAD_MAX; // (worker.ts)
-  const largest = 4 + HEAD_MAX + LIMITS.batchBytes;
-  assert.ok(largest <= PUSH_MAX, `${largest} > ${PUSH_MAX}`);
+test("second: finding 3 (resolved at C10): the largest frame `unframe` and `pushChunks` accept passes the Worker and the object; a byte more does not", async () => {
+  const h = harness();
+  try {
+    const cookie = await h.login(A);
+    assert.equal((await h.send("/api/vault/start", cookie, startBody(newId()))).status, 200);
+    const largest = 4 + HEAD_MAX + LIMITS.batchBytes;
+    // (bytes that are not a frame: past both size checks, the object reads them and says it is no request)
+    const at = await h.send("/api/sync/push", cookie, new Uint8Array(largest));
+    assert.equal(at.status, 400);
+    assert.equal(((await at.json()) as { why: string }).why, "bad-request");
+    assert.equal((await h.send("/api/sync/push", cookie, new Uint8Array(largest + 1))).status, 413);
+  } finally {
+    h.close();
+  }
 });
