@@ -408,12 +408,23 @@
 }
 .price-list li {
   display: flex;
+  min-width: 0;
+  border-radius: var(--r-field);
+  background: var(--dusk-2);
+}
+/* every box is a field: tap anywhere on it to type, the ring shows which one (tools/UnitPrice.tsx) */
+.price-list li:focus-within {
+  outline: 2px solid var(--light);
+  outline-offset: -2px;
+}
+.price-cell {
+  flex: 1;
+  display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
   padding: 12px 14px;
-  border-radius: var(--r-field);
-  background: var(--dusk-2);
+  cursor: text;
 }
 /* big figures (past 9 characters) read a size smaller; past 12 each box takes a whole line (tools/UnitPrice.tsx) */
 .price-list.is-long .price-main {
@@ -435,10 +446,25 @@
   font-weight: 700;
 }
 .price-main {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: -0.025em;
+}
+.price-main input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
 }
 .price-alt {
   color: var(--color-text-2);
