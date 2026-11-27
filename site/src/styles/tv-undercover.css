@@ -327,6 +327,25 @@
 .tvu-said li.is-next .tvu-said-text {
   color: var(--haze);
 }
+/* what they typed in the rounds before, under this round's line */
+.tvu-said-before {
+  grid-column: 3;
+  overflow: hidden;
+  margin-top: -8px;
+  color: var(--haze);
+  font-size: 20px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the blank's last guess */
+.tvu-guess-note {
+  margin: 0;
+  color: var(--moon);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 
 /* ---------- the vote ---------- */
 .tvu-clue {

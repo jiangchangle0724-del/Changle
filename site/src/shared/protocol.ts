@@ -179,9 +179,12 @@ export type TruthView = {
 export type UcRole = "civ" | "uc" | "blank";
 export type UndercoverView = {
   id: "undercover";
-  phase: "setup" | "word" | "talk" | "vote" | "reveal" | "end";
+  /** guess: the blank was voted out and has one try at the civilians' word */
+  phase: "setup" | "word" | "talk" | "vote" | "guess" | "reveal" | "end";
   uc: number;
   blank: boolean;
+  /** 成人档: the host chose the grown-ups' words */
+  adult: boolean;
   maxSide: number;
   round: number;
   inGame: string[];
@@ -191,12 +194,25 @@ export type UndercoverView = {
   speaker: number;
   endsAt: number;
   desc: Record<string, string>;
+  /**
+   * every round already voted on, oldest first (pk: a run-off between tied players): the typed
+   * lines, then once counted the votes and who went (null: nobody)
+   */
+  said: { round: number; pk?: boolean; desc: Record<string, string>; votes?: Record<string, string>; out?: string | null }[];
+  /** 平票加赛: the players tied at the top; at the reveal they are about to go again, in talk and vote they are */
+  pk: string[];
+  /** who votes this time: everyone still in, or everyone but a run-off's players */
+  voters: string[];
+  /** the blank's guess at the civilians' word, once it is in */
+  guess: { text: string; right: boolean } | null;
+  /** 换一组词: fresh pairs the host has dealt this game */
+  redeals: number;
   voted: string[];
   myVote: string | null;
   votes: Record<string, string> | null;
   out: { pid: string; role: UcRole } | null;
   tie: boolean;
-  winner: "civ" | "uc" | null;
+  winner: "civ" | "uc" | "blank" | null;
   myWord: T | null;
   isBlank: boolean;
   roles: Record<string, UcRole> | null;

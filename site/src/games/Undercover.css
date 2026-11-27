@@ -1,0 +1,55 @@
+/*
+ * 谁是卧底's own screens, one phone and online (loaded with the game, not on the home page):
+ * who voted for whom, the line the phone won't send, earlier rounds and the replay, the blank's guess.
+ */
+/* who voted for whom, under each name on the reveal */
+.uc-tally-who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.uc-tally-who small {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+/* a typed line with the speaker's own word in it (忌爆字) */
+.uc-warn {
+  color: var(--stop);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.uc-said {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.uc-said > div {
+  align-self: stretch;
+}
+.uc-recap-votes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.uc-recap-votes li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+/* the blank's last guess on the reveal card */
+.uc-guess {
+  margin-top: var(--space-3);
+  color: var(--moon);
+  font-weight: 700;
+}
+.uc-guess.is-right {
+  color: var(--gel);
+  font-size: var(--text-lg);
+}
