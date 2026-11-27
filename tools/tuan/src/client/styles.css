@@ -1706,6 +1706,26 @@ a.shop-name {
   color: var(--color-danger);
 }
 
+/* a buyer's pickup code (Order.tsx): dark on light, the way cameras read a QR code best */
+.qr {
+  align-self: center;
+  width: calc(var(--space-12) * 4.5);
+  max-width: 100%;
+  aspect-ratio: 1;
+  padding: var(--space-2);
+  border-radius: var(--r-field);
+  background: var(--color-text);
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: var(--color-bg);
+}
+.pickup-code .hint {
+  text-align: center;
+}
+
 /* the goods are in: the merchant's word, on the group buy's page, the order's, and the merchant's (common.tsx ArrivedNote) */
 .arrived {
   display: flex;

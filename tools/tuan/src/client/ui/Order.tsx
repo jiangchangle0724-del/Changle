@@ -9,6 +9,7 @@ import { TAIL_RE } from "../../engine/phone";
 import { weighed } from "../../engine/types";
 import { ApiFail, cancelOrder, getOrder, rememberOrder, tailOf, takeHanded } from "../api";
 import { t, unitName, whenText } from "../i18n";
+import { QR_OPTIONS, qrPath } from "./qr";
 import { ArrivedNote, Copyable, CopyButton, emailIn, IconCheck, Lines, money, qtyText, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 
 export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
@@ -149,6 +150,15 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
         </section>
       )}
 
+      {/* picking it up: a code the merchant scans with their phone's camera, which opens this order on their page */}
+      {!gone && !order.picked && order.how === "pickup" && (
+        <section class="panel pickup-code">
+          <h2 class="panel-title">{t("pickupCodeTitle")}</h2>
+          <QrCode text={`${location.origin}${BASE}/my/t/${offer.id}?pick=${order.code}`} label={t("pickupCodeTitle")} />
+          <p class="hint">{t("pickupCodeLine")}</p>
+        </section>
+      )}
+
       <section class="panel">
         <h2 class="panel-title">{t("whereTitle")}</h2>
         {order.how === "pickup" ? (
@@ -260,6 +270,31 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
         </Sheet>
       )}
       <Toast text={toast} />
+    </div>
+  );
+}
+
+/** A QR code of `text`, drawn once the code that makes it has come: it's fetched only for this (uqr, as the poster's). */
+function QrCode({ text, label }: { text: string; label: string }) {
+  const [drawn, setDrawn] = useState<{ size: number; path: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void import("uqr").then(({ encode }) => {
+      if (!live) return;
+      const qr = encode(text, QR_OPTIONS);
+      setDrawn({ size: qr.size, path: qrPath(qr.data) });
+    });
+    return () => {
+      live = false;
+    };
+  }, [text]);
+  return (
+    <div class="qr" role="img" aria-label={label}>
+      {drawn && (
+        <svg viewBox={`0 0 ${drawn.size} ${drawn.size}`} shape-rendering="crispEdges" aria-hidden="true">
+          <path d={drawn.path} />
+        </svg>
+      )}
     </div>
   );
 }
