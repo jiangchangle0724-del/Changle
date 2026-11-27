@@ -1,7 +1,8 @@
 import { Camera, ChevronDown, Crown, DoorOpen, Feather, Gem, Hand, MessageCircle, Wine, type LucideIcon } from "lucide-react";
 import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform, type PanInfo, type Variants } from "motion/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { haptic } from "../lib/sfx";
+import { useWakeLock } from "../party/sensors";
 import { RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank, type Suit } from "../data/rogue13";
 import type { Lang } from "../i18n";
 import { usePenaltyText, useStore } from "../store";
@@ -83,7 +84,7 @@ const TEXT = { fontFamily: "var(--font-text)" } as const;
  * The face of a card. `mini`: the small card in the tray of held powers, which only needs to be
  * recognized (a big rank, the band, the power's mark), not read.
  */
-export function CardFace({ rank, suit, lang, custom, mini = false }: { rank: Rank; suit?: Suit; lang: Lang; custom: boolean; mini?: boolean }) {
+export const CardFace = memo(function CardFace({ rank, suit, lang, custom, mini = false }: { rank: Rank; suit?: Suit; lang: Lang; custom: boolean; mini?: boolean }) {
   const rule = RULE_BY_RANK[rank];
   const words = ruleWords(rule, custom);
   const red = suit ? SUIT_RED[suit] : false;
@@ -177,10 +178,10 @@ export function CardFace({ rank, suit, lang, custom, mini = false }: { rank: Ran
       )}
     </svg>
   );
-}
+});
 
 /** The back: a lattice in the game's color around the game's number. */
-export function CardBack() {
+export const CardBack = memo(function CardBack() {
   return (
     <svg viewBox="0 0 200 280" aria-hidden="true">
       <defs>
@@ -198,10 +199,18 @@ export function CardBack() {
       </text>
     </svg>
   );
-}
+});
 
 /** How many cards' worth of edge shows under the top of the deck. */
 const thickness = (remaining: number) => (remaining >= 30 ? 3 : remaining >= 12 ? 2 : remaining >= 1 ? 1 : 0);
+
+/** The shuffle's spray: this many cards fly out, one every few ms from the bottom up, each its own way. */
+const SPRAY_LAYERS = 9;
+const SPRAY_STEP_MS = 26;
+const sprayOf = (k: number) => {
+  const side = k % 2 === 0 ? 1 : -1;
+  return { x: side * (26 + Math.random() * 40), y: (Math.random() - 0.5) * 12, r: side * (4 + Math.random() * 7) };
+};
 
 /** Where a card goes when it leaves the table: onto the pile of played cards, or down to the tray of held powers. */
 export type LeaveTo = "pile" | "tray";
@@ -267,16 +276,27 @@ export function RogueTable({
   const empty = remaining === 0 && !card && !shuffling;
   // the table is set: her voice fetched now, so the first 2 is not a built voice
   useEffect(() => warmHi(), []);
+  // the screen stays on while the table is out (a phone passed around, or left on the table, shouldn't dim)
+  useWakeLock(true);
   // where the pull let go of the top card: the card up starts its turn from there
   const pull = useRef(0);
   const flight: Flight = { to: leaveTo, fromY: pull.current };
+  // the shuffle: the deck's cards spray out to each side and gather back, bottom first (as deck.of.cards does it)
+  const spray = useMemo(() => (shuffling ? Array.from({ length: SPRAY_LAYERS }, (_, k) => sprayOf(k)) : []), [shuffling]);
   return (
     <div className="rg-stage">
       <div className="pcard-scene">
-        <div className={`rg-deck ${shuffling ? "is-shuffling" : ""} ${empty ? "is-empty" : ""}`}>
-          {Array.from({ length: n }, (_, i) => (
-            <span key={i} className="rg-under" style={{ ["--i" as string]: n - i }} aria-hidden="true" />
-          ))}
+        <motion.div
+          className={`rg-deck ${shuffling ? "is-shuffling" : ""} ${empty ? "is-empty" : ""}`}
+          // the deck arrives when the table is set: dropped in from above (not with reduced motion)
+          initial={still ? false : { y: -260, opacity: 0, rotate: -8 }}
+          animate={{ y: 0, opacity: 1, rotate: 0, transition: { type: "spring", stiffness: 260, damping: 26, mass: 0.9 } }}
+        >
+          {shuffling
+            ? spray.map((sp, k) => (
+                <span key={`s${k}`} className="rg-under" style={{ ["--i" as string]: SPRAY_LAYERS - k, ["--sx" as string]: `${sp.x}px`, ["--sy" as string]: `${sp.y}px`, ["--sr" as string]: `${sp.r}deg`, ["--sd" as string]: `${k * SPRAY_STEP_MS}ms` }} aria-hidden="true" />
+              ))
+            : Array.from({ length: n }, (_, i) => <span key={i} className="rg-under" style={{ ["--i" as string]: n - i }} aria-hidden="true" />)}
           {/* the top card is pulled down to draw it, off the next card's back; otherwise it is just the deck */}
           {canDraw && remaining > 1 && (
             <div className="rg-back" aria-hidden="true">
@@ -295,12 +315,12 @@ export function RogueTable({
               }}
             />
           ) : (
-            <div className="rg-back" aria-hidden="true">
+            <div className="rg-back" aria-hidden="true" style={shuffling ? { ["--sx" as string]: "-18px", ["--sy" as string]: "-4px", ["--sr" as string]: "-5deg", ["--sd" as string]: `${SPRAY_LAYERS * SPRAY_STEP_MS}ms` } : undefined}>
               <CardBack />
             </div>
           )}
           {empty && <span className="rg-empty" aria-hidden="true" />}
-        </div>
+        </motion.div>
 
         <AnimatePresence custom={flight}>
           {card && (
@@ -420,7 +440,7 @@ function DeckTop({ label, lang, tapDraws, drawn, onPull }: { label: string; lang
 }
 
 /** The cards already played, a few backs askew; the newest lands with a little weight, and they all go back when the deck runs out. */
-function Pile({ drawn }: { drawn: number }) {
+const Pile = memo(function Pile({ drawn }: { drawn: number }) {
   const still = useReducedMotion();
   const show = Math.min(3, drawn);
   const tilt = [-7, 5, -3];
@@ -454,13 +474,13 @@ function Pile({ drawn }: { drawn: number }) {
       )}
     </AnimatePresence>
   );
-}
+});
 
 /**
  * A power out on the table: its card small, who holds it, and what a tap does (when the phone's
  * holder may do it). `used`: this card's one go has gone.
  */
-export function HeldCard({
+export const HeldCard = memo(function HeldCard({
   rank,
   who,
   mine = false,
@@ -512,7 +532,7 @@ export function HeldCard({
       {body}
     </motion.div>
   );
-}
+});
 
 /**
  * One card, face up or face down, in a `.pcard-scene`: the big screen's card (TvRogue.tsx). The
