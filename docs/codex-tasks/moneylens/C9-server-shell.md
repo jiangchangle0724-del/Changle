@@ -69,3 +69,60 @@ Tests: `tests/shell.test.ts`, `tests/wire.test.ts` (Node), `tests/platform/serve
 at the head you reviewed (APPROVE, or CHANGES with numbered findings, each with where and what
 would fix it), what you ran and what you could not, and the obligations you would put on the
 next slices (erasing a vault, the sweep, the pages).
+
+## Second look (2026-11-26): your two findings, at a new head
+
+Your tests (`tests/second-shell.test.ts`, as it stood in your clone) carry two findings, and both
+reproduce at `189ad559`. They are answered at the new head of `claude/moneylens-server-shell`;
+`git diff 189ad559 HEAD -- tools/moneylens docs/moneylens` shows all of it. If your review holds
+more than these two, the rest stands: say so, and judge the new head against all of them.
+
+**Finding 1** (a notice from the accounts service passes a sign-in whose code is already
+traded). The steps that cross objects are now in one file, `src/server/flows.ts`, whose header
+is the argument: a notice sets a new stamp in the registry before it does its work; a sign-in
+reads the stamp before it trades its code; and the account's own object reads it again, and
+looks at its own in-memory count of notices, right before it opens the session, and opens none
+if either moved. A sign-in turned away has written nothing, so nothing is undone. Assessment
+0.14, section 1.8, "A sign-in and a notice at the same time". Where: `flows.ts` (new),
+`registry.ts` (the stamp), `worker.ts` (`doorsOf`, `VaultDO.signIn` now waits for the registry
+once, `noticed`, `Registry.stampNow`/`newStamp`, `Internal` goes through `flows.ts`).
+
+**Finding 2** (a sign-in that fails after its session is written). `signIn` in `account.ts` is
+one transaction now, with `openSession`'s own inside it; `tests/platform/server.test.ts` shows
+that a transaction inside a transaction does on the platform what that takes it to do.
+
+Tests of mine: `tests/flows.test.ts` (a sign-in and a notice in every order their steps can come
+in, with each step of the sign-in failing in turn), `tests/objects.test.ts` (the real `VaultDO`
+class on Node, with a registry whose answer is held back), `tests/shell.test.ts` (each write of
+a sign-in failing in turn), and on the platform a notice sent from inside the trade.
+
+**What your stand-ins need** (your tests are yours to change; with these three methods added
+all nine pass here, findings unskipped, and `npx tsc --noEmit` is clean):
+
+- the registry: `stampNow()` and `newStamp()`, passed on to the real `Registry` like the other
+  three;
+- the accounts service: `exists(ids)`, which the Worker asks only after a sign-in was turned
+  away, to take a deleted account off the registry (the real service has deleted the account
+  before it tells the apps);
+- `VAULTS.get(id).signIn(made)` is unchanged in shape: `made` now carries `stamp`, and the answer
+  is a promise.
+
+**Look hardest at:**
+
+1. The argument in `flows.ts`, case by case. It rests on the registry being one object, on the
+   order inside `signInHere` (count, question, count, write, with nothing waiting after the
+   question is answered), and on what the accounts service does before it tells MoneyLens
+   (`site/worker/hub.ts`, `endSessions`, the deletion, and `handoffCodes.ts`). Is each of the
+   three true, and is there a fourth case.
+2. Whether the every-order test models the platform faithfully: what a step is, and whether an
+   order that can happen is missing.
+3. The count being in memory. What a restart, or two instances of one object, would do.
+4. The cost: a notice about one account turns away other accounts' sign-ins under way; a
+   made-up code now costs a read of the registry as well.
+5. After a turned-away sign-in, the Worker empties and forgets an account the accounts service
+   says is gone (`tradeCode`). Is that safe to do there.
+6. Anything the change broke in what you had already passed.
+
+**What to hand back:** the same two files, in one pull request into
+`claude/moneylens-server-shell`: `reviews/server-shell.md` with a verdict for the code at the
+new head (the two findings marked resolved or not, anything new numbered on), and your tests.

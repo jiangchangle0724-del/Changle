@@ -894,14 +894,34 @@ twelve hours' worth: the restore runbook ends every session of a restored accoun
 answer that is not the store's, which `sync` reports as no answer, and marks apart the one the
 screen must act on: the server saying this browser has no session.
 
-**Tested.** On Node: every rule above that is a function, and each of 51 of their checks taken
-out in turn fails a test. On the local runtime: T-1 and T-2 (two people, through every route,
-with each other's names, tokens and ids), T-3, T-22 (every route, sync included, from other
-origins and from the main site), T-23 (each gate), T-14, T-6 (two devices sync real sealed
-records through the Worker, and every file the runtime kept is searched for what they wrote),
-the body limits, `Internal`, the registry, and that everything is still there after the
-runtime stops and starts. Twelve checks in `worker.ts` were taken out in turn: each fails a
-test there.
+**Tested.** On Node: every rule above that is a function, and each of 98 of their checks taken
+out in turn fails a test. A sign-in and a notice are run in every order their steps can come in
+(`tests/flows.test.ts`): each call on another object is a step, a call into an account's object
+is three (it arrives, the object's question reaches the registry, the answer comes back), which
+gives 715 orders for nine steps of a sign-in and four of a notice. That is done for a deleted
+account and a changed address, for an account that was here before and one that was not, for a
+code that the change dropped and one it left, for someone else's notice, for a notice that
+fails at its work and is sent again (5,005 orders), and with each step of the sign-in made to
+fail in turn. After every step the registry must know of every database there is; at the end a
+deleted account has no database and no entry, no session lives that was opened by a code traded
+before a change, and no session exists that the sign-in did not say "ok" for. The object's own
+class is loaded on Node as well (`tests/objects.test.ts`), with a registry whose answer the
+test holds back, to show that a notice's work done meanwhile is counted, an emptying before it
+is over included. Signing in is run with each of its writes failing in turn, for a first
+sign-in, a second and a ninth: the database is left exactly as it was.
+
+On the local runtime: T-1 and T-2 (two people, through every route, with each other's names,
+tokens and ids), T-3, T-22 (every route, sync included, from other origins and from the main
+site), T-23 (each gate), T-14, T-6 (two devices sync real sealed records through the Worker,
+and every file the runtime kept is searched for what they wrote), the body limits, `Internal`,
+the registry, and that everything is still there after the runtime stops and starts. A notice
+is made to come while a code is being traded (the stand-in for the accounts service sends it
+from inside its answer to the trade): the sign-in is turned away with nothing opened, for a
+changed address, for someone else's notice, for an account's first sign-in and for a deleted
+account, which is then off the registry. And a transaction inside a transaction is shown to do
+on the platform what signing in takes it to do: the outer one failing undoes the inner one's
+writes, and what was thrown comes out as the thing that was thrown. Fifteen checks in
+`worker.ts` were taken out in turn: each fails a test there.
 
 **Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
 design on the device's side for proving that a session has the vault unlocked. The weekly sweep
