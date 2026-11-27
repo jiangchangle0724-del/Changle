@@ -9,7 +9,7 @@
  * expense each (几张小票, Receipts.tsx) or this one's photos. A receipt read that looks like one
  * already recorded says so in place of the line under the amount (twins.ts).
  */
-import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -321,7 +321,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // being read, nothing read, read. A tip and tax the expense will keep are said there too (just read,
   // or since), and pressing that opens the receipt's sheet, where they can be put right.
   const fresh = fromReceipt === `${draft.currency} ${draft.text}`;
-  const extras = extrasOf(draft);
+  // (a refund has no tip or tax)
+  const extras = draft.refund ? { tip: null, tax: null } : extrasOf(draft);
   const extrasSaid = extrasText(extras.tip, extras.tax, draft.currency, lang);
   // (a receipt going and being read while nothing has been typed: its scan is where the amount will
   // be. Something typed stands, and the reading's amount would not go in, so the scan stops there)
@@ -332,7 +333,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // (once it isn't just read, the business is on the 详情 line: under the amount, only what is in the amount)
   const amountSaid = extrasSaid ? say(lang, "withExtras", { extras: extrasSaid }) : "";
   // just read off a receipt that looks like one already recorded: said in the line's place
-  const said = fresh && !comes && !reading ? saidOf(draft, day) : null;
+  // (a refund is money back, never a receipt recorded twice)
+  const said = fresh && !comes && !reading && !draft.refund ? saidOf(draft, day) : null;
   const twin = said ? twinIn(ledger, said, editing?.id) : null;
   const twinLine = twin
     ? say(lang, "twinSeen", { what: [dayLabel(spentOn(twin), today, lang), twin.merchant, money(twin.paidIn?.amount ?? twin.amount, twin.paidIn?.currency ?? ledger.currency, lang)].filter(Boolean).join(" ") })
@@ -350,7 +352,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const extrasLine = comes || reading || twinLine || sumLine ? null : fresh && aboutSaid ? say(lang, "readExtras", { what: aboutSaid }) : amountSaid ? amountSaid.charAt(0).toUpperCase() + amountSaid.slice(1) : null;
   // the 详情 line: the day, then what it was for and where and how it was paid, as far as they go
   // (its kind only when one is picked or read: one it would only count as is the sheet's to say)
-  const detailsSaid = [draft.note, draft.category ? say(lang, CATEGORY_WORD[draft.category]) : "", draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
+  const detailsSaid = [draft.refund ? say(lang, "refund") : "", draft.note, draft.category ? say(lang, CATEGORY_WORD[draft.category]) : "", draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
   // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
@@ -371,7 +373,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         lang={lang}
         close
         onBack={onClose}
-        title={say(lang, editing ? "editExpense" : "addExpense")}
+        title={say(lang, editing ? (draft.refund ? "editRefund" : "editExpense") : draft.refund ? "addRefund" : "addExpense")}
         right={
           <>
             {/* what the amount is typed in; it opens the currencies */}
@@ -448,7 +450,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         </div>
         <div className="split-fields">
           <button type="button" className="split-field" onClick={() => setSheet("payer")}>
-            <span>{say(lang, "payer")}</span>
+            <span>{say(lang, draft.refund ? "payerRefund" : "payer")}</span>
             <strong>{nameFor(ledger, draft.payer, me, lang)}</strong>
             <ChevronRight aria-hidden="true" />
           </button>
@@ -486,7 +488,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           {say(lang, editing ? "saveChanges" : "done")}
         </Button>
       </div>
-      <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} value={draft.payer} onPick={(payer) => setDraft({ ...draft, payer })} />
+      <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} title={say(lang, draft.refund ? "payerRefund" : "payer")} value={draft.payer} onPick={(payer) => setDraft({ ...draft, payer })} />
       <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} />
       <CurrencySheet open={sheet === "currency"} onClose={() => setSheet(null)} ledger={ledger} lang={lang} value={draft.currency} onPick={(currency) => setDraft((d) => payIn(d, currency, ledger, fx?.rates, Date.now()))} />
       <RateSheet open={sheet === "rate" && away} onClose={() => setSheet(null)} ledger={ledger} lang={lang} draft={draft} fx={fx} onChange={setDraft} />
@@ -505,6 +507,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         onLines={(to) => setDraft((d) => ({ ...d, ...to }))}
         onNote={(note) => setDraft((d) => ({ ...d, note }))}
         onKind={(category) => setDraft((d) => ({ ...d, category }))}
+        onRefund={(refund) => setDraft((d) => ({ ...d, refund }))}
       />
       {/* several photos chosen at once: an expense each (几张小票), or all of them this one's */}
       <Sheet open={!!several} onClose={() => setSeveral(null)} lang={lang} category="tool" title={say(lang, "severalTitle", { n: several?.length ?? 0 })}>
@@ -724,6 +727,7 @@ function DetailsSheet({
   onLines,
   onNote,
   onKind,
+  onRefund,
 }: {
   open: boolean;
   onClose: () => void;
@@ -736,6 +740,7 @@ function DetailsSheet({
   onLines: (to: Partial<Pick<Draft, Detail>>) => void;
   onNote: (note: string) => void;
   onKind: (kind: Category | null) => void;
+  onRefund: (refund: boolean) => void;
 }) {
   const over = extrasOver(draft);
   const guess = guessed(draft);
@@ -782,7 +787,14 @@ function DetailsSheet({
           </div>
           <p className="split-note">{draft.category ? say(lang, "categoryUnpick") : say(lang, guess ? "categoryGuess" : "categoryNone", { kind: say(lang, CATEGORY_WORD[guess ?? "other"]) })}</p>
         </div>
-        <div className="split-extras">
+        {/* 退款 (after the kind, before the tip and tax, which a refund hasn't): money that came back, shared the other way round (core/types.ts, refund) */}
+        <div className="split-refund">
+          <Pill kind="toggle" tone={draft.refund ? "tool" : "neutral"} selected={draft.refund} icon={Undo2} onToggle={onRefund}>
+            {say(lang, "refundToggle")}
+          </Pill>
+          <p className="split-note">{say(lang, "refundNote")}</p>
+        </div>
+        <div className="split-extras" hidden={draft.refund}>
           <h3 className="split-subhead">{say(lang, "extrasHead", { currency: lang === "zh" ? currencyName(draft.currency, lang) : draft.currency })}</h3>
           {(["tip", "tax"] as const).map((k) => (
             <label key={k} className="split-field">
@@ -813,10 +825,10 @@ function DetailsSheet({
 const LINE_WORDS: Record<Detail, [Word, Word]> = { merchant: ["merchant", "merchantHint"], place: ["place", "placeHint"], payment: ["paidWith", "paidWithHint"] };
 
 /** Who paid: one tap picks and closes. */
-function PayerSheet({ open, onClose, ledger, me, lang, value, onPick }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; value: string; onPick: (id: string) => void }) {
+function PayerSheet({ open, onClose, ledger, me, lang, title, value, onPick }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; title: string; value: string; onPick: (id: string) => void }) {
   return (
-    <Sheet open={open} onClose={onClose} lang={lang} category="tool" title={say(lang, "payer")}>
-      <div className="split-people" role="radiogroup" aria-label={say(lang, "payer")}>
+    <Sheet open={open} onClose={onClose} lang={lang} category="tool" title={title}>
+      <div className="split-people" role="radiogroup" aria-label={title}>
         {ledger.members.map((m) => (
           <button
             key={m.id}

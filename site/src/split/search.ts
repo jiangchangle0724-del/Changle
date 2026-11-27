@@ -45,7 +45,9 @@ export function matches(e: Expense, l: Ledger, typed: string, me: string | undef
   const name = l.members.find((m) => m.id === e.payer)?.name;
   // (and its kind of spending, by its name in either language: 交通 or transport)
   const kind = CATEGORY_WORD[categoryOf(e)];
-  return [e.note, e.merchant, e.place, e.payment, name, nameFor(l, e.payer, me, lang), say("zh", kind), say("en", kind)].some((text) => !!text && bare(text).includes(want));
+  // (and a refund by the word, in either language)
+  const refund = e.refund ? [say("zh", "refund"), say("en", "refund")] : [];
+  return [e.note, e.merchant, e.place, e.payment, name, nameFor(l, e.payer, me, lang), say("zh", kind), say("en", kind), ...refund].some((text) => !!text && bare(text).includes(want));
 }
 
 /** Below this many expenses there is nothing to search: the list is short enough to see whole. */

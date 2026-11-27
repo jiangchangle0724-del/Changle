@@ -343,13 +343,14 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                           <strong className={e.note || e.merchant ? undefined : "is-quiet"}>{e.note || e.merchant || say(lang, "noNote")}</strong>
                           <span>
                             {dayLabel(spentOn(e), today, lang)}
-                            {paid > 0 && ` · ${say(lang, "personPaid")} ${sum(paid)}`}
+                            {/* (a refund: what they got back, and their part of it, back to them) */}
+                            {paid > 0 && ` · ${say(lang, e.refund ? "refundGot" : "personPaid")} ${sum(paid)}`}
                           </span>
                         </span>
                         <span className="split-row-amount">
                           {share > 0 ? (
                             <>
-                              <small>{say(lang, "personShare")}</small>
+                              <small>{say(lang, e.refund ? "refundBack" : "personShare")}</small>
                               {sum(share)}
                             </>
                           ) : (

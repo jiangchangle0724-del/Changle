@@ -11,9 +11,12 @@ import { expensesOf, portionsOf, type Expense, type Ledger } from "./core";
 export type Most = { who: string[]; amount: number };
 
 export type Summary = {
-  /** everything spent, and in how many expenses */
+  /** everything spent (less what came back), and in how many expenses */
   spent: number;
   count: number;
+  /** what came back (refunds), and in how many */
+  refunds: number;
+  refunded: number;
   /** the tips the receipts said, and on how many expenses; the same for tax */
   tips: number;
   tipped: number;
@@ -36,12 +39,17 @@ export function summaryOf(l: Ledger): Summary {
   const roster = l.members.map((m) => m.id);
   const paid = new Map<string, number>();
   const share = new Map<string, number>();
-  const s: Summary = { spent: 0, count: 0, tips: 0, tipped: 0, tax: 0, taxed: 0, paidMost: null, spentMost: null };
+  const s: Summary = { spent: 0, count: 0, refunds: 0, refunded: 0, tips: 0, tipped: 0, tax: 0, taxed: 0, paidMost: null, spentMost: null };
   for (const e of expensesOf(l)) {
-    s.spent += e.amount;
-    s.count++;
-    paid.set(e.payer, (paid.get(e.payer) ?? 0) + e.amount);
-    for (const [id, part] of Object.entries(portionsOf(e, l))) share.set(id, (share.get(id) ?? 0) + part);
+    // (a refund the other way round: it comes off what was spent, what whoever got it paid, and each one's share)
+    const way = e.refund ? -1 : 1;
+    s.spent += way * e.amount;
+    if (e.refund) {
+      s.refunds += e.amount;
+      s.refunded++;
+    } else s.count++;
+    paid.set(e.payer, (paid.get(e.payer) ?? 0) + way * e.amount);
+    for (const [id, part] of Object.entries(portionsOf(e, l))) share.set(id, (share.get(id) ?? 0) + way * part);
     if (e.tip) {
       s.tips += inLedger(e.tip, e);
       s.tipped++;

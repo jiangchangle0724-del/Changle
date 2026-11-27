@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -4022,6 +4022,100 @@ async function kinding() {
   await a.close();
 }
 
+// ---------- refund: 退款 ----------
+/**
+ * 退款 (2026-11-26): turned on in 详情 (no tip or tax then); the add screen says so; its row says who
+ * got it, with a minus; 共花 and 总结 less it; the statement says what came back; turned off again.
+ */
+async function refunding() {
+  if (!local) {
+    console.log("refund: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "退款", ["阿甲"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const synced = () => pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const sheet = pa.getByRole("dialog");
+  const toggle = sheet.getByRole("button", { name: t("refundToggle"), exact: true });
+  const title = () => pa.locator(".split-bar-title").innerText();
+  await button(pa, "addExpense").click();
+  await type(pa, "300");
+  await setNote(pa, "酒店");
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  // turned on in 详情: the tip and tax go, and the screen says it is a refund
+  await button(pa, "addExpense").click();
+  await type(pa, "90");
+  await detailsLine(pa).click();
+  await noteInSheet(pa).fill("退了一晚");
+  ok((await toggle.getAttribute("aria-pressed")) === "false" && (await sheet.locator(".split-extras").isVisible()), "详情: not a refund to start with, and the tip and tax are there");
+  await toggle.click();
+  const tall = (await toggle.boundingBox())?.height ?? 0;
+  ok((await toggle.getAttribute("aria-pressed")) === "true" && !(await sheet.locator(".split-extras").isVisible()) && tall >= 48, `turned on: lit, a crowded target's height (${Math.round(tall)}px), and no tip or tax for a refund`);
+  await pa.screenshot({ path: join(out, "refund-on-zh-390x664.png") });
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok((await title()) === t("addRefund") && (await pa.locator(".split-field", { hasText: t("payerRefund") }).count()) === 1 && (await detailsLine(pa).innerText()).includes(`${t("refund")} · 退了一晚`), "the screen says 记一笔退款, 谁收到的, and 退款 on the 详情 line");
+  await pa.screenshot({ path: join(out, "refund-add-zh-390x664.png") });
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  // its row: who got it, with a minus; 共花 less it
+  const row = pa.locator("#split-list .split-row", { hasText: "退了一晚" });
+  ok((await row.locator(".split-row-amount").innerText()).includes("\u2212$90.00") && (await row.innerText()).includes(t("receivedByYou")), "its row: 你收到, and \u2212$90.00");
+  ok((await pa.getByText(say("zh", "spent", { amount: "$210.00" })).count()) === 1, "共花 $210.00: what was spent, less what came back");
+  await pa.screenshot({ path: join(out, "refund-list-zh-390x664.png") });
+  await synced();
+  // 总结 and the statement
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const summary = pa.locator("dl.split-summary").last();
+  await summary.waitFor();
+  const said = await summary.innerText();
+  ok(said.includes(t("summaryRefunds")) && said.includes("$90.00") && said.includes("$210.00"), "总结: 一共花了 $210.00, and 退回来的 $90.00");
+  await pa.locator(".split-people .split-row").first().click();
+  const statement = await sheet.locator(".split-statement").innerText();
+  ok(statement.includes(`${t("refundGot")} $90.00`) && statement.includes(t("refundBack")) && statement.includes("$45.00"), "my statement: the refund I got ($90.00), and my part of it back ($45.00)");
+  await pa.screenshot({ path: join(out, "refund-statement-zh-390x664.png") });
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // opened again: a refund; turned off, an expense again, and the record says so
+  await pa.getByRole("tab", { name: t("expenses") }).click();
+  await row.click();
+  ok((await title()) === t("editRefund"), "opened again: 改这一笔退款");
+  await detailsLine(pa).click();
+  await toggle.click();
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok((await title()) === t("editExpense"), "turned off: 改这一笔");
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await row.locator(".split-row-amount").innerText()).trim() === "$90.00" && (await pa.getByText(say("zh", "spent", { amount: "$390.00" })).count()) === 1, "saved: $90.00 spent, and 共花 $390.00");
+  await synced();
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("history")) }).click();
+  await sheet.getByText(t("historyRefundOff")).waitFor({ timeout: 10_000 });
+  ok((await sheet.getByText(say("zh", "historyRefund", { what: "退了一晚 $90.00" })).count()) === 1, "改动记录: 记了一笔退款, then 改成花销");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // in English, on the narrowest phone: the toggle and what a refund is fit
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  await row.click();
+  await detailsLine(pa).click();
+  const en = sheet.getByRole("button", { name: say("en", "refundToggle"), exact: true });
+  await en.click();
+  await sheet.locator(".split-refund").scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "refund-on-en-320x568.png") });
+  const fits = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll("dialog[open] .split-refund *")].every((e) => e.getBoundingClientRect().right <= window.innerWidth));
+  ok(fits && (await en.getAttribute("aria-pressed")) === "true", "in English on a 320 phone: the toggle and what a refund is fit");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -4036,6 +4130,7 @@ if (what === "all" || what === "view") await viewing();
 if (what === "all" || what === "search") await searching();
 if (what === "all" || what === "pay") await paying();
 if (what === "all" || what === "kinds") await kinding();
+if (what === "all" || what === "refund") await refunding();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

@@ -20,8 +20,10 @@ export function peopleOf(l: Ledger): Person[] {
   const at = new Map(l.members.map((m, i) => [m.id, i]));
   const rows: Person[] = l.members.map((m) => ({ id: m.id, paid: 0, share: 0, sent: 0, received: 0, net: 0 }));
   for (const e of expensesOf(l)) {
-    rows[at.get(e.payer)!].paid += e.amount;
-    for (const [id, part] of Object.entries(portionsOf(e, l))) rows[at.get(id)!].share += part;
+    // (a refund the other way round: it comes off what whoever got it paid, and off each one's share)
+    const way = e.refund ? -1 : 1;
+    rows[at.get(e.payer)!].paid += way * e.amount;
+    for (const [id, part] of Object.entries(portionsOf(e, l))) rows[at.get(id)!].share += way * part;
   }
   for (const t of transfersOf(l)) {
     rows[at.get(t.from)!].sent += t.amount;
@@ -31,7 +33,7 @@ export function peopleOf(l: Ledger): Person[] {
   return rows;
 }
 
-/** One line of a member's statement: an expense they paid or share in, with how much of each. */
+/** One line of a member's statement: an expense they paid or share in, with how much of each (a refund's: what they got, and their part of it, both as they are). */
 export type Spent = { expense: Expense; paid: number; share: number };
 
 /** A member's statement: their expenses (the day spent, newest first, as the list has them) and their transfers (newest first). */
