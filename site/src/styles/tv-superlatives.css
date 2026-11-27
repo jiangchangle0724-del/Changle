@@ -501,3 +501,35 @@
 .tvs-setup .tvx-lineup {
   margin-top: auto;
 }
+
+/* under the title won: what the vote said (a tie, a streak, every vote, one vote in it) */
+.tvs-flavor {
+  position: absolute;
+  left: 60px;
+  width: 940px;
+  bottom: 62px;
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--moon);
+  text-align: center;
+}
+.tvs-flavor.is-unanimous {
+  color: var(--gold);
+}
+/* the mind reader of the night, above the honours */
+.tvs-mind {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 12px 18px;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--gel) 18%, var(--dusk-2));
+  font-size: 24px;
+  font-weight: 700;
+}
+.tvs-mind svg {
+  flex: none;
+  color: var(--gold);
+}
