@@ -21,6 +21,13 @@
  * for unlocked sessions only (account.ts): a session that has not unlocked reads nothing, not
  * even ciphertext.
  *
+ * "Unlocked" is what a session says of itself now, and it is a browser's word: any page of the
+ * browser can say it has locked while another still holds the key, and one that means harm can
+ * say so and keep it. What the server knows is that a session has opened the vault since it
+ * signed in ("opened"), and that is what its owner is shown of each device (the review of the
+ * devices' screen, finding 1). It is kept when the session locks, and goes when it ends. Nothing
+ * a session may do goes by it.
+ *
  * Plain synchronous functions on a `Db`, like chunks.ts. The proof arrives here already hashed
  * (`hashOf`, sessions.ts): hashing waits, and nothing here does.
  */
@@ -48,6 +55,21 @@ export function wayTables(db: Db): void {
   db.sql.exec(`CREATE TABLE IF NOT EXISTS ways (id TEXT PRIMARY KEY, kind TEXT NOT NULL, wrapper TEXT NOT NULL, params TEXT NOT NULL, verifier TEXT NOT NULL, made INTEGER NOT NULL)`);
   db.sql.exec(`CREATE TABLE IF NOT EXISTS tries (n INTEGER PRIMARY KEY, at INTEGER NOT NULL)`);
   db.sql.exec(`CREATE TABLE IF NOT EXISTS unlocked (session TEXT PRIMARY KEY, at INTEGER NOT NULL)`);
+}
+
+/**
+ * Which sessions have opened the vault since they signed in, and when first. This table is newer than the databases
+ * that were made before it (the others are made at an account's first sign-in, above), so it is made in one way for
+ * every database, old or new: whatever reads or writes it makes sure of it first. That is an unlocking, the list of
+ * devices and a tidying, none of which is often.
+ */
+function openedTable(db: Db): void {
+  db.sql.exec(`CREATE TABLE IF NOT EXISTS opened (session TEXT PRIMARY KEY, at INTEGER NOT NULL)`);
+}
+/** This session has opened the vault: noted once, the first time. */
+function noteOpened(db: Db, session: string, now: number): void {
+  openedTable(db);
+  db.sql.exec(`INSERT INTO opened (session, at) VALUES (?, ?) ON CONFLICT (session) DO NOTHING`, session, now);
 }
 
 /** Two hashes, compared without stopping at the first difference. */
@@ -134,6 +156,7 @@ export function tryUnlock(db: Db, id: unknown, verifier: unknown, session: strin
     return { ok: false, why: "wrong-secret", left: Math.min(TRIES_PER_HOUR - hour.length, TRIES_PER_DAY - tries.length) - 1 };
   }
   db.sql.exec(`INSERT INTO unlocked (session, at) VALUES (?, ?) ON CONFLICT (session) DO UPDATE SET at = excluded.at`, session, now);
+  noteOpened(db, session, now);
   return { ok: true, wrapper: JSON.parse(way.wrapper) as unknown };
 }
 
@@ -143,18 +166,30 @@ export const isUnlocked = (db: Db, session: string): boolean => db.sql.exec(`SEL
 /** The sessions that have, for the list of devices their owner sees. A session in it that has since ended is not in that list (sessions.ts). */
 export const unlockedSessions = (db: Db): Set<string> => new Set(db.sql.exec(`SELECT session FROM unlocked`).toArray().map((row) => String(row.session)));
 
+/**
+ * The sessions that have opened the vault since they signed in, whether or not they say they have locked since. One
+ * that is unlocked has opened it, noted or not (a session that unlocked before this table was there).
+ */
+export function openedSessions(db: Db): Set<string> {
+  openedTable(db);
+  return new Set(db.sql.exec(`SELECT session FROM opened UNION SELECT session FROM unlocked`).toArray().map((row) => String(row.session)));
+}
+
 /** The session that made the vault holds its key: it is unlocked without showing a proof. For `vault/start` alone. */
 export function unlockMaker(db: Db, session: string, now: number): void {
   if (!isId(session) || !isTime(now)) throw new Error("unlock");
   db.sql.exec(`INSERT INTO unlocked (session, at) VALUES (?, ?) ON CONFLICT (session) DO UPDATE SET at = excluded.at`, session, now);
+  noteOpened(db, session, now);
 }
 
-/** The session has locked its vault, or has ended. */
+/** The session has locked its vault, or has ended. That it opened the vault stays noted while it is a session. */
 export function lock(db: Db, session: unknown): void {
   if (typeof session === "string") db.sql.exec(`DELETE FROM unlocked WHERE session = ?`, session);
 }
 
-/** Forgets the unlocking of sessions that are no longer there. */
+/** Forgets the unlocking, and the having opened, of sessions that are no longer there. */
 export function tidyUnlocked(db: Db): void {
   db.sql.exec(`DELETE FROM unlocked WHERE session NOT IN (SELECT id FROM sessions)`);
+  openedTable(db);
+  db.sql.exec(`DELETE FROM opened WHERE session NOT IN (SELECT id FROM sessions)`);
 }

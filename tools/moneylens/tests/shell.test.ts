@@ -356,9 +356,9 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.deepEqual(listed.json, {
     ok: true,
     sessions: [
-      { id: three.session, made: T0 + 2000, seen: T0 + 2000, label: "Chrome on Windows", here: false, unlocked: false },
-      { id: two.session, made: T0 + 1000, seen: T0 + 1000, label: "Chrome on Windows", here: true, unlocked: false },
-      { id: one.session, made: T0, seen: T0, label: "Chrome on Windows", here: false, unlocked: false },
+      { id: three.session, made: T0 + 2000, seen: T0 + 2000, label: "Chrome on Windows", here: false, unlocked: false, opened: false },
+      { id: two.session, made: T0 + 1000, seen: T0 + 1000, label: "Chrome on Windows", here: true, unlocked: false, opened: false },
+      { id: one.session, made: T0, seen: T0, label: "Chrome on Windows", here: false, unlocked: false, opened: false },
     ],
   });
   // one device signs another out

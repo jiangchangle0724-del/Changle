@@ -114,6 +114,7 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
     if (came.said === "one") setSaid({ tone: "done", key: "endedOne" });
     else if (came.said === "others") setSaid({ tone: "done", key: "endedOthers", values: { n: came.ended } });
     else if (came.said === "none") setSaid({ tone: "done", key: "endedNone" });
+    // ("nothing": the list as it now stands says it all, or could not be read and says that)
     else setSaid(came.said === "not-done" ? { tone: "error", key: NOT_DONE[came.why] } : null);
   };
   const endOne = async (id: string): Promise<void> => {
@@ -198,7 +199,8 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
                 {named(device.label)}
                 {device.here && <span class="badge">{t("deviceHere")}</span>}
               </span>
-              {vault && <span class="list-sub">{t(device.unlocked ? "deviceOpen" : "deviceLocked")}</span>}
+              {/* (what the server knows of it and the vault: "locked" is never said, for that is only the device's word) */}
+              {vault && <span class="list-sub">{t(device.unlocked ? "deviceOpen" : device.opened ? "deviceOpened" : "deviceNotOpened")}</span>}
               <span class="list-sub facts">
                 <span>
                   {t("deviceMade")} <When at={device.made} />
@@ -220,6 +222,8 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
             {t(doing === "others" ? "signingOut" : "othersEnd")}
           </button>
         )}
+        {/* (said where another device has opened the vault: whether that device is the person's own is theirs to know) */}
+        {vault && state.devices.some((device) => !device.here && device.opened) && <p class="hint">{t("openedHint")}</p>}
       </section>
 
       <section class="panel" aria-labelledby="events-title">

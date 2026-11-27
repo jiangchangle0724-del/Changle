@@ -15,7 +15,7 @@ import { act, proofsIn, signEveryoneOut, signIn, type Answer } from "../src/serv
 import type { Db } from "../src/server/chunks";
 import { configOf, type Config } from "../src/server/gate";
 import { hashOf, newToken } from "../src/server/sessions";
-import { KINDS, PARAMS_MOST, TRIES_PER_DAY, TRIES_PER_HOUR, WRAPPER_MOST, isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables } from "../src/server/ways";
+import { KINDS, PARAMS_MOST, TRIES_PER_DAY, TRIES_PER_HOUR, WRAPPER_MOST, isUnlocked, listWays, lock, openedSessions, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables } from "../src/server/ways";
 import { packPush, unpackPulled, unpackPushed } from "../src/server/wire";
 import { sqlite } from "./sqlremote";
 
@@ -409,6 +409,94 @@ test("the list of devices says which of them hold the vault open, and a wrong pr
   const later = await device(db, T0 + DAY + 6);
   const after = (await ask(db, later.hash, "events", T0 + DAY + 6)).json as { events: { kind: string }[]; wrong: number };
   assert.deepEqual([after.events.filter((line) => line.kind === "unlock-failed").length, after.wrong], [1, 0]);
+});
+
+test("a session that has opened the vault is said to have, whatever it says since; one that has not is not (the review of the devices' screen, finding 1)", async () => {
+  const db = sqlite();
+  const maker = await device(db, T0);
+  const laptop = await device(db, T0 + 1);
+  const guesser = await device(db, T0 + 2);
+  const vault = newId();
+  const [byPassphrase, byRecovery] = pair(vault);
+  /** Each listed session: [it counts as holding the vault open, it has opened the vault since it signed in]. */
+  const said = async (hash: string, now: number): Promise<Record<string, [boolean, boolean]>> =>
+    Object.fromEntries(((await ask(db, hash, "sessions", now)).json!.sessions as { id: string; unlocked: boolean; opened: boolean }[]).map((one) => [one.id, [one.unlocked, one.opened]]));
+  const rows = (): [string, number][] => (db.raw.prepare(`SELECT session, at FROM opened ORDER BY at, session`).all() as { session: string; at: number }[]).map((row) => [row.session, row.at]);
+  // no vault: nobody has opened anything
+  assert.deepEqual(await said(maker.hash, T0 + 3), { [maker.session]: [false, false], [laptop.session]: [false, false], [guesser.session]: [false, false] });
+  // whoever made the vault has opened it
+  assert.equal((await ask(db, maker.hash, "vault/start", T0 + 4, { vault, ways: [byPassphrase, byRecovery] })).status, 200);
+  // a wrong proof opens nothing, and is not "has opened"; the right one is
+  assert.equal((await ask(db, guesser.hash, "vault/unlock", T0 + 5, { id: byPassphrase.wrapper.id, proof: newToken() })).status, 422);
+  assert.equal((await ask(db, laptop.hash, "vault/unlock", T0 + 6, { id: byPassphrase.wrapper.id, proof: byPassphrase.proof })).status, 200);
+  assert.deepEqual(await said(maker.hash, T0 + 7), { [maker.session]: [true, true], [laptop.session]: [true, true], [guesser.session]: [false, false] });
+  assert.deepEqual(rows(), [[maker.session, T0 + 4], [laptop.session, T0 + 6]]);
+
+  // The laptop says it has locked (one of its pages did, or it means harm and kept the key). It is no longer counted as
+  // holding the vault open, it may not sync, and it is still said to have opened the vault.
+  assert.equal((await ask(db, laptop.hash, "vault/lock", T0 + 8)).status, 200);
+  assert.deepEqual((await said(maker.hash, T0 + 9))[laptop.session], [false, true]);
+  assert.equal(isUnlocked(db, laptop.session), false);
+  assert.equal((await ask(db, laptop.hash, "sync/pull", T0 + 10, { vault, since: 0 })).status, 423);
+  // it opens again: noted once, with the time of the first
+  assert.equal((await ask(db, laptop.hash, "vault/unlock", T0 + 11, { id: byRecovery.wrapper.id, proof: byRecovery.proof })).status, 200);
+  assert.deepEqual((await said(maker.hash, T0 + 12))[laptop.session], [true, true]);
+  assert.deepEqual(rows(), [[maker.session, T0 + 4], [laptop.session, T0 + 6]]);
+  assert.deepEqual([...openedSessions(db)].sort(), [maker.session, laptop.session].sort());
+
+  // Signed out from another device: out of the list. What was noted of it goes at the next tidying (a right proof
+  // shown, everyone else signed out), and nothing of a session that is gone is ever listed.
+  assert.equal((await ask(db, maker.hash, "sessions/end", T0 + 13, { id: laptop.session })).status, 200);
+  assert.deepEqual(await said(maker.hash, T0 + 14), { [maker.session]: [true, true], [guesser.session]: [false, false] });
+  assert.deepEqual(rows().map(([session]) => session), [maker.session, laptop.session]);
+  assert.equal((await ask(db, maker.hash, "vault/lock", T0 + 15)).status, 200);
+  assert.equal((await ask(db, maker.hash, "vault/unlock", T0 + 16, { id: byPassphrase.wrapper.id, proof: byPassphrase.proof })).status, 200);
+  assert.deepEqual(rows(), [[maker.session, T0 + 4]]);
+  // a new sign-in of the same browser is a new session, and has opened nothing yet
+  const again = await device(db, T0 + 17);
+  assert.deepEqual((await said(again.hash, T0 + 18))[again.session], [false, false]);
+  // everyone else signed out: their notes go with them
+  assert.equal((await ask(db, again.hash, "vault/unlock", T0 + 19, { id: byPassphrase.wrapper.id, proof: byPassphrase.proof })).status, 200);
+  assert.deepEqual((await ask(db, again.hash, "sessions/end", T0 + 20, { others: true })).json, { ok: true, ended: 2 });
+  assert.deepEqual(rows(), [[again.session, T0 + 19]]);
+  assert.deepEqual(await said(again.hash, T0 + 21), { [again.session]: [true, true] });
+});
+
+test("a database made before sessions were noted as having opened the vault: the table is made where it is needed, and a session that is unlocked has opened it", async () => {
+  const db = sqlite();
+  const maker = await device(db, T0);
+  const other = await device(db, T0 + 1);
+  const vault = newId();
+  const [byPassphrase, byRecovery] = pair(vault);
+  assert.equal((await ask(db, maker.hash, "vault/start", T0 + 2, { vault, ways: [byPassphrase, byRecovery] })).status, 200);
+  const tables = (): string[] => (db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all() as { name: string }[]).map((row) => row.name);
+  const opened = async (hash: string, now: number): Promise<Record<string, boolean>> => Object.fromEntries(((await ask(db, hash, "sessions", now)).json!.sessions as { id: string; opened: boolean }[]).map((one) => [one.id, one.opened]));
+  /** The database as the code before this left it: everything but that table. */
+  const before = (): void => {
+    db.raw.exec(`DROP TABLE opened`);
+    assert.ok(!tables().includes("opened"));
+  };
+  // the list of devices: the maker is unlocked, so it has opened the vault, noted or not
+  before();
+  assert.deepEqual(await opened(maker.hash, T0 + 3), { [maker.session]: true, [other.session]: false });
+  assert.ok(tables().includes("opened"));
+  // a right proof
+  before();
+  assert.equal((await ask(db, other.hash, "vault/unlock", T0 + 4, { id: byPassphrase.wrapper.id, proof: byPassphrase.proof })).status, 200);
+  assert.deepEqual(await opened(maker.hash, T0 + 5), { [maker.session]: true, [other.session]: true });
+  // locking, and signing the others out
+  before();
+  assert.equal((await ask(db, other.hash, "vault/lock", T0 + 6)).status, 200);
+  assert.deepEqual((await ask(db, maker.hash, "sessions/end", T0 + 7, { others: true })).json, { ok: true, ended: 1 });
+  assert.ok(tables().includes("opened"));
+  // and the functions by themselves
+  before();
+  tidyUnlocked(db);
+  before();
+  assert.deepEqual([...openedSessions(db)], [maker.session]);
+  before();
+  unlockMaker(db, maker.session, T0 + 8);
+  assert.deepEqual((db.raw.prepare(`SELECT session, at FROM opened`).all() as { session: string; at: number }[]).map((row) => [row.session, row.at]), [[maker.session, T0 + 8]]);
 });
 
 test("the functions themselves: who is unlocked, and what is no session or no time", async () => {

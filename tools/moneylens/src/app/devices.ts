@@ -13,8 +13,12 @@
 import { isId } from "../core/ids";
 import type { Ask } from "./door";
 
-/** A device that is signed in, as its owner sees it. `here`: the one asking. `unlocked`: it holds the vault open. */
-export type Device = { id: string; label: string; made: number; seen: number; here: boolean; unlocked: boolean };
+/**
+ * A device that is signed in, as its owner sees it. `here`: the one asking. `unlocked`: the server counts it as
+ * holding the vault open, which is the device's own word (it stops when any page of that browser says it locked).
+ * `opened`: it has opened the vault since it signed in, which the server knows whatever the device says since.
+ */
+export type Device = { id: string; label: string; made: number; seen: number; here: boolean; unlocked: boolean; opened: boolean };
 
 /** The kinds of line the events log has (account.ts, `EventKind`). A kind this version does not know is "other": it is shown, not dropped. */
 export const KINDS = ["sign-in", "sign-out", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "unlock-failed"] as const;
@@ -45,8 +49,10 @@ function readDevices(sent: unknown): Device[] | null {
   const devices: Device[] = [];
   for (const one of sent) {
     if (!isRecord(one) || !isId(one.id) || typeof one.label !== "string" || one.label.length > 120 || !isTime(one.made) || !isTime(one.seen)) return null;
-    if (typeof one.here !== "boolean" || typeof one.unlocked !== "boolean") return null;
-    devices.push({ id: one.id, label: one.label, made: one.made, seen: one.seen, here: one.here, unlocked: one.unlocked });
+    if (typeof one.here !== "boolean" || typeof one.unlocked !== "boolean" || typeof one.opened !== "boolean") return null;
+    // (a device that holds the vault open has opened it: an answer that says otherwise is not one)
+    if (one.unlocked && !one.opened) return null;
+    devices.push({ id: one.id, label: one.label, made: one.made, seen: one.seen, here: one.here, unlocked: one.unlocked, opened: one.opened });
   }
   // (the session that asks is in its own list, once, so a list with nobody in it is none; and no device is in it twice)
   if (devices.filter((device) => device.here).length !== 1 || new Set(devices.map((device) => device.id)).size !== devices.length) return null;
@@ -129,19 +135,24 @@ export async function endOthers(ask: Ask): Promise<{ ok: true; ended: number } |
 export type Failed = Exclude<Trouble, "signed-out">;
 /**
  * What to say after a device (its id), or all the others ("others"), were asked to be signed out: that one is, how
- * many others were, that there are none, or that it was not done and why. "nothing": it is not known, and the
- * screen already says that the list could not be read.
+ * many others were, that there are none, or that it was not done and why. "nothing": there is nothing to add to
+ * the screen as it stands (it says that the list could not be read, or the list shows what there is).
  */
 export type Outcome = { said: "one" } | { said: "others"; ended: number } | { said: "none" } | { said: "not-done"; why: Failed } | { said: "nothing" };
 /**
  * `result`: the answer to the asking. `now`: the list as it was read afterwards. What is said goes by that list
  * where the answer does not: an answer that never came back does not mean that nothing was done, and "it was not
- * done" is said only of a device the server still lists.
+ * done" is said only of a device the server still lists. "There is no other device" is said only over a list that
+ * shows none: one may have signed in since the answer, and then the list speaks for itself (the review of the
+ * devices' screen, finding 2).
  */
 export function outcomeOf(asked: string, result: "ok" | "gone" | Failed | { ended: number }, now: Listing): Outcome {
   if (typeof result === "object" && result.ended > 0) return { said: "others", ended: result.ended };
   const others = now.ok ? now.devices.filter((device) => !device.here) : null;
-  const gone = others !== null && (asked === "others" ? others.length === 0 : !others.some((device) => device.id === asked));
-  if (typeof result === "object" || result === "ok" || result === "gone" || gone) return { said: asked === "others" ? "none" : "one" };
-  return now.ok ? { said: "not-done", why: result } : { said: "nothing" };
+  if (asked === "others") {
+    if (others !== null && others.length === 0) return { said: "none" };
+    return others === null || typeof result === "object" || result === "ok" || result === "gone" ? { said: "nothing" } : { said: "not-done", why: result };
+  }
+  if (result === "ok" || result === "gone" || (others !== null && !others.some((device) => device.id === asked))) return { said: "one" };
+  return others === null || typeof result === "object" ? { said: "nothing" } : { said: "not-done", why: result };
 }

@@ -28,7 +28,7 @@ import { chunkTables, lastDay, pullChunks, pushChunks, startVault, vaultHeld, ty
 import { admits, type Config, type Gate } from "./gate";
 import { isAccount } from "./request";
 import { checkSession, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
-import { isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables, TRIES_PER_DAY } from "./ways";
+import { isUnlocked, listWays, lock, openedSessions, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables, TRIES_PER_DAY } from "./ways";
 import { packPulled, packPushed, unpackPush } from "./wire";
 
 /** Sign-ins one account may make in an hour. Eight sessions are kept, so signing in over and over pushes other devices out. */
@@ -220,9 +220,11 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       note(db, "sign-out", session.id, now);
       return { status: 200, json: { ok: true }, signedOut: true };
     case "sessions": {
-      // (which of them hold the vault open is part of what their owner is shown: the review of the door, obligations)
-      const open = unlockedSessions(db);
-      return { status: 200, json: { ok: true, sessions: listSessions(db, now).map((one) => ({ ...one, here: one.id === session.id, unlocked: open.has(one.id) })) } };
+      // What their owner is shown of each besides (the review of the door, obligations; of the devices' screen,
+      // finding 1). `unlocked`: it counts as holding the vault open, by its own word. `opened`: it has opened the
+      // vault since it signed in, which the server knows whatever the session says since.
+      const [open, opened] = [unlockedSessions(db), openedSessions(db)];
+      return { status: 200, json: { ok: true, sessions: listSessions(db, now).map((one) => ({ ...one, here: one.id === session.id, unlocked: open.has(one.id), opened: opened.has(one.id) })) } };
     }
     case "sessions/end": {
       const body = said(asked.body);

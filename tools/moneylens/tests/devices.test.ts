@@ -51,7 +51,7 @@ const canned =
     return answer === undefined ? { status: 404, json: { ok: false, why: "no-such-thing" } } : answer && { status: answer.status, json: answer.json ?? {} };
   };
 const ID = [newId(), newId(), newId()] as const;
-const device = (more: Partial<Record<keyof Device, unknown>> = {}): Record<string, unknown> => ({ id: ID[0], label: "Chrome on Windows", made: T0, seen: T0 + 5, here: true, unlocked: false, ...more });
+const device = (more: Partial<Record<keyof Device, unknown>> = {}): Record<string, unknown> => ({ id: ID[0], label: "Chrome on Windows", made: T0, seen: T0 + 5, here: true, unlocked: false, opened: false, ...more });
 const line = (more: Partial<Record<keyof Line, unknown>> = {}): Record<string, unknown> => ({ at: T0, kind: "sign-in", here: true, session: ID[0], ...more });
 /** A server whose two answers are as they should be, but for what is named (named and undefined is "sent without it"). */
 const good = (over: { sessions?: unknown; events?: unknown; wrong?: unknown } = {}): Ask =>
@@ -68,10 +68,10 @@ test("against the server's own code: who is signed in, who holds the vault open,
   const first = await listing(mine.ask);
   assert.ok(first.ok);
   assert.deepEqual(
-    first.devices.map((one) => [one.id, one.label, one.here, one.unlocked]),
+    first.devices.map((one) => [one.id, one.label, one.here, one.unlocked, one.opened]),
     [
-      [theirs.id, "Chrome on Windows", false, false],
-      [mine.id, "Safari on iPhone", true, false],
+      [theirs.id, "Chrome on Windows", false, false, false],
+      [mine.id, "Safari on iPhone", true, false, false],
     ],
   );
   assert.deepEqual(first.lines.map((one) => [one.kind, one.here, one.session]), [["sign-in", false, theirs.id], ["sign-in", true, mine.id]]);
@@ -87,11 +87,19 @@ test("against the server's own code: who is signed in, who holds the vault open,
   assert.equal((await theirs.ask("vault/unlock", { id: byPassphrase.wrapper.id, proof: newToken() }))!.status, 422);
   const second = await listing(mine.ask);
   assert.ok(second.ok);
-  assert.deepEqual(Object.fromEntries(second.devices.map((one) => [one.id, one.unlocked])), { [mine.id]: true, [theirs.id]: false });
+  // (this device made the vault: it holds it open, and has opened it; a wrong try is neither)
+  assert.deepEqual(Object.fromEntries(second.devices.map((one) => [one.id, [one.unlocked, one.opened]])), { [mine.id]: [true, true], [theirs.id]: [false, false] });
+  // this device locks: it no longer counts as holding the vault open, and is still said to have opened it
+  assert.equal((await mine.ask("vault/lock"))!.status, 200);
+  const locked = await listing(mine.ask);
+  assert.ok(locked.ok);
+  assert.deepEqual(Object.fromEntries(locked.devices.map((one) => [one.id, [one.unlocked, one.opened]])), { [mine.id]: [false, true], [theirs.id]: [false, false] });
+  assert.equal((await mine.ask("vault/unlock", { id: byPassphrase.wrapper.id, proof: byPassphrase.proof }))!.status, 200);
   assert.equal(second.wrong, 1);
   // the miss stands apart from everything else, and is known to be that device's
   assert.deepEqual(wrongOf(second.lines).map((one) => [one.kind, one.session]), [["unlock-failed", theirs.id]]);
   assert.deepEqual(restOf(second.lines).map((one) => one.kind), ["vault-started", "sign-in", "sign-in"]);
+  assert.deepEqual(restOf(locked.lines).map((one) => one.kind), ["vault-started", "sign-in", "sign-in"]);
   assert.deepEqual(deviceOf(wrongOf(second.lines)[0]!, second.devices), { at: "listed", label: "Chrome on Windows" });
   assert.deepEqual(deviceOf(restOf(second.lines)[0]!, second.devices), { at: "here" });
 
@@ -107,10 +115,10 @@ test("against the server's own code: who is signed in, who holds the vault open,
   assert.deepEqual(await endOthers(theirs.ask), { ok: false, why: "signed-out" });
   const third = await listing(mine.ask);
   assert.ok(third.ok);
-  assert.deepEqual(third.devices.map((one) => [one.id, one.here, one.unlocked]), [[mine.id, true, true]]);
+  assert.deepEqual(third.devices.map((one) => [one.id, one.here, one.unlocked, one.opened]), [[mine.id, true, true, true]]);
   // its wrong try is still shown, now as a device that has since signed out
   assert.deepEqual(deviceOf(wrongOf(third.lines)[0]!, third.devices), { at: "gone" });
-  assert.deepEqual(restOf(third.lines).slice(0, 2).map((one) => [one.kind, one.here]), [["session-ended", true], ["vault-started", true]]);
+  assert.deepEqual(restOf(third.lines).slice(0, 3).map((one) => [one.kind, one.here]), [["session-ended", true], ["unlocked", true], ["vault-started", true]]);
 
   // all the others at once: none, and then two
   asked.length = 0;
@@ -175,9 +183,14 @@ test("a list this code only half understands is trouble, never a shorter list", 
     [device({ here: undefined })],
     [device({ unlocked: undefined })],
     [device({ unlocked: 1 })],
+    [device({ opened: undefined })],
+    [device({ opened: "yes" })],
+    // a device that holds the vault open has opened it
+    [device({ unlocked: true, opened: false })],
     // one good device and one that is not: not "one device"
     [device(), null],
     [device(), device({ id: ID[1], here: false, unlocked: "no" })],
+    [device(), device({ id: ID[1], here: false, unlocked: true })],
     // this device is in its own list, once
     [device({ here: false })],
     [device(), device({ id: ID[1] })],
@@ -191,6 +204,13 @@ test("a list this code only half understands is trouble, never a shorter list", 
   assert.equal((await listing(good({ sessions: Array.from({ length: 16 }, (_, i) => device({ id: newId(), here: i === 0 })) }))).ok, true);
   assert.equal((await listing(good({ sessions: [device({ label: "x".repeat(120) })] }))).ok, true);
   assert.equal((await listing(good({ sessions: [device({ label: "" })] }))).ok, true);
+  // (each of the three things a device can be said to have done with the vault)
+  assert.deepEqual(await listing(good({ sessions: [device({ unlocked: true, opened: true }), device({ id: ID[1], here: false, opened: true }), device({ id: ID[2], here: false })] })), {
+    ok: true,
+    devices: [device({ unlocked: true, opened: true }), device({ id: ID[1], here: false, opened: true }), device({ id: ID[2], here: false })],
+    lines: [line()],
+    wrong: 0,
+  });
   // the lines
   for (const events of [
     undefined,
@@ -298,9 +318,9 @@ test("a device's label is taken apart into the words the server made it of, so t
 });
 
 test("what is said after a device was asked to be signed out goes by the list read afterwards where the answer does not", () => {
-  const other = (id: string): Device => ({ id, label: "Chrome on Windows", made: T0, seen: T0, here: false, unlocked: false });
+  const other = (id: string): Device => ({ id, label: "Chrome on Windows", made: T0, seen: T0, here: false, unlocked: false, opened: false });
   /** The list as read afterwards: this device, and the others named. */
-  const list = (...others: string[]): Listing => ({ ok: true, devices: [{ id: ID[0], label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true }, ...others.map(other)], lines: [], wrong: 0 });
+  const list = (...others: string[]): Listing => ({ ok: true, devices: [{ id: ID[0], label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true, opened: true }, ...others.map(other)], lines: [], wrong: 0 });
   const unread: Listing = { ok: false, why: "offline" };
 
   // one device. The server said it is signed out (or was already): that is what is said, whatever was read afterwards.
@@ -320,12 +340,24 @@ test("what is said after a device was asked to be signed out goes by the list re
     assert.deepEqual(outcomeOf("others", why, list(ID[1], ID[2])), { said: "not-done", why });
     assert.deepEqual(outcomeOf("others", why, unread), { said: "nothing" });
   }
-  // all the others, by the server's own count
+  // all the others, by the server's own count of those it signed out
   for (const now of [list(), list(ID[1]), unread]) {
     assert.deepEqual(outcomeOf("others", { ended: 3 }, now), { said: "others", ended: 3 });
     assert.deepEqual(outcomeOf("others", { ended: 1 }, now), { said: "others", ended: 1 });
-    assert.deepEqual(outcomeOf("others", { ended: 0 }, now), { said: "none" });
   }
+  // None were signed out, because there were none. "There is no other device" is said only over a list that shows none:
+  // one may have signed in since, and then the list speaks for itself; and a list that could not be read shows nothing.
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, list()), { said: "none" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, list(ID[1])), { said: "nothing" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, list(ID[1], ID[2])), { said: "nothing" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, unread), { said: "nothing" });
   // (this device is never one of the others: a list that has it alone has none, and asking after its id finds nothing to keep)
   assert.deepEqual(outcomeOf(ID[0], "offline", list(ID[1])), { said: "one" });
+  // (answers that the two askings never give for the other's question claim nothing they cannot show)
+  for (const result of ["ok", "gone"] as const) {
+    assert.deepEqual(outcomeOf("others", result, list(ID[1])), { said: "nothing" });
+    assert.deepEqual(outcomeOf("others", result, list()), { said: "none" });
+  }
+  assert.deepEqual(outcomeOf(ID[1], { ended: 0 }, list(ID[1])), { said: "nothing" });
+  assert.deepEqual(outcomeOf(ID[1], { ended: 0 }, list()), { said: "one" });
 });

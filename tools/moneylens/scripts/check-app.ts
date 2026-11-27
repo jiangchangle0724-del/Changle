@@ -256,9 +256,21 @@ try {
   // ---- the recovery code: shown before anything is kept on the server, and the vault is made only once it was said to be written down
   await title(page, "把恢复码抄下来").waitFor();
   // (The browser's "forward" from here is the step that was the list of devices a while ago. The list is not laid over this screen, nor over the
-  // next one once the vault is made: the step is an ordinary one again.)
-  assert.equal(await page.evaluate(`new Promise((done) => { addEventListener("popstate", (event) => done(event.state?.moneylens), { once: true }); history.forward(); })`), "devices");
-  await until(page, "history.state === null", "the step that was the list is an ordinary step");
+  // next one once the vault is made: the page goes back off that step by itself.)
+  const stood = await page.evaluate("navigation.currentEntry.index");
+  // (Listened to for five seconds at most: a step that is not there is never come to, and this check would wait for it for ever.)
+  const moves = await page.evaluate(`new Promise((done) => {
+    const seen = [];
+    const over = () => (removeEventListener("popstate", heard), done(seen));
+    const heard = (event) => {
+      seen.push(event.state?.moneylens ?? null);
+      if (seen.length === 2) over();
+    };
+    addEventListener("popstate", heard);
+    setTimeout(over, 5000);
+    history.forward();
+  })`);
+  assert.deepEqual([moves, await page.evaluate("history.state"), await page.evaluate("navigation.currentEntry.index")], [["devices", null], null, stood]);
   assert.ok(await title(page, "把恢复码抄下来").isVisible());
   const code = (await page.locator(".code span").allInnerTexts()).join("-");
   assert.match(code, /^([0-9A-HJKMNP-TV-Z]{4}-){8}[0-9A-HJKMNP-TV-Z]{2}$/);
@@ -344,6 +356,7 @@ try {
   await phone.getByRole("button", { name: "打开", exact: true }).click();
   await phone.getByRole("alert").filter({ hasText: "口令不对。" }).waitFor();
   // (it looks at the list too, from its locked screen: itself, and the first device)
+  const phoneStood = await phone.evaluate("navigation.currentEntry.index");
   await phone.getByRole("button", { name: "设备和记录" }).click();
   await phone.locator("li.device").nth(1).waitFor();
   assert.ok((await phone.locator("li.device").filter({ hasText: "这台设备" }).innerText()).includes("iPhone 上的 Safari"));
@@ -366,7 +379,10 @@ try {
   const hereSays = await here.innerText();
   assert.ok(hereSays.includes(mine) && hereSays.includes("保险库开着"), hereSays);
   assert.equal(await here.getByRole("button").count(), 0);
-  assert.ok((await there.innerText()).includes("保险库锁着"));
+  // (the other has tried and missed: it is said to have opened nothing, and "locked" is said of no device, for that is only a device's own word)
+  assert.ok((await there.innerText()).includes("这次登录后没打开过保险库"));
+  assert.equal(await page.getByText("锁着").count(), 0);
+  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 0);
   await there.getByRole("button", { name: "让它退出" }).waitFor();
   // wrong tries at the passphrase stand apart, above everything else: two in the last day, the newest first, each with the device it came from
   assert.deepEqual(await page.locator("section.panel h2").allInnerTexts(), ["口令或恢复码输错的记录", "登录着的设备", "最近的记录"]);
@@ -389,6 +405,7 @@ try {
   await page.getByText("Wrong tries in the last 24 hours: 2.").waitFor();
   await devices.filter({ hasText: "Safari on iPhone" }).getByRole("button", { name: "Sign it out" }).waitFor();
   assert.ok((await devices.filter({ hasText: "This device" }).innerText()).includes("Vault open"));
+  assert.ok((await devices.filter({ hasText: "Safari on iPhone" }).innerText()).includes("Has not opened the vault since this sign-in"));
   await screen(page, "devices-en");
   await page.getByRole("button", { name: "中文" }).click();
   await title(page, "设备和记录").waitFor();
@@ -412,8 +429,8 @@ try {
   // and that device can do nothing more: at its next press on its own list (it tries to sign the first device out) it is told that it is signed out, and the first device is not
   await phone.locator("li.device").filter({ hasText: mine }).getByRole("button", { name: "让它退出" }).click();
   await title(phone, "把账单变成一本看得懂的账").waitFor();
-  // (and the step its list was is an ordinary one again)
-  await until(phone, "history.state === null", "the step that was the phone's list is an ordinary step");
+  // (and the page went back off the step its list was: nothing is left to press "back" through before the page is left)
+  await until(phone, `history.state === null && navigation.currentEntry.index === ${phoneStood}`, "the phone went back off the step that was its list");
   assert.deepEqual([(await standing(phone)).status, (await standing(page)).status], [401, 200]);
 
   // "Back", the page's own or the browser's, is the screen behind it as it was: the vault is still open, and was not asked for again.
@@ -425,14 +442,33 @@ try {
   await page.evaluate("history.back()");
   await title(page, "保险库打开了").waitFor();
 
-  // All the others at once: the phone signs in again, and is signed out with one press.
+  // The phone signs in again, and this time it knows the passphrase. The list says that it holds the vault open, and what that means.
   await phone.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
   await title(phone, "打开你的账").waitFor();
+  await phone.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await phone.getByRole("button", { name: "打开", exact: true }).click();
+  await title(phone, "保险库打开了").waitFor();
   await page.getByRole("button", { name: "设备和记录" }).click();
   await devices.nth(1).waitFor();
+  assert.ok((await there.innerText()).includes("保险库开着"));
+  await page.getByText("打开过保险库的设备拿到过钥匙，它后来怎么说都一样。其中要是有你不认识的，说明口令或恢复码已经被别人知道了。").waitFor();
+  // It says it has locked. The list no longer counts it as holding the vault open, and goes on saying that it opened it: that it had the key
+  // is what the server knows, whatever the device says since.
+  await phone.getByRole("button", { name: "锁上" }).click();
+  await title(phone, "打开你的账").waitFor();
+  await until(phone, LOCKED, "the server is told that the phone locked");
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await devices.nth(1).waitFor();
+  assert.ok((await there.innerText()).includes("打开过保险库，后来说是锁上了"), await there.innerText());
+  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 1);
+  await screen(page, "devices-another-opened");
+  // All the others at once, with one press.
   await page.getByRole("button", { name: "让其他设备全部退出" }).click();
   await page.getByText("已经让其他设备退出，一共 1 台。").waitFor();
   assert.equal(await devices.count(), 1);
+  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 0);
   assert.equal((await standing(phone)).status, 401);
   await phones.close();
   await page.getByRole("button", { name: "返回" }).click();
@@ -448,11 +484,12 @@ try {
   await page.getByRole("button", { name: "再试一次" }).click();
   await here.waitFor();
 
-  // Loaded afresh on that step, the page shows the list again. The vault behind it is locked, as after any fresh load, and this device is no longer said to hold it open.
+  // Loaded afresh on that step, the page shows the list again. The vault behind it is locked, as after any fresh load: this device is no longer counted as
+  // holding it open, and is said to have opened it.
   await page.reload();
   await title(page, "设备和记录").waitFor();
   await here.waitFor();
-  assert.ok((await here.innerText()).includes("保险库锁着"), await here.innerText());
+  assert.ok((await here.innerText()).includes("打开过保险库，后来说是锁上了"), await here.innerText());
   await page.getByRole("button", { name: "返回" }).click();
   await title(page, "打开你的账").waitFor();
   assert.equal(await page.evaluate("history.state"), null);
@@ -531,7 +568,7 @@ try {
     await route.continue();
   });
   await timed.clock.fastForward("15:01");
-  await timedHere.filter({ hasText: "保险库锁着" }).waitFor();
+  await timedHere.filter({ hasText: "打开过保险库，后来说是锁上了" }).waitFor();
   await timed.getByRole("button", { name: "返回" }).click();
   await title(timed, "打开你的账").waitFor();
   await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();

@@ -424,7 +424,7 @@ test("a second device opens the vault: the parameters, its proof, the wrapper, t
       };
     const shown = await listing(askAs(tablet.jar));
     assert.ok(shown.ok);
-    assert.deepEqual(shown.devices.map((one) => [one.here, one.unlocked]).sort(), [[false, true], [false, true], [true, true]]);
+    assert.deepEqual(shown.devices.map((one) => [one.here, one.unlocked, one.opened]).sort(), [[false, true, true], [false, true, true], [true, true, true]]);
     assert.equal(shown.wrong, 1);
     const [missed] = wrongOf(shown.lines);
     const laptopHere = (await listing(askAs(laptop.jar))) as Extract<Listing, { ok: true }>;
@@ -432,11 +432,16 @@ test("a second device opens the vault: the parameters, its proof, the wrapper, t
     assert.deepEqual([wrongOf(shown.lines).length, missed!.session, missed!.here], [1, laptopId, false]);
     assert.deepEqual(deviceOf(missed!, shown.devices), { at: "listed", label: "Browser" });
     assert.deepEqual(wrongOf(laptopHere.lines).map((one) => one.here), [true]);
-    // the laptop locks: it is signed in still, and holds nothing open
+    // the laptop locks: it is signed in still, counts as holding nothing open, and is still said to have opened the vault
     assert.equal((await send(open, "/api/vault/lock", "{}", laptop.jar)).status, 200);
     const locked = (await listing(askAs(tablet.jar))) as Extract<Listing, { ok: true }>;
-    assert.deepEqual(Object.fromEntries(locked.devices.map((one) => [one.id, one.unlocked]))[laptopId], false);
-    assert.equal(locked.devices.filter((one) => one.unlocked).length, 2);
+    assert.deepEqual(Object.fromEntries(locked.devices.map((one) => [one.id, [one.unlocked, one.opened]]))[laptopId], [false, true]);
+    assert.deepEqual([locked.devices.filter((one) => one.unlocked).length, locked.devices.filter((one) => one.opened).length], [2, 3]);
+    // (a fourth device that only signs in has opened nothing)
+    const fourth = await signInAs(open, account);
+    const seenByFourth = (await listing(askAs(fourth.jar))) as Extract<Listing, { ok: true }>;
+    assert.deepEqual(seenByFourth.devices.filter((one) => one.here).map((one) => [one.unlocked, one.opened]), [[false, false]]);
+    assert.equal((await send(open, "/api/session/end", "{}", fourth.jar)).status, 200);
     // the tablet signs the laptop out: it is in no list any more, its wrong try is still shown, and it can ask nothing
     assert.equal(await endDevice(askAs(tablet.jar), laptopId), "ok");
     assert.equal(await endDevice(askAs(tablet.jar), laptopId), "gone");

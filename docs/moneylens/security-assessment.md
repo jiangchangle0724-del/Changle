@@ -51,10 +51,15 @@ first deployment: since 27 November 2026 the Worker answers at money.changle.ca,
 open to the owner's account alone (1.8, "What the first deployment showed"). Version 0.19 adds
 what was seen once the gate was open: who is let in, the limiter limiting, and two things
 Cloudflare adds to the pages of the zone. Version 0.20 adds the screen on which an account's
-owner sees who is in it: the devices that are signed in, which of them hold the vault open,
+owner sees who is in it: the devices that are signed in, which of them have opened the vault,
 what has happened, and wrong proofs apart from everything else (1.10). For it the server says
-which sessions are unlocked and always answers with the newest wrong proofs (1.8), and what
-the owner is shown of someone guessing is written as it now is (1.9).
+which sessions are unlocked and which have opened the vault since they signed in, and always
+answers with the newest wrong proofs (1.8, 1.9), and what the owner is shown of someone
+guessing is written as it now is (1.9). The review of that screen
+([`reviews/devices.md`](reviews/devices.md)) found that "vault locked" was said of a device
+on that device's word alone, and "no other device" over a list that could show one: the first
+is why the server now notes which sessions have opened the vault, and the screen says that
+and never "locked".
 
 ## 1. The vault
 
@@ -931,7 +936,8 @@ both together and, with them, the newest wrong proofs however many lines came af
 many as can be made in a day (1.9). So no number of sign-ins hides from the owner that the
 passphrase was guessed at. Each line carries the id of the session it is about, which is one of
 the owner's own and signs nobody in, and the answer says how many wrong proofs there were in
-the last 24 hours. The list of sessions says which of them are unlocked (1.9). The screen that
+the last 24 hours. The list of sessions says of each whether it is unlocked, and whether it
+has opened the vault since it signed in (1.9, "Unlocked, and having opened"). The screen that
 shows both is in 1.10. A sign-in that fails is not logged:
 that would let a stranger write to a person's database. A wrong proof is, because only a
 signed-in session can show one and 1.9 counts them. Exports, deletions and consent changes are
@@ -1112,6 +1118,22 @@ not even ciphertext (threat 1: "a session that has not unlocked can never read")
 what erasing a vault will go by, when that is built: an unlocked session may erase at once, any
 other only after the seven days.
 
+**Unlocked, and having opened.** "Unlocked" is a session's own word, and a session is a
+browser. Any page of that browser can say it has locked while another page still holds the
+key, and a device that means harm can say so and keep the key. So "locked" tells its owner
+nothing about a device they do not know. What the server does know is that a session has
+shown a right proof, or made the vault, since it signed in: it notes that once, in a table of
+its own (`opened`: the session and the time of the first), keeps the note when the session
+locks, and drops it with the session, at the next tidying after it ended. The list of sessions
+gives both, and a session that is unlocked counts as having opened whether or not it was noted
+(one that unlocked before the table existed). Nothing a session may do goes by the note: sync
+and, later, erasing go by "unlocked" alone. The table is newer than the databases made before
+it, whose tables were made at the account's first sign-in, so each of the three things that
+touch it (an unlocking, the list of sessions, a tidying) makes sure of it first; none of them
+is often. A session is noted as having opened the vault only for as long as it lasts: a
+device that signs in again is a new session that has opened nothing yet, and what an earlier
+one did is in the events log, for as long as its lines are among those shown (section 3).
+
 **Making a vault.** `vault/start` takes the vault's id and its two ways in, one by passphrase
 and one by recovery code, each with its parameters and its proof, and keeps all of it or none:
 the vault's row, the ways in, the maker's unlocking and the line in the log are one
@@ -1240,17 +1262,24 @@ things. Wrong tries at the passphrase or the recovery code, apart from everythin
 above it, with how many there were in the last 24 hours and what to do if they were not the
 person's own. The devices that are signed in: a name (the server's few fixed words for a
 browser and a system, said in the page's language; anything else is shown as it came, as
-text), when each signed in and was last used, and, when the account has a vault, whether each
-holds it open. Then the other events, each with its time and the device it was on: this one,
-one that is still signed in, or one that has since signed out.
+text), when each signed in and was last used, and, when the account has a vault, one of three
+things: it holds the vault open (the server counts it as unlocked); it opened the vault and
+then said it had locked; or it has not opened the vault since this sign-in. "Locked" is said
+of no device, because that would be the device's own word (1.9, "Unlocked, and having
+opened"). Where a device other than this one has opened the vault, the screen says what that
+means: it has had the key, whatever it says since, and if it is not the person's own, someone
+else knows the passphrase or the recovery code. Then the other events, each with its time and
+the device it was on: this one, one that is still signed in, or one that has since signed out.
 
 Another device can be signed out there, or all the others at once. This device is not offered
 in its own list: that is signing out (above). After a press the list is read again, and what
 the screen says goes by that list where the answer does not. When no answer came back and the
 device is no longer listed, it says the device is signed out; "it was not done" is said only
 of a device the server still lists; and when neither the answer nor the list could be read, it
-claims nothing. A device that was signed out from elsewhere finds out at its next request, and
-its screen says signed out.
+claims nothing. "There is no other device" is said only over a list that shows none: one may
+have signed in between the answer and the list, and then the list speaks for itself. A device
+that was signed out from elsewhere finds out at its next request, and its screen says signed
+out.
 
 **What the page takes from those answers.** Whole, or not at all. An answer in which anything
 is not what it should be (a device without an id, a time that is no time, no device or two
@@ -1264,9 +1293,9 @@ at the same address, and the page shows the list exactly while the browser stand
 step: "back", the page's own or the browser's, closes it, "forward" opens it again, and a page
 loaded afresh on that step shows it again, over a locked vault as after any fresh load. The
 step is the list only while a signed-in person's screen is behind it; come to from any other
-screen (signed out meanwhile, or "forward" on the recovery code's screen), it is made an
-ordinary step again, so that no list is laid over a later screen. The screen behind stays as
-it was. An open vault stays open and its fifteen minutes run on; when it locks, the list is
+screen (signed out meanwhile, or "forward" on the recovery code's screen), the page goes back
+off it at once, as "back" would, so that no list is laid over a later screen and the step is
+not one more "back" to press before the page is left. The screen behind stays as it was. An open vault stays open and its fifteen minutes run on; when it locks, the list is
 read again, and only after the word that it locked has reached the server or has failed to,
 so that the list does not say "open" of this device on the word of a server that is about to
 hear otherwise.
@@ -1320,7 +1349,8 @@ and what is said after a press for every answer and every list read afterwards. 
 runtime: three devices on a real vault, read the way the page reads them. In the browser: the
 list from each of the three screens that lead to it; a second device and its wrong try, in both
 languages; that device signed out when the server can and cannot be told, and what it is told
-at its own next press; all the others signed out; a list that cannot be read; back, forward
+at its own next press; the same device back, opening the vault and then locking, and what the
+list says of it each time; all the others signed out; a list that cannot be read; back, forward
 and a fresh load on the step; "forward" on the recovery code's screen; and the fifteen minutes
 running out under the list, with the word that it locked held up on its way. Each of 116
 checks in the server's two answers and the page's reading of them taken out in turn fails a
@@ -1340,11 +1370,18 @@ any answer. Both ask until it is so now, and pass.
 - The request that tells the server of a lock on leaving may not arrive (above).
 - The list of devices is read when its screen opens and after each press there. It does not
   keep itself up to date. "Holds the vault open" is the server's count for a session, and a
-  session is a browser: a second tab of the same browser is the same line of the list.
+  session is a browser: a second tab of the same browser is the same line of the list, and when
+  one of two tabs locks, the line says "opened the vault, then said it had locked" while the
+  other tab still holds the key: it drops it when a sync of its own is turned away, or after
+  its own fifteen minutes. The screen never says "locked" for that reason (1.9).
+- "Has not opened the vault since this sign-in" is about one session. A device that opened
+  the vault, signed out and signed in again is a new line that has opened nothing; what it did
+  before is among the events, while those lines are still among the fifty shown.
 - Whoever is signed in to the account sees the same screen and can sign the owner's devices
   out (1.9). And signing a device out of MoneyLens does not sign it out of changle.ca, nor the
   other way round: a browser that is still signed in at the main site comes back in with one
-  press. The screen's advice says to sign the other phones out there as well (section 3).
+  press. The screen's advice says to sign the other phones out there first, and then the other
+  devices here (section 3).
 - The app's script is whatever the server sends: someone who can change what
   `money.changle.ca` serves can read a passphrase as it is typed. This is section 2's limit for
   every browser app, and VAULT-6's wording does not claim otherwise.

@@ -144,13 +144,14 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
   }, []);
 
   // The step is the list only while a signed-in person's screen is behind it. Come to from any other screen (signed
-  // out meanwhile; or the browser's "forward" on the recovery code's screen), it is an ordinary step again: nothing is
-  // laid over a later screen that nobody asked for then. (A page that is still starting is no screen yet.) Done as the
-  // screen is drawn, not some time after it.
+  // out meanwhile; or the browser's "forward" on the recovery code's screen), the page goes back off it, as "back"
+  // would: no list is laid over a later screen that nobody asked for then, and the step is not left behind as one
+  // more "back" to press before the page is left. (A page that is still starting is no screen yet.) Done as the
+  // screen is drawn, not some time after it; once for each coming to the step, because `listing` is put out with it.
   useLayoutEffect(() => {
     if (!listing || signedIn || view.at === "starting") return;
-    if (isDevices(history.state)) history.replaceState(null, "");
     setListing(false);
+    if (isDevices(history.state)) history.back();
   }, [listing, signedIn, view.at]);
 
   const signedOut = (note?: Key): void => setView({ at: "signed-out", note });
