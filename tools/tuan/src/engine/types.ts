@@ -57,6 +57,8 @@ export interface Item {
   stock: number | null;
   /** the most one buyer may take, or null for no limit */
   perBuyer: number | null;
+  /** what one case holds, for an item the merchant gets only by the case, or null (src/engine/cases.ts) */
+  case: number | null;
   /** how much is in orders that stand */
   sold: number;
   allergens: string;

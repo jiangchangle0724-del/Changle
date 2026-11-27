@@ -1222,6 +1222,38 @@ a.shop-name {
   background: color-mix(in oklab, var(--color-warning) 18%, var(--color-surface));
   color: var(--color-warning);
 }
+/* an item that comes only by the case: how full the case is (Offer.tsx) */
+.case {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.case-track {
+  flex: 0 0 auto;
+  width: var(--space-12);
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+}
+.case-fill {
+  --fill: 0; /* how full, 0 to 1: Offer.tsx sets it */
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gel);
+  transform: scaleX(var(--fill));
+  transform-origin: left;
+  transition: transform var(--dur-emphasis) var(--ease-out);
+}
+.case-full,
+.case-you {
+  color: var(--gel);
+}
 .add {
   display: grid;
   place-items: center;
@@ -1674,6 +1706,18 @@ a.shop-name {
   color: var(--color-danger);
 }
 
+/* a merchant's group buy: items short of a full case (MyOffer.tsx) */
+.case-warn {
+  align-self: center;
+  color: var(--color-warning);
+}
+.case-line {
+  display: block;
+}
+.case-line-short {
+  color: var(--color-warning);
+}
+
 /* ---------- lists of rows that open something (My.tsx, Editor.tsx) ---------- */
 .mine {
   display: flex;
@@ -1987,6 +2031,9 @@ a.shop-name {
   }
   .deal-ghost {
     animation: none;
+  }
+  .case-fill {
+    transition: none;
   }
 }
 @keyframes tint {

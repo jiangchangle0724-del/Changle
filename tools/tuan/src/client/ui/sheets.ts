@@ -7,6 +7,7 @@
 //   list is often posted in the group); a delivery line carries the whole number and the address,
 //   which the driver needs.
 import type { MyOfferPage } from "../../api";
+import type { CaseFill } from "../../engine/cases";
 import { amountText, dollars } from "../../engine/money";
 import { tailOf } from "../../engine/phone";
 import { dueOf, type ItemTotal } from "../../engine/summary";
@@ -26,7 +27,12 @@ export function phoneText(digits: string): string {
 /** The number as a phone dials it. */
 export const phoneLink = (digits: string): string => `tel:+${digits.length === 10 ? `1${digits}` : digits}`;
 
-const totalLine = (item: ItemTotal): string => `${item.name} × ${amountOf(item.unit, item.qty)}${item.actual !== null && weighed(item.unit) ? `（${t("weighed", { w: amountOf(item.unit, item.actual) })}）` : ""}`;
+/** How far an item's orders fill its cases (src/engine/cases.ts): "满 1 箱，第 2 箱还差 6 lb". */
+export const caseText = (unit: Unit, fill: CaseFill): string =>
+  fill.short === 0 ? t("sheetCaseFull", { n: fill.full }) : fill.full === 0 ? t("sheetCaseFirst", { n: amountOf(unit, fill.short) }) : t("sheetCaseNext", { full: fill.full, next: fill.full + 1, n: amountOf(unit, fill.short) });
+
+const totalLine = (item: ItemTotal): string =>
+  `${item.name} × ${amountOf(item.unit, item.qty)}${item.actual !== null && weighed(item.unit) ? `（${t("weighed", { w: amountOf(item.unit, item.actual) })}）` : ""}${item.case ? `（${caseText(item.unit, item.case)}）` : ""}`;
 const orderLine = (line: OrderLine): string => `${line.name} × ${amountOf(line.unit, line.qty)}${line.actual !== null ? `（${t("weighed", { w: amountOf(line.unit, line.actual) })}）` : ""}`;
 
 /** What a set of orders comes to: each at its weighed amount once it has one, else as ordered. */

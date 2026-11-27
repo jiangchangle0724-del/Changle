@@ -73,6 +73,9 @@ export interface PublicItem {
   /** how much is left, or null for no limit */
   left: number | null;
   perBuyer: number | null;
+  /** what one case holds, for an item the merchant gets only by the case, and what the orders hold so far; both null for other items */
+  case: number | null;
+  held: number | null;
   allergens: string;
 }
 

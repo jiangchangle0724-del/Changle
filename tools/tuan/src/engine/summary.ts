@@ -1,6 +1,7 @@
 // The merchant's sheets, counted from the orders themselves: what to get ready (every item, added
 // up) and what goes where (the same, one pickup point or delivery area at a time). Orders that were
 // cancelled count for nothing.
+import { caseFill, type CaseFill } from "./cases";
 import { lineAmount } from "./money";
 import { weighed, type How, type OfferBook, type Order, type OrderLine, type Unit } from "./types";
 
@@ -16,6 +17,8 @@ export interface ItemTotal {
   orders: number;
   /** cents, as ordered */
   amount: number;
+  /** an item that comes only by the case: how far the orders fill it (on the list of what to get ready only) */
+  case: CaseFill | null;
 }
 
 export interface PlaceTotal {
@@ -59,7 +62,7 @@ function totals(lines: readonly { line: OrderLine }[], book: OfferBook): ItemTot
   const byItem = new Map<string, ItemTotal & { waiting: boolean }>();
   for (const { line } of lines) {
     let sum = byItem.get(line.itemId);
-    if (!sum) byItem.set(line.itemId, (sum = { itemId: line.itemId, name: line.name, unit: line.unit, qty: 0, actual: weighed(line.unit) ? 0 : null, orders: 0, amount: 0, waiting: false }));
+    if (!sum) byItem.set(line.itemId, (sum = { itemId: line.itemId, name: line.name, unit: line.unit, qty: 0, actual: weighed(line.unit) ? 0 : null, orders: 0, amount: 0, case: null, waiting: false }));
     sum.qty += line.qty;
     sum.orders += 1;
     sum.amount += lineAmount(line.price, line.qty);
@@ -101,7 +104,10 @@ export function summarize(book: OfferBook, orders: readonly Order[]): Summary {
     paidTotal: paid.reduce((sum, order) => sum + dueOf(order), 0),
     picked: standing.filter((order) => order.pickedAt !== null).length,
     unweighed: standing.filter((order) => order.final === null).length,
-    items: totals(linesOf(standing), book),
+    items: totals(linesOf(standing), book).map((sum) => {
+      const size = book.items.find((item) => item.id === sum.itemId)?.case ?? null;
+      return size === null ? sum : { ...sum, case: caseFill(size, sum.qty) };
+    }),
     places,
   };
 }

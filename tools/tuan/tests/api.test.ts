@@ -591,6 +591,25 @@ describe("changing a group buy", () => {
   /** The document as the editor sends it back: what it read, the group buy's own fields on top. */
   const asSent = ({ offer, items, points, rules }: MyOfferDoc) => ({ title: offer.title, note: offer.note, closesAt: offer.closesAt, roster: offer.roster, items, points, rules });
 
+  it("keeps what a case holds, shows buyers how far the orders fill it, and the merchant too; a change can alter it", async () => {
+    const plain = offerDoc(Date.now() + DAY);
+    const at = await start({ items: plain.items.map((item) => (item.unit === "lb" ? { ...item, case: 30_000 } : item)) });
+    const shown = async (name: string) => (await page(at)).items.find((item) => item.id === at.item(name))!;
+    expect(await shown("手切羊肉片")).toMatchObject({ case: 30_000, held: 0 });
+    expect(await shown("五常大米")).toMatchObject({ case: null, held: null });
+    await place(at, [["手切羊肉片", 24_000]]);
+    expect(await shown("手切羊肉片")).toMatchObject({ held: 24_000 });
+    expect((await sheets(at)).summary.items.find((item) => item.itemId === at.item("手切羊肉片"))!.case).toEqual({ size: 30_000, full: 0, part: 24_000, short: 6_000 });
+    const doc = (await docOf(at)).data;
+    expect(doc.items.map((item) => item.case)).toEqual([null, null, null, null, 30_000]);
+    const sent = asSent(doc);
+    sent.items = doc.items.map((item) => (item.unit === "lb" ? { ...item, case: 20_000 } : item));
+    expect(said(await save(at, sent))).toBe("ok");
+    expect(await shown("手切羊肉片")).toMatchObject({ case: 20_000, held: 24_000 });
+    sent.items = doc.items.map((item) => (item.unit === "lb" ? { ...item, case: 500 } : item));
+    expect((await save(at, sent)).data).toEqual({ error: "item", at: 4 });
+  });
+
   it("gives the merchant its document, each part under its id, and says which parts orders name", async () => {
     const at = await start();
     await place(at, [["五常大米", 2000]]);
