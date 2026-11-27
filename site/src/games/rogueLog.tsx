@@ -9,8 +9,9 @@
  * the button that deals the next deck for whoever may.
  */
 import type { ReactNode } from "react";
-import { RANKS, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Rank, type Suit } from "../data/rogue13";
+import { RANKS, ruleFor, ruleWords, SUIT_GLYPH, SUIT_RED, type Rank, type Suit } from "../data/rogue13";
 import { GAME_BY_ID } from "./registry";
+import { useHouse } from "./rogueCards";
 import { usePenaltyText, useStore } from "../store";
 import { Button } from "../ui/Button";
 import { RosterChip } from "../ui/RosterChip";
@@ -57,6 +58,7 @@ export function RogueLog({
   const { lang, tr } = useStore();
   const zh = lang === "zh";
   const custom = usePenaltyText().isCustom;
+  const house = useHouse();
   const left = stock.reduce((a, b) => a + b, 0);
   const took = zh ? (custom ? "受罚" : "喝了") : custom ? "took it" : "drank";
   const and = zh ? "、" : ", ";
@@ -122,7 +124,7 @@ export function RogueLog({
         ) : (
           <ol className="rg-log-list" reversed>
             {[...log].reverse().map((line, k) => {
-              const words = ruleWords(RULE_BY_RANK[line.rank], custom);
+              const words = ruleWords(ruleFor(line.rank, house), custom);
               const who = line.hit.map(nameOf).join(and);
               return (
                 <li key={`${log.length - k}-${line.rank}${line.suit}`} className="rg-log-row">

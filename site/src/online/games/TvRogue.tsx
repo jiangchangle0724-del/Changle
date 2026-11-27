@@ -1,7 +1,7 @@
 import { Camera, Hand, Layers } from "lucide-react";
 import { useRef } from "react";
-import { RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
-import { HeldCard, RogueTable } from "../../games/rogueCards";
+import { ruleFor, ruleWords, type Rank } from "../../data/rogue13";
+import { HeldCard, HouseContext, RogueTable } from "../../games/rogueCards";
 import type { T } from "../../i18n";
 import type { RogueHolders, RogueView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
@@ -31,11 +31,22 @@ const noop = () => {};
  * where the room can follow it; the standing powers as the phones' small cards; and the camera
  * (its photo developing) and the nose, which stop the whole table, across the whole screen.
  */
-export default function TvRogue({ v, sound }: TvViewProps<RogueView>) {
+const NO_HOUSE = {};
+
+/** (每张牌可换玩法: the cards' words are the table's, not always the classic ones; the deck reads them from this) */
+export default function TvRogue(props: TvViewProps<RogueView>) {
+  return (
+    <HouseContext.Provider value={props.v.house ?? NO_HOUSE}>
+      <TvRogueScreen {...props} />
+    </HouseContext.Provider>
+  );
+}
+
+function TvRogueScreen({ v, sound }: TvViewProps<RogueView>) {
   const { tx, tr } = useLang();
   const { seat, name } = useSeats();
   const custom = usePenaltyText().isCustom;
-  const rule = v.card ? RULE_BY_RANK[v.card.rank] : null;
+  const rule = v.card ? ruleFor(v.card.rank, v.house) : null;
   const words = rule ? ruleWords(rule, custom) : null;
   const drawing = v.phase === "draw";
   const who = drawing ? v.turn : v.drawer;
