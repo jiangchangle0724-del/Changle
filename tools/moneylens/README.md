@@ -126,6 +126,21 @@ const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, 
 - When the vault locks (fifteen idle minutes, VAULT-3, or the person locks it): drop the key
   and the wrapper from memory, and tell the server (`vault/lock`). Never keep a wrapper in
   storage: a wrapper on the device is what the server's count keeps away from guessing.
+- `sessions` answers each signed-in device with `unlocked` and `opened`. `unlocked` is the
+  session's own word that it holds the vault open, and a session is a browser: any of its pages
+  can say it locked while another holds the key. `opened` is what the server knows: the
+  session has opened the vault since it signed in. A screen says "has opened" or "has not",
+  and never "locked", of a device (assessment 1.9). `events` answers the newest 50 lines and,
+  whatever came after them, the newest 30 wrong proofs, with `wrong`, their number in the last
+  day. Read both with `src/app/devices.ts`, which takes them whole or not at all.
+
+**A new table in a database that already exists.** An account's tables are made at its first
+sign-in (`signIn` in `account.ts`), and accounts exist. A table added after that is in none of
+their databases. So whatever reads or writes a new table makes sure of it first, with `CREATE
+TABLE IF NOT EXISTS` (`openedTable` in `ways.ts` is the pattern), and a test drops the table
+before each of the things that touch it (`tests/ways.test.ts`). A change to a table that exists
+(a column, a key) needs more than that, and has not been done yet: write the plan into the
+assessment first.
 
 **Published since 2026-11-27.** Cloudflare builds the Worker `moneylens` from `main` whenever
 something under `tools/moneylens` changes (Workers Builds: root directory `/tools/moneylens`, no
