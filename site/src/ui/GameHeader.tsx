@@ -15,10 +15,17 @@ import "./GameHeader.css";
 
 const desktopQuery = "(min-width: 720px)";
 const canPopover = typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;
+// (a phone 林波舞 has turned back upright is a phone, however wide the browser says it is: party/limbo/portrait.ts)
+const isDesktop = () => window.matchMedia(desktopQuery).matches && document.documentElement.dataset.turned === undefined;
 function subscribeLayout(notify: () => void) {
   const query = window.matchMedia(desktopQuery);
   query.addEventListener("change", notify);
-  return () => query.removeEventListener("change", notify);
+  const turned = new MutationObserver(notify);
+  turned.observe(document.documentElement, { attributes: true, attributeFilter: ["data-turned"] });
+  return () => {
+    query.removeEventListener("change", notify);
+    turned.disconnect();
+  };
 }
 export function GameHeader({
   title,
@@ -33,11 +40,7 @@ export function GameHeader({
 }: GameHeaderProps) {
   const other = lang === "zh" ? "en" : "zh";
   const menuId = useId();
-  const desktop = useSyncExternalStore(
-    subscribeLayout,
-    () => window.matchMedia(desktopQuery).matches,
-    () => false,
-  );
+  const desktop = useSyncExternalStore(subscribeLayout, isDesktop, () => false);
   const controls = (
     <>
       {sound && (

@@ -15,6 +15,7 @@ import { enableSensors, perfAt, useSensorStatus, useWakeLock } from "../sensors"
 import { LIMBO_MODES, blindError, classicBar } from "../../shared/engine/games/limbo";
 import { QUIET, coaching, useCoach } from "./coach";
 import { barDrops, crowdFor, riser, useLimboMusic } from "./music";
+import { usePortrait } from "./portrait";
 import {
   BlindMeter,
   FollowMeter,
@@ -66,6 +67,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   const countdown = useSecondsLeft(v.phase === "go" && !open ? v.startAt : null, now);
   const timeLeft = useSecondsLeft(v.phase === "go" && open ? (moving && !stopped ? moveEnd : v.endsAt) : null, now);
   useWakeLock(v.phase === "go");
+  usePortrait();
 
   useEffect(() => {
     if (!watching && sensors === "on" && !v.sensors.includes(me)) g("sensor", { on: true });

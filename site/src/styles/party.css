@@ -1545,6 +1545,41 @@ button.pl-answer:disabled {
 }
 
 /* ---------- limbo ---------- */
+/* the phone turned, the page turned back (limbo/portrait.ts): the body is drawn portrait-sized
+   (the phone's short side wide, its long side tall) and rotated against the phone, so the game stays
+   upright on the chest however the phone is tilted; sheets and toasts sit in the body and turn with it */
+html[data-turned] {
+  /* (the body's overflow stays the body's: with the root's left visible it would become the page's,
+     and the page would scroll, and stick things, the way the phone is turned) */
+  overflow: hidden;
+}
+html[data-turned] body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100dvh;
+  height: 100vw;
+  overflow: auto;
+  transform-origin: top left;
+}
+html[data-turned="ccw"] body {
+  transform: rotate(-90deg) translateX(-100%);
+}
+html[data-turned="cw"] body {
+  transform: rotate(90deg) translateY(-100%);
+}
+html[data-turned] .app {
+  min-height: 100%;
+}
+/* the phone's top edge is now the screen's left (turned counter-clockwise) or right side */
+html[data-turned="ccw"] {
+  --safe-top: env(safe-area-inset-left, 0px);
+  --safe-bottom: env(safe-area-inset-right, 0px);
+}
+html[data-turned="cw"] {
+  --safe-top: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-left, 0px);
+}
 .lb {
   display: flex;
   flex-direction: column;
@@ -1573,21 +1608,24 @@ button.pl-answer:disabled {
 }
 /* a short screen (an iPhone SE, a phone with a browser bar): the poles and the gauge give up some
    height, so the whole gauge, and a tilt's level under it, fit without scrolling while the table
-   watches someone lean */
+   watches someone lean (not a phone turned sideways and turned back by the page, limbo/portrait.ts:
+   the screen is tall again, whatever the browser thinks) */
 @media (max-height: 740px) {
-  .lb .limbo-scene {
-    max-height: 150px;
-  }
-  .lb .limbo-stage,
-  .lb .limbo-3d {
-    width: min(100%, 210px);
-  }
-  .lb .gauge svg {
-    width: min(100%, 240px);
-  }
-  .lb .gauge-read {
-    margin-top: -28px;
-    font-size: 30px;
+  :where(html:not([data-turned])) {
+    .lb .limbo-scene {
+      max-height: 150px;
+    }
+    .lb .limbo-stage,
+    .lb .limbo-3d {
+      width: min(100%, 210px);
+    }
+    .lb .gauge svg {
+      width: min(100%, 240px);
+    }
+    .lb .gauge-read {
+      margin-top: -28px;
+      font-size: 30px;
+    }
   }
 }
 .limbo-ground {

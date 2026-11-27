@@ -115,6 +115,11 @@ export function ScreenHints({ lang, rotate = true }: ScreenHintsProps) {
     let timer = 0;
     const decide = () => {
       window.clearTimeout(timer);
+      // (a game that is portrait only, and turns the page back when the phone turns, wants neither: party/limbo/portrait.ts)
+      if (document.documentElement.dataset.portrait !== undefined) {
+        setShown(null);
+        return;
+      }
       const want: Hint | null = sideways()
         ? !standalone() && !document.fullscreenElement && toolbarHelp()
           ? "toolbar"
@@ -127,6 +132,7 @@ export function ScreenHints({ lang, rotate = true }: ScreenHintsProps) {
       if (!want || has("local", OFF(want)) || has("session", SEEN(want))) return;
       // once the phone has settled, not mid-turn
       timer = window.setTimeout(() => {
+        if (document.documentElement.dataset.portrait !== undefined) return;
         put("session", SEEN(want));
         setNever(false);
         setShown(want);

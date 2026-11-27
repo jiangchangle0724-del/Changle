@@ -4,8 +4,13 @@
  * on the left, centred on the height, and everything else stacks on the right and scrolls when
  * it must. The chrome gets shorter. Nothing here touches a phone held upright, a tablet in
  * portrait, or a computer window.
+ *
+ * Nor 林波舞 while it has turned the page back upright (`html[data-turned]`, party/limbo/portrait.ts:
+ * the phone is on the chest and tilts with the body, so the game stays portrait): everything below
+ * is nested in that `:where()`, which adds nothing to any selector's specificity.
  */
 @media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  :where(html:not([data-turned])) {
   .topbar {
     min-height: 40px;
     margin-bottom: 2px;
@@ -498,5 +503,6 @@
   }
   .stamp-done {
     min-width: min(220px, 100%);
+  }
   }
 }

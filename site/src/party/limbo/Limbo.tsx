@@ -11,6 +11,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { enableSensors, sensorStatus, useSensorStatus, useWakeLock } from "../sensors";
 import { QUIET, coaching, useCoach } from "./coach";
+import { usePortrait } from "./portrait";
 import { barDrops, crowdFor, riser, useLimboMusic } from "./music";
 import {
   BlindMeter,
@@ -94,6 +95,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   /** the bar at this level: the mode's variant, or in party mode a random one (never `last` again) */
   const makeBar = (lvl: number, last: LimboKind | null) => (mode === "bar" || mode === "blind" ? classicBar() : barFor(kindFor(mode, last, pick), lvl, pick));
   useWakeLock(phase.k === "try" || phase.k === "count" || phase.k === "bar");
+  usePortrait();
 
   // the band plays from "放音乐，开始" to the end, a gear up every bar; `grid` is its beat, for the coach
   const [musicOn, setMusicOn] = useState(false);

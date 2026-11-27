@@ -20,6 +20,7 @@
 
 - 规则（联机时在房间服务器上跑）：`site/src/shared/engine/games/limbo.ts`（每种杆子要什么、跟着动的杆的路线 `barAngleAt`、派对怎么抽）
 - 画面（单机和联机）：`site/src/party/limbo/`（`parts.tsx` 里是画出来的横杆画面 `LimboScene`、量角器和各玩法的测量：`useLean`、`usePose`、`useFollow`、`useBlindLock`；还有怎么拿手机 `holdLine`、提示音怎么听 `heardLine`）
+- 只支持竖屏：`site/src/party/limbo/portrait.ts`（`usePortrait`，单机和联机的手机页都挂着；`<html data-portrait>` 说这页只竖着玩，`data-turned="ccw|cw"` 说手机转到了哪边；`party.css` 林波舞那段把 body 画成竖屏大小再反向转回去）。横屏布局的几个共用文件在 `data-turned` 时让开（`styles/landscape.css`、`games/GameShell.css`、`ui/GameHeader.css` 的 720px 那段、`styles/components.css` 的 720px 那段，都包在零权重的 `:where(html:not([data-turned]))` 里；`ui/GameHeader.tsx` 的桌面判断、`ui/ScreenHints.tsx` 的「横过来」提示也看这两个属性）
 - 判定的小零件：`site/src/party/limbo/measure.ts`（纯函数：`atBar`、`atSide` 到位的迟滞，`holdAfter` 只掉不清零的撑住进度；`parts.tsx` 的 `useLean`、`usePose` 用它）
 - 电视：`site/src/party/limbo/TvLimbo.tsx`（大屏对话写的，11-19 起画面换成了同一个 3D 舞台 `LimboStage`；它的四种玩法还在大屏对话的 #364 里）
 - 3D 舞台：`site/src/party/limbo/Stage.tsx`（`LimboStage`：有显卡就用 3D，没有、太慢或者加载失败就用画出来的 `LimboScene`；`seatColor`、`nameColor` 是人的颜色）和 `site/src/party/limbo/scene3d/`（`Scene3D.tsx` 管画布、帧循环、按需加载 three.js、头几秒太慢就退回；`world.ts` 是舞台：两根带挂钉的立杆、发光的条纹横杆、地上的光池、灯光、相机、火花、横杆落下 / 被撞 / 掉地的动作；`figure.ts` 是人：胶囊体拼的关节人，`leaning(deg, side)` 从角度算整个姿势，`barHeight(deg)` 算这个角度横杆该多高；`gl.ts` 判断显卡）
@@ -64,11 +65,16 @@
   - 贴胸震动（安卓有 `navigator.vibrate`，iPhone 的网页没有）：教练每说一句就震一下，再往后仰一长震、回来两短、往左右歪三短、到位一短，晃了一下重震；没过时震三下（`coach.ts` `FELT`，单机和联机的 `verdict` / `useCue(failed)`）。没录音时也照震，`speak()` 的 `spokeAt` 不再只在有录音时记（以前没录音时 `speak` 每 30 ms 调一次，无害但现在会震，所以改了）。
   - 3D 小人深仰发抖（`world.ts` 帧循环算 `tremor`，`applyJoints` 的第四个参数）：超过 30° 起、到 75° 满幅，两个不成比例的频率叠加（5 和 7 Hz）所以不成节奏，胸和手臂抖、头微晃、胯下沉一点，脚不离地；减少动态效果时不抖。
   - 没做、等 Steve 拍板的两条在「还剩什么」。
+- 2026-11-26 晚 Steve 四个人玩完的反馈，三条：
+  - 「跟着动的杆子并没有跟着动进行同步」：量角器上目标在 8° 到 20° 之间摆，3D 的横杆却几乎不动。原因是 `barHeight(deg)` 原来是「仰到这个角度时身体最高点的高度」，小角度时余弦很平，8° 到 20° 横杆只下来 4 厘米。现在横杆高度是一条自己的曲线（站直的头顶到完全放平，按 (deg/90)^1.25 往下），第一杆的摆动变成 13 厘米，看得见了；小人的膝盖按横杆高度反算要弯多少（`crouchFor`），身体最高点还是正好在横杆上，像真的林波舞一样蹲着过。电视同一个舞台，一起改了。
+  - 「只支持竖屏，手机怎么转都是影响游戏内的动作不会影响屏幕方向」：歪着过的时候手机一歪，iPhone 就把页面转成横屏。网页锁不了方向（iPhone Safari 没有这个 API，安卓要全屏），所以做成「手机转了，页面转回来」：`portrait.ts` 读 `screen.orientation.angle`（90 是顶朝左、逆时针，270 或 -90 是顶朝右），body 画成竖屏大小（宽 100dvh、高 100vw）再 rotate 回去，html 上 `overflow: hidden` 让 body 自己滚（否则 body 的 overflow 会传给视口，sticky 的底栏贴错地方）；安全区的变量跟着换边。传感器读的是手机自己的坐标，游戏逻辑本来就不受影响。只在手机上（短边小于 600），平板不转。查到的坑：全站按视口宽高写的样式都会错判（横屏布局 landscape.css、GameShell.css，桌面布局 GameHeader.css 和 components.css 的 720px、GameHeader.tsx 的 720px 判断、ScreenHints 的「横过来」提示、party.css 自己的矮屏规则），都在 `data-turned` 时让开了。无头浏览器模拟两个方向都截了图，和竖屏一模一样。
+  - 「MiniMax 我已经充钱了，英语提示就好」：workflow 加了 `only` 输入（默认 en），`voice.ts` 一种语言没有录音就放英语的（`clipsFor` 退到 `recorded(b, "en")`）。合并后跑 `only=en`。
 
 ## 还剩什么
 
+- 录音：「横杆的摆动看得见」那个 PR 合并后跑 `gh api -X POST repos/jiangchangle0724-del/Changle/actions/workflows/limbo-voices.yml/dispatches -f ref=main -f 'inputs[only]=en'`，等它开 PR（分支 `claude/limbo-voices-<run_id>`），看 6 个英文 mp3 大小正常就合并；再让 Steve 真机听：音量、每 2.8 秒一句吵不吵、中文界面下听英文顺不顺（他说英语提示就好；要中文就再跑一次 `only=zh`，`voice.ts` 自动优先用本语言的）。
+- Steve 真机再试两件：跟着动的杆的横杆现在看得见在动；歪着过时手机歪了页面不转（转了但页面被转回来）。
 - 两条借来的玩法上的主意，改玩法，等 Steve 说了再做（2026-11-26 问过）：A. 站直校准：胸口本来就斜，每个人站直时手机读数可能 5° 到 20° 不等，等于有人起步让了十几度；可以在倒数时记下站直的读数，只扣掉超过 10° 的部分（倒数时弯腰也占不到便宜：弯腰读 0°，扣不了；仰着读得高，只会扣自己）。要动 `useLean`/`usePose`/`useFollow` 的 lean 输入和盲仰，联机时每部手机各自校准就行，不用改协议。B. 仰过头会摔（马里奥派对的林波舞小游戏就这样）：超过横杆 20° 以上算摔倒出局，逼人贴着杆过；要加一个往后摔的姿势（`figure.ts` 现在只有往前撞杆坐地的）和规则里的 fail 原因。
-- 录语音（要 Steve 充值）：secrets 两个 2026-11-20 都加好了，key 和 GroupID 都对；workflow 跑到 MiniMax 就被拒 `1008 insufficient balance`，账户没余额。12 句不到 100 字，按 speech-02-hd 每百万字 100 美元算不到一分钱，但要先在 platform.minimax.io 右上角 Recharge Now 充最低一档。充了以后：`gh api -X POST repos/jiangchangle0724-del/Changle/actions/workflows/limbo-voices.yml/dispatches -f ref=main`，等它开 PR（分支 `claude/limbo-voices-<run_id>`），看 12 个 mp3 大小正常就合并，再让 Steve 真机听一遍：音量够不够、每 2.8 秒一句吵不吵（`coach.ts` 里 `speak` 的间隔），台词改 `voice.ts` 的 `LINES` 再跑一次。
 - 滤波的两个参数（`smoother(1, 0.007)`）和迟滞的 2° 是在电脑上按数定的，要 Steve 真机试：仰到位的那一下有没有拖（有就把 0.007 调大到 0.01）、深仰时量角器还抖不抖（抖就把 1 调小到 0.8）。
 - 3D 舞台要 Steve 真机看：在 iPhone 上流不流畅（头几秒太慢会自动退回画的那版，退回了说一声）、人的样子和动作像不像、画面会不会太小（现在和原来的画面一样大，`party.css` 里 `.limbo-3d` 的宽度）。可以再加的：过杆时横杆亮得更夸张、人穿的颜色之外加点区别（帽子、发型）、人群多时的站位。
 - 3D 的测试只在无头浏览器里用软件画过（`limbo3d_check.py`），帧率看不出来；draw call 和三角形数在上面「定过的事」里。
@@ -81,6 +87,8 @@
 
 ## 交给别的对话
 
+- 设计对话（共用样式）：林波舞转回竖屏时 `<html data-turned>`，全站按视口宽高写的样式要让开。landscape.css、GameShell.css、GameHeader.css、components.css 里现有的几段已经包在 `:where(html:not([data-turned]))` 里了；以后新加 `(orientation: landscape)` 或 `(min-width: …)` 的、会落到游戏页上的规则，也照这样包一层（零权重，不改层叠）。GameHeader.tsx 的桌面判断和 ScreenHints 的「横过来」提示也看这两个属性。
+
 - 平台 · 全站设计：#261 把联机大厅的格子从 `.tile[data-tile]` 改成了 `.board-cell[data-tile]`，`party_test.py` 和 `watch_test.py` 里点格子的那一行选择器坏了，所有联机测试开不了游戏；这次顺手改成 `.lobby [data-tile=…]`，以后改大厅请一起改这两行。另外 `party_test.py` 的 `ORDER` 就是大厅里游戏的顺序（`ONLINE_GAMES`），不是测试分组的顺序，别往里加别的（林波舞 11-11 加过两个，11-12 拿掉了）。
 - 最佳称号（或打碟）：2026-11-11 晚 main 的 `check` 从 #340 合并起是红的（`engine.test.ts` 里「dj: a night of the host's songs」那条，8 个 FAIL 加一个 TypeError）。#332 合完那次全过，#338 合完也全过，#340 合完就红了：它新加的最佳称号测试走了共用的时钟和骰子，后面打碟那条测试按原来的点数写的。猜歌名的测试有个 `tuneTest` 把种子和时钟放回去，最佳称号的大概也要这么包一下。林波舞的三个 PR 没碰这些。
 - 平台 · 大屏：`TvLimbo.tsx` 认识四种新玩法（准备页的标签和那句话、杆子开着时的那句话按 `bar.kind` 写，跟着动的杆把 `sway` 传给 `LimboScene`，`parts.tsx` 的 `barTag`、`barHow` 可以直接用）；准备页「手机举在胸前往后仰」改成屏幕朝外、背面贴胸。（2026-11-19 全站设计做了：大屏 #364 的四种玩法搬到了 3D 舞台上，`side`、`sway` 传给 `LimboStage`，#687）
@@ -90,6 +98,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 林波舞：横杆的摆动看得见，手机转了页面转回来，语音只录英语
 - 2026-11-26 林波舞：读数过 1€ 滤波，到位有迟滞，撑住进度只掉不清零，安卓贴胸震动，小人深仰发抖
 
 - 2026-11-19 林波舞：电视和手机同一个 3D 舞台，每个人按自己手机的实时角度仰
@@ -118,6 +127,7 @@
 - 2026-11-18 Steve 看了联机的准备页和结果页：杆子和人要做 3D、更真实的动画（见「还剩什么」）；开始前必须先同意开 motion sensor，不然没法玩。传感器这条先做了，#622 当晚上线。顺手：`party_test.py` 的 `listen()` 以前在手机还没读到新角度时就开始数提示音，会数进一声说给旧姿势的，`limbo-coach` 时不时红；现在等量角器显示新角度再数（嗡声开始得早也算）。
 - 2026-11-19 装了 Steve 另一个对话也在用的六个 skill（game-feel、threejs-animation、threejs-materials-lighting、threejs-aaa-graphics-builder、threejs-gameplay-systems、threejs-game-director，`npx skills add … -g`），照着它们的路子做 3D：先搭形（有关节的人、带挂钉的立杆），再材质和灯光，最后才是火花和镜头抖。中间踩过的坑：胸的旋转方向写反了（three 里绕 x 正转把直立部件的顶端往 +z 推，是往前弓），人正对镜头往后仰在画面上只是变矮，相机得偏到侧面、人转一点；无头浏览器截一张 WebGL 图要一两秒，拍瞬间动作要把舞台的钟放慢（`__limboSlow`）。
 - 2026-11-19 Steve 真机看了 3D：三条反馈：点了准备好后页面缩小（倒数大数字的弹入动画超出屏幕，iOS 缩页，修了）；跟着动的杆缓冲还是太短（2 秒改 3 秒）；要语音提示往前往后、跟手机语言、用 MiniMax 人声（播放和脚本做好了，录音等 key）。另外他取消了 app 的使用限制，说随便调用。
+- 2026-11-26 晚 Steve 四个人玩了一局（截图：跟着动的杆 20° 第一杆，量角器 33° 说回来一点；歪着过时 iPhone 转成了横屏）：「跟着动的杆子并没有跟着动进行同步」「MiniMax 我已经充钱了，英语提示就好」「另外检查 bug」「仅这个游戏只支持竖屏，手机怎么转都是影响游戏内的动作不会影响屏幕方向」。三条都做了（见「定过的事」）。
 - 2026-11-26 Steve：「看看 GitHub 或者网上有没有已经类似的开源内容，借鉴一下他们的思路对这个程序进行深度优化」。找了一圈：GitHub 搜 limbo 全是别的东西（Playdead 的游戏、赌场的 limbo、各种项目名），没有手机贴胸测后仰的；最接近的是倾斜控制的小游戏（pocket-gyro-game、tilt labyrinth 那类，都有「校准中立位」）、Heads Up 的开源仿作（举额头：阈值加回中再触发、0.35 的低通、举稳 900 ms 才开始倒数）、Full-Tilt 库（用旋转矩阵/四元数而不是 alpha/beta/gamma，我们的 `upOf` 向量就是这个路子）、PhonePong（手机当球拍：阈值加防抖、命中震动、显示端插值）、体态测量 App（站直归零）、马里奥派对的林波舞小游戏（仰过头会摔）。做了不改规则的四条（见「定过的事」），改玩法的两条问了 Steve，没回就先不做。
 - 2026-11-20 Steve 在手机上把两个 MiniMax secrets 加好了（GroupID 在 MiniMax 的 Teams 页，GID 那串），录音 workflow 跑到 MiniMax 被拒：账户没余额（1008）。等他充值。
 - 2026-11-19 上午 Steve 投屏到车机试了：电视还是画的平面小人，手机是 3D，「不同步动画」。电视换成同一个舞台，并且把每部手机的实时角度发到桌上，大家的人都按真角度仰。

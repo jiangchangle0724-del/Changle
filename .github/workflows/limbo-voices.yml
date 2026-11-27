@@ -13,6 +13,11 @@ on:
       en_voice:
         description: the English voice id
         default: English_Graceful_Lady
+      only:
+        description: which language to record (a language without recordings speaks English in the game)
+        type: choice
+        default: en
+        options: [en, zh, both]
 
 permissions:
   contents: write
@@ -28,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: python3 scripts/limbo_voices.py --zh-voice "${{ inputs.zh_voice }}" --en-voice "${{ inputs.en_voice }}"
+      - run: python3 scripts/limbo_voices.py --zh-voice "${{ inputs.zh_voice }}" --en-voice "${{ inputs.en_voice }}" ${{ inputs.only != 'both' && format('--only {0}', inputs.only) || '' }}
         env:
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           MINIMAX_GROUP_ID: ${{ secrets.MINIMAX_GROUP_ID }}
