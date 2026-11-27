@@ -16,6 +16,7 @@
 //   GET    /split/api/ledgers/<id>/files/<file>  the file itself
 //   DELETE /split/api/ledgers/<id>/files/<file>  take it off the ledger and out of the bucket → { ok: true }
 //   POST   /split/api/ledgers/<id>/files/<file>/read  read it as a receipt, signed in → ReadReply
+//   POST   /split/api/ledgers/<id>/files/<file>/items its lines, for 小票逐项分, signed in → ItemsReply
 //
 //   GET    /split/api/me/ledgers            my ledgers, keys and all             → MyLedgers
 //   PUT    /split/api/me/ledgers/<id>       keep one in my ledgers (or update it) { me? } → MineBody
@@ -81,7 +82,7 @@
 // site's chat. Nothing is sent by mail. An account deleted takes the invitations waiting for it.
 import type { Sent, Took } from "../../../../site/src/split/changes";
 import type { Ledger, Member } from "../../../../site/src/split/core";
-import type { Read, ReadReply } from "../server/read";
+import type { Items, ItemsReply, Read, ReadReply } from "../server/read";
 import type { Invite, Invited, Mine, Storage } from "./account";
 import type { Count, ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 
@@ -134,7 +135,7 @@ export type InviteBody = { to: string; member?: string };
 export type InviteSent = { invite: Invited };
 /** The invitations waiting for me, the newest first. */
 export type MyInvites = { invites: Invite[] };
-export type { Count, FileInfo, Invite, Invited, Mine, Read, ReadReply, Snapshot, Storage };
+export type { Count, FileInfo, Invite, Invited, Items, ItemsReply, Mine, Read, ReadReply, Snapshot, Storage };
 
 /**
  * "limit": this network, or this account, has made today's allowance of ledgers (or sent today's

@@ -9,7 +9,7 @@ import type { Expense } from "../../../site/src/split/core";
 import { AccountRoom, INVITE_DAYS, MAX_INVITES, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY, type Invite } from "../src/room/account";
 import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, SETTLING_MS, UNUSED_DAYS, usedFiles, type StoredFile } from "../src/room/ledger";
 import { nextNight } from "../src/room/nightly";
-import { base64, costOf, fakeRead, monthOf, readAnswer, readRequest, READ_MODELS } from "../src/server/read";
+import { base64, costOf, fakeItems, fakeRead, itemsAnswer, itemsRequest, MAX_ITEMS, monthOf, readAnswer, readRequest, READ_MODELS } from "../src/server/read";
 
 const NOW = Date.UTC(2026, 10, 13, 19, 0);
 const three = [
@@ -721,6 +721,27 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: null, place: null, payment: null }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");
   const kinded = fake("receipt:58.00 CAD Petro-Canada kind=transport paid=Visa");
   assert.deepEqual(kinded.ok && [kinded.read?.merchant, kinded.read?.category, kinded.read?.payment], ["Petro-Canada", "transport", "Visa"], "and a kind, out of the shop's name");
+});
+
+test("小票逐项分: what is asked for a receipt's lines, and what is taken from the answer", () => {
+  const asked = itemsRequest("QUJD", "image/jpeg", "CAD", true) as { contents: { parts: { text?: string; inline_data?: { mime_type: string; data: string } }[] }[]; generationConfig: { responseSchema: { properties: Record<string, { type: string; items?: { properties: Record<string, unknown>; required: string[] } }> }; thinkingConfig?: unknown } };
+  const words = asked.contents[0].parts[0].text ?? "";
+  assert.deepEqual(Object.keys(asked.generationConfig.responseSchema.properties), ["receipt", "total", "items"], "it asks: a receipt or not, its total, and its lines");
+  assert.deepEqual(asked.generationConfig.responseSchema.properties.items.items?.required, ["name", "amount"], "each line with its name and what it came to");
+  assert.ok(/quantity times its price/.test(words) && /discount printed under an item comes off that item/.test(words) && /Leave out subtotals, taxes, tips/.test(words), "each line all it came to, a discount off its item, and no subtotals, taxes or tips");
+  assert.deepEqual(asked.contents[0].parts[1], { inline_data: { mime_type: "image/jpeg", data: "QUJD" } }, "and the photo goes with it");
+  assert.ok(/whole numbers/.test((itemsRequest("QUJD", "image/jpeg", "JPY", false) as { contents: { parts: { text?: string }[] }[] }).contents[0].parts[0].text ?? "") && !("thinkingConfig" in (itemsRequest("QUJD", "image/jpeg", "JPY", false) as { generationConfig: object }).generationConfig), "for yen, whole numbers; and asked without thinking when a model won't take it");
+  const answer = (said: unknown) => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(said) }] } }] });
+  assert.deepEqual(
+    itemsAnswer(answer({ receipt: true, total: "$78.60", items: [{ name: " Poutine ", amount: "24.00" }, { name: "Burger", amount: "18.5" }, { name: "", amount: "3.00" }, { name: "Refund", amount: "-5.00" }, { name: "Beer", amount: "lots" }, { name: "Water" }] }), "CAD"),
+    { total: "78.60", items: [{ name: "Poutine", amount: "24.00" }, { name: "Burger", amount: "18.50" }] },
+    "each line with a name and an amount written as a total is, tidied; one without either, or money back, goes",
+  );
+  assert.deepEqual(itemsAnswer(answer({ receipt: true, total: "ten", items: [{ name: "Tea", amount: "3" }] }), "CAD"), { total: null, items: [{ name: "Tea", amount: "3" }] }, "a total that can't be read: none, and the lines all the same");
+  assert.equal(itemsAnswer(answer({ receipt: true, items: Array.from({ length: 60 }, (_, i) => ({ name: `Item ${i}`, amount: "1.00" })) }), "CAD")?.items.length, MAX_ITEMS, `at most ${MAX_ITEMS} lines`);
+  assert.deepEqual([itemsAnswer(answer({ receipt: false, items: [{ name: "Tea", amount: "3.00" }] }), "CAD"), itemsAnswer(answer({ receipt: true, items: [] }), "CAD"), itemsAnswer(answer({ receipt: true, items: "Tea" }), "CAD"), itemsAnswer({ candidates: [] }, "CAD")], [null, null, null, null], "not a receipt, no lines, lines that aren't a list, or no answer: nothing");
+  assert.deepEqual(fakeItems(new TextEncoder().encode(" receipt:78.60 CAD Cafe items=Poutine:24.00|Beer_tall:27.00 tax=9.10"), "CAD"), { ok: true, items: { total: "78.60", items: [{ name: "Poutine", amount: "24.00" }, { name: "Beer tall", amount: "27.00" }] }, cost: 400 }, "the stand-in reads the lines a fake receipt says");
+  assert.equal(fakeRead(new TextEncoder().encode(" receipt:78.60 CAD Cafe items=Poutine:24.00"), "CAD").ok && (fakeRead(new TextEncoder().encode(" receipt:78.60 CAD Cafe items=Poutine:24.00"), "CAD") as { read: { merchant: string } }).read.merchant, "Cafe", "and its plain reading leaves them out of the shop's name");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

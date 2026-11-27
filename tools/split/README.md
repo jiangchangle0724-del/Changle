@@ -161,7 +161,11 @@ currency and at which shop, in JSON of a shape it is given. The answer is `{ "re
 currency only when it is one a ledger can be in; either of the other two can be null; with the tip,
 tax, day, place and how it was paid, each null when it isn't shown, the time when one is printed,
 and the kind of spending, `category`, when Gemini says one of the seven in
-`site/src/split/categories.ts`), or `{ "read": null }` when it isn't a receipt or has no total on it. The phone fills them in for the
+`site/src/split/categories.ts`), or `{ "read": null }` when it isn't a receipt or has no total on it.
+`POST …/files/<file>/items` (小票逐项分, 2026-11-27) asks for its lines instead: `{ "items": { "total":
+"78.60", "items": [{ "name": "Poutine", "amount": "24.00" }, …] } }` (at most 40 lines, each written as
+the total is; the total null when it can't be read), or `{ "items": null }`. It is asked only when
+someone shares a receipt out item by item, and counts against the same day and month as a reading. The phone fills them in for the
 person to check; nothing is kept here or by Google beyond the answer.
 
 - It costs money, Steve's 2 dollars a month at most (agreed 2026-11-14): each reading's cost is
