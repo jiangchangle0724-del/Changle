@@ -77,11 +77,11 @@ export function Title({ children }: { children: ComponentChildren }) {
   );
 }
 
-/** What went wrong, or what to know, in a line with a sign. Read out when it appears. */
-export function Note({ tone = "plain", children }: { tone?: "plain" | "warn" | "error"; children: ComponentChildren }) {
+/** What went wrong, what was done, or what to know, in a line with a sign. Read out when it appears. */
+export function Note({ tone = "plain", children }: { tone?: "plain" | "done" | "warn" | "error"; children: ComponentChildren }) {
   return (
     <p class={`note note-${tone}`} role={tone === "error" ? "alert" : "status"}>
-      {tone !== "plain" && <IconWarn />}
+      {tone === "done" ? <IconCheck /> : tone !== "plain" && <IconWarn />}
       <span>{children}</span>
     </p>
   );

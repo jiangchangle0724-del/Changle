@@ -15,7 +15,7 @@ import { act, proofsIn, signEveryoneOut, signIn, type Answer } from "../src/serv
 import type { Db } from "../src/server/chunks";
 import { configOf, type Config } from "../src/server/gate";
 import { hashOf, newToken } from "../src/server/sessions";
-import { KINDS, PARAMS_MOST, TRIES_PER_DAY, TRIES_PER_HOUR, WRAPPER_MOST, isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockMaker, wayTables } from "../src/server/ways";
+import { KINDS, PARAMS_MOST, TRIES_PER_DAY, TRIES_PER_HOUR, WRAPPER_MOST, isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables } from "../src/server/ways";
 import { packPush, unpackPulled, unpackPushed } from "../src/server/wire";
 import { sqlite } from "./sqlremote";
 
@@ -356,6 +356,59 @@ test("showing proofs does not grow the events log without end, and right proofs 
     assert.equal(await unlock(T0 + 3000 + n, proof), status);
     assert.equal(count(`at < ${T0 - 366 * DAY}`), 0);
   }
+});
+
+test("the list of devices says which of them hold the vault open, and a wrong proof is shown to its owner whatever is done after it (the review of the door)", async () => {
+  const db = sqlite();
+  const maker = await device(db, T0);
+  const other = await device(db, T0 + 1);
+  const vault = newId();
+  const [byPassphrase, byRecovery] = pair(vault);
+  /** Each listed session's id, and whether the list says it is unlocked. */
+  const open = async (hash: string, now: number): Promise<Record<string, boolean>> => Object.fromEntries(((await ask(db, hash, "sessions", now)).json!.sessions as { id: string; unlocked: boolean }[]).map((one) => [one.id, one.unlocked]));
+  // no vault yet: nobody holds anything open
+  assert.deepEqual(await open(maker.hash, T0 + 2), { [maker.session]: false, [other.session]: false });
+  // the session that made the vault holds it open; the other has shown nothing
+  assert.equal((await ask(db, maker.hash, "vault/start", T0 + 3, { vault, ways: [byPassphrase, byRecovery] })).status, 200);
+  assert.deepEqual(await open(other.hash, T0 + 4), { [maker.session]: true, [other.session]: false });
+  // a wrong proof opens nothing; the right one does, and both are in the list
+  assert.equal((await ask(db, other.hash, "vault/unlock", T0 + 5, { id: byPassphrase.wrapper.id, proof: newToken() })).status, 422);
+  assert.deepEqual(await open(maker.hash, T0 + 6), { [maker.session]: true, [other.session]: false });
+  assert.equal((await ask(db, other.hash, "vault/unlock", T0 + 7, { id: byRecovery.wrapper.id, proof: byRecovery.proof })).status, 200);
+  assert.deepEqual(await open(maker.hash, T0 + 8), { [maker.session]: true, [other.session]: true });
+  assert.deepEqual([...unlockedSessions(db)].sort(), [maker.session, other.session].sort());
+  // locking is seen in the list at once
+  assert.equal((await ask(db, maker.hash, "vault/lock", T0 + 9)).status, 200);
+  assert.deepEqual(await open(other.hash, T0 + 10), { [maker.session]: false, [other.session]: true });
+  // a device that is ended from another is out of the list, and with it its unlocking: the same stretch
+  assert.deepEqual((await ask(db, maker.hash, "sessions/end", T0 + 11, { id: other.session })).json, { ok: true, ended: 1 });
+  assert.deepEqual(await open(maker.hash, T0 + 12), { [maker.session]: false });
+  assert.deepEqual([...unlockedSessions(db)], []);
+  // a session whose time ran out while it held the vault open is not in the list either, whatever the table still says
+  const late = await device(db, T0 + 13);
+  assert.equal((await ask(db, late.hash, "vault/unlock", T0 + 14, { id: byPassphrase.wrapper.id, proof: byPassphrase.proof })).status, 200);
+  const next = await device(db, T0 + 13 * HOUR);
+  assert.deepEqual([...unlockedSessions(db)], [late.session]);
+  assert.deepEqual(await open(next.hash, T0 + 13 * HOUR + 1), { [next.session]: false });
+
+  // The wrong proof of a moment ago: whoever made it signs in and out sixty times to bury it, and it is still shown,
+  // with the session it came from, and counted for the last day.
+  let now = T0 + 13 * HOUR + 2;
+  for (let i = 0; i < 60; i++) {
+    now += 6 * MINUTE;
+    const again = await device(db, now);
+    assert.equal((await ask(db, again.hash, "session/end", now + 1)).status, 200);
+  }
+  const owner = await device(db, now + 6 * MINUTE);
+  const shown = (await ask(db, owner.hash, "events", now + 6 * MINUTE + 1)).json as { events: { kind: string; at: number; session: string | null; here: boolean }[]; wrong: number };
+  assert.deepEqual(shown.events.slice(0, 50).filter((line) => line.kind === "unlock-failed"), []);
+  assert.deepEqual(shown.events.filter((line) => line.kind === "unlock-failed"), [{ at: T0 + 5, kind: "unlock-failed", here: false, session: other.session }]);
+  assert.equal(shown.events.length, 51);
+  assert.equal(shown.wrong, 1);
+  // a day and a moment after it was made it is still shown, and no longer counted
+  const later = await device(db, T0 + DAY + 6);
+  const after = (await ask(db, later.hash, "events", T0 + DAY + 6)).json as { events: { kind: string }[]; wrong: number };
+  assert.deepEqual([after.events.filter((line) => line.kind === "unlock-failed").length, after.wrong], [1, 0]);
 });
 
 test("the functions themselves: who is unlocked, and what is no session or no time", async () => {

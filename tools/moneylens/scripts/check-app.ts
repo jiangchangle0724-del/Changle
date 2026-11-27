@@ -4,6 +4,8 @@
  * in here, makes a vault with a passphrase, is shown the recovery code, locks, is turned away with
  * a wrong passphrase, opens with the right one, opens with the recovery code after the page was
  * loaded afresh, is locked after fifteen quiet minutes and when the page is left, and signs out.
+ * It looks at the devices that are signed in and at what has happened, sees a second device and
+ * its wrong try at the passphrase, and signs that device out.
  * On the way it is checked that the page asks nothing of anyone but this origin (T-8), that
  * nothing it was told is left in the browser's storage (T-24), that it says what it says in both
  * languages, and that every screen passes the accessibility checks the main site runs (UX-5).
@@ -14,6 +16,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium, type Page } from "playwright-core";
+import { partsOf } from "../src/app/devices";
+import { labelOf } from "../src/server/request";
 import { MAIN, ORIGIN, peek, start } from "../tests/platform/run";
 
 const PORT = 8802;
@@ -161,6 +165,18 @@ try {
   // (a screen starts at its title, for the keyboard and the screen reader; no keyboard comes up before the words were read)
   assert.equal(await page.evaluate("document.activeElement?.tagName"), "H1");
   await screen(page, "new-vault");
+  // (who is signed in can be seen from here too, before there is a vault: one device, this one, and no word of a vault there is not)
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  await page.locator("li.device").first().waitFor();
+  assert.equal(await page.locator("li.device").count(), 1);
+  assert.doesNotMatch(await page.locator("li.device").innerText(), /保险库/);
+  assert.match(await page.locator("li.device").innerText(), /这台设备/);
+  assert.equal(await page.getByRole("heading", { name: "口令或恢复码输错的记录" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "让其他设备全部退出" }).count(), 0);
+  await screen(page, "devices-no-vault");
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "先定一个口令").waitFor();
 
   // ---- a passphrase: what is too weak is said so, by its kind, and so is a second one that differs
   const first = page.getByLabel("口令", { exact: true });
@@ -286,6 +302,146 @@ try {
   await title(page, "保险库打开了").waitFor();
   assert.equal((await standing(page)).unlocked, true);
 
+  // ---- the devices that are signed in, and what has happened: one more screen, laid over the one a signed-in person is on
+  /** A browser's name as the page says it in Chinese, from what the browser says of itself. */
+  const named = (userAgent: string): string => {
+    const parts = partsOf(labelOf(userAgent));
+    assert.ok(parts?.browser && parts.system, `this browser calls itself something the server has no two words for: ${userAgent}`);
+    return `${parts.system} 上的 ${parts.browser}`;
+  };
+  const mine = named((await page.evaluate("navigator.userAgent")) as string);
+  // A second device signs in to the same account, and guesses at the passphrase once.
+  const phones = await browser.newContext({
+    locale: "zh-CN",
+    viewport: { width: 390, height: 844 },
+    ignoreHTTPSErrors: true,
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+  });
+  const phone = await phones.newPage();
+  watch(phone);
+  await phone.goto(`${ORIGIN}/`);
+  await phone.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
+  await title(phone, "打开你的账").waitFor();
+  await phone.getByLabel("口令", { exact: true }).fill(WRONG);
+  await phone.getByRole("button", { name: "打开", exact: true }).click();
+  await phone.getByRole("alert").filter({ hasText: "口令不对。" }).waitFor();
+
+  const panel = (heading: string) => page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: heading, exact: true }) });
+  const devices = page.locator("li.device");
+  const here = devices.filter({ hasText: "这台设备" });
+  const there = devices.filter({ hasText: "iPhone 上的 Safari" });
+  const misses = panel("口令或恢复码输错的记录").locator("li");
+  const unlocksBefore = times("vault/unlock");
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  assert.equal(await page.evaluate("document.activeElement?.tagName"), "H1");
+  // (a step of the browser's history, at the same address)
+  assert.deepEqual([page.url(), await page.evaluate("history.state")], [`${ORIGIN}/`, { moneylens: "devices" }]);
+  await devices.nth(1).waitFor();
+  assert.deepEqual([await devices.count(), await here.count(), await there.count()], [2, 1, 1]);
+  // this device holds the vault open, and is not signed out from this list; the other holds nothing open, and can be
+  const hereSays = await here.innerText();
+  assert.ok(hereSays.includes(mine) && hereSays.includes("保险库开着"), hereSays);
+  assert.equal(await here.getByRole("button").count(), 0);
+  assert.ok((await there.innerText()).includes("保险库锁着"));
+  await there.getByRole("button", { name: "让它退出" }).waitFor();
+  // wrong tries at the passphrase stand apart, above everything else: two in the last day, the newest first, each with the device it came from
+  assert.deepEqual(await page.locator("section.panel h2").allInnerTexts(), ["口令或恢复码输错的记录", "登录着的设备", "最近的记录"]);
+  await panel("口令或恢复码输错的记录").getByText("过去 24 小时里输错了 2 次。").waitFor();
+  assert.deepEqual(
+    (await misses.allInnerTexts()).map((text) => [text.includes("口令或恢复码输错"), text.includes("iPhone 上的 Safari"), text.includes("这台设备")]),
+    [
+      [true, true, false],
+      [true, false, true],
+    ],
+  );
+  // everything else, newest first
+  assert.deepEqual(await panel("最近的记录").locator("li .list-main").allInnerTexts(), ["登录", "打开了保险库", "建了保险库", "登录"]);
+  // (every time is said as a time, for whoever does not read it off the screen)
+  assert.ok(await page.locator("time").evaluateAll((all) => all.length === 10 && all.every((one) => !Number.isNaN(Date.parse(one.getAttribute("datetime") ?? "")))));
+  await screen(page, "devices");
+  // in English too
+  await page.getByRole("button", { name: "English" }).click();
+  await title(page, "Devices and activity").waitFor();
+  await page.getByText("Wrong tries in the last 24 hours: 2.").waitFor();
+  await devices.filter({ hasText: "Safari on iPhone" }).getByRole("button", { name: "Sign it out" }).waitFor();
+  assert.ok((await devices.filter({ hasText: "This device" }).innerText()).includes("Vault open"));
+  await screen(page, "devices-en");
+  await page.getByRole("button", { name: "中文" }).click();
+  await title(page, "设备和记录").waitFor();
+
+  // The other device is signed out from here. When the server cannot be told, the page says that it was not done, and the device is still listed.
+  await page.route("**/api/sessions/end", (route) => route.abort());
+  await there.getByRole("button", { name: "让它退出" }).click();
+  await page.getByRole("alert").filter({ hasText: "没连上服务器，这一步没做成。检查一下网络，再试一次。" }).waitFor();
+  assert.equal(await devices.count(), 2);
+  assert.equal((await standing(phone)).status, 200);
+  await screen(page, "devices-not-done");
+  await page.unroute("**/api/sessions/end");
+  // told: it is gone from the list, and the page says so
+  await there.getByRole("button", { name: "让它退出" }).click();
+  await page.getByText("那台设备已经退出。").waitFor();
+  assert.equal(await devices.count(), 1);
+  assert.equal(await page.getByRole("button", { name: "让其他设备全部退出" }).count(), 0);
+  // its wrong try is still shown, as that of a device that has since signed out
+  assert.ok((await misses.first().innerText()).includes("一台已经退出的设备"));
+  await screen(page, "devices-one-signed-out");
+  // and that device can ask nothing more: at its next press it is told that it is signed out
+  assert.equal((await standing(phone)).status, 401);
+  await phone.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await phone.getByRole("button", { name: "打开", exact: true }).click();
+  await title(phone, "把账单变成一本看得懂的账").waitFor();
+
+  // "Back", the page's own or the browser's, is the screen behind it as it was: the vault is still open, and was not asked for again.
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+  assert.deepEqual([await page.evaluate("history.state"), (await standing(page)).unlocked, times("vault/unlock")], [null, true, unlocksBefore]);
+  await page.evaluate("history.forward()");
+  await title(page, "设备和记录").waitFor();
+  await page.evaluate("history.back()");
+  await title(page, "保险库打开了").waitFor();
+
+  // All the others at once: the phone signs in again, and is signed out with one press.
+  await phone.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
+  await title(phone, "打开你的账").waitFor();
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await devices.nth(1).waitFor();
+  await page.getByRole("button", { name: "让其他设备全部退出" }).click();
+  await page.getByText("已经让其他设备退出，一共 1 台。").waitFor();
+  assert.equal(await devices.count(), 1);
+  assert.equal((await standing(phone)).status, 401);
+  await phones.close();
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+
+  // The list cannot be read: said so, with a way to try again, and never half a list.
+  await page.route("**/api/events", (route) => route.abort());
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await page.getByText("没连上服务器，设备和记录没读到。检查一下网络，再试一次。").waitFor();
+  assert.equal(await devices.count(), 0);
+  await screen(page, "devices-unread");
+  await page.unroute("**/api/events");
+  await page.getByRole("button", { name: "再试一次" }).click();
+  await here.waitFor();
+
+  // Loaded afresh on that step, the page shows the list again. The vault behind it is locked, as after any fresh load, and this device is no longer said to hold it open.
+  await page.reload();
+  await title(page, "设备和记录").waitFor();
+  await here.waitFor();
+  assert.ok((await here.innerText()).includes("保险库锁着"), await here.innerText());
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "打开你的账").waitFor();
+  assert.equal(await page.evaluate("history.state"), null);
+  // (from the locked screen too, and the browser's own "back" closes it)
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  await page.evaluate("history.back()");
+  await title(page, "打开你的账").waitFor();
+  // (open again, as the next check expects to find it)
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await title(page, "保险库打开了").waitFor();
+
   // ---- a page loaded afresh has no key: the vault is there, locked, and the recovery code opens it too
   await page.reload();
   await title(page, "打开你的账").waitFor();
@@ -338,6 +494,18 @@ try {
   await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();
   await screen(timed, "locked-idle");
   await timed.waitForFunction(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json()).then((said) => said.unlocked === false)`);
+  // (with the list of devices laid over an open vault, the fifteen minutes run on; and once it has locked, the list does not go on saying that this device holds it open)
+  await timed.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await timed.getByRole("button", { name: "打开", exact: true }).click();
+  await title(timed, "保险库打开了").waitFor();
+  await timed.getByRole("button", { name: "设备和记录" }).click();
+  const timedHere = timed.locator("li.device").filter({ hasText: "这台设备" });
+  await timedHere.filter({ hasText: "保险库开着" }).waitFor();
+  await timed.clock.fastForward("15:01");
+  await timedHere.filter({ hasText: "保险库锁着" }).waitFor();
+  await timed.getByRole("button", { name: "返回" }).click();
+  await title(timed, "打开你的账").waitFor();
+  await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();
   await timed.close();
 
   // ---- English, all the way in

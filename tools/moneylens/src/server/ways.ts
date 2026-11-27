@@ -14,8 +14,8 @@
  * nothing. So someone who holds the mailbox can keep the owner out for as long as they keep at
  * it, by guessing wrong on purpose thirty times a day. They could already do worse with the
  * mailbox (start the vault's erasing, sign the owner out); what they cannot do is read. Each
- * wrong proof is a line in the events log (SEC-17). (Whether the owner is sure to see it there
- * is the events screen's to settle: the log shows its newest fifty lines.)
+ * wrong proof is a line in the events log (SEC-17), and the newest of them are shown to the
+ * owner whatever lines came after (account.ts, "events").
  *
  * A session that has shown a proof is "unlocked", until it ends or says it has locked. Sync is
  * for unlocked sessions only (account.ts): a session that has not unlocked reads nothing, not
@@ -139,6 +139,9 @@ export function tryUnlock(db: Db, id: unknown, verifier: unknown, session: strin
 
 /** Has this session shown a proof, and not locked since? */
 export const isUnlocked = (db: Db, session: string): boolean => db.sql.exec(`SELECT 1 AS there FROM unlocked WHERE session = ?`, session).toArray().length === 1;
+
+/** The sessions that have, for the list of devices their owner sees. A session in it that has since ended is not in that list (sessions.ts). */
+export const unlockedSessions = (db: Db): Set<string> => new Set(db.sql.exec(`SELECT session FROM unlocked`).toArray().map((row) => String(row.session)));
 
 /** The session that made the vault holds its key: it is unlocked without showing a proof. For `vault/start` alone. */
 export function unlockMaker(db: Db, session: string, now: number): void {
