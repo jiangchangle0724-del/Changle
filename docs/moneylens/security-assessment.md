@@ -1134,7 +1134,11 @@ nothing is kept on the server until the person has said it is written down: `vau
 after that press. A page closed before it leaves nothing anywhere, and a vault can never exist
 whose recovery code was not shown. The key and the code wait in memory on that screen, so the
 fifteen minutes of "Locking" below run there too: after them both are dropped, and the person
-chooses the passphrase again. If the answer to `vault/start` is lost and the person presses
+chooses the passphrase again. The note then says what the page did and no more. It does not
+say that nothing was stored: if `vault/start` had been sent and its answer never came (a
+machine that slept on it, a connection that broke), the server may hold that vault. The next
+vault the person makes is then answered "another", the screen says so, and the passphrase
+chosen the first time opens it. If the answer to `vault/start` is lost and the person presses
 again, the vault is kept once (1.9): the first request made it and counted the session that
 made it as unlocked, the second is answered the same and changes nothing, and the app goes on
 to the open vault. Another session that sends the same vault's id is answered the same too,
@@ -1163,7 +1167,10 @@ wrapper without a proof. A page the browser kept and brings back comes back lock
 **Signing out.** The screen says "signed out" only when the server has said the session is
 over for this browser: it ended it, there was none, or the account is no longer let in (an
 answer that takes the cookie away). When nothing comes back it says so, and that the person
-is still signed in.
+is still signed in. With the gate shut the answer is "closed" and the screen says signed out
+as well: nothing is answered for that session while the gate stays shut. Its cookie is not
+taken away, though, so a gate opened again within the session's thirty quiet minutes finds it
+a session still. Shutting the gate is not yet a way of signing everyone out (section 3).
 
 **Told to slow down.** When the limiter of 1.8 turns a request away, the screen says there
 were too many requests and to try again in a minute. It does not say the server is at fault,
@@ -1307,6 +1314,9 @@ cache on signing out.
   and the line Cloudflare writes for each request is switched off in `wrangler.jsonc`, because
   it would carry the request's headers, the session's cookie among them. To look at once on
   the first deployment: that nothing of a request is in the logs.
+- Shutting the gate ends no session and takes no cookie away (1.10, "Signing out"). When the
+  operator's way of stopping the service is built (ADM-5), it should end sessions as well, or
+  the answer "closed" should take the cookie.
 - The handoff, the allowlist, the Worker, the Durable Object and resetting a vault: sections to
   add with the server. Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
   quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").

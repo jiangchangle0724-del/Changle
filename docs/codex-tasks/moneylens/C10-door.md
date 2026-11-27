@@ -120,3 +120,40 @@ for whom, the test that shows it, and what would fix it), your earlier findings 
 or not, what you ran and what you could not, what only a deployment can show, and the
 obligations you would put on the next slices (erasing a vault, the weekly sweep, the list of
 devices, changing a passphrase and a new recovery code, the import page).
+
+## Second look (2026-11-27): your six findings, at a new head
+
+The head is `c601285d` (`git diff 342bbbb3..c601285d`: `611f4b60` is the brief only, `7c2eb601`
+is your three files as you wrote them, `c601285d` is the fixes). One more commit, `74ecd485`,
+adds two cases to `tests/request.test.ts` and changes no code.
+
+What was done for each finding:
+
+1. **IPv6 keys.** `addressKey` in `src/server/request.ts`: an IPv4 address is itself, an IPv6
+   address is its first 64 bits, an IPv4 address written as an IPv6 one is that IPv4 address,
+   and text that is no address is the one key "nowhere". `within` in `worker.ts` uses it.
+   Assessment 1.8, "What an address is".
+2. **The events log.** Not all of it, as you classed it for the events and devices slice. Done:
+   wrong proofs are counted apart (500 of them, 500 of everything else), and the log is tidied
+   at each proof shown as well as at each sign-in. Not done: the events call still answers the
+   newest 50 lines of both together, so your test for it stays `todo`. 1.8, 1.9 and section 3
+   say what the owner is and is not shown.
+3. **Signing out when no longer let in.** `leave` takes 403 `not-admitted` or `closed` as over.
+4. **The two sentences.** 1.10 "Making a vault: the order" and 1.8 "The events log".
+5. **"Slow down".** `standing` and `keep` answer "busy" for 429, and the screens say so.
+6. **A link to `/enter`.** Fixed in the Worker and not with a press on the main site's page:
+   `enter` begins a sign-in only when `Sec-Fetch-Site` is `same-origin` or absent, and
+   otherwise sends the browser to `/`. 1.10, "Where a sign-in starts", with its limit (a
+   browser that sends no such header).
+
+Smaller notes: the recovery code's screen has the idle rule now; `wrangler.jsonc` switches off
+Cloudflare's line for each request. Not changed: 400 before 401 for malformed proofs; `unlocked`
+rows that wait for the next tidy.
+
+What is asked: check each fix against its finding; make your `todo` tests plain where you are
+satisfied; look for what the fixes broke or opened (`addressKey`, the `/enter` rule, the SQL of
+`tidyEvents`, the idle drop with the `done` guard, `leave`); run the typechecks and `npm test`
+(not the platform tests or the browser: their ports are in use); and give a verdict for this
+head on (a) merging with the gate shut and (b) opening the gate to the owner alone once the two
+deployment checks are done. You may write only your three files.
+

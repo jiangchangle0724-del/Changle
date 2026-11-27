@@ -211,7 +211,7 @@ try {
   assert.ok(await title(waited, "把恢复码抄下来").isVisible(), "the code was dropped fifteen minutes after it was shown, though a key was pressed since");
   await waited.clock.fastForward("01:01");
   await title(waited, "先定一个口令").waitFor();
-  await waited.getByText("超过 15 分钟没有动静，刚才那把钥匙和恢复码丢掉了，什么都没有存。重新定一次口令。").waitFor();
+  await waited.getByText("超过 15 分钟没有动静，这个页面把刚才那把钥匙和恢复码丢掉了。重新定一次口令。").waitFor();
   assert.equal(await waited.getByLabel("口令", { exact: true }).inputValue(), "");
   assert.equal(await waited.locator(".code").count(), 0);
   assert.ok(!(await waited.content()).includes(dropped), "the dropped code is still in the page");
