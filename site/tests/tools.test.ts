@@ -10,7 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
-import { figureDigits, MASS, PACK_MASS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, VOLUME, type Pack } from "../src/tools/units";
+import { COUNT, figureDigits, isKind, MASS, PACK_COUNT, PACK_MASS, PACK_UNITS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, UNITS, VOLUME, type Pack } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -110,6 +110,16 @@ eq(plainFigure(0, 2), "0.00", "zero");
 eq(plainFigure(12345.678, 2), "12345.68", "no thousands separators in a field");
 eq(plainFigure(2481.4, 0), "2481", "yen without decimals");
 eq(plainFigure(8.0, 0), "8", "a round yen figure has no point");
+
+// 2d. things sold by the item: eggs, toilet rolls
+near(perBaseOf("4.99", unit(COUNT, "dozen")), 0.4158, "$4.99 a dozen is $0.42 an egg");
+near(perBaseOf("4.99", unit(COUNT, "dozen")) * unit(COUNT, "100").size, 41.58, "and $41.58 a hundred");
+const eggs = rankPacks([g("4.99", "12", "each"), g("10.99", "30", "each"), g("9.49", "2", "dozen")], PACK_COUNT).verdict;
+ok(eggs?.best.join() === "1" && eggs.next === 2 && eggs.pct === 7 && Math.abs(eggs.save - 0.0291) < 0.001, `30 eggs for $10.99 beat two dozen for $9.49 by 7% → ${JSON.stringify(eggs)}`);
+near(perBase(g("12.99", "6", "each", "4"), PACK_COUNT), 0.5413, "4 packs of 6 rolls for $12.99 is $0.54 a roll");
+ok(isKind("count") && isKind("mass") && !isKind("pieces") && !isKind(undefined), "the three kinds, nothing else");
+ok((["mass", "volume", "count"] as const).every((k) => UNITS[k].length >= 4 && PACK_UNITS[k].length >= 2 && UNITS[k][0].size > 0), "every kind has its units and pack units");
+ok(UNITS.mass.every((u) => u.zh && u.en) && UNITS.count.every((u) => u.zh && u.en) && PACK_COUNT.every((u) => u.zh && u.en), "every unit has both names");
 
 // 3. the world clock
 const T = Date.UTC(2026, 6, 15, 12, 0); // 2026-07-15 12:00Z, summer
