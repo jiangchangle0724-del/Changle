@@ -1,7 +1,7 @@
 # The server's shell: design notes for the next slice
 
-Status: **built, not merged, not published** (#814, 2026-11-26; it waits for its SEC-9
-review). What it does is now written in the security assessment, section 1.8, which is the
+Status: **merged (#814) and published on 2026-11-27**, together with the door (#887); the
+gate is open to the owner's account alone. What it does is now written in the security assessment, section 1.8, which is the
 authority; this file stays as the plan it was built from, with two corrections below.
 
 Changed while building: the server's files no longer import the device's sync layer. What both

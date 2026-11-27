@@ -26,7 +26,8 @@ import { isProofParams, newProof, proofOf } from "../../src/vault/proof";
 import { LIMITS, Store } from "../../src/vault/sync";
 import { HttpRemote } from "../../src/web/remote";
 import { testVault } from "../vaulthelp";
-import { MAIN, ORIGIN, start, type Server } from "./run";
+import { isAccount } from "../../src/server/request";
+import { MAIN, ORIGIN, plainJson, start, type Server } from "./run";
 
 /** Two people who are let in, and one who is not. */
 const [A, B, C] = ["utestaaaa1", "utestbbbb2", "utestcccc3"];
@@ -674,9 +675,8 @@ test("the app's page: one page that may load its own files and talk to its own /
 // The gate shut, the gate open to the owner, and no origin set
 // ---------------------------------------------------------------------------------------------
 
-test("the gate as the repository sets it: shut, to everyone, on every route (SEC-10)", async () => {
-  // (no setting changed: this is wrangler.jsonc's own gate)
-  const shut = await start(8799, {});
+test("the gate shut: to everyone, on every route (SEC-10)", async () => {
+  const shut = await start(8799, { GATE: "closed" });
   try {
     const entered = await send(shut, "/enter", null, new Map(), { method: "GET", origin: null });
     const page = await entered.text();
@@ -697,6 +697,34 @@ test("the gate as the repository sets it: shut, to everyone, on every route (SEC
   } finally {
     await shut.stop();
     rmSync(shut.kept, { recursive: true, force: true });
+  }
+});
+
+test("the gate as the repository sets it: open to the one account written down, when the accounts service calls it the owner's, and to nobody else (SEC-10)", async () => {
+  // (no setting changed: this is wrangler.jsonc's own gate, and the one account is read from it)
+  const set = (JSON.parse(plainJson(readFileSync("wrangler.jsonc", "utf8"))) as { vars: Record<string, string> }).vars;
+  assert.equal(set.GATE, "owner");
+  const written = (set.ALLOWED_ACCOUNTS ?? "").split(/[\s,]+/).filter(Boolean);
+  assert.equal(written.length, 1, "the repository lets in more than one account, or none");
+  const owner = written[0]!;
+  assert.ok(isAccount(owner) && ![A, B, C].includes(owner));
+  const repo = await start(8803, {});
+  try {
+    // the app's page is handed out
+    assert.equal((await got(repo, "/")).status, 200);
+    // anyone else is not let in, the owner of the site or not, and with a cookie of their own making reaches no database
+    for (const [account, master] of [[A, false], [A, true], [B, true]] as const) assert.deepEqual(await said((await signInAs(repo, account, { master })).answer), [403, "not-admitted"], `${account} ${master}`);
+    for (const made of [A, "umadeup0001"]) assert.deepEqual(await said(await send(repo, "/api/vault", "{}", new Map([["__Host-ml", `${made}.${"x".repeat(43)}`]]))), [403, "not-admitted"], made);
+    // the account written down is not let in either while the accounts service does not call it the owner's
+    assert.deepEqual(await said((await signInAs(repo, owner)).answer), [403, "not-admitted"]);
+    // and is when it does: signed in, with no vault yet
+    const signedIn = await signInAs(repo, owner, { master: true });
+    assert.equal(signedIn.answer.status, 200);
+    const stands = (await (await send(repo, "/api/vault", "{}", signedIn.jar)).json()) as { ok: boolean; vault: string | null };
+    assert.deepEqual([stands.ok, stands.vault], [true, null]);
+  } finally {
+    await repo.stop();
+    rmSync(repo.kept, { recursive: true, force: true });
   }
 });
 

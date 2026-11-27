@@ -12,7 +12,7 @@ export const ORIGIN = "https://money.changle.test";
 export const MAIN = "https://main.changle.test";
 
 /** A file with comments in it, as plain JSON. */
-function plainJson(text: string): string {
+export function plainJson(text: string): string {
   let out = "";
   let quoted = false;
   for (let i = 0; i < text.length; i++) {

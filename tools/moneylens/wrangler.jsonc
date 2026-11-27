@@ -1,8 +1,8 @@
 // Cloudflare settings for MoneyLens's server: its own Worker on its own origin, money.changle.ca
-// (D2), with nothing else on it. NOT PUBLISHED YET: no Workers Build is connected to this folder,
-// and nothing here is live. When it is connected (Steve, in the dashboard), a merge into main that
-// touches tools/moneylens publishes it (root tools/moneylens, deploy command `npx wrangler deploy`),
-// and the first deploy makes the DNS record for the custom domain (approved under D2). No secrets.
+// (D2), with nothing else on it. Published since 2026-11-27: a Workers Build is connected to this
+// folder (root tools/moneylens, deploy command `npx wrangler deploy`), so a merge into main that
+// touches tools/moneylens publishes it. The first deploy made the DNS record for the custom domain
+// (approved under D2). No secrets.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "moneylens",
@@ -48,8 +48,10 @@
     // owner's (so the list is then Steve's own account id). Opening it is Steve's decision,
     // recorded with its date in docs/briefs/moneylens.md. Anything else written here reads as
     // "closed".
-    "GATE": "closed",
-    "ALLOWED_ACCOUNTS": ""
+    // Open to Steve's own account alone since 2026-11-27 (his word of 2026-11-26). Nobody else
+    // is let in before the conditions of Phase 3 are met.
+    "GATE": "owner",
+    "ALLOWED_ACCOUNTS": "u38yjgm74bagw"
     // Quotas (LIM-2), when the defaults are to be changed: QUOTA_VAULT_BYTES (10485760),
     // QUOTA_WRITES_PER_DAY (300).
   },

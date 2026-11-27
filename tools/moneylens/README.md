@@ -2,8 +2,9 @@
 
 A personal finance organizer for changle.ca: statement files exported from a bank's own website
 are read in the browser, reconciled, de-duplicated and classified, and kept in a vault that is
-encrypted before it leaves the device. The app will run at **money.changle.ca**, with an intro page
-and a card on the Tools tab at changle.ca/tools/finance. **Nothing is live yet.**
+encrypted before it leaves the device. The app runs at **money.changle.ca** (since 2026-11-27, open
+to the owner's account alone). The main site's page changle.ca/tools/finance carries a signed-in
+person over; an intro page and a card on the Tools tab are still to come.
 
 The requirements are `docs/moneylens.md` (their IDs, like `ACC-2` and `T-10`, are used in the code
 and tests). The decisions taken, where it stands and what is next: `docs/briefs/moneylens.md`.
@@ -126,9 +127,16 @@ const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, 
   and the wrapper from memory, and tell the server (`vault/lock`). Never keep a wrapper in
   storage: a wrapper on the device is what the server's count keeps away from guessing.
 
-**Not published.** `wrangler.jsonc` is the Worker's settings, with the gate shut (`GATE`:
-`closed`, `owner` or `list`). Nothing is live until a Workers Build is connected to this folder
-in Cloudflare, which is Steve's to do, and the gate is his to open.
+**Published since 2026-11-27.** Cloudflare builds the Worker `moneylens` from `main` whenever
+something under `tools/moneylens` changes (Workers Builds: root directory `/tools/moneylens`, no
+build command, deploy command `npx wrangler deploy`, production branch `main`, no builds for
+other branches, build watch path `tools/moneylens/*`; the build image runs Node 24, CI runs
+Node 22). `wrangler.jsonc` is the Worker's settings; there are no secrets. The gate (`GATE`:
+`closed`, `owner` or `list`) is open to the owner alone: the one account id in
+`ALLOWED_ACCOUNTS`, and only while the accounts service calls it the site owner's. Letting
+anyone else in is Steve's decision and waits for the conditions of Phase 3
+(`docs/briefs/moneylens.md`). To shut it, set `GATE` to `closed` and merge: from the next
+deploy every route answers "not open yet" and hands out nothing.
 
 `npm run test:server` runs the Worker on Cloudflare's own runtime on this machine (`wrangler
 dev`) with a stand-in for the accounts service (`tests/accounts`), which is also the door the
