@@ -1399,7 +1399,17 @@ test("buddy: penalized player calls the 2-holder", () => {
 
 type V<K extends GameView["id"]> = Extract<GameView, { id: K }>;
 
-test("superlatives: the host's setup (packs, how many awards), then the first ballot", () => {
+/** The superlatives tests leave the shared dice as they found them: the deck they shuffle grows with every new title, and the tests after them must not feel it. */
+const ownDice = (fn: () => void) => () => {
+  const was = seed;
+  try {
+    fn();
+  } finally {
+    seed = was;
+  }
+};
+
+test("superlatives: the host's setup (packs, how many awards), then the first ballot", ownDice(() => {
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
@@ -1423,9 +1433,9 @@ test("superlatives: the host's setup (packs, how many awards), then the first ba
   t.g("p0", "skip");
   ok(spicy.includes(t.view<V<"superlatives">>("p1").title.zh), "and so does the next one");
   ok(nothing(t.g("p0", "config", { total: 5 })), "no setting up once started");
-});
+}));
 
-test("superlatives: secret votes, award, ceremony", () => {
+test("superlatives: secret votes, award, ceremony", ownDice(() => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1479,9 +1489,9 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
   ok(v.ballot === 4, "a title the host wrote is a new ballot");
-});
+}));
 
-test("superlatives: the same winner award after award counts a streak; another winner starts over", () => {
+test("superlatives: the same winner award after award counts a streak; another winner starts over", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1500,9 +1510,9 @@ test("superlatives: the same winner award after award counts a streak; another w
   ok(v.streak === 3 && v.hits.p0 === 3 && v.hits.p2 === 3 && !v.hits.p1, "three in a row for p1; p0 and p2 called every one");
   ok(round("p2").streak === 1, "p2 wins: the streak starts over");
   ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
-});
+}));
 
-test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1526,7 +1536,7 @@ test("superlatives: a skipped title is a new ballot; the winner who leaves still
   ok(!t.pens().length, "no stamp for a winner who left");
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
-});
+}));
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
   const t = setup(10);
