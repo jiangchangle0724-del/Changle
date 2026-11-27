@@ -307,6 +307,16 @@ export const W = {
   paidAbroad: { zh: "别的货币付的，只能一个人付", en: "Paid in another currency: one person only" },
   payTypeFirst: { zh: "先输金额，再填每个人付了多少。", en: "Type the amount first, then what each one paid." },
   paidByMany: { zh: "{who}一起付", en: "{who} paid" },
+  // 小票逐项分 (2026-11-27): in 按金额, a receipt's lines, each had by some
+  itemsButton: { zh: "按小票逐项分", en: "Split by receipt items" },
+  itemsCount: { zh: "小票上有 {n} 项。点掉每一项里没份的人。", en: "{n} items on the receipt. Tap off whoever didn't have each." },
+  itemsRest: { zh: "没分到人的 {amount}（税、小费等）按每人那几项的比例分。", en: "{amount} on no one's items (tax, tip) is shared the same way." },
+  itemsOver: { zh: "这几项加起来比这一笔多 {amount}，每人按比例少算。", en: "The items come to {amount} more than this; each part is scaled down." },
+  itemsParts: { zh: "每人：{list}", en: "Each: {list}" },
+  itemsApply: { zh: "用这个", en: "Use this" },
+  itemsBack: { zh: "不按项分了", en: "Back" },
+  itemsNone: { zh: "这张小票读不出每一项。", en: "Couldn't read the items on this receipt." },
+  itemsOff: { zh: "现在读不了小票，按金额手填吧。", en: "Receipts can't be read right now. Type the amounts in." },
   // 退款 on the screens: turned on in 详情, said on the add screen, its row and its statement line
   refund: { zh: "退款", en: "Refund" },
   refundToggle: { zh: "这是一笔退款", en: "It's a refund" },

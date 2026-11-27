@@ -9,7 +9,7 @@
  * expense each (几张小票, Receipts.tsx) or this one's photos. A receipt read that looks like one
  * already recorded says so in place of the line under the amount (twins.ts).
  */
-import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2, Undo2 } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, ListChecks, Minus, Plus, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -34,7 +34,8 @@ import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
-import { dropPhoto, readingOn, readPhoto, record, sendPhoto } from "./syncing";
+import { itemParts, type Line } from "./items";
+import { dropPhoto, readingOn, readItems, readPhoto, record, sendPhoto } from "./syncing";
 import { joinBill, sameBill, saidOf, twinIn } from "./twins";
 import { say, type Word } from "./words";
 
@@ -504,7 +505,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         </Button>
       </div>
       <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} title={say(lang, draft.refund ? "payerRefund" : "payer")} draft={draft} onChange={setDraft} />
-      <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} />
+      <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} photo={files[0] ?? null} canRead={signedIn && readingOn(ledger.id)} />
       <CurrencySheet open={sheet === "currency"} onClose={() => setSheet(null)} ledger={ledger} lang={lang} value={draft.currency} onPick={(currency) => setDraft((d) => payIn(d, currency, ledger, fx?.rates, Date.now()))} />
       <RateSheet open={sheet === "rate" && away} onClose={() => setSheet(null)} ledger={ledger} lang={lang} draft={draft} fx={fx} onChange={setDraft} />
       <DetailsSheet
@@ -962,6 +963,8 @@ function ShareSheet({
   rot,
   draft,
   onChange,
+  photo,
+  canRead,
 }: {
   open: boolean;
   onClose: () => void;
@@ -972,9 +975,39 @@ function ShareSheet({
   rot: number;
   draft: Draft;
   onChange: (d: Draft) => void;
+  /** its first receipt photo, and whether it can be read: 小票逐项分 is offered in 按金额 */
+  photo: string | null;
+  canRead: boolean;
 }) {
   const everyone = ledger.members.map((m) => m.id);
   const amount = amountOf(draft, ledger);
+  // 小票逐项分: the receipt's lines while they are being shared out, and how asking for them went
+  const [lines, setLines] = useState<Line[] | null>(null);
+  const [asking, setAsking] = useState<"busy" | "none" | "off" | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setLines(null);
+      setAsking(null);
+    }
+  }, [open]);
+  const askItems = async () => {
+    if (!photo) return;
+    setAsking("busy");
+    const got = await readItems(ledger.id, photo);
+    if (got === "off" || !got) return setAsking(got === "off" ? "off" : "none");
+    const cents = decimalsOf(draft.currency);
+    const read = got.items.map((i) => ({ name: i.name, amount: toMinor(i.amount, cents) ?? 0, who: everyone })).filter((l) => l.amount > 0);
+    setAsking(read.length ? null : "none");
+    setLines(read.length ? read : null);
+  };
+  const fromItems = lines && amount ? itemParts(lines, amount, everyone) : null;
+  // (what isn't on a line someone had, in the currency it was paid in: said only when that is the ledger's, where it is the same money)
+  const rest = lines && amount && draft.currency === ledger.currency ? amount - lines.filter((l) => l.who.length).reduce((a, l) => a + l.amount, 0) : 0;
+  const useItems = () => {
+    if (!fromItems) return;
+    onChange({ ...draft, how: "exact", amounts: Object.fromEntries(everyone.map((id) => [id, fromItems[id] ? fromMinor(fromItems[id], decimals) : ""])) });
+    setLines(null);
+  };
   const wrong = draftProblem(draft, ledger);
   const taking = sharers(draft, ledger, decimals);
   const parts = amount && draft.how !== "exact" ? portions(amount, splitOf(draft, decimals), rot, everyone) : {};
@@ -1004,11 +1037,59 @@ function ShareSheet({
       category="tool"
       title={say(lang, "sharedBy")}
       footer={
-        <Button block onClick={onClose}>
-          {say(lang, "ok")}
-        </Button>
+        lines ? (
+          <div className="split-pair">
+            <Button tone="quiet" onClick={() => setLines(null)}>
+              {say(lang, "itemsBack")}
+            </Button>
+            <Button disabled={!fromItems} onClick={useItems}>
+              {say(lang, "itemsApply")}
+            </Button>
+          </div>
+        ) : (
+          <Button block onClick={onClose}>
+            {say(lang, "ok")}
+          </Button>
+        )
       }
     >
+      {lines ? (
+        // 小票逐项分: each line, and a name for each one who had it (all of them, to start with)
+        <>
+          <p className="split-note">{say(lang, "itemsCount", { n: lines.length })}</p>
+          <ul className="split-items">
+            {lines.map((line, k) => (
+              <li key={k} className="split-item">
+                <span className="split-item-head">
+                  <strong>{line.name}</strong>
+                  <span>{money(line.amount, draft.currency, lang)}</span>
+                </span>
+                <span className="split-pills" role="group" aria-label={line.name}>
+                  {ledger.members.map((m) => (
+                    <Pill
+                      key={m.id}
+                      kind="toggle"
+                      tone={line.who.includes(m.id) ? "tool" : "neutral"}
+                      selected={line.who.includes(m.id)}
+                      onToggle={(on) => setLines(lines.map((l, j) => (j === k ? { ...l, who: on ? [...l.who, m.id] : l.who.filter((x) => x !== m.id) } : l)))}
+                    >
+                      {m.id === me ? say(lang, "you") : m.name}
+                    </Pill>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {rest > 0 && <p className="split-note">{say(lang, "itemsRest", { amount: money(rest, ledger.currency, lang) })}</p>}
+          {rest < 0 && <p className="split-note">{say(lang, "itemsOver", { amount: money(-rest, ledger.currency, lang) })}</p>}
+          {fromItems && (
+            <p className="split-note split-items-parts" role="status">
+              {say(lang, "itemsParts", { list: ledger.members.filter((m) => fromItems[m.id]).map((m) => `${m.id === me ? say(lang, "you") : m.name} ${money(fromItems[m.id], ledger.currency, lang)}`).join(" · ") })}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
       <Tabs<How>
         variant="segmented"
         label={say(lang, "how")}
@@ -1100,6 +1181,15 @@ function ShareSheet({
             {amount && !wrong && <Check aria-hidden="true" />}
             {status}
           </p>
+          {/* 小票逐项分: with a receipt photo that can be read, its lines, each shared by who had it */}
+          {photo && canRead && !!amount && (
+            <Button tone="quiet" size="sm" icon={ListChecks} busy={asking === "busy"} onClick={() => void askItems()}>
+              {say(lang, "itemsButton")}
+            </Button>
+          )}
+          {(asking === "none" || asking === "off") && <p className="split-note">{say(lang, asking === "none" ? "itemsNone" : "itemsOff")}</p>}
+        </>
+      )}
         </>
       )}
     </Sheet>
