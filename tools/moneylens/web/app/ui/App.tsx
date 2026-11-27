@@ -3,7 +3,7 @@
 // What each step does is src/app/door.ts; this file is what a person sees of it. From every
 // screen a signed-in person has, one more can be laid over it: the devices and what has happened
 // (Devices.tsx).
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { askOver, codeIn, draft, enter, keep, leave, lock, open, standing, type Ask, type Draft, type Entered, type Opened } from "../../../src/app/door";
 import { browserClock, watchIdle } from "../../../src/app/idle";
 import type { OpenVault } from "../../../src/vault/crypto";
@@ -143,12 +143,17 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     return () => window.removeEventListener("popstate", moved);
   }, []);
 
-  const signedOut = (note?: Key): void => {
-    // (the step that was the list is one no longer: nobody who comes back to it is shown a list)
+  // The step is the list only while a signed-in person's screen is behind it. Come to from any other screen (signed
+  // out meanwhile; or the browser's "forward" on the recovery code's screen), it is an ordinary step again: nothing is
+  // laid over a later screen that nobody asked for then. (A page that is still starting is no screen yet.) Done as the
+  // screen is drawn, not some time after it.
+  useLayoutEffect(() => {
+    if (!listing || signedIn || view.at === "starting") return;
     if (isDevices(history.state)) history.replaceState(null, "");
     setListing(false);
-    setView({ at: "signed-out", note });
-  };
+  }, [listing, signedIn, view.at]);
+
+  const signedOut = (note?: Key): void => setView({ at: "signed-out", note });
   /** Ends the session on the server. Only when the server says it is over is this browser said to be signed out. */
   const signOut = useCallback(async (): Promise<boolean> => {
     const over = await leave(ask);

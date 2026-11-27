@@ -70,7 +70,11 @@ try {
   assert.equal(await call(second, "peek"), 3);
   // the first tab closes without a word, as a tab does; the hold goes with it
   await first.close();
-  await second.waitForFunction("ml.hold().then((held) => held === 'held' || (ml.release(), false))", undefined, { timeout: 5000 });
+  // (asked from here until it is so: the browser's own waiting takes a promise for a yes, and would ask once)
+  for (let tries = 0; !(await second.evaluate("ml.hold().then((held) => held === 'held' || (ml.release(), false))")); tries++) {
+    assert.ok(tries < 100, "the second tab never got the cache");
+    await new Promise((done) => setTimeout(done, 50));
+  }
   assert.deepEqual(await call(second, "open", vault, key), { records: 301, chunks: 3, pending: 3, damaged: 0, doubled: 0 });
   assert.equal((await call(second, "list", "txn")).length, 300);
   assert.equal((await call(second, "list", "account"))[0]!.name, markers[0]);

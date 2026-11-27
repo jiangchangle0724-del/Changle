@@ -91,6 +91,19 @@ try {
   /** What the server says of this browser's session, asked from the page as the page asks. */
   const standing = (page: Page): Promise<{ status: number; vault?: string | null; unlocked?: boolean }> =>
     page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then(async (r) => ({ status: r.status, ...(await r.json()) }))`) as Promise<{ status: number; vault?: string | null; unlocked?: boolean }>;
+  /**
+   * Waits until the page says so, asking from here again and again. (The browser's own waiting asks from inside the
+   * page by making a script out of text, which this page's policy forbids; and it takes a promise for a yes.)
+   */
+  const until = async (page: Page, expression: string, what: string): Promise<void> => {
+    for (let tries = 0; tries < 200; tries++) {
+      if (await page.evaluate(expression)) return;
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    assert.fail(`never: ${what}`);
+  };
+  /** What a page asks the server to find out that this session no longer holds the vault open. */
+  const LOCKED = `fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json()).then((said) => said.unlocked === false)`;
   let shots = 0;
   /** A screen as it stands: the checks the main site runs on its own screens (WCAG 2.1 A and AA), and a picture if pictures were asked for. */
   const screen = async (page: Page, name: string): Promise<void> => {
@@ -242,6 +255,11 @@ try {
 
   // ---- the recovery code: shown before anything is kept on the server, and the vault is made only once it was said to be written down
   await title(page, "把恢复码抄下来").waitFor();
+  // (The browser's "forward" from here is the step that was the list of devices a while ago. The list is not laid over this screen, nor over the
+  // next one once the vault is made: the step is an ordinary one again.)
+  assert.equal(await page.evaluate(`new Promise((done) => { addEventListener("popstate", (event) => done(event.state?.moneylens), { once: true }); history.forward(); })`), "devices");
+  await until(page, "history.state === null", "the step that was the list is an ordinary step");
+  assert.ok(await title(page, "把恢复码抄下来").isVisible());
   const code = (await page.locator(".code span").allInnerTexts()).join("-");
   assert.match(code, /^([0-9A-HJKMNP-TV-Z]{4}-){8}[0-9A-HJKMNP-TV-Z]{2}$/);
   assert.equal(times("vault/start"), 0, "the vault was kept before the code was shown");
@@ -283,7 +301,7 @@ try {
   // ---- locking: the key is gone here, and the server is told
   await page.getByRole("button", { name: "锁上" }).click();
   await title(page, "打开你的账").waitFor();
-  await page.waitForFunction(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json()).then((said) => said.unlocked === false)`);
+  await until(page, LOCKED, "the server is told that the vault was locked");
   // (the one thing to do here is to type the passphrase: the field is ready for it)
   assert.equal(await page.evaluate("document.activeElement?.id"), "secret");
   await screen(page, "locked");
@@ -338,7 +356,8 @@ try {
   const unlocksBefore = times("vault/unlock");
   await page.getByRole("button", { name: "设备和记录" }).click();
   await title(page, "设备和记录").waitFor();
-  assert.equal(await page.evaluate("document.activeElement?.tagName"), "H1");
+  // (the screen starts at its title, as every screen does; the phone's page was the last one looked at, so this one takes a moment longer to say so)
+  await until(page, `document.activeElement?.tagName === "H1"`, "the list of devices starts at its title");
   // (a step of the browser's history, at the same address)
   assert.deepEqual([page.url(), await page.evaluate("history.state")], [`${ORIGIN}/`, { moneylens: "devices" }]);
   await devices.nth(1).waitFor();
@@ -393,7 +412,9 @@ try {
   // and that device can do nothing more: at its next press on its own list (it tries to sign the first device out) it is told that it is signed out, and the first device is not
   await phone.locator("li.device").filter({ hasText: mine }).getByRole("button", { name: "让它退出" }).click();
   await title(phone, "把账单变成一本看得懂的账").waitFor();
-  assert.deepEqual([await phone.evaluate("history.state"), (await standing(phone)).status, (await standing(page)).status], [null, 401, 200]);
+  // (and the step its list was is an ordinary one again)
+  await until(phone, "history.state === null", "the step that was the phone's list is an ordinary step");
+  assert.deepEqual([(await standing(phone)).status, (await standing(page)).status], [401, 200]);
 
   // "Back", the page's own or the browser's, is the screen behind it as it was: the vault is still open, and was not asked for again.
   await page.getByRole("button", { name: "返回" }).click();
@@ -496,7 +517,7 @@ try {
   await title(timed, "打开你的账").waitFor();
   await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();
   await screen(timed, "locked-idle");
-  await timed.waitForFunction(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json()).then((said) => said.unlocked === false)`);
+  await until(timed, LOCKED, "the server is told that the vault locked itself");
   // (with the list of devices laid over an open vault, the fifteen minutes run on; and once it has locked, the list does not go on saying that this device holds it open)
   await timed.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
   await timed.getByRole("button", { name: "打开", exact: true }).click();
