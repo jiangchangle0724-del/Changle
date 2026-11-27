@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { newId } from "../src/core/ids";
-import { ACTIONS, act, isSetUp, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
+import { ACTIONS, act, isSetUp, proofsIn, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
 import { chunkTables, lastDay, pushChunks, startVault, type Db } from "../src/server/chunks";
 import { admits, configOf, gateOf, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "../src/server/registry";
@@ -33,6 +33,19 @@ async function enter(db: Db, account: string, now: number, cfg: Config, owner = 
   return { token, hash, session, said: signIn(db, { account, session, hash, label: "Chrome on Windows", owner }, now, cfg.gate) };
 }
 const ask = (db: Db, account: string, hash: string, action: string, now: number, cfg: Config, body: Uint8Array = new Uint8Array(0)): Answer => act(db, { account, hash, action, body }, now, cfg);
+/** The same, for a request that carries proofs: they are hashed first, as the object does it (worker.ts), and a body whose proofs are no proofs goes no further. */
+async function asking(db: Db, account: string, hash: string, action: string, now: number, cfg: Config, body: Uint8Array): Promise<Answer> {
+  const proofs = await proofsIn(action, body);
+  return proofs ? act(db, { account, hash, action, body, proofs }, now, cfg) : { status: 400, json: { ok: false, why: "bad-request" } };
+}
+/** A vault's two ways in as a device hands them over. Nothing in them opens anything: the server does not look inside. */
+function waysFor(vault: string): { ways: { wrapper: { id: string; kind: string }; params: object; proof: string }[]; passphrase: { id: string; proof: string }; recovery: { id: string; proof: string } } {
+  const one = (kind: "passphrase" | "recovery") => ({ wrapper: { v: 1, id: newId(), vault, kind, salt: "c2FsdA", wrapped: "d3JhcHBlZA" }, params: { v: 1, kind, salt: "cHJvb2Y" }, proof: newToken() });
+  const [passphrase, recovery] = [one("passphrase"), one("recovery")];
+  return { ways: [passphrase, recovery], passphrase: { id: passphrase.wrapper.id, proof: passphrase.proof }, recovery: { id: recovery.wrapper.id, proof: recovery.proof } };
+}
+/** Unlocks a session with a way in's proof, as a second device does. */
+const unlocking = (db: Db, account: string, hash: string, now: number, cfg: Config, way: { id: string; proof: string }): Promise<Answer> => asking(db, account, hash, "vault/unlock", now, cfg, json(JSON.stringify(way)));
 const why = (answer: Answer): [number, unknown] => [answer.status, answer.json?.why];
 
 test("the gate: closed unless it is set open, and to whom", () => {
@@ -410,12 +423,14 @@ test("the vault and its chunks: started once, and synced through the frames", as
   const me = await enter(db, A, T0, cfg);
   const now = T0 + 1000;
   const [vault, other] = [newId(), newId()];
-  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
-  for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`]) assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);
-  assert.deepEqual(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault }))), { status: 200, json: { ok: true, vault } });
+  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
+  const made = waysFor(vault);
+  const start = (id: unknown, ways: unknown = made.ways): Promise<Answer> => asking(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: id, ways })));
+  for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`, JSON.stringify({ vault })]) assert.deepEqual(why(await asking(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);
+  assert.deepEqual(await start(vault), { status: 200, json: { ok: true, vault } });
   // the same vault again is the same answer; another is not taken (replacing a vault is a reset, and not done here)
-  assert.deepEqual(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault }))), { status: 200, json: { ok: true, vault } });
-  assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: other })))), [409, "another-vault"]);
+  assert.deepEqual(await start(vault), { status: 200, json: { ok: true, vault } });
+  assert.deepEqual(why(await start(other, waysFor(other).ways)), [409, "another-vault"]);
   assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json("{}"))), [400, "bad-request"]);
   assert.equal(ask(db, A, me.hash, "vault", now, cfg).json!.vault, vault);
   // started once, noted once
@@ -447,11 +462,13 @@ test("the vault and its chunks: started once, and synced through the frames", as
   assert.deepEqual(more(now + 1), { ok: false, why: "quota-writes" });
   const yesterday = now - 24 * 60 * MINUTE;
   const back = await enter(db, A, yesterday, cfg);
+  assert.equal((await unlocking(db, A, back.hash, yesterday, cfg, made.passphrase)).status, 200);
   assert.deepEqual(unpackPushed(ask(db, A, back.hash, "sync/push", yesterday + 1, cfg, packPush(vault, [{ id: newId(), base: 0, blob: blob(98) }])).bytes!), { ok: false, why: "quota-writes" });
   assert.equal(lastDay(db), "2026-11-25");
   // the next day there is room again
   const tomorrow = now + 24 * 60 * MINUTE;
   const next = await enter(db, A, tomorrow, cfg);
+  assert.equal((await unlocking(db, A, next.hash, tomorrow, cfg, made.recovery)).status, 200);
   assert.equal((unpackPushed(ask(db, A, next.hash, "sync/push", tomorrow + 1, cfg, packPush(vault, [{ id: newId(), base: 0, blob: blob(97) }])).bytes!) as { ok: boolean }).ok, true);
   assert.equal(lastDay(db), "2026-11-26");
 });

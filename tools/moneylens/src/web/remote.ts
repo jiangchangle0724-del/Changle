@@ -7,7 +7,9 @@
  * "offline", to be tried again. One such case the screen has to tell from a lost connection: the
  * server saying there is no session (the 30 minutes, the 12 hours, signed out from another
  * device) or that the account is not let in. Then `signedOut` holds the status, until a call is
- * answered again, and the screen sends the person to sign in.
+ * answered again, and the screen sends the person to sign in. And one more: the server saying
+ * this session has not shown that it can open the vault (it locked, or never unlocked: sync is
+ * for unlocked sessions only). Then `locked` is true, and the screen asks for the passphrase.
  */
 import { packPush, unpackPulled, unpackPushed } from "../server/wire";
 import type { Pulled, Pushed, Remote, Write } from "../vault/protocol";
@@ -20,9 +22,19 @@ export class SignedOut extends Error {
   }
 }
 
+/** The server has a session for this browser, and the session has not unlocked the vault. */
+export class Locked extends Error {
+  constructor() {
+    super("locked");
+    this.name = "Locked";
+  }
+}
+
 export class HttpRemote implements Remote {
   /** 401 or 403 when the server's last answer was that this browser has no session here, or that its account is not let in; null otherwise. */
   signedOut: number | null = null;
+  /** True when the server's last answer was that this session has not unlocked the vault. */
+  locked = false;
 
   /** `ask`: `fetch`, or what stands in for it in a test. `base`: where the server's /api is. */
   constructor(
@@ -36,8 +48,13 @@ export class HttpRemote implements Remote {
       this.signedOut = answer.status;
       throw new SignedOut(answer.status);
     }
+    if (answer.status === 423) {
+      this.locked = true;
+      throw new Locked();
+    }
     if (answer.status !== 200) throw new Error(`sync: ${answer.status}`);
     this.signedOut = null;
+    this.locked = false;
     return new Uint8Array(await answer.arrayBuffer());
   }
 

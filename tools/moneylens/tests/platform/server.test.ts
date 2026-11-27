@@ -20,7 +20,9 @@ import { join, resolve } from "node:path";
 import test, { after, before } from "node:test";
 import { base64url, newId } from "../../src/core/ids";
 import { HEAD_MAX, packPush, unpackPulled, unpackPushed } from "../../src/server/wire";
+import { createVault, unlock, type Secret, type Wrapper } from "../../src/vault/crypto";
 import { MemoryCache } from "../../src/vault/memory";
+import { isProofParams, newProof, proofOf } from "../../src/vault/proof";
 import { LIMITS, Store } from "../../src/vault/sync";
 import { HttpRemote } from "../../src/web/remote";
 import { testVault } from "../vaulthelp";
@@ -169,6 +171,27 @@ async function signInAs(server: Server, account: string, more: { master?: boolea
   return { jar, answer };
 }
 
+/** A way in to show a proof for: its id, and the proof. */
+type Key = { id: string; proof: string };
+/** The ways in of the vaults these tests started, by vault, for the tests that come back to one with another session. */
+const KEYS = new Map<string, { passphrase: Key; recovery: Key }>();
+const token = (): string => base64url(crypto.getRandomValues(new Uint8Array(32)));
+
+/**
+ * Starts a vault with two ways in, as a device does. What is inside a wrapper and a proof's parameters is the
+ * device's business and is not looked at by the server (tests/ways.test.ts); the last test of this section does it
+ * with real ones.
+ */
+async function beginVault(server: Server, jar: Jar, vault: string): Promise<Response> {
+  const one = (kind: "passphrase" | "recovery") => ({ wrapper: { v: 1, id: newId(), vault, kind, salt: "c2FsdA", wrapped: "d3JhcHBlZA" }, params: { v: 1, kind, salt: "cHJvb2Y" }, proof: token() });
+  const [passphrase, recovery] = [one("passphrase"), one("recovery")];
+  const answer = await send(server, "/api/vault/start", JSON.stringify({ vault, ways: [passphrase, recovery] }), jar);
+  if (answer.status === 200 && !KEYS.has(vault)) KEYS.set(vault, { passphrase: { id: passphrase.wrapper.id, proof: passphrase.proof }, recovery: { id: recovery.wrapper.id, proof: recovery.proof } });
+  return answer;
+}
+/** Shows a vault's passphrase proof for this session, as a device that was not the one to make the vault does. */
+const unlockAs = (server: Server, jar: Jar, vault: string): Promise<Response> => send(server, "/api/vault/unlock", JSON.stringify(KEYS.get(vault)!.passphrase), jar);
+
 /** The device's own way to the server (web/remote.ts), with this jar's cookies. */
 const remoteFor = (server: Server, jar: Jar): HttpRemote =>
   new HttpRemote(async (input, init) => {
@@ -298,8 +321,11 @@ test("the gate: an account that is not on the list gets nothing from any route (
 test("two people: each gets their own, through every route, and neither the other's (T-1, T-2)", async () => {
   const [a, b] = [await signInAs(server, A), await signInAs(server, B)];
   const [vaultA, vaultB] = [newId(), newId()];
-  assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault: vaultA }), a.jar)).status, 200);
-  assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault: vaultB }), b.jar)).status, 200);
+  assert.equal((await beginVault(server, a.jar, vaultA)).status, 200);
+  assert.equal((await beginVault(server, b.jar, vaultB)).status, 200);
+  // A shows B's proof for B's way in: A's own database is asked, which has no such way in
+  assert.deepEqual(await said(await send(server, "/api/vault/unlock", JSON.stringify(KEYS.get(vaultB)!.passphrase), a.jar)), [404, "no-way"]);
+  assert.deepEqual(await said(await send(server, "/api/vault/way", JSON.stringify({ id: KEYS.get(vaultB)!.passphrase.id }), a.jar)), [404, "no-way"]);
   const blob = (fill: number): Uint8Array => new Uint8Array(100).fill(fill);
   const [chunkA, chunkB] = [newId(), newId()];
   const push = async (jar: Jar, vault: string, id: string, fill: number): Promise<unknown> => unpackPushed(new Uint8Array(await (await send(server, "/api/sync/push", packPush(vault, [{ id, base: 0, blob: blob(fill) }]), jar)).arrayBuffer()));
@@ -336,8 +362,13 @@ test("devices sync through it, and what it stores holds none of what they wrote 
   try {
     const vault = await testVault();
     const [phone, laptop] = [await signInAs(listed, account), await signInAs(listed, account)];
-    assert.equal((await send(listed, "/api/vault/start", JSON.stringify({ vault: vault.id }), phone.jar)).status, 200);
+    assert.equal((await beginVault(listed, phone.jar, vault.id)).status, 200);
     const [one, two] = [await Store.open(vault, new MemoryCache()), await Store.open(vault, new MemoryCache())];
+    // The laptop is signed in and has not unlocked: its sync reports no answer, and its way to the server says why.
+    const early = remoteFor(listed, laptop.jar);
+    const shut = await two.sync(early);
+    assert.deepEqual([shut.ok, !shut.ok && shut.why, early.locked, early.signedOut], [false, "offline", true, null]);
+    assert.equal((await unlockAs(listed, laptop.jar, vault.id)).status, 200);
     const ids = Array.from({ length: 40 }, () => newId());
     ids.forEach((id, i) => assert.deepEqual(one.add("txn", "t/2026-10", { id, description: `${MARKER} ${i}`, amount: -450 - i, posted: "2026-10-02" }), { ok: true }));
     const first = await one.sync(remoteFor(listed, phone.jar));
@@ -384,6 +415,61 @@ test("devices sync through it, and what it stores holds none of what they wrote 
   }
 });
 
+test("a second device opens the vault: the parameters, its proof, the wrapper, the key (VAULT-7, threat 1)", async () => {
+  const account = "utestdoor9";
+  const open = await start(8793, { GATE: "list", ALLOWED_ACCOUNTS: account });
+  try {
+    const passphrase = "seven tidal marmots in a canoe";
+    const [phone, laptop] = [await signInAs(open, account), await signInAs(open, account)];
+    // The phone makes the vault: a key, its two wrappers, a proof for each, and the recovery code, which only the person keeps.
+    const created = await createVault(passphrase);
+    assert.ok(created.ok);
+    const secrets: Secret[] = [
+      { kind: "passphrase", passphrase },
+      { kind: "recovery", code: created.recoveryCode },
+    ];
+    const ways = await Promise.all(created.wrappers.map(async (wrapper, i) => ({ wrapper, ...(await newProof(created.vault.id, secrets[i]!))! })));
+    assert.equal((await send(open, "/api/vault/start", JSON.stringify({ vault: created.vault.id, ways }), phone.jar)).status, 200);
+    const store = await Store.open(created.vault, new MemoryCache());
+    assert.deepEqual(store.add("txn", "t/2026-11", { id: newId(), description: `${MARKER} kept`, amount: -1250, posted: "2026-11-20" }), { ok: true });
+    assert.ok((await store.sync(remoteFor(open, phone.jar))).ok);
+
+    // The laptop knows the passphrase and nothing else. What it is given before it proves that: which vault, which ways in, and a salt.
+    const seen = (await (await send(open, "/api/vault", "{}", laptop.jar)).json()) as { vault: string; unlocked: boolean; ways: { id: string; kind: string }[] };
+    assert.deepEqual([seen.vault, seen.unlocked, seen.ways.map((w) => w.kind).sort()], [created.vault.id, false, ["passphrase", "recovery"]]);
+    const asked = (await (await send(open, "/api/vault/way", JSON.stringify({ kind: "passphrase" }), laptop.jar)).json()) as { id: string; params: unknown };
+    assert.ok(isProofParams(asked.params));
+    assert.equal(JSON.stringify([seen, asked]).includes(created.wrappers[0].wrapped), false);
+    // a wrong passphrase makes a proof like any other, and the server says no; nothing is handed over
+    const wrong = await send(open, "/api/vault/unlock", JSON.stringify({ id: asked.id, proof: await proofOf(seen.vault, asked.params, { kind: "passphrase", passphrase: "seven tidal marmots in a kayak" }) }), laptop.jar);
+    assert.deepEqual([wrong.status, await wrong.json()], [422, { ok: false, why: "wrong-secret", left: 9 }]);
+    // the right one: the wrapper comes back as the phone made it, and it opens under the passphrase
+    const right = await send(open, "/api/vault/unlock", JSON.stringify({ id: asked.id, proof: await proofOf(seen.vault, asked.params, secrets[0]!) }), laptop.jar);
+    assert.equal(right.status, 200);
+    const { wrapper } = (await right.json()) as { wrapper: Wrapper };
+    assert.deepEqual(wrapper, created.wrappers[0]);
+    const opened = await unlock(wrapper, secrets[0]!, seen.vault);
+    assert.ok(opened.ok);
+    const mirror = await Store.open(opened.vault, new MemoryCache());
+    assert.ok((await mirror.sync(remoteFor(open, laptop.jar))).ok);
+    assert.deepEqual(mirror.list("txn").map((t) => (t as unknown as { description: string }).description), [`${MARKER} kept`]);
+
+    // A third device has only the recovery code: the same steps, by the other way in.
+    const tablet = await signInAs(open, account);
+    const other = (await (await send(open, "/api/vault/way", JSON.stringify({ kind: "recovery" }), tablet.jar)).json()) as { id: string; params: unknown };
+    assert.ok(isProofParams(other.params));
+    const byCode = await send(open, "/api/vault/unlock", JSON.stringify({ id: other.id, proof: await proofOf(seen.vault, other.params, secrets[1]!) }), tablet.jar);
+    assert.equal(byCode.status, 200);
+    assert.ok((await unlock(((await byCode.json()) as { wrapper: Wrapper }).wrapper, secrets[1]!, seen.vault)).ok);
+    // the log has all of it, newest first, and no word of what was shown
+    const events = ((await (await send(open, "/api/events", "{}", tablet.jar)).json()) as { events: { kind: string }[] }).events.map((e) => e.kind);
+    assert.deepEqual(events, ["unlocked", "sign-in", "unlocked", "unlock-failed", "vault-started", "sign-in", "sign-in"]);
+  } finally {
+    await open.stop();
+    rmSync(open.kept, { recursive: true, force: true });
+  }
+});
+
 test("bodies: of the stated kind, with a stated length, and no longer than the kind may be (SEC-5)", async () => {
   const { jar } = await signInAs(server, A);
   // the wrong kind for the route, or none
@@ -396,6 +482,10 @@ test("bodies: of the stated kind, with a stated length, and no longer than the k
   assert.deepEqual(await said(await send(server, "/api/sessions", JSON.stringify({ pad: "x".repeat(5000) }), jar)), [413, "too-big"]);
   assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code: "x".repeat(5000) }), new Map([["__Host-ml-n", newId() + newId()]]))), [413, "too-big"]);
   assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX + 1), jar)), [413, "too-big"]);
+  // (a session that has not unlocked its vault is told so, whatever it pushes; this one unlocks, and then its push is looked at)
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(64), jar)), [423, "locked"]);
+  const held = ((await (await send(server, "/api/vault", "{}", jar)).json()) as { vault: string | null }).vault;
+  assert.equal((held === null ? await beginVault(server, jar, newId()) : await unlockAs(server, jar, held)).status, 200);
   // as long as a push may be, and no frame: read, and refused for what it is
   assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX), jar)), [400, "bad-request"]);
   // a body sent in pieces, with no length stated
@@ -417,7 +507,8 @@ test("the day's writes are counted, and the count holds (T-14)", async () => {
   const held = ((await (await send(server, "/api/vault", "{}", jar)).json()) as { vault: string | null; limits: { writesPerDay: number } });
   assert.equal(held.limits.writesPerDay, 10);
   const vault = held.vault ?? newId();
-  if (held.vault === null) assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault }), jar)).status, 200);
+  if (held.vault === null) assert.equal((await beginVault(server, jar, vault)).status, 200);
+  else assert.equal((await unlockAs(server, jar, vault)).status, 200);
   const push = async (count: number): Promise<{ ok: boolean; why?: string }> => unpackPushed(new Uint8Array(await (await send(server, "/api/sync/push", packPush(vault, Array.from({ length: count }, () => ({ id: newId(), base: 0, blob: new Uint8Array(64).fill(7) }))), jar)).arrayBuffer())) as { ok: boolean; why?: string };
   // (whatever this account wrote in the tests before this one counts too: fill the day, then one more)
   let room = 10;
@@ -441,7 +532,7 @@ test("the accounts service says an email changed, or an account is gone (ARCH-9,
     const [phone, laptop, bystander] = [await signInAs(open, account), await signInAs(open, account), await signInAs(open, A)];
     assert.equal(await noted(), 2);
     const vault = newId();
-    assert.equal((await send(open, "/api/vault/start", JSON.stringify({ vault }), phone.jar)).status, 200);
+    assert.equal((await beginVault(open, phone.jar, vault)).status, 200);
     const chunk = newId();
     assert.equal((await send(open, "/api/sync/push", packPush(vault, [{ id: chunk, base: 0, blob: new Uint8Array(64).fill(3) }]), phone.jar)).status, 200);
     // the email changed: every device signs in again, and what is kept stays
@@ -512,7 +603,7 @@ test("a notice that comes while a code is being traded turns the sign-in away, a
 
     // The account is deleted while one of its codes is being traded: nothing is opened, nothing of it is left, and it is off the registry.
     const vault = newId();
-    assert.equal((await send(open, "/api/vault/start", JSON.stringify({ vault }), again.jar)).status, 200);
+    assert.equal((await beginVault(open, again.jar, vault)).status, 200);
     const last = await signInAs(open, account, { during: { what: "gone", id: account } });
     assert.deepEqual(await said(last.answer), [503, "try-again"]);
     assert.deepEqual([...last.jar.keys()], []);
@@ -543,7 +634,7 @@ test("what is kept is still there after the server stops and starts", async () =
   try {
     const { jar } = await signInAs(run, account);
     const vault = newId();
-    await send(run, "/api/vault/start", JSON.stringify({ vault }), jar);
+    assert.equal((await beginVault(run, jar, vault)).status, 200);
     const blob = Uint8Array.from({ length: 300_000 }, (_, i) => (i * 31) % 251);
     const chunk = newId();
     assert.equal((await send(run, "/api/sync/push", packPush(vault, [{ id: chunk, base: 0, blob }]), jar)).status, 200);

@@ -35,7 +35,7 @@
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import { newId } from "../core/ids";
 import { LIMITS } from "../vault/protocol";
-import { ACTIONS, act, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
+import { ACTIONS, act, proofsIn, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
 import type { Db } from "./chunks";
 import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
 import { configOf, type Config, type Settings } from "./gate";
@@ -248,8 +248,13 @@ export class VaultDO extends DurableObject<Env> {
         if ("status" in first) answer = first;
         else {
           const body = new Uint8Array(await request.arrayBuffer());
+          const fits = body.length <= (action === "sync/push" ? PUSH_MAX : SMALL);
+          // (a proof the body carries is hashed here, since hashing waits: `act` is given the hash)
+          const proofs = fits ? await proofsIn(action, body) : [];
           // From here to the answer nothing waits: the session is checked again, and the thing is done.
-          answer = body.length > (action === "sync/push" ? PUSH_MAX : SMALL) ? { status: 413, json: { ok: false, why: "too-big" } } : act(db, { account, hash, action, body }, Date.now(), config);
+          if (!fits) answer = { status: 413, json: { ok: false, why: "too-big" } };
+          else if (!proofs) answer = { status: 400, json: { ok: false, why: "bad-request" } };
+          else answer = act(db, { account, hash, action, body, proofs }, Date.now(), config);
         }
       }
     } catch (e) {
