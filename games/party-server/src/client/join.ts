@@ -14,6 +14,7 @@ import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/prot
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
 import { BeatJudge, goldOk, type Batch, type Judged, type Verdict } from "../shared/taps";
 import { ClockSync, RoomSocket, ScreenAwake, TABLE, backToTable, clockText, el, getLang, setLang, tableUrl, tapTime, tr, wsUrl } from "./common";
+import type { PhoneCamera } from "./camera";
 import { MotionSense } from "./motion";
 import { awardName, bodyHint, danceName, difficultyName, goldAheadText, goldVerdictText, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
 
@@ -61,6 +62,40 @@ const motion = new MotionSense((local) => {
 });
 /** When the big button was last tapped (this page's clock): the TV's energy for a player who taps. */
 let tappedAt = -1e9;
+
+/**
+ * The camera mode (as Just Dance's: the phone stands in front of its player and watches the whole
+ * body). Its code, the pose model and its WebAssembly load the first time it's turned on
+ * (/party/camera.js, camera.ts); until then this page carries none of it.
+ */
+let cam: PhoneCamera | null = null;
+let camLoad: Promise<PhoneCamera | null> | null = null;
+let camOpening = false;
+function loadCamera(): Promise<PhoneCamera | null> {
+  if (cam) return Promise.resolve(cam);
+  camLoad ??= new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "/party/camera.js";
+    s.onload = () => {
+      const m = (window as Window & { partyCamera?: { PhoneCamera: new (hooks: unknown) => PhoneCamera } }).partyCamera;
+      cam = m
+        ? new m.PhoneCamera({
+            speakerNow: (local: number) => speakerNow(local),
+            heard: () => (tracking.judge && running() && state?.difficulty ? { run: tracking.heard, difficulty: state.difficulty } : null),
+            decide: (i: number, t: number | null) => tracking.judge?.decide(i, t),
+          })
+        : null;
+      resolve(cam);
+    };
+    s.onerror = () => {
+      camLoad = null;
+      resolve(null);
+    };
+    document.head.append(s);
+  });
+  return camLoad;
+}
+const camSupported = () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 
 function loadId(): string {
   try {
@@ -297,7 +332,7 @@ function judgeBeats(now: number) {
 
 // ---------- the page
 
-const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement; stage?: HTMLElement; move?: HTMLElement; body?: HTMLElement; next?: HTMLElement; pad?: HTMLElement; verdict?: HTMLElement; meter?: HTMLElement; level?: HTMLElement; finish?: HTMLButtonElement } = {};
+const parts: { count?: HTMLElement; sync?: HTMLElement; clock?: HTMLElement; stage?: HTMLElement; move?: HTMLElement; body?: HTMLElement; next?: HTMLElement; pad?: HTMLElement; verdict?: HTMLElement; meter?: HTMLElement; level?: HTMLElement; finish?: HTMLButtonElement; camStatus?: HTMLElement; camAlike?: HTMLElement } = {};
 /** What the run's lines show, so a frame only touches the page when it changes. */
 let shown = "";
 /** The beat the room hears now: whether it's scored (the big button counts), and its stage. */
@@ -347,6 +382,8 @@ function render() {
     if (state?.phase === "lobby" || state?.phase === "results") {
       const m = motionSwitch();
       if (m) main.append(m);
+      const c = cameraSwitch();
+      if (c) main.append(c);
     }
     const here = el("button", "btn here", tr("我在", "I'm here"));
     here.onclick = () => {
@@ -510,6 +547,8 @@ function dancePanel(): HTMLElement {
   box.append(parts.stage, parts.move, parts.body, parts.count, parts.next, pad, parts.meter);
   const m = motionSwitch();
   if (m) box.append(m);
+  const c = cameraSwitch();
+  if (c) box.append(c);
   return box;
 }
 
@@ -518,7 +557,7 @@ function dancePanel(): HTMLElement {
  * big button keeps working beside it. Nothing on a computer.
  */
 function motionSwitch(): HTMLElement | null {
-  if (!MotionSense.supported()) return null;
+  if (!MotionSense.supported() || cam?.on) return null;
   const box = el("div", "motion");
   if (motion.on) {
     box.append(el("p", "motion-on", tr("体感开着：手机拿在手里，跟着老师跳就行", "Motion is on: hold your phone and dance with the coach")));
@@ -537,6 +576,84 @@ function motionSwitch(): HTMLElement | null {
   box.append(b);
   if (motion.denied) box.append(el("p", "hint", tr("要用体感：iPhone 设置 → Safari → 运动与方向访问，打开后刷新。", "For motion: iPhone Settings → Safari → Motion & Orientation Access, then reload.")));
   return box;
+}
+
+/**
+ * Stand the phone up and dance hands-free: the camera mode's switch, and once it's on, what the
+ * camera sees (the picture as a mirror, the body drawn on it), whether it sees all of the player, and
+ * during a dance how like the coach they look. The motion sensor goes off while it's on.
+ */
+function cameraSwitch(): HTMLElement | null {
+  if (!camSupported()) return null;
+  const box = el("div", "camera");
+  if (cam?.on) {
+    box.append(cam.view);
+    parts.camStatus = el("p", "cam-status");
+    box.append(parts.camStatus);
+    if (running()) {
+      parts.camAlike = el("p", "cam-alike");
+      box.append(parts.camAlike);
+    }
+    const row = el("div", "cam-row");
+    const flip = el("button", "btn quiet", tr("换前后摄像头", "Switch camera"));
+    flip.onclick = async () => {
+      await cam?.flip();
+      render();
+    };
+    const off = el("button", "btn quiet", tr("关摄像头", "Camera off"));
+    off.onclick = () => {
+      cam?.stop();
+      render();
+    };
+    row.append(flip, off);
+    box.append(row, el("p", "hint", tr("画面只在这台手机上，不录也不上传。", "The picture stays on this phone: nothing is recorded or sent.")));
+    showCamera();
+    return box;
+  }
+  const b = el("button", "btn camera-btn", camOpening ? tr("正在打开摄像头…第一次要下载一会儿", "Opening the camera… the first time takes a moment") : tr("开摄像头：手机立起来，不用拿着跳", "Use the camera: stand your phone up, dance hands-free"));
+  b.disabled = camOpening;
+  b.onclick = async () => {
+    camOpening = true;
+    render();
+    const c = await loadCamera();
+    const ok = c ? await c.start() : false;
+    camOpening = false;
+    if (ok) motion.stop();
+    else say(cameraProblem(c ? c.status : "failed"));
+    render();
+  };
+  box.append(b, el("p", "hint", tr("像 Just Dance 的摄像头模式：手机立在 2 到 3 米外对着你，看你整个人跳，手和脚都算。", "Like Just Dance's camera mode: the phone stands 2 to 3 m away facing you and watches your whole body, hands and feet.")));
+  if (/MicroMessenger/i.test(navigator.userAgent)) box.append(el("p", "hint", tr("微信里可能打不开摄像头：点右上角「…」，选在浏览器打开。", "WeChat may not open the camera: tap … at the top right and open this page in your browser.")));
+  return box;
+}
+
+/** Why the camera didn't open. */
+function cameraProblem(status: string): string {
+  if (status === "denied") return tr("没拿到摄像头权限：在设置里允许，或者用体感、点大按钮跳。", "No camera access: allow it in Settings, or use motion or the big button.");
+  if (status === "noCamera") return tr("这台手机打不开摄像头，用体感或者点大按钮跳吧。", "This phone can't open its camera: use motion or the big button.");
+  return tr("这台手机跑不动摄像头模式，用体感或者点大按钮跳吧。", "The camera mode can't run on this phone: use motion or the big button.");
+}
+
+/** The camera's lines, every frame: whether it sees all of the player, and how like the coach they look. */
+function showCamera() {
+  if (!cam?.on) return;
+  if (parts.camStatus) {
+    const st = cam.status;
+    const text =
+      st === "ok"
+        ? tr("看到你了：头到脚都在", "Got you: head to toe")
+        : st === "feet"
+          ? tr("往后退一点：要看到你的脚", "Step back a little: it needs to see your feet")
+          : st === "loading"
+            ? tr("正在打开摄像头…", "Opening the camera…")
+            : tr("看不到你：站到手机前面 2 到 3 米", "Can't see you: stand 2 to 3 m in front of the phone");
+    if (parts.camStatus.textContent !== text) parts.camStatus.textContent = text;
+    parts.camStatus.classList.toggle("is-ok", st === "ok");
+  }
+  if (parts.camAlike) {
+    const text = tr(`像老师 ${Math.round(cam.alike * 100)}%`, `Like the coach: ${Math.round(cam.alike * 100)}%`);
+    if (parts.camAlike.textContent !== text) parts.camAlike.textContent = text;
+  }
 }
 
 function myResults(r: Results): HTMLElement {
@@ -805,12 +922,14 @@ function frame() {
         flash.classList.add("on");
       }
     }
-    judgeBeats(t);
+    // (with the camera on, a beat is settled once the camera has seen enough to judge it)
+    judgeBeats(cam?.on && state?.difficulty && tracking.show ? t - cam.lagMs(state.difficulty, tracking.show.beatMs) : t);
     showBeat(t);
   } else if (lastBeat !== null) {
     lastBeat = null;
     if (parts.count) parts.count.textContent = "";
   }
+  showCamera();
   if (parts.clock) {
     parts.clock.textContent = t === null ? tr("还没对时", "Clock not set yet") : `${clockText(t)}\n${tr("往返", "round trip")} ${Math.round(est.rttMs)} ms · ${est.samples} ${tr("次", "probes")}${state ? `\n${tr("电视延迟", "TV delay")} ${state.audioOffsetMs} ms` : ""}`;
   }
@@ -867,7 +986,7 @@ function showBeat(t: number) {
 function energyNow(): number {
   const local = performance.now();
   const tap = Math.exp(-Math.max(0, local - tappedAt) / 350);
-  return Math.max(motion.level(local), tap);
+  return Math.max(motion.level(local), cam?.level(local) ?? 0, tap);
 }
 
 let pulse = { at: 0, e: -1, judged: -1 };
@@ -909,6 +1028,18 @@ Object.assign(window, {
     /** a pretend hand: a reading of the motion sensor (m/s², gravity out) at this page's time */
     motion: (a: number, t: number) => motion.feed(a, t),
     energy: energyNow,
+    /** a pretend camera and player (camera.ts pretend): the coach's moves `lagMs` late, a `wrong` move all along, or `still` */
+    camera: async (how?: { lagMs?: number; wrong?: string; still?: boolean }) => {
+      const c = await loadCamera();
+      c?.pretend(how);
+      render();
+      return !!c;
+    },
+    cameraState: () => (cam ? { on: cam.on, status: cam.status, alike: cam.alike } : null),
+    cameraOff: () => {
+      cam?.stop();
+      render();
+    },
   },
 });
 
