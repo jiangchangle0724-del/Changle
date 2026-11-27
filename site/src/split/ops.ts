@@ -7,6 +7,7 @@
  * so the odd cents of the entries after it stay where they were (core/ledger.ts, nextRot).
  */
 import { MAX_MEMBERS, nextRot, problem, soundTransfer, type Entry, type Expense, type Ledger, type Member, type Transfer } from "./core";
+import { isCategory } from "./categories";
 
 /** The longest a person's name, a ledger's name and a note can be. */
 export const NAME_MAX = 20;
@@ -78,6 +79,8 @@ export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> &
   merchant?: string | null;
   place?: string | null;
   payment?: string | null;
+  // (its kind, said the same way: one of categories.ts's; null for none; or not at all, and it stays)
+  category?: Expense["category"] | null;
 };
 
 /**
@@ -135,6 +138,11 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
     if (v) next[k] = v;
     else delete next[k];
   }
+  // (a kind this side doesn't know is as good as unsaid, as changes.ts reads one off the network)
+  const said = to.category === null || isCategory(to.category) ? to.category : undefined;
+  const category = said === undefined ? e.category : (said ?? undefined);
+  if (category && isCategory(category)) next.category = category;
+  else delete next.category;
   return next;
 }
 

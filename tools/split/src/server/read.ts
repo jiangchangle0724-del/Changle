@@ -14,12 +14,15 @@
 // functions, tested without Cloudflare (tests/room.test.ts). Locally, and in the tests, a stand-in
 // answers instead of Google (`fakeRead`): there is no key there, and no way out to Google.
 
+import { CATEGORIES, isCategory, type Category } from "../../../../site/src/split/categories";
+
 /**
  * What was read: the total as written (digits, a dot before the cents), its currency if it can be
  * told, the shop, the tip and tax in the total, written like it (none when the receipt shows none),
  * and the day it was spent ("2026-11-15", none when it shows none).
  */
-export type Read = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null; time?: string };
+/** `category` (2026-11-26) only when one of the kinds was read, as `time`: a phone from before reads the rest as it did. */
+export type Read = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null; time?: string; category?: Category };
 export type ReadReply = { read: Read | null };
 /** A reading's cost, and what came of it. `cost`: millionths of a dollar. */
 export type Reading = { ok: true; read: Read | null; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number };
@@ -61,6 +64,7 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
     "Read the tax in that total, written the same way: all the taxes together (GST, PST, HST, sales tax, VAT, consumption tax), added or included. Null when it isn't shown.",
     "Read the day of the purchase printed on the receipt, as YYYY-MM-DD. Null when there is none.",
     "Read the time of day printed with it, as HH:MM in 24 hours (9:05 PM is 21:05). Null when there is none.",
+    "Say what kind of spending it is, one of: food (restaurants, cafes, bars, takeout), groceries (supermarkets, convenience and liquor stores, pharmacies), transport (gas, parking, taxis and rides, transit, ferries, flights, car rental, tolls), lodging (hotels, motels, rentals, campsites), fun (tickets, attractions, activities, entertainment), shopping (other stores, clothes, gifts, souvenirs), or other.",
     "If it isn't a receipt or a bill, or the total can't be read, say receipt false, and nothing else.",
   ].join(" ");
   return {
@@ -80,6 +84,7 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
           place: { type: "STRING", nullable: true },
           payment: { type: "STRING", nullable: true },
           time: { type: "STRING", nullable: true },
+          category: { type: "STRING", nullable: true, enum: [...CATEGORIES] },
         },
         required: ["receipt"],
       },
@@ -135,7 +140,9 @@ export function readAnswer(answer: unknown, currency: string, now = Date.now()):
   const time = timeOf(said.time);
   // (the time only when read: a phone tells an itemized receipt and its card slip apart by it, and
   // a reading said before there was one has none)
-  return { total, currency: known, merchant: shop || null, tip, tax, date: dayOf(said.date, now), place: lineOf(said.place) || null, payment: paymentOf(said.payment), ...(time ? { time } : {}) };
+  // (its kind, when it is one of the kinds: anything else is as good as none)
+  const category = isCategory(said.category) ? said.category : null;
+  return { total, currency: known, merchant: shop || null, tip, tax, date: dayOf(said.date, now), place: lineOf(said.place) || null, payment: paymentOf(said.payment), ...(time ? { time } : {}), ...(category ? { category } : {}) };
 }
 
 /** A time of day as "21:05": hours and minutes the clock has (seconds, when printed, dropped); none otherwise. */
@@ -225,7 +232,7 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
 /**
  * The stand-in for Google, locally and in the tests (no key there, and no way out to Google): it
  * "reads" what the file's own bytes say after "receipt:" (`total currency merchant`, the shop's
- * name maybe followed by `tip=…`, `tax=…`, `date=…`, `time=…`, `place=…` and `paid=…`, with _ for a space in
+ * name maybe followed by `tip=…`, `tax=…`, `date=…`, `time=…`, `place=…`, `paid=…` and `kind=…`, with _ for a space in
  * them), and a file saying "receipt:none" is no receipt.
  * Each reading costs 400 millionths, as if Google had said so.
  */
@@ -235,7 +242,7 @@ export function fakeRead(bytes: Uint8Array, currency: string): Reading {
   if (!said || said[1] === "none") return { ok: true, read: null, cost: 400 };
   const rest = said[3] ?? "";
   const part = (k: string) => new RegExp(`(?:^| )${k}=(\\S+)`).exec(rest)?.[1]?.replace(/_/g, " ") ?? null;
-  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|time|place|paid)=\S+/g, "").trim() || null;
-  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax"), date: part("date"), place: part("place"), payment: part("paid"), time: part("time") }) }] } }] };
+  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|time|place|paid|kind)=\S+/g, "").trim() || null;
+  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax"), date: part("date"), place: part("place"), payment: part("paid"), time: part("time"), category: part("kind") }) }] } }] };
   return { ok: true, read: readAnswer(answer, currency), cost: 400 };
 }

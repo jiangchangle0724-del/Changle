@@ -150,7 +150,8 @@ export function holds(l: Ledger, c: Change): boolean {
         (c.to.files === undefined || same(e.files ?? [], c.to.files ?? [])) &&
         (c.to.tip === undefined || (e.tip ?? 0) === (c.to.tip ?? 0)) &&
         (c.to.tax === undefined || (e.tax ?? 0) === (c.to.tax ?? 0)) &&
-        (c.to.date === undefined || (e.date ?? null) === (c.to.date ?? null))
+        (c.to.date === undefined || (e.date ?? null) === (c.to.date ?? null)) &&
+        (c.to.category === undefined || (e.category ?? null) === (c.to.category ?? null))
       );
     }
     case "out": {

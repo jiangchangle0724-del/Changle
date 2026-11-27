@@ -158,8 +158,10 @@ address), and keeps the answer five minutes under the session's fingerprint. The
 PDF) is sent to Google's Gemini (`src/server/read.ts`), which says what was paid in all, in what
 currency and at which shop, in JSON of a shape it is given. The answer is `{ "read": { "total":
 "42.50", "currency": "CAD", "merchant": "Tim Hortons" } }` (the total as digits with a dot; the
-currency only when it is one a ledger can be in; either of the other two can be null), or `{
-"read": null }` when it isn't a receipt or has no total on it. The phone fills them in for the
+currency only when it is one a ledger can be in; either of the other two can be null; with the tip,
+tax, day, place and how it was paid, each null when it isn't shown, the time when one is printed,
+and the kind of spending, `category`, when Gemini says one of the seven in
+`site/src/split/categories.ts`), or `{ "read": null }` when it isn't a receipt or has no total on it. The phone fills them in for the
 person to check; nothing is kept here or by Google beyond the answer.
 
 - It costs money, Steve's 2 dollars a month at most (agreed 2026-11-14): each reading's cost is

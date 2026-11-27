@@ -26,12 +26,16 @@
  *    paid stays the same (ops.ts, ExpenseEdit).
  *  - An expense's date is the day it was spent ("2026-11-15"), read off its receipt or picked; one
  *    without it was spent the day it was recorded. A change that doesn't mention it leaves it.
+ *  - An expense's kind (分类: food, transport...) is one of categories.ts's, read off its receipt or
+ *    picked. A change that doesn't mention it leaves it; null takes it off; a kind this side doesn't
+ *    know is as good as unsaid.
  *  - Someone's 收款方式 (an e-Transfer email or phone) is a line of words on them, set or taken
  *    off by anyone in the ledger, like their name. A 查看链接 never gets it (the server keeps it back).
  *  - Where it was bought and how it was paid are lines of words (the business, the place, what
  *    paid: "McDonald's", "Aldergrove, BC", "Mastercard"), read off its receipt or typed. A change
  *    that doesn't mention one leaves it; one that says none (null or nothing) takes it off.
  */
+import { isCategory } from "./categories";
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
 import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, PAY_MAX, putBack, removeMember, renameLedger, renameMember, setPay, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
 
@@ -99,6 +103,7 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
         const v = tidy(e[k] ?? "", DETAIL_MAX);
         if (v) kept[k] = v;
       }
+      if (isCategory(e.category)) kept.category = e.category;
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -261,6 +266,9 @@ function asEdit(x: unknown): Edit | null {
       edit = { ...edit, [k]: x[k] };
     }
   }
+  // (its kind: one there is, or null for none; a kind this side doesn't know is as good as unsaid)
+  if (x.category === null) edit = { ...edit, category: null };
+  else if (isCategory(x.category)) edit = { ...edit, category: x.category };
   return edit;
 }
 
@@ -293,6 +301,7 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
     const v = tidy(x[k], DETAIL_MAX);
     if (v) expense = { ...expense, [k]: v };
   }
+  if (isCategory(x.category)) expense = { ...expense, category: x.category };
   return expense;
 }
 

@@ -7,6 +7,7 @@
  */
 import { parseSent, type Sent, type Took } from "./changes";
 import type { Entry, Ledger, Member, Split } from "./core";
+import { isCategory } from "./categories";
 import { DETAILS, isDay } from "./ops";
 import type { Logged } from "./history";
 import type { Held, Pushed, Snapshot } from "./sync";
@@ -48,6 +49,13 @@ function isEntry(x: unknown): x is Entry {
   return x.kind === "expense" && isText(x.payer) && isText(x.note) && isCount(x.rot) && isSplit(x.split);
 }
 
+/** An expense of a kind this phone doesn't know (one a later page added) is kept, without the kind. */
+const knownKind = (e: Entry): Entry => {
+  if (e.kind !== "expense" || e.category === undefined || isCategory(e.category)) return e;
+  const { category: _unknown, ...rest } = e;
+  return rest;
+};
+
 const isMember = (x: unknown): x is Member => isRecord(x) && isText(x.id) && isText(x.name);
 /** A member as kept: their id and name, and their 收款方式 when it is a line of words. */
 const asMember = (m: Member): Member => (typeof m.pay === "string" && m.pay ? { id: m.id, name: m.name, pay: m.pay } : { id: m.id, name: m.name });
@@ -57,7 +65,7 @@ export function asLedger(x: unknown): Ledger | null {
   if (!isRecord(x) || !isText(x.id) || !isText(x.name) || !isText(x.currency) || !Array.isArray(x.members) || !Array.isArray(x.entries)) return null;
   const members = x.members.filter(isMember).map(asMember);
   if (!members.length) return null;
-  const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry) };
+  const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry).map(knownKind) };
   if (isCount(x.locked)) ledger.locked = x.locked;
   return ledger;
 }

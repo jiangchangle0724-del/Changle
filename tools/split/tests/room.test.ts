@@ -655,7 +655,12 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(extras("10.50", "80", "3200", "JPY"), [null, "80"], "a tip in yen with cents: none");
   assert.equal(read({ receipt: true, total: "9.99" })?.tip, null, "an answer that doesn't mention them: none");
   assert.ok(String(asked.contents[0].parts[0].text).includes("suggested tip"), "and the words say a suggested tip is no tip");
-  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time"], "they are asked for in the shape given");
+  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time", "category"], "they are asked for in the shape given");
+  // its kind (2026-11-26): one of the seven, asked for by name, and kept only when it is one
+  assert.deepEqual((asked.generationConfig.responseSchema as { properties: Record<string, { enum?: string[] }> }).properties.category.enum, ["food", "groceries", "transport", "lodging", "fun", "shopping", "other"], "the kinds are the only answers it may give");
+  assert.ok(String(asked.contents[0].parts[0].text).includes("what kind of spending"), "and the words say what each kind takes in");
+  assert.deepEqual(["food", "lodging", "Food", "restaurant", "", null, 3].map((category) => shop({ category })?.category), ["food", "lodging", undefined, undefined, undefined, undefined, undefined], "a kind there is: kept; anything else: none");
+  assert.ok(!("category" in (shop({}) ?? {})), "none read: the reading says nothing of it (as one from before it)");
 
   // the day it was spent: one the calendar has, from 2000, no later than tomorrow
   const noon = Date.UTC(2026, 10, 15, 12);
@@ -683,6 +688,8 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   const placed = fake("receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard tax=1.38");
   assert.deepEqual(placed.ok && [placed.read?.merchant, placed.read?.place, placed.read?.payment, placed.read?.tax], ["McDonald's", "Aldergrove, BC", "Mastercard", "1.38"], "and a place and what paid (a _ for a space), out of the shop's name");
   assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: null, place: null, payment: null }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");
+  const kinded = fake("receipt:58.00 CAD Petro-Canada kind=transport paid=Visa");
+  assert.deepEqual(kinded.ok && [kinded.read?.merchant, kinded.read?.category, kinded.read?.payment], ["Petro-Canada", "transport", "Visa"], "and a kind, out of the shop's name");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

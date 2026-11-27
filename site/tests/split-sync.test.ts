@@ -446,6 +446,14 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, false, true, true, false],
     "the day: done when the ledger has the day the change said, none when it has none, and whatever it has when the change says nothing",
   );
+  // and one with its kind (分类)
+  const kinded: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, category: "food" }] };
+  const as = (category?: Expense["category"] | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(category === undefined ? {} : { category }) } });
+  eq(
+    [holds(kinded, as("food")), holds(kinded, as("fun")), holds(kinded, as(null)), holds(kinded, as()), holds(plainAt, as(null)), holds(plainAt, as("food"))],
+    [true, false, false, true, true, false],
+    "the kind: done when the ledger has the kind the change said, none when it has none, and whatever it has when the change says nothing",
+  );
   {
     // someone's 收款方式: held once the ledger says it, tidied; taken off once it says none
     const l0 = startLedger("h", "周末", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
