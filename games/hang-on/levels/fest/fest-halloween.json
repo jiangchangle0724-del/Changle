@@ -1,0 +1,166 @@
+{
+  "id": "fest-halloween",
+  "fest": "halloween",
+  "world": "house",
+  "tier": 0,
+  "name": {
+    "zh": "南瓜访灯夜",
+    "en": "Pumpkin Lantern Trail"
+  },
+  "teaches": "dark",
+  "w": 2480,
+  "h": 720,
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/fest-halloween.json",
+  "spawn": {
+    "x": 110,
+    "y": 606
+  },
+  "goal": {
+    "x": 2250,
+    "y": 220,
+    "w": 230,
+    "h": 200
+  },
+  "checkpoints": [
+    {
+      "x": 1270,
+      "y": 468
+    },
+    {
+      "x": 2260,
+      "y": 340
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 1457,
+      "y": 474
+    },
+    {
+      "x": 2089,
+      "y": 401
+    },
+    {
+      "x": 1100,
+      "y": 521
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 640,
+      "w": 330,
+      "h": 80,
+      "material": "brick"
+    },
+    {
+      "kind": "ground",
+      "x": 350,
+      "y": 600,
+      "w": 240,
+      "h": 120,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 650,
+      "y": 580,
+      "w": 390,
+      "h": 140,
+      "material": "brick"
+    },
+    {
+      "kind": "ground",
+      "x": 1100,
+      "y": 540,
+      "w": 330,
+      "h": 180,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1480,
+      "y": 500,
+      "w": 330,
+      "h": 220,
+      "material": "brick"
+    },
+    {
+      "kind": "ground",
+      "x": 1860,
+      "y": 460,
+      "w": 180,
+      "h": 260,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2100,
+      "y": 420,
+      "w": 380,
+      "h": 300,
+      "material": "brick"
+    }
+  ],
+  "dark": [
+    {
+      "x": 310,
+      "y": 220,
+      "w": 760,
+      "h": 500
+    },
+    {
+      "x": 1220,
+      "y": 100,
+      "w": 850,
+      "h": 620
+    }
+  ],
+  "lanterns": [
+    {
+      "x": 300,
+      "y": 620
+    }
+  ],
+  "lamps": [
+    {
+      "x": 500,
+      "y": 535,
+      "r": 240
+    },
+    {
+      "x": 1180,
+      "y": 490,
+      "r": 220,
+      "off": true
+    },
+    {
+      "x": 1540,
+      "y": 435,
+      "r": 240
+    },
+    {
+      "x": 1920,
+      "y": 410,
+      "r": 240,
+      "off": true
+    },
+    {
+      "x": 2310,
+      "y": 350,
+      "r": 280
+    }
+  ]
+}
