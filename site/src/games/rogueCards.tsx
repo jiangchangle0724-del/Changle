@@ -258,6 +258,7 @@ export function RogueTable({
   drawLabel,
   shuffling = false,
   leaveTo = "pile",
+  onPile,
 }: {
   card: Card | null;
   remaining: number;
@@ -267,6 +268,8 @@ export function RogueTable({
   drawLabel: string;
   shuffling?: boolean;
   leaveTo?: LeaveTo;
+  /** a tap on the pile opens the 牌谱 (a phone); without it the pile is only a picture (the big screen) */
+  onPile?: () => void;
 }) {
   const { lang } = useStore();
   const custom = usePenaltyText().isCustom;
@@ -344,7 +347,7 @@ export function RogueTable({
         </AnimatePresence>
       </div>
 
-      <Pile drawn={drawn} />
+      <Pile drawn={drawn} lang={lang} onTap={onPile} />
     </div>
   );
 }
@@ -440,17 +443,24 @@ function DeckTop({ label, lang, tapDraws, drawn, onPull }: { label: string; lang
 }
 
 /** The cards already played, a few backs askew; the newest lands with a little weight, and they all go back when the deck runs out. */
-const Pile = memo(function Pile({ drawn }: { drawn: number }) {
+/**
+ * The pile of cards played. On a phone it is a button: its tag says 牌谱 and the count, and a tap
+ * opens the deck's log (the tag is the button's own words, so the name is what is seen).
+ */
+const Pile = memo(function Pile({ drawn, lang, onTap }: { drawn: number; lang: Lang; onTap?: () => void }) {
   const still = useReducedMotion();
   const show = Math.min(3, drawn);
   const tilt = [-7, 5, -3];
+  const Box = onTap ? motion.button : motion.div;
   return (
     <AnimatePresence>
       {drawn > 0 && (
-        <motion.div
+        <Box
           key="pile"
           className="rg-pile"
-          aria-hidden="true"
+          type={onTap ? "button" : undefined}
+          aria-hidden={onTap ? undefined : "true"}
+          onClick={onTap}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.2 } }}
           exit={still ? { opacity: 0 } : { x: -146, y: -80, scale: 3, opacity: 0, transition: { duration: 0.35, ease: "easeIn" } }}
@@ -461,6 +471,7 @@ const Pile = memo(function Pile({ drawn }: { drawn: number }) {
               <motion.span
                 key={top ? `top-${drawn}` : i}
                 className="rg-pile-card"
+                aria-hidden="true"
                 style={{ rotate: tilt[(drawn - show + i) % 3] }}
                 initial={top && !still ? { scale: 1.3, y: -6 } : false}
                 animate={{ scale: 1, y: 0, transition: { duration: 0.25, ease: EASE_OUT } }}
@@ -469,8 +480,8 @@ const Pile = memo(function Pile({ drawn }: { drawn: number }) {
               </motion.span>
             );
           })}
-          <span className="rg-pile-count tabular">{drawn}</span>
-        </motion.div>
+          <span className="rg-pile-count tabular">{onTap ? `${lang === "zh" ? "牌谱" : "Log"} ${drawn}` : drawn}</span>
+        </Box>
       )}
     </AnimatePresence>
   );

@@ -154,6 +154,10 @@ export type RogueView = {
   reshuffled: boolean;
   /** the camera and the nose go once per card: which ones their current holder has used */
   used?: { camera?: boolean; nose?: boolean };
+  /** 剩牌: how many of each rank are still in the deck, in RANKS order (the card up is not in it) */
+  stock?: number[];
+  /** 牌谱: this deck's cards as they came, oldest first: who drew each, who its own penalty landed on */
+  log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
