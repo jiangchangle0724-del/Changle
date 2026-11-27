@@ -397,7 +397,7 @@ test("finding 1 (fixed at c601285d): one machine's IPv6 addresses share one coun
   assert.equal(new Set(w.keys).size, 1, `counted under ${new Set(w.keys).size} keys: ${[...new Set(w.keys)].join(", ")}`);
 });
 
-test("finding 2: after thirty wrong proofs and an afternoon of signing in and out, the owner is still shown that wrong proofs were made", { todo: "finding 2: the 50 events shown can still be filled by whoever holds a session (kept apart since c601285d, not yet shown apart)" }, async () => {
+test("finding 2 (resolved at C11, 8c4988d1): after thirty wrong proofs and an afternoon of signing in and out, the owner is still shown that wrong proofs were made", async () => {
   const db = sqlite();
   const cfg = configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: OWNER })!;
   const T0 = Date.UTC(2026, 10, 27, 9, 0, 0);
