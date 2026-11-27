@@ -3,8 +3,9 @@
 // Every test starts its own shop and group buy, and comes from a network of its own.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { TAIL_HEADER, type ApiError, type Application, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
+import { TAIL_HEADER, type ApiError, type Application, type HomePage, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
 import testShopAddress from "../migrations/0003_test_shop_address.sql";
+import listedFile from "../migrations/0006_listed.sql";
 import { DECLARATION } from "../src/engine/apply";
 import { JPEG_BASE64 } from "./photo";
 import { makeCode, SLUG_RE } from "../src/engine/ids";
@@ -475,10 +476,10 @@ describe("a shop's own page", () => {
   it("is the shop's own people's to change, and the site's owner's: not its address, who runs it, or whether it's live", async () => {
     const at = await start();
     const mine = await get<MyShopPage>(`/my/shops/${at.slug}`, { session: SESSION.leader });
-    expect(mine.data).toEqual({ shop: { slug: at.slug, name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com\n备注订单号", permit: "" }, status: "live" });
+    expect(mine.data).toEqual({ shop: { slug: at.slug, name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com\n备注订单号", permit: "" }, status: "live", listed: true });
     const words = { name: "  大米团  ", kind: "farm", about: "每周一团。\n周五到货。", contact: "微信 rice-2", pay: "现金或 e-Transfer", permit: "Fraser Health 许可 FH-0001", slug: "taken-over", members: ["visitor@example.com"], status: "paused" };
     const saved = await post<MyShopPage>(`/my/shops/${at.slug}`, words, { session: SESSION.leader });
-    expect(saved.data).toEqual({ shop: { slug: at.slug, name: "大米团", kind: "farm", about: "每周一团。\n周五到货。", contact: "微信 rice-2", pay: "现金或 e-Transfer", permit: "Fraser Health 许可 FH-0001" }, status: "live" });
+    expect(saved.data).toEqual({ shop: { slug: at.slug, name: "大米团", kind: "farm", about: "每周一团。\n周五到货。", contact: "微信 rice-2", pay: "现金或 e-Transfer", permit: "Fraser Health 许可 FH-0001" }, status: "live", listed: true });
     expect((await get<ShopPage>(`/shops/${at.slug}`)).data.shop.permit).toBe("Fraser Health 许可 FH-0001");
     // still run by the same people
     expect(said(await get(`/my/shops/${at.slug}`, { session: SESSION.leader }))).toBe("ok");
@@ -494,6 +495,93 @@ describe("a shop's own page", () => {
     expect(said(await post(`/my/shops/${at.slug}`, words, { session: SESSION.leader, origin: "https://elsewhere.example" }))).toBe("403 forbidden");
     expect(said(await post(`/my/shops/${at.slug}`, { ...words, name: "站长改的" }, { session: SESSION.owner }))).toBe("ok");
     expect((await get<ShopPage>(`/shops/${at.slug}`)).data.shop.name).toBe("站长改的");
+  });
+});
+
+describe("the tool's home", () => {
+  /** Only these shops on home: the other tests' shops are kept off it. */
+  const only = (...slugs: string[]) => env.DB.prepare(`UPDATE shops SET listed = 0 WHERE slug NOT IN (${slugs.map(() => "?").join(", ")})`).bind(...slugs).run();
+  const home = async () => (await get<HomePage>("/home")).data;
+
+  it("shows the group buys open now at the shops shown there, soonest to close first, with what their cards say and nothing about buyers", async () => {
+    const at = await start();
+    const soon = await post<Made>(`/my/shops/${at.slug}/offers`, { ...offerDoc(Date.now() + 2 * 3_600_000), title: "今晚截单的团" }, { session: SESSION.leader });
+    const draft = await post<Made>(`/my/shops/${at.slug}/offers`, { ...offerDoc(Date.now() + 3 * DAY), open: false }, { session: SESSION.leader });
+    const closed = await post<Made>(`/my/shops/${at.slug}/offers`, offerDoc(Date.now() + 4 * DAY), { session: SESSION.leader });
+    await post(`/my/offers/${closed.data.id}`, { do: "close" }, { session: SESSION.leader });
+    expect([soon, draft, closed].map(said)).toEqual(["ok", "ok", "ok"]);
+    await place(at, [["五常大米", 1000]]);
+    await only(at.slug);
+    const shown = await home();
+    expect(shown.offers.map((one) => one.id)).toEqual([soon.data.id, at.id]);
+    expect(shown.offers[1]).toEqual({
+      id: at.id,
+      title: "本周大米团 · 周五到货",
+      closesAt: (await page(at)).offer.closesAt,
+      shop: { slug: at.slug, name: "大米团（测试）", kind: "leader" },
+      orders: 1,
+      photo: null,
+      goods: ["五常大米 10kg", "东北珍珠米 15lb", "黄小米 2lb", "土鸡蛋 30 枚", "手切羊肉片"],
+      items: 5,
+      weighed: true,
+      pickups: 3,
+      areas: ["温哥华（Downtown 除外）", "本拿比", "列治文"],
+      freeFrom: 6800,
+    });
+    expect(shown.offers[0].orders).toBe(0);
+    expect(shown.shops).toEqual([{ slug: at.slug, name: "大米团（测试）", kind: "leader", about: "", open: 2 }]);
+    expect(shown.now).toBeTypeOf("number");
+  });
+
+  it("shows a group buy's first picture, wherever among its goods it is", async () => {
+    const at = await start();
+    // (a picture of its own: the photo tests count on sending theirs first)
+    const jpeg = Uint8Array.from([...Uint8Array.from(atob(JPEG_BASE64), (char) => char.charCodeAt(0)), 5, 5]);
+    const form = new FormData();
+    form.append("large", new File([jpeg], "large", { type: "image/jpeg" }));
+    form.append("small", new File([jpeg], "small", { type: "image/jpeg" }));
+    const sent = await worker.fetch(new Request(`https://changle.ca/tuan/api/my/shops/${at.slug}/photos`, { method: "POST", headers: { origin: "https://changle.ca", "cf-connecting-ip": network, authorization: `Bearer ${SESSION.leader}` }, body: form }), env);
+    const { id: photo } = (await sent.json()) as Made;
+    const doc = offerDoc(Date.now() + DAY);
+    const made = await post<Made>(`/my/shops/${at.slug}/offers`, { ...doc, items: doc.items.map((item, n) => (n === 2 ? { ...item, photo } : item)) }, { session: SESSION.leader });
+    await only(at.slug);
+    expect((await home()).offers.map((one) => [one.id, one.photo])).toEqual([[at.id, null], [made.data.id, photo]]);
+  });
+
+  it("leaves out a shop that keeps off it or isn't live, whose links work all the same; and a group buy with its list of orders off shows no count", async () => {
+    const at = await start({ roster: "off" });
+    await place(at, [["五常大米", 1000]]);
+    await only(at.slug);
+    expect((await home()).offers.map((one) => [one.id, one.orders])).toEqual([[at.id, null]]);
+
+    const mine = (await get<MyShopPage>(`/my/shops/${at.slug}`, { session: SESSION.leader })).data;
+    expect(mine.listed).toBe(true);
+    expect((await post<MyShopPage>(`/my/shops/${at.slug}`, { ...mine.shop, listed: false }, { session: SESSION.leader })).data.listed).toBe(false);
+    expect(await home()).toMatchObject({ offers: [], shops: [] });
+    expect(said(await get(`/offers/${at.id}`))).toBe("ok");
+    expect(said(await get(`/shops/${at.slug}`))).toBe("ok");
+    // the shop's words saved alone leave it as it was
+    expect((await post<MyShopPage>(`/my/shops/${at.slug}`, mine.shop, { session: SESSION.leader })).data.listed).toBe(false);
+    expect((await post<MyShopPage>(`/my/shops/${at.slug}`, { ...mine.shop, listed: true }, { session: SESSION.leader })).data.listed).toBe(true);
+    expect((await home()).shops.map((shop) => shop.slug)).toEqual([at.slug]);
+    // only its own people choose
+    expect(said(await post(`/my/shops/${at.slug}`, { ...mine.shop, listed: false }, { session: SESSION.visitor }))).toBe("403 forbidden");
+
+    for (const status of ["paused", "pending"]) {
+      await env.DB.prepare("UPDATE shops SET status = ? WHERE slug = ?").bind(status, at.slug).run();
+      expect(await home()).toMatchObject({ offers: [], shops: [] });
+    }
+  });
+
+  it("keeps the test shop off it (migrations/0006), whose group buy is for those given its link", async () => {
+    // the Worker applied the file to an empty table: here it meets the test shop at its made-up address
+    const at = await start();
+    await env.DB.prepare("UPDATE shops SET slug = 'damituan-test-0a1b2c3d' WHERE slug = ?").bind(at.slug).run();
+    await only("damituan-test-0a1b2c3d");
+    expect((await home()).offers.map((one) => one.id)).toEqual([at.id]);
+    for (const sql of statements(listedFile).filter((sql) => sql.startsWith("UPDATE"))) await env.DB.prepare(sql).run();
+    expect(await home()).toMatchObject({ offers: [], shops: [] });
+    expect(said(await get(`/offers/${at.id}`))).toBe("ok");
   });
 });
 

@@ -21,7 +21,7 @@ buy is for the people its link was sent to.
 
 | Address | What |
 | --- | --- |
-| `/tuan/` | Home: how it works, the orders placed from this phone, opening an order by its code, and the way in for merchants. The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
+| `/tuan/` | Home, laid out like a food-ordering app's: a search (titles, shops, goods) and the kinds of shop, staying at the top; the orders placed from this phone, sideways; the group buys open now, soonest to close first, as cards with the first picture of their goods (or a strip with the shop's first character), when they close, how many orders are in, what they sell, their pickup points and delivery areas, and badges for closing within the day and free delivery; the shops; the way in for merchants; opening an order by its code. Only shops that chose to be shown (all, unless they say not). The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
@@ -29,7 +29,7 @@ buy is for the people its link was sent to.
 | `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). Two ways to send it on: the 接龙 text for a group chat to copy (what it is, when it closes, the link, what can still be had, and the orders so far, with names only when the group buy's page shows them: `src/engine/chain.ts`), and a poster (`src/client/ui/poster.ts`: drawn on the phone, 1080 by 1440, the first goods that fit and a QR code of the link, made with `uqr`; fetched only when asked for; in WeChat it's saved or sent by a long press, elsewhere also by a button). The new-order mail's button leads here. |
 | `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
-| `/tuan/my/s/<shop>` | What a shop says about itself, for its merchant to change: its name, what kind it is, the introduction, how to reach it, how to pay, the permit. Its address and who runs it stay with the site's owner. |
+| `/tuan/my/s/<shop>` | What a shop says about itself, for its merchant to change: its name, what kind it is, the introduction, how to reach it, how to pay, the permit, and whether home shows the shop and its open group buys. Its address and who runs it stay with the site's owner. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
 Every page is in Chinese and English, with a switch at the top right. A phone starts in the
@@ -139,6 +139,13 @@ they agree after a crowd of orders, changes and cancellations at once.
 - **Anyone** sees a shop's own page once the shop is open (`live` or `paused`; one still `pending`
   isn't there): what the merchant wrote about it, how to reach and pay it, its permit, and its
   last 30 group buys, drafts left out. A paused shop's group buys show as paused.
+- **Anyone** sees home (`GET /tuan/api/home`): the group buys open now (40 at most, soonest to
+  close first) at the live shops that are shown there, and those shops (60 at most, newest
+  first). A shop is shown unless its own people untick it on its page (`shops.listed`,
+  `migrations/0006_listed.sql`, which keeps the test shop of 2026-11-13 off it: its group buy is
+  for those given its link); its links work either way. A card says only what the group
+  buy's own page already shows: the order count is left out where the list of who's in is off.
+  The search and the kinds of shop work on the phone, over what came.
 - **A buyer** signs in to nothing. An order opens with its 6-character code and the last four
   digits of the phone number it was placed with (sent in the `x-tail` header). A wrong code and a
   wrong number get the same answer. While the group buy is open, and until the order is marked

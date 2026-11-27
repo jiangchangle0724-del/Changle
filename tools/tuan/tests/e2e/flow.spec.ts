@@ -9,7 +9,7 @@ import type { OfferPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
 import { JPEG_BASE64 } from "../photo.ts";
 import { offerDoc } from "../sample.ts";
-import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, WECHAT, word } from "./help.ts";
+import { as, catchCopies, copied, DAY, fits, order, ORDER_URL, phone, putAway, sheets, start, WECHAT, word } from "./help.ts";
 
 test.afterEach(putAway);
 
@@ -166,8 +166,9 @@ test("pick counted goods and something by weight, check out for pickup, and have
   await expect(page.locator(".roster li")).toHaveText([/1\s*小林\s*5 件/]);
   await expect(dock(page)).toHaveCount(0);
   await page.goto("/tuan/");
-  await expect(page.locator(".mine li")).toHaveCount(1);
-  await page.locator(".mine a").click();
+  await expect(page.locator(".again li")).toHaveCount(1);
+  await expect(page.locator(".again-card")).toContainText(code);
+  await page.locator(".again a").click();
   await expect(page.locator("h1 .code")).toHaveText(code);
 
   expect(errors, "nothing the page's own rules turn away, nothing broken").toEqual([]);
@@ -266,7 +267,7 @@ test("change an order, open it from another phone with the last four digits, can
   await expect(other.locator(".sums-total")).toHaveText("合计$84.80");
   // …and by its code from home, typed loosely
   await other.goto("/tuan/");
-  await expect(other.locator(".mine li")).toHaveCount(1);
+  await expect(other.locator(".again li")).toHaveCount(1);
   await other.fill('input[name="code"]', ` ${code.slice(0, 3).toLowerCase()} ${code.slice(3)} `);
   await other.getByRole("button", { name: "打开" }).click();
   await expect(other.locator("h1 .code")).toHaveText(code);
@@ -427,10 +428,81 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
   }
   const res = await page.goto("/tuan/");
   expect(res?.headers()["x-robots-tag"]).toBeUndefined();
-  await expect(page.locator(".hero h1")).toHaveText("跟一单");
+  await expect(page.locator(".hero h1")).toHaveText("今天跟哪一团？");
   await expect(page.getByRole("link", { name: "商家入口：我的团" })).toHaveAttribute("href", "/tuan/my");
   // every other page stays out of search engines
   expect((await page.goto(url))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+});
+
+test("home: the group buys open now, found by a word or a kind of shop, each card saying what it is and how it reaches you; a shop can keep off it", async ({ browser, request }) => {
+  // (both engines use one database, where the other tests' group buys are open too: this run's have a word of their own, and close sooner)
+  const w = word();
+  const rice = await start(request, { title: `首页的团 ${w}`, closesAt: Date.now() + 5 * 3_600_000, items: [...offerDoc(0).items, { section: "米面", name: `首页专属挂面 ${w}`, price: 699, unit: "pack" }] });
+  const farm = await start(request, { title: `菜园的团 ${w}`, closesAt: Date.now() + 3 * 3_600_000 });
+  const farmName = `山边农场 ${w}`;
+  const renamed = await request.post(`/tuan/api/my/shops/${farm.slug}`, { headers: as(SESSION.leader), data: { name: farmName, kind: "farm", about: "自家种的菜，周六自提。", contact: "微信 farm-test", pay: "现金", permit: "" } });
+  expect(renamed.status(), await renamed.text()).toBe(200);
+  await order(request, rice.id, { name: "小林", phone: "604-555-0188" }, [["五常大米", 1000]]);
+
+  const page = await phone(browser);
+  await page.goto("/tuan/");
+  await expect(page.locator(".hero h1")).toHaveText("今天跟哪一团？");
+  const search = page.getByRole("searchbox", { name: "搜团、店或者商品" });
+  const cards = page.locator(".deck > li");
+  const titles = page.locator(".deck .deal-title");
+  // their word: the one closing sooner first
+  await search.fill(w);
+  await expect(titles).toHaveText([`菜园的团 ${w}`, `首页的团 ${w}`]);
+  await expect(cards.nth(0).locator(".deal-shop")).toHaveText(`${farmName} · 农场`);
+  const card = cards.nth(1);
+  await expect(card.locator(".deal-shop")).toHaveText("大米团（测试） · 团长");
+  await expect(card.locator(".deal-meta")).toContainText("已有 1 单");
+  await expect(card.locator(".deal-goods")).toHaveText("五常大米 10kg、东北珍珠米 15lb、黄小米 2lb、土鸡蛋 30 枚 等 6 样");
+  await expect(card.locator(".deal-tags .item-tag")).toHaveText(["3 个自提点", "送到 温哥华（Downtown 除外）、本拿比、列治文", "称重计价"]);
+  await expect(card.locator(".badge")).toHaveText([/^还剩 [45] 小时$/, "满 $68.00 免运费"]);
+  // (no picture: the shop's first character)
+  await expect(card.locator(".deal-initial")).toHaveText("大");
+
+  // a kind of shop, and the choice taken back
+  const farms = page.getByRole("button", { name: "农场", exact: true });
+  await farms.click();
+  await expect(farms).toHaveAttribute("aria-pressed", "true");
+  await expect(titles).toHaveText([`菜园的团 ${w}`]);
+  await farms.click();
+  await expect(page.getByRole("button", { name: "全部" })).toHaveAttribute("aria-pressed", "true");
+  await expect(titles).toHaveCount(2);
+  // what it sells, and whose it is: the shop too
+  await search.fill(`首页专属挂面 ${w}`);
+  await expect(titles).toHaveText([`首页的团 ${w}`]);
+  await search.fill(farmName);
+  await expect(titles).toHaveText([`菜园的团 ${w}`]);
+  await expect(page.locator(".shops .shop-row strong")).toHaveText([farmName]);
+  await expect(page.locator(".shops .shop-about")).toHaveText("自家种的菜，周六自提。");
+  await expect(page.locator(".shops .shop-row .hint")).toHaveText("农场 · 1 个团在开");
+  await search.fill(`没有这个 ${w}`);
+  await expect(titles).toHaveCount(0);
+  await expect(page.locator(".home-none")).toHaveText("没有找到。换个词，或者看看全部。");
+  // a card opens its group buy
+  await search.fill(w);
+  await cards.nth(1).getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`/tuan/t/${rice.id}$`));
+
+  // the farm keeps off home: gone from it, its links working all the same
+  const merchant = await phone(browser, { session: SESSION.leader });
+  await merchant.goto(`/tuan/my/s/${farm.slug}`);
+  const listed = merchant.getByRole("checkbox", { name: /^在跟一单首页展示这家店/ });
+  await expect(listed).toBeChecked();
+  await merchant.locator("label.choice-tick", { hasText: "在跟一单首页展示" }).click();
+  await expect(listed).not.toBeChecked();
+  await merchant.getByRole("button", { name: "保存" }).click();
+  await expect(merchant.getByText("存好了。")).toBeVisible();
+  await merchant.reload();
+  await expect(listed).not.toBeChecked();
+  await page.goto("/tuan/");
+  await search.fill(w);
+  await expect(titles).toHaveText([`首页的团 ${w}`]);
+  await page.goto(farm.url);
+  await expect(page.locator(".hero h1")).toHaveText(`菜园的团 ${w}`);
 });
 
 test("a long note folds, every item opens its details, the top says how many have joined, and a new order's page shows at once", async ({ browser, request }) => {
