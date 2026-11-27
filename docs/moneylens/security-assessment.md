@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.15, 26 November 2026. It records the choices the requirements leave to this document
+Version 0.16, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -40,7 +40,9 @@ Durable Objects around all of it: a request's way in, the gate, and sync as it t
 Version 0.14 follows the review of 1.8: a sign-in and a notice from the accounts service are put
 in order ("A sign-in and a notice at the same time"), and signing in is one transaction. Version
 0.15 adds where the wrapped keys are kept and what a device has to show to be given one (1.9).
-None of it is published.
+Version 0.16 adds the app's pages as far as the door: what the browser is handed and what it
+keeps, the order a vault is made in, the three ways it locks, and the main site's page that
+sends a signed-in browser over (1.10). None of it is published.
 
 ## 1. The vault
 
@@ -120,7 +122,7 @@ whenever the cheat sheet changes it and at each phase gate.
 - Made in the browser when the vault is set up, with the platform's generator.
 - In use, it is a key object that cannot be exported; sealing and opening refuse any other. It is
   never written to storage unwrapped, and it is gone when the tab closes, on lock and on sign-out
-  (the timers are the app's, not yet built).
+  (1.10 has the three ways the app locks).
 - Adding a way in or changing the passphrase needs the vault key in exportable form for a moment.
   That copy is unwrapped from an existing wrapper with its secret, which the user is asked for
   again even when the vault is open, and it is used only to make the new wrapper.
@@ -1042,6 +1044,125 @@ of 75 checks in this code taken out in turn fails a test.
 fingerprint of the ways in kept on the device, so that it can tell when they were replaced
 behind its back.
 
+### 1.10 The pages: what a browser is handed, and what it keeps (SEC-2, SEC-3, VAULT-3, ARCH-3, T-8, T-24)
+
+The app's first pages are the door: signing in, making a vault, opening it, locking, signing out
+(`tools/moneylens/web/app` for what a person sees, `src/app/door.ts` and `src/app/idle.ts` for
+what it does). Importing and everything after it come later.
+
+**What is handed out, and to whom.** The Worker hands out the app itself: one page at `/`, the
+files the page loads under `/assets/`, and `/licences.txt`. None of it holds anyone's data, so
+the gate decides only whether it is handed out at all: shut, `/` is the two lines that say so
+and nothing else is there. Who gets in is decided at sign-in, as before (1.8). Every request
+comes to the Worker first, these included. The file store behind it is asked for three kinds of
+path only (the page, the licences, a plainly named file under `/assets` in at most one folder),
+by the path alone (no cookie, no condition and no range of the request goes with it), and only
+a whole file is passed on: any other answer from the store is "not there", and of what the
+store says only the file and its kind go out. The headers are the Worker's own on everything.
+
+**The page's policy (SEC-2).** `default-src 'none'; script-src 'self'; style-src 'self';
+img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
+form-action 'none'`. It is stricter than SEC-2 asks (nothing is allowed that is not named, and
+no form may be sent anywhere: the forms are handled by the page's script). What follows for the
+code: no script and no style is written into the page, no element carries a style of its own,
+and the two fonts and the icon are the app's own files (`tests/design.test.ts` holds the
+screens to that). The script and the styles are named by what is in them and may be kept for a
+year; the page itself is never kept. Nothing else on this origin carries this policy: every
+other answer keeps the policy of an answer with nothing to load. The page asks nothing of any
+other origin (T-8); the one address outside it that the screens know is the link back to the
+main site's tools.
+
+**What is written to the screen (SEC-3).** Text, by a library that writes text as text. No
+screen builds markup from a string, and nothing a person or a server supplies is ever markup.
+
+**What the page keeps in the browser (VAULT-3, T-24).** In `localStorage`, the language
+(`moneylens.lang`) and nothing else. In IndexedDB, the cache of sealed chunks (1.6). The
+session is a cookie the page's script cannot read (1.7). Not kept anywhere, on disk or after
+locking in memory: the passphrase, the recovery code, a wrapper, the key. A wrapper is asked of
+the server, used once and dropped (1.9).
+
+**The handoff code.** It arrives in the address's fragment, which is sent to no server. The page
+takes it out of the address before it does anything else, reads it only when the fragment is
+exactly `#h=<code>`, and trades it once.
+
+**Making a vault: the order.** The passphrase is held to the floor of 1.4 on the device. The
+vault, its key and both ways in are made on the device. The recovery code is then shown, and
+nothing is kept on the server until the person has said it is written down: `vault/start` comes
+after that press. A page closed before it leaves nothing anywhere, and a vault can never exist
+whose recovery code was not shown. If the answer to `vault/start` is lost and the person
+presses again, the vault is kept once (1.9); the session that asked twice is then not counted
+as unlocked, and the next screen asks for the passphrase, which the person has just chosen.
+
+**Opening.** By passphrase or by recovery code. What is typed as a code but cannot be one (a
+character no code has, a symbol missing, a check that does not agree) is said so on the device
+and the server is not asked, so a slip of the pen does not spend one of the tries of 1.9. What
+the screen says when a vault does not open follows 1.3: "that's not the passphrase" only for
+the server's own "wrong proof"; a wrapper this version cannot read, or one that does not open
+with a secret the server accepted, is worded as a fault to report and never as a reason to
+start over. From three tries left, the screen says how many.
+
+**Locking (VAULT-3).** Three ways. The button. Fifteen minutes with nothing pressed. Leaving the
+page. For the fifteen minutes a timer alone is not enough: a machine that sleeps stops the
+timer and wakes with most of the time still to run. So the time since the last press is read
+from two clocks, the one on the wall and a steady one, and the longer counts; it is read when
+the timer fires, when the page is looked at again, and before a press is counted as one, so the
+press that wakes a page that should have locked locks it. On leaving, the key is dropped and
+the server is told by a request the browser is asked to send even as the page goes. That last
+part is best effort: where it does not arrive, the session stays counted as unlocked on the
+server until it ends by itself (thirty minutes without a request, 1.7). What an unlocked
+session can do without the key is 1.9's: pull sealed chunks and push; it cannot be given a
+wrapper without a proof. A page the browser kept and brings back comes back locked.
+
+**Signing out.** The screen says "signed out" only when the server has said the session is
+over (it ended it, or there was none). When nothing comes back it says so, and that the person
+is still signed in.
+
+**The main site's page (ARCH-3).** `changle.ca/tools/finance?handoff=<nonce>`
+(`site/src/tools/Finance.tsx`, `financeDoor.ts`). It asks the accounts service for a code bound
+to the nonce, for whoever is signed in there, and sends the browser to
+`https://money.changle.ca/#h=<code>`. That address is written out in the code and never read
+from the page's own address, so a code can be taken nowhere else; the code rides in the
+fragment. Only what has the shape of a nonce is kept from the address, and what comes back is
+used only if it has the shape of a code. With nobody signed in, the main site's sign-in comes
+up and the page goes on after it. It goes on by itself, with no press: a link made by someone
+else brings a code that never leaves this browser, and that this browser cannot trade, because
+its nonce is not the one in this browser's cookie (1.8). What such a link can do is spend the
+account's allowance of codes (five a minute, a hundred a day), so that the person's own
+sign-ins are told to wait. A press before each code would stop that and cost every sign-in a
+press; it is not added, and this is the reason.
+
+**Both languages, and reachable (UX-4, UX-5).** Every word a person reads is in Chinese and in
+English, held to that by a test. Every screen goes through the accessibility checks the main
+site runs (WCAG 2.1 A and AA) in CI, at a phone's width.
+
+**Tested.** On Node: the idle count with clocks moved by hand (asleep, set back, a timer that
+fires early); the door's steps against the server's rules on Node's SQLite; the Worker's page
+function with a stand-in file store that answers with what the real one never does in a test (a
+redirect, a part, "not changed", headers of its own); the design rules. On the local runtime:
+the real files with their headers, and the gate shut. In a real browser against the local
+runtime (`scripts/check-app.ts`, in CI): the whole way in, from the main site's page (a
+stand-in) through a new vault, locking, a wrong passphrase, the recovery code, the fifteen
+minutes, leaving the page, and signing out when the server can and cannot be told; that nothing
+was asked of any other origin; and that the passphrase, the recovery code and the words a
+wrapper has are nowhere in the browser's storage, open or locked. Each of 49 checks in this
+code taken out in turn fails a test.
+
+**Limits.**
+
+- A script that ran in the page while the vault is open could use the key, though not take it
+  out. The policy above, no script from anywhere else and no markup from data are what stand
+  against that; there is no second line.
+- Copying the recovery code puts it on the device's clipboard, where other programs can read
+  it. The screen says to write it down; copying is the person's choice.
+- The request that tells the server of a lock on leaving may not arrive (above).
+- The app's script is whatever the server sends: someone who can change what
+  `money.changle.ca` serves can read a passphrase as it is typed. This is section 2's limit for
+  every browser app, and VAULT-6's wording does not claim otherwise.
+
+**Not in this.** The list of devices and ending one from the app (the server has it, 1.7).
+Changing the passphrase, a new recovery code, passkeys. Erasing a vault. Emptying this device's
+cache on signing out.
+
 ## 2. Limits (the reason for VAULT-6's wording)
 
 - **The code the site serves.** The browser runs what `money.changle.ca` sends. Whoever can change
@@ -1091,8 +1212,9 @@ behind its back.
 
 - Passkeys: the PRF extension's salt, which browsers support it, and what a user without it is
   offered (ARCH-7). Not built.
-- Whether iOS applies smart punctuation and automatic capitals in a passphrase field once "show
-  passphrase" turns it into a text field. To be checked on a real phone when the screens exist.
+- Whether iOS applies smart punctuation and automatic capitals in a passphrase field once "show"
+  turns it into a text field. The field asks for none of it (no capitals, no correction, no
+  spelling), and the screens now exist (1.10); it is still to be checked on a real phone.
   The same goes for its turning two spaces into a full stop and a space: "tidal  marmot" would
   become "tidal. marmot", which the normalization cannot fold back, because a person can see
   those are different.
@@ -1102,8 +1224,9 @@ behind its back.
   folded (1.4), but if a no-break space is put inside them as well, the two spellings still
   differ. Not checked on a device; nobody here had one set to French.
 - A passphrase in Chinese needs an input method, which a password field switches off, so the
-  field has to be a text field at least while such a passphrase is typed. How that is offered,
-  and what each input method then does to the punctuation keys, is for the screens.
+  field has to be a text field at least while such a passphrase is typed. The screens offer
+  that as "show" beside the field (1.10). What each input method then does to the punctuation
+  keys is still to be checked on real phones.
 - Limiting unlock attempts: built on the server (1.9): a wrapper is handed only against a proof,
   and wrong proofs are counted for the account. Still open: the count is one for the whole
   account, so whoever holds the mailbox can lock the owner out by guessing wrong on purpose. A

@@ -19,6 +19,7 @@ against the code.
 | Security events: sign-ins, handoffs, failed unlocks, device and passkey changes, exports, deletions, consent changes, admin actions. No transaction content | The app and the server | The user's MoneyLens Durable Object | Operator; the user sees their own | 12 months (SEC-17) |
 | Allowlist and invitations: account identifiers allowed in, invitation codes and who used them | The operator; the invited user | A MoneyLens gate object | Operator | Until open registration, then deleted |
 | Statement files | The user's device | Browser memory during import only. Never uploaded (IMP-7) | Nobody but the user | Discarded when the import ends |
+| The app's language (Chinese or English) | The user's choice in the app | The browser's `localStorage` on that device (`moneylens.lang`). Not sent to the server | Anyone using that browser | Until the browser's data for the site is cleared |
 | AI requests, only if the user opted in: cleaned description text, debit or credit, the user's category names (AI-3) | The user's transactions, in the browser | Not stored by MoneyLens. Passes through the proxy to the provider | In transit: the operator's proxy (no body logging, AI-7) and the provider | The provider's stated retention |
 | Usage counters: users, import successes and failures, record counts, AI calls and cost, errors | The server | MoneyLens metrics, aggregate only | Operator | 13 months |
 | Network logs: IP address, URL, time | Every request | Cloudflare | Operator, limited; Cloudflare | The platform's log retention (to confirm and state) |
