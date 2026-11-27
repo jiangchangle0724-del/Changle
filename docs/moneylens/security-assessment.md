@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.19, 27 November 2026. It records the choices the requirements leave to this document
+Version 0.20, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -50,7 +50,11 @@ sentences that the code did not keep are corrected (1.8, 1.9, 1.10). Version 0.1
 first deployment: since 27 November 2026 the Worker answers at money.changle.ca, with the gate
 open to the owner's account alone (1.8, "What the first deployment showed"). Version 0.19 adds
 what was seen once the gate was open: who is let in, the limiter limiting, and two things
-Cloudflare adds to the pages of the zone.
+Cloudflare adds to the pages of the zone. Version 0.20 adds the screen on which an account's
+owner sees who is in it: the devices that are signed in, which of them hold the vault open,
+what has happened, and wrong proofs apart from everything else (1.10). For it the server says
+which sessions are unlocked and always answers with the newest wrong proofs (1.8), and what
+the owner is shown of someone guessing is written as it now is (1.9).
 
 ## 1. The vault
 
@@ -923,7 +927,12 @@ are kept, and at most 500 lines of wrong proofs and 500 of everything else. The 
 apart, so that no number of sign-ins or unlockings pushes a wrong proof out of what is kept
 (the review of the door, finding 2). The log is tidied at each sign-in and at each proof shown,
 which are the only lines nothing else counts. The events call answers the newest 50 lines of
-both together, and no screen shows them yet (section 3). A sign-in that fails is not logged:
+both together and, with them, the newest wrong proofs however many lines came after: thirty, as
+many as can be made in a day (1.9). So no number of sign-ins hides from the owner that the
+passphrase was guessed at. Each line carries the id of the session it is about, which is one of
+the owner's own and signs nobody in, and the answer says how many wrong proofs there were in
+the last 24 hours. The list of sessions says which of them are unlocked (1.9). The screen that
+shows both is in 1.10. A sign-in that fails is not logged:
 that would let a stranger write to a person's database. A wrong proof is, because only a
 signed-in session can show one and 1.9 counts them. Exports, deletions and consent changes are
 not logged yet; they come with the screens that do them.
@@ -1086,11 +1095,12 @@ a day more. Thirty a day is about eleven thousand guesses a year against the flo
 **What this costs the owner.** Someone who holds the mailbox can guess wrong on purpose, thirty
 times a day, and keep the owner from opening the vault for as long as they keep at it. They
 cannot read anything. Each of those tries is a line in the events log, counted apart from the
-other lines so that nothing pushes it out of what is kept (1.8). But the owner is not shown it
-yet: the app has no screen for the log or for the list of devices, and the events call answers
-the newest fifty lines of everything, which the same person can fill with sign-ins in an
-afternoon (the review of the door, finding 2). Until that screen is built, what the owner sees
-is the vault saying that too many tries were made; and only taking the mailbox back ends it.
+other lines so that nothing pushes it out of what is kept (1.8). And the owner is shown them:
+the app's screen for devices and events puts wrong tries apart, above everything else, with how
+many there were in the last day and the device each came from, and the events call carries the
+newest thirty of them whatever came after (1.8, 1.10; the review of the door, finding 2).
+Seeing it does not end it. The owner can sign the other devices out there, but whoever holds
+the mailbox signs in again, and only taking the mailbox back ends it.
 The same person could already sign the owner out and start the vault's erasing. A count per device, kept apart for devices that
 have opened the vault before, would spare the owner; it is not built (section 3).
 
@@ -1223,6 +1233,44 @@ a session still. Shutting the gate is not yet a way of signing everyone out (sec
 were too many requests and to try again in a minute. It does not say the server is at fault,
 and nothing is lost: a vault being made is kept at the next press, with the same recovery code.
 
+**The devices, and what has happened (ARCH-8, SEC-17).** One more screen, reachable from
+every screen a signed-in person has: before there is a vault, with the vault locked, with it
+open. It asks for the list of sessions and for the events (1.8) together, and shows three
+things. Wrong tries at the passphrase or the recovery code, apart from everything else and
+above it, with how many there were in the last 24 hours and what to do if they were not the
+person's own. The devices that are signed in: a name (the server's few fixed words for a
+browser and a system, said in the page's language; anything else is shown as it came, as
+text), when each signed in and was last used, and, when the account has a vault, whether each
+holds it open. Then the other events, each with its time and the device it was on: this one,
+one that is still signed in, or one that has since signed out.
+
+Another device can be signed out there, or all the others at once. This device is not offered
+in its own list: that is signing out (above). After a press the list is read again, and what
+the screen says goes by that list where the answer does not. When no answer came back and the
+device is no longer listed, it says the device is signed out; "it was not done" is said only
+of a device the server still lists; and when neither the answer nor the list could be read, it
+claims nothing. A device that was signed out from elsewhere finds out at its next request, and
+its screen says signed out.
+
+**What the page takes from those answers.** Whole, or not at all. An answer in which anything
+is not what it should be (a device without an id, a time that is no time, no device or two
+that are "this one", an id twice, more devices or lines than the server ever sends) is shown as
+trouble with a way to try again, and never as a shorter list: a device left out of the list is
+a device its owner believes is not there. A line of a kind this version of the page does not
+know is shown as "something else", not dropped. Nothing of the list is kept in the browser.
+
+**The list and the browser's history.** Opening the list is one step of the browser's history,
+at the same address, and the page shows the list exactly while the browser stands on that
+step: "back", the page's own or the browser's, closes it, "forward" opens it again, and a page
+loaded afresh on that step shows it again, over a locked vault as after any fresh load. The
+step is the list only while a signed-in person's screen is behind it; come to from any other
+screen (signed out meanwhile, or "forward" on the recovery code's screen), it is made an
+ordinary step again, so that no list is laid over a later screen. The screen behind stays as
+it was. An open vault stays open and its fifteen minutes run on; when it locks, the list is
+read again, and only after the word that it locked has reached the server or has failed to,
+so that the list does not say "open" of this device on the word of a server that is about to
+hear otherwise.
+
 **Where a sign-in starts.** At a press on the app's own page, which is a link to `/enter`. The
 server begins a sign-in there only when the browser says the request came from this origin
 (`Sec-Fetch-Site: same-origin`). Sent to `/enter` from anywhere else (another site, the main
@@ -1264,6 +1312,24 @@ was asked of any other origin; and that the passphrase, the recovery code and th
 wrapper has are nowhere in the browser's storage, open or locked. Each of 69 checks in this
 code taken out in turn fails a test, seven of them in the browser.
 
+The devices' screen. On Node (`tests/devices.test.ts`): the page's reading of the two answers
+against the server's own code (two devices, a vault made on one, a wrong try from the other,
+one signed out, all the others signed out), and against answers that are not what they should
+be, each of which has to come out as trouble; every label the server can make, taken apart;
+and what is said after a press for every answer and every list read afterwards. On the local
+runtime: three devices on a real vault, read the way the page reads them. In the browser: the
+list from each of the three screens that lead to it; a second device and its wrong try, in both
+languages; that device signed out when the server can and cannot be told, and what it is told
+at its own next press; all the others signed out; a list that cannot be read; back, forward
+and a fresh load on the step; "forward" on the recovery code's screen; and the fifteen minutes
+running out under the list, with the word that it locked held up on its way. Each of 116
+checks in the server's two answers and the page's reading of them taken out in turn fails a
+test on Node, and each of 24 in the screens fails the check in the browser. The browser checks
+wait by asking from outside the page until a thing is so: the browser's own waiting asks from
+inside it by making a script out of text, which the page's policy forbids, and takes a promise
+for a yes, so that two checks ("the server is told that it locked") had asked once and taken
+any answer. Both ask until it is so now, and pass.
+
 **Limits.**
 
 - A script that ran in the page while the vault is open could use the key, though not take it
@@ -1272,13 +1338,19 @@ code taken out in turn fails a test, seven of them in the browser.
 - Copying the recovery code puts it on the device's clipboard, where other programs can read
   it. The screen says to write it down; copying is the person's choice.
 - The request that tells the server of a lock on leaving may not arrive (above).
+- The list of devices is read when its screen opens and after each press there. It does not
+  keep itself up to date. "Holds the vault open" is the server's count for a session, and a
+  session is a browser: a second tab of the same browser is the same line of the list.
+- Whoever is signed in to the account sees the same screen and can sign the owner's devices
+  out (1.9). And signing a device out of MoneyLens does not sign it out of changle.ca, nor the
+  other way round: a browser that is still signed in at the main site comes back in with one
+  press. The screen's advice says to sign the other phones out there as well (section 3).
 - The app's script is whatever the server sends: someone who can change what
   `money.changle.ca` serves can read a passphrase as it is typed. This is section 2's limit for
   every browser app, and VAULT-6's wording does not claim otherwise.
 
-**Not in this.** The list of devices and ending one from the app (the server has it, 1.7).
-Changing the passphrase, a new recovery code, passkeys. Erasing a vault. Emptying this device's
-cache on signing out.
+**Not in this.** Changing the passphrase, a new recovery code, passkeys. Erasing a vault.
+Emptying this device's cache on signing out.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -1349,9 +1421,14 @@ cache on signing out.
   account, so whoever holds the mailbox can lock the owner out by guessing wrong on purpose. A
   second count for devices that have opened the vault before (a device secret kept in the
   browser, its hash on the server) would keep such a device out of the stranger's count.
-- The screen for the events log and the list of devices. It owes: wrong proofs shown so that
-  no later line hides them (they are kept apart for that, 1.8), which sessions are unlocked, and
-  ending any of them. Until it exists the owner is not shown a wrong proof at all (1.9).
+- Signing a device out of MoneyLens and signing it out of changle.ca are two things (1.10,
+  limits). The devices' screen tells the owner to do both. One press for both needs the
+  accounts service: it could send MoneyLens a notice when it ends an account's other sessions,
+  as it does when the address changes (`accountChanged`, 1.8). Not built; asked of the
+  accounts chat.
+- The list of devices names a browser from a few fixed words (1.8). A browser that says little
+  of itself is "Browser", and one built on another's engine may be named as that other. The
+  times beside it are what tell two such devices apart.
 - A right proof is counted against nothing. Whoever holds the passphrase can have a line
   written at each request, three hundred a minute from one address. The lines kept stay within
   their most (1.8), but each is a write, and writes count toward the plan's daily number that
