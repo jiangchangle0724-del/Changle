@@ -1026,10 +1026,12 @@ def t_limbo_coach_moving(browser):
     ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
     auto(pg)
     pg.wait_for_timeout(700)
-    until(lambda: gauge_target(pg) > 18, 6000)
+    # the bar's second trip down: she drops to 9° as it passes 16° on its way to 20°, so the whole
+    # listen (the smoothed reading takes a third of a second to get there) has the bar 8° to 12° below her
+    until(lambda: gauge_target(pg) < 10, 8000)
+    until(lambda: gauge_target(pg) > 16, 8000)
     tilt_to(pg, 9, 0)
     c = listen(pg, 900, lean=9)
-    # (the bar keeps moving: a tick can come as it swings back within 8° of her)
     ok(1 <= c["down"] <= 2 and c["up"] == 0, f"at 9° with the bar near 20°, still in the band but drifting: the quiet warning, on the beat {c}")
     auto(pg)
     pg.wait_for_timeout(700)
