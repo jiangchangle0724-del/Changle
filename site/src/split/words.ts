@@ -403,6 +403,7 @@ export const W = {
   undo: { zh: "撤销", en: "Undo" },
   backspace: { zh: "删一位", en: "Delete a digit" },
   point: { zh: "小数点", en: "Decimal point" },
+  plus: { zh: "加上", en: "Plus" },
   amount: { zh: "金额", en: "Amount" },
 
   // paid in another currency
