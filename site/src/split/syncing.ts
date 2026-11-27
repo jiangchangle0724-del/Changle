@@ -16,9 +16,9 @@ import { useSyncExternalStore } from "react";
 import type { Change } from "./changes";
 import type { Ledger } from "./core";
 import type { Logged } from "./history";
-import { deleteLedger, fileNet, mineNet, net, readNet, recordNet } from "./net";
+import { deleteLedger, fileNet, itemsNet, mineNet, net, readNet, recordNet } from "./net";
 import { shrink, troubleOf, type PhotoTrouble } from "./photos";
-import type { Mine, Reading } from "./shape";
+import type { Items, Mine, Reading } from "./shape";
 import { dropHeld, everyHeld, heldOf, keepHeld, meOf, newId, newKey, setMe, write } from "./store";
 import { hold, holds, join, notOwner, opened, shown, type Held } from "./sync";
 import { syncer, type Syncer, type SyncState } from "./syncer";
@@ -253,6 +253,19 @@ export async function readPhoto(id: string, file: string): Promise<Reading | nul
   if (readingOff || !h?.made) return "off";
   const got = await readNet(id, h.key, file);
   if (got.data) return got.data.read;
+  if (got.error === "off" || got.error === "budget" || got.error === "limit") {
+    readingOff = true;
+    return "off";
+  }
+  return null;
+}
+
+/** 小票逐项分: a receipt photo's lines, as readPhoto reads its total ("off" the same way: no more reading here today). */
+export async function readItems(id: string, file: string): Promise<Items | null | "off"> {
+  const h = heldOf(id);
+  if (readingOff || !h?.made) return "off";
+  const got = await itemsNet(id, h.key, file);
+  if (got.data) return got.data.items;
   if (got.error === "off" || got.error === "budget" || got.error === "limit") {
     readingOff = true;
     return "off";

@@ -172,6 +172,18 @@ export type Reading = { total: string; currency: string | null; merchant: string
 /** The server's answer to reading a receipt: what was read, or nothing (`read` null); null when the answer isn't that. */
 /** A sum as a reading writes one: digits, and a dot before at most two more. */
 const SUM = /^\d{1,10}(\.\d{1,2})?$/;
+
+/** 小票逐项分: a receipt's lines, each with what it came to, and its total (none when it couldn't be read). */
+export type Items = { total: string | null; items: { name: string; amount: string }[] };
+/** The server's answer to reading a receipt's lines: some (at most 40, each a name and a sum), or none; null when the answer isn't that. */
+export function asItemsReply(x: unknown): { items: Items | null } | null {
+  if (!isRecord(x) || !("items" in x)) return null;
+  if (x.items === null) return { items: null };
+  const r = x.items;
+  if (!isRecord(r) || !Array.isArray(r.items)) return null;
+  const items = r.items.filter((i): i is { name: string; amount: string } => isRecord(i) && isText(i.name) && !!i.name.trim() && isText(i.amount) && SUM.test(i.amount)).slice(0, 40).map((i) => ({ name: i.name.trim().slice(0, 40), amount: i.amount }));
+  return items.length ? { items: { total: isText(r.total) && SUM.test(r.total) ? r.total : null, items } } : { items: null };
+}
 export function asReadReply(x: unknown): { read: Reading | null } | null {
   if (!isRecord(x) || !("read" in x)) return null;
   if (x.read === null) return { read: null };

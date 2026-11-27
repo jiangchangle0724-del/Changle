@@ -666,6 +666,39 @@
 .split-kinds .split-note {
   margin: var(--space-2) 0 0;
 }
+/* 小票逐项分: each line of the receipt, its name and what it came to, and under them who had it */
+.split-items {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.split-item {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.split-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.split-item-head strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.split-item-head span {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.split-item .ui-pill-toggle {
+  min-height: var(--tap-crowded);
+}
+.split-items-parts {
+  font-weight: 700;
+}
 /* 退款 in 详情: one toggle, and what a refund is under it */
 .split-refund {
   margin-top: var(--space-6);

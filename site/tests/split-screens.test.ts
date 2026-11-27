@@ -46,7 +46,8 @@ import { CATEGORIES, isCategory } from "../src/split/categories";
 import { byKind, categoryOf, guessed } from "../src/split/kinds";
 import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
-import { asDone, asMine, asPushed, asReadReply, asSince, asSnapshot } from "../src/split/shape";
+import { asDone, asItemsReply, asMine, asPushed, asReadReply, asSince, asSnapshot } from "../src/split/shape";
+import { hadOf, itemParts } from "../src/split/items";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
@@ -1684,6 +1685,43 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq([paidBy(e, dinner, "s", "zh"), paidBy(e, dinner, "m", "zh"), paidBy(e, dinner, "w", "en"), paidBy({ ...e, refund: true }, dinner, "m", "zh")], ["你、小王一起付", "Steve、小王一起付", "Steve, you paid", "Steve、小王收到"], "its row: who paid it together (你 for you), or got it back");
   const found = (typed: string) => expensesOf(dinner).filter((x) => matches(x, dinner, typed, "m", "zh")).map((x) => x.id);
   eq([found("小王"), found("Steve"), found("阿美")], [["e1"], ["e1"], []], "search finds it by each of them who paid");
+}
+
+// ---------- 28. 小票逐项分: each line shared by who had it, the rest the same way ----------
+{
+  const roster = ["s", "w", "m"];
+  const lines = [
+    { name: "Poutine", amount: 2400, who: ["s", "w", "m"] },
+    { name: "Burger", amount: 1850, who: ["w"] },
+    { name: "Beer", amount: 2700, who: ["s", "m"] },
+  ];
+  eq(hadOf(lines, roster), [2150, 2650, 2150], "what each had: the poutine three ways, the burger 小王's, the beer two ways");
+  const parts = itemParts(lines, 7860, roster)!;
+  eq([parts, Object.values(parts).reduce((a, n) => a + n, 0)], [{ s: 2432, w: 2997, m: 2431 }, 7860], "$78.60 (tax and all) in the same proportion: each part, and together the whole");
+  eq(itemParts(lines, 6950, roster), { s: 2150, w: 2650, m: 2150 }, "no tax or tip: each one's lines exactly");
+  eq([itemParts(lines.map((l) => ({ ...l, who: [] })), 7860, roster), itemParts([], 100, roster)], [null, null], "nobody had anything: nothing to share by");
+  eq(itemParts([{ name: "Tea", amount: 301, who: ["s", "w"] }], 301, roster), { s: 151, w: 150 }, "an odd cent of a line to the first who had it");
+  eq(Object.keys(itemParts([{ name: "Tea", amount: 300, who: ["w"] }, { name: "Water", amount: 200, who: [] }], 500, roster)!), ["w"], "a line nobody had goes with the rest: here all to 小王, who alone had anything");
+  let bad = "";
+  const r = rng(28);
+  for (let n = 0; n < 2000 && !bad; n++) {
+    const ls = Array.from({ length: 1 + Math.floor(r() * 8) }, (_, i) => ({ name: `L${i}`, amount: 1 + Math.floor(r() * 9000), who: roster.filter(() => r() < 0.6) }));
+    const total = 1 + Math.floor(r() * 50000);
+    const p = itemParts(ls, total, roster);
+    const had = hadOf(ls, roster);
+    if (!had.some((x) => x > 0)) {
+      if (p !== null) bad = `run ${n}: nobody had anything, yet parts`;
+    } else if (!p || Object.values(p).reduce((a, x) => a + x, 0) !== total) bad = `run ${n}: the parts don't come to the whole`;
+    else if (roster.some((id, i) => !had[i] && p[id])) bad = `run ${n}: someone who had nothing has a part`;
+    else if (roster.some((id, i) => roster.some((jd, j) => had[i] > had[j] && (p[id] ?? 0) + 1 < (p[jd] ?? 0)))) bad = `run ${n}: who had more pays less`;
+  }
+  eq(bad, "", "2,000 random receipts: the parts come to the whole, nobody who had nothing pays, and who had more never pays less");
+  // the server's answer, as the phone takes it
+  eq(
+    [asItemsReply({ items: { total: "78.60", items: [{ name: " Poutine ", amount: "24.00" }, { name: "", amount: "1.00" }, { name: "Beer", amount: "lots" }] } }), asItemsReply({ items: null }), asItemsReply({ items: { total: "x", items: [{ name: "Tea", amount: "3" }] } }), asItemsReply({ items: { items: [] } }), asItemsReply({ read: null })],
+    [{ items: { total: "78.60", items: [{ name: "Poutine", amount: "24.00" }] } }, { items: null }, { items: { total: null, items: [{ name: "Tea", amount: "3" }] } }, { items: null }, null],
+    "the lines: those with a name and a sum; none; a total that isn't one; no lines at all; not this answer",
+  );
 }
 
 if (failed) {

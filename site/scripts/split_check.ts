@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers", "items"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -4202,6 +4202,65 @@ async function paying2() {
   await a.close();
 }
 
+// ---------- items: 小票逐项分 ----------
+/**
+ * 小票逐项分 (2026-11-27): in 按金额, with a receipt photo, its lines read; each had by whoever is left
+ * on after tapping off; the parts (tax and tip in proportion) fill 按金额, and it adds up.
+ */
+async function itemizing() {
+  if (!local) {
+    console.log("items: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "逐项", ["阿甲", "阿乙"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const sheet = pa.getByRole("dialog");
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:78.60 CAD Cafe items=Poutine:24.00|Burger:18.50|Beer:27.00") });
+  await pa.locator(".split-add-extras", { hasText: "Cafe" }).waitFor({ timeout: 15_000 });
+  await pa.locator(".split-field", { hasText: t("sharedBy") }).first().click();
+  await sheet.getByRole("radio", { name: t("amounts"), exact: true }).click();
+  await sheet.getByRole("button", { name: t("itemsButton") }).click();
+  const items = sheet.locator(".split-item");
+  await items.nth(2).waitFor({ timeout: 15_000 });
+  ok((await items.count()) === 3 && (await items.nth(1).innerText()).includes("Burger") && (await items.nth(1).innerText()).includes("$18.50") && (await sheet.locator(".split-item [aria-pressed=true]").count()) === 9, "three lines read, each had by all three to start with");
+  const pill = (k: number, who: string) => items.nth(k).getByRole("button", { name: who, exact: true });
+  const tall = await sheet.locator(".split-item .ui-pill-toggle").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  ok(tall.every((h) => h >= 48), `each name a crowded target's height (${[...new Set(tall.map(Math.round))].join(", ")})`);
+  await pill(1, t("you")).click();
+  await pill(1, "阿乙").click();
+  await pill(2, "阿甲").click();
+  const parts = await sheet.locator(".split-items-parts").innerText();
+  const rest = await sheet.getByText(say("zh", "itemsRest", { amount: "$9.10" })).count();
+  ok(parts === say("zh", "itemsParts", { list: "你 $24.32 · 阿甲 $29.97 · 阿乙 $24.31" }) && rest === 1, `the burger 阿甲's, the beer 你 and 阿乙's: each one's part, and the $9.10 of tax shared the same way (${parts})`);
+  await pa.screenshot({ path: join(out, "items-zh-390x664.png") });
+  await sheet.getByRole("button", { name: t("itemsApply"), exact: true }).click();
+  const filled = await sheet.locator(".split-person-field input").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+  ok(JSON.stringify(filled) === JSON.stringify(["24.32", "29.97", "24.31"]) && (await sheet.locator(".split-note.is-good").count()) === 1, `用这个: 按金额 filled in, and it adds up (${filled.join(", ")})`);
+  await sheet.getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(pa);
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await pa.locator(".split-standing").innerText()).includes("$54.28"), "saved: I paid $78.60 and had $24.32 of it, so I'm owed $54.28");
+  // in English, on the narrowest phone
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  await pa.locator("#split-list .split-row").first().click();
+  await pa.locator(".split-field", { hasText: say("en", "sharedBy") }).first().click();
+  await sheet.getByRole("button", { name: say("en", "itemsButton") }).click();
+  await items.nth(2).waitFor({ timeout: 15_000 });
+  await pa.screenshot({ path: join(out, "items-en-320x568.png") });
+  const fits = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll("dialog[open] .split-item *, dialog[open] .split-pair *")].every((e) => e.getBoundingClientRect().right <= window.innerWidth + 0.5));
+  ok(fits, "in English on a 320 phone: the lines, the names and the two buttons fit");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -4218,6 +4277,7 @@ if (what === "all" || what === "pay") await paying();
 if (what === "all" || what === "kinds") await kinding();
 if (what === "all" || what === "refund") await refunding();
 if (what === "all" || what === "payers") await paying2();
+if (what === "all" || what === "items") await itemizing();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);
