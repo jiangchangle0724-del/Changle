@@ -2,11 +2,13 @@
 // goes, what it comes to), with the merchant's marks (confirmed, paid, handed over, cancelled,
 // what the scale said), and the two sheets: what to get ready, and what goes where. Opening it
 // counts as having been told of its new orders (the server stops the mail for them).
+import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { MyOfferPage, OfferMove, OrderMove } from "../../api";
 import { BASE } from "../../base";
 import { chainText, type ChainWords } from "../../engine/chain";
 import { ordersCsv, type CsvWords } from "../../engine/csv";
+import { ORDER_RE, tidyOrderCode } from "../../engine/ids";
 import { lineAmount, MILLI } from "../../engine/money";
 import { ARRIVED_NOTE_MAX } from "../../engine/offer";
 import { leftOf } from "../../engine/order";
@@ -41,6 +43,15 @@ export function MyOfferView({ offerId }: { offerId: string }) {
   const [elsewhere, setElsewhere] = useState(false);
   const [poster, setPoster] = useState(false);
   const [arriving, setArriving] = useState(false);
+  // at the pickup point: what was typed or scanned (a buyer's pickup code opens this page with ?pick=<code>), or null
+  const [picking, setPicking] = useState<string | null>(() => {
+    const pick = new URLSearchParams(location.search).get("pick");
+    return pick === null ? null : tidyOrderCode(pick);
+  });
+  useEffect(() => {
+    // (the address loses it, so a reload doesn't open the sheet again)
+    if (new URLSearchParams(location.search).has("pick")) history.replaceState(history.state, "", location.pathname);
+  }, []);
   const [toast, setToast] = useState<string | null>(null);
   const skew = useRef(0);
   const shown = useRef(false);
@@ -150,6 +161,20 @@ export function MyOfferView({ offerId }: { offerId: string }) {
     unpicked: standing.filter((order) => order.pickedAt === null).length,
     cancelled: page.orders.length - standing.length,
   };
+  /** An order's card, with what the merchant does to it: in the list, and at the pickup point. */
+  const cardOf = (order: Order) => (
+    <OrderCard
+      key={order.code}
+      order={order}
+      place={placeName(order)}
+      busy={busy !== null}
+      onConfirm={() => void act(order, { do: "confirm" })}
+      onPaid={() => void act(order, { do: "paid", on: order.paidAt === null })}
+      onPicked={() => void act(order, { do: "picked", on: order.pickedAt === null })}
+      onWeigh={() => setWeighing(order.code)}
+      onCancel={() => setCancelling(order.code)}
+    />
+  );
   // items whose last case the orders haven't filled
   const short = summary.items.filter((item) => item.case !== null && item.case.part > 0).length;
   const passes = (order: Order): boolean =>
@@ -200,6 +225,11 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           {state === "open" && (
             <button type="button" class="btn btn-quiet btn-sm" onClick={() => setClosing(true)}>
               {t("closeNow")}
+            </button>
+          )}
+          {standing.length > 0 && (
+            <button type="button" class="btn btn-quiet btn-sm" onClick={() => setPicking("")}>
+              {t("pickButton")}
             </button>
           )}
           {state !== "draft" && page.shop.status !== "pending" && !offer.arrived && (
@@ -310,19 +340,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
             <p class="hint center">{t("noneMatch")}</p>
           ) : (
             <ul class="orders">
-              {listed.map((order) => (
-                <OrderCard
-                  key={order.code}
-                  order={order}
-                  place={placeName(order)}
-                  busy={busy !== null}
-                  onConfirm={() => void act(order, { do: "confirm" })}
-                  onPaid={() => void act(order, { do: "paid", on: order.paidAt === null })}
-                  onPicked={() => void act(order, { do: "picked", on: order.pickedAt === null })}
-                  onWeigh={() => setWeighing(order.code)}
-                  onCancel={() => setCancelling(order.code)}
-                />
-              ))}
+              {listed.map(cardOf)}
             </ul>
           )}
         </>
@@ -480,6 +498,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
         </Sheet>
       )}
       {poster && <PosterSheet page={page} link={link} onClose={() => setPoster(false)} />}
+      {picking !== null && <PickSheet orders={page.orders} first={picking} render={cardOf} onClose={() => setPicking(null)} />}
       {arriving && <ArriveSheet first={offer.arrived?.note ?? ""} busy={busy !== null} onSend={(note) => void arrive({ do: "arrived", note })} onClose={() => setArriving(false)} />}
       {elsewhere && (
         <Sheet title={t("csvWeChatTitle")} onClose={() => setElsewhere(false)}>
@@ -506,6 +525,32 @@ const chainWords = (page: MyOfferPage): ChainWords => ({
 });
 /** A word for the group chat that the goods are in: the group buy, the merchant's line, its link. */
 const arrivedText = (page: MyOfferPage, link: string): string => [`【${page.shop.name}】${page.offer.title}`, t("arrivedChain"), page.offer.arrived?.note ?? "", t("arrivedChainLink", { link })].filter(Boolean).join("\n");
+
+/**
+ * At the pickup point: an order found by its code (scanned from the buyer's pickup code, or typed) or
+ * by the last digits of its phone number, as its card, to mark it paid and handed over.
+ */
+function PickSheet({ orders, first, render, onClose }: { orders: Order[]; first: string; render: (order: Order) => JSX.Element; onClose: () => void }) {
+  const [typed, setTyped] = useState(first);
+  const code = tidyOrderCode(typed);
+  const digits = typed.replace(/[\s-]/g, "");
+  const found =
+    ORDER_RE.test(code) && orders.some((order) => order.code === code)
+      ? orders.filter((order) => order.code === code)
+      : /^\d{4,}$/.test(digits)
+        ? orders.filter((order) => order.status !== "cancelled" && order.phone.endsWith(digits))
+        : null;
+  return (
+    <Sheet title={t("pickTitle")} onClose={onClose}>
+      <label class="field">
+        <span class="field-label">{t("pickLabel")}</span>
+        <input type="text" name="pick" maxLength={12} autocomplete="off" autocapitalize="characters" value={typed} onInput={(event) => setTyped(event.currentTarget.value)} />
+        <span class="hint">{t("pickHint")}</span>
+      </label>
+      {found && (found.length ? <ul class="orders">{found.map(render)}</ul> : <p class="hint">{t("pickNone")}</p>)}
+    </Sheet>
+  );
+}
 
 /** Telling buyers the goods are in, with a line on when and where if there's one to say. */
 function ArriveSheet({ first, busy, onSend, onClose }: { first: string; busy: boolean; onSend: (note: string) => void; onClose: () => void }) {

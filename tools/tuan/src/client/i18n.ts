@@ -102,6 +102,8 @@ const STRINGS = {
   caseYou: { zh: "算上你的", en: "With yours" },
   arrivedTitle: { zh: "货到了", en: "The goods are in" },
   arrivedPickup: { zh: "货到了，可以来取了", en: "The goods are in: come and pick yours up" },
+  pickupCodeTitle: { zh: "取货码", en: "Pickup code" },
+  pickupCodeLine: { zh: "取货时给商家看这个码，商家用手机相机扫一下，就能找到你这一单。", en: "Show this when you pick up: the merchant scans it with their phone's camera to find your order." },
   arrivedDelivery: { zh: "货到了，商家会按说好的时间送到", en: "The goods are in: the merchant will deliver as arranged" },
   caseAbout: { zh: "商家按整箱进这样东西，一箱 {size}。大家的订单一起凑满一箱；截单时最后一箱没凑满的话，商家会跟你联系。", en: "The merchant gets this by the case, {size} a case. Everyone's orders fill it together; if the last case isn't full when orders close, the merchant will be in touch." },
   leastLine: { zh: "{n} 起", en: "from {n}" },
