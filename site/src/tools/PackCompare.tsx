@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { capDigits, cleanAmount } from "./money";
-import { figureDigits, MAX_PACKS, PACK_MASS, PACK_VOLUME, rankPacks, type Pack } from "./units";
+import { BASE, figureDigits, MAX_PACKS, PACK_UNITS, rankPacks, type Kind, type Pack } from "./units";
 
 const KEY = "changle.price.compare";
 const TAGS = "ABCDEF";
@@ -31,7 +31,7 @@ function load(): State {
  * saving named against the second cheapest with a check that isn't only color, and a reset that
  * can be undone (PriceGrab).
  */
-export function PackCompare({ kind, symbol, lang }: { kind: "mass" | "volume"; symbol: string; lang: "zh" | "en" }) {
+export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string; lang: "zh" | "en" }) {
   const zh = lang === "zh";
   const [state, setState] = useState<State>(load);
   // the packs as they were before 清空, until the next change
@@ -44,11 +44,11 @@ export function PackCompare({ kind, symbol, lang }: { kind: "mass" | "volume"; s
     }
   }, [state]);
 
-  const units = kind === "mass" ? PACK_MASS : PACK_VOLUME;
-  // a unit saved under the other kind falls back to grams or millilitres
+  const units = PACK_UNITS[kind];
+  // a unit saved under another kind falls back to grams, millilitres or items
   const packs = state.packs.map((p) => ({ ...p, unit: units.some((u) => u.id === p.unit) ? p.unit : units[0].id }));
   const { per, verdict } = rankPacks(packs, units);
-  const base = kind === "mass" ? (zh ? "公斤" : "kg") : zh ? "升" : "L";
+  const base = BASE[kind][lang];
   const money = (v: number) =>
     symbol + new Intl.NumberFormat(zh ? "zh-CN" : "en-CA", { minimumFractionDigits: 2, maximumFractionDigits: Math.max(2, figureDigits(v, 2)) }).format(v);
   const setPacks = (next: Pack[]) => {
@@ -61,7 +61,7 @@ export function PackCompare({ kind, symbol, lang }: { kind: "mass" | "volume"; s
   const names = (ids: number[]) => ids.map((i) => TAGS[i]).join(zh ? "、" : " and ");
   const verdictText = () => {
     if (!verdict) {
-      const eg = kind === "mass" ? (zh ? "100 克 × 6" : "100 g × 6") : zh ? "355 毫升 × 12" : "355 mL × 12";
+      const eg = { mass: zh ? "100 克 × 6" : "100 g × 6", volume: zh ? "355 毫升 × 12" : "355 mL × 12", count: zh ? "12 个 × 2" : "12 items × 2" }[kind];
       return zh ? `填上至少两个的价格和分量就能比。多件装在 × 后面填件数，比如 ${eg}。` : `Fill in the price and size of two or more to compare. For a multipack, put the count after ×: ${eg}.`;
     }
     const { best, next, pct, save } = verdict;
@@ -115,7 +115,7 @@ export function PackCompare({ kind, symbol, lang }: { kind: "mass" | "volume"; s
                       className="tabular"
                       inputMode="decimal"
                       enterKeyHint="next"
-                      placeholder={zh ? "分量" : "size"}
+                      placeholder={kind === "count" ? (zh ? "几个" : "count") : zh ? "分量" : "size"}
                       value={p.qty}
                       aria-label={zh ? `${tag} 的分量` : `Size of ${tag}`}
                       onChange={(e) => edit(i, { qty: capDigits(cleanAmount(e.target.value), 9) })}

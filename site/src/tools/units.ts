@@ -19,9 +19,29 @@ export const VOLUME: Unit[] = [
   { id: "100ml", zh: "100 毫升", en: "100 mL", size: 0.1 },
 ];
 
+/** sizes in items: eggs, rolls, cans, pods */
+export const COUNT: Unit[] = [
+  { id: "each", zh: "个", en: "item", size: 1 },
+  { id: "dozen", zh: "打", en: "dozen", size: 12 },
+  { id: "10", zh: "10 个", en: "10 items", size: 10 },
+  { id: "100", zh: "100 个", en: "100 items", size: 100 },
+];
+
 /** What a pack's size is printed in: grams and millilitres first, then the units above. */
 export const PACK_MASS: Unit[] = [{ id: "g", zh: "克", en: "g", size: 0.001 }, ...MASS.filter((u) => u.id !== "100g")];
 export const PACK_VOLUME: Unit[] = [{ id: "ml", zh: "毫升", en: "mL", size: 0.001 }, ...VOLUME.filter((u) => u.id !== "100ml")];
+export const PACK_COUNT: Unit[] = [
+  { id: "each", zh: "个", en: "items", size: 1 },
+  { id: "dozen", zh: "打", en: "dozen", size: 12 },
+];
+
+/** Weight, volume, or how many: things sold by the item (eggs, toilet rolls) since 2026-11-26. */
+export type Kind = "mass" | "volume" | "count";
+export const isKind = (s: unknown): s is Kind => s === "mass" || s === "volume" || s === "count";
+export const UNITS: Record<Kind, Unit[]> = { mass: MASS, volume: VOLUME, count: COUNT };
+export const PACK_UNITS: Record<Kind, Unit[]> = { mass: PACK_MASS, volume: PACK_VOLUME, count: PACK_COUNT };
+/** What packs are compared per: a kilogram, a litre, an item. */
+export const BASE: Record<Kind, { zh: string; en: string }> = { mass: { zh: "公斤", en: "kg" }, volume: { zh: "升", en: "L" }, count: { zh: "个", en: "item" } };
 
 /** Price per kilogram or litre, from a price typed for one unit (0 while nothing is typed). */
 export function perBaseOf(text: string, unit: Unit) {

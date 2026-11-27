@@ -3,11 +3,10 @@ import { useStore } from "../store";
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, isCode, sizeClass, type Code, type FxState } from "./fx";
 import { PackCompare } from "./PackCompare";
 import { RateStatus } from "./RateStatus";
-import { figureDigits, MASS, perBaseOf, plainFigure, VOLUME, type Unit } from "./units";
+import { figureDigits, isKind, perBaseOf, plainFigure, UNITS, type Kind, type Unit } from "./units";
 
 const SYMBOL = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol])) as Record<Code, string>;
 
-type Kind = "mass" | "volume";
 /**
  * What the card keeps on the phone: weight or volume, the unit picked for the big field, the
  * price typed and the unit of the field it was typed in (`src`: the big field or any box), the
@@ -38,7 +37,7 @@ function selectOnTap(e: MouseEvent<HTMLInputElement>) {
 }
 
 /**
- * Price per kg, lb, 斤, oz and per litre or gallon, with the same price in a second currency.
+ * Price per kg, lb, 斤, oz, per litre or gallon, or per item and dozen, with the same price in a second currency.
  * Every figure is a field: type in the big one or in any box and all the others follow.
  */
 export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
@@ -51,7 +50,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
         const saved = JSON.parse(raw) as Partial<Saved>;
         if (typeof saved.unit === "string" && typeof saved.text === "string" && isCode(saved.cur) && isCode(saved.alt)) {
           // saved before the boxes could be typed in: the price was the big field's
-          return { kind: saved.kind === "volume" ? "volume" : "mass", unit: saved.unit, text: saved.text, src: typeof saved.src === "string" ? saved.src : saved.unit, cur: saved.cur, alt: saved.alt };
+          return { kind: isKind(saved.kind) ? saved.kind : "mass", unit: saved.unit, text: saved.text, src: typeof saved.src === "string" ? saved.src : saved.unit, cur: saved.cur, alt: saved.alt };
         }
       }
     } catch {
@@ -68,7 +67,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   }, [state]);
 
   const set = (patch: Partial<Saved>) => setState((s) => ({ ...s, ...patch }));
-  const units = state.kind === "mass" ? MASS : VOLUME;
+  const units = UNITS[state.kind];
   const from = units.find((u) => u.id === state.unit) ?? units[0];
   // the field typed in last holds the price; every other field shows it converted
   const src = units.find((u) => u.id === state.src) ?? from;
@@ -99,7 +98,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
   // a new kind starts on its usual unit, with the same figure in the big field
   const pickKind = (kind: Kind) => {
     if (kind === state.kind) return;
-    const unit = kind === "mass" ? "lb" : "gal";
+    const unit = kind === "mass" ? "lb" : kind === "volume" ? "gal" : "each";
     set({ kind, unit, src: unit, text: src.id === from.id ? state.text : plainFigure(perBase * from.size, decimals) });
   };
   // a unit picked for the big field: a figure typed there now means that unit; a box typed in keeps its price
@@ -123,6 +122,9 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           </button>
           <button type="button" aria-pressed={state.kind === "volume"} onClick={() => pickKind("volume")}>
             {zh ? "容量" : "Volume"}
+          </button>
+          <button type="button" aria-pressed={state.kind === "count"} onClick={() => pickKind("count")}>
+            {zh ? "个数" : "Count"}
           </button>
         </div>
       </header>
@@ -169,6 +171,7 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
       <p className="price-note">
         {zh ? "每一格都能直接输入，别的跟着变。" : "Type in any box and the rest follow."}
         {state.kind === "mass" && (zh ? "1 斤按中国大陆的 500 克算。" : " 1 jīn 斤 is counted as mainland China's 500 g.")}
+        {state.kind === "count" && (zh ? "1 打 = 12 个。" : " A dozen is 12.")}
       </p>
       <label className="price-also">
         <span>{zh ? "同时显示" : "Also show in"}</span>
