@@ -187,6 +187,10 @@ export function lostLine(l: Ledger, sent: Sent, lang: Lang): string {
       const who = nameOf(l, c.member);
       return who ? say(lang, "lostRemove", { who }) : say(lang, "lostOther");
     }
+    case "pay": {
+      const who = nameOf(l, c.member);
+      return who ? say(lang, "lostPay", { who }) : say(lang, "lostOther");
+    }
     default:
       return say(lang, "lostOther");
   }

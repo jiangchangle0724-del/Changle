@@ -139,6 +139,19 @@ def errors(pages):
 
 # ------------------------------------------------------------------ superlatives
 
+def poster_check(pg, tag):
+    """The awards poster: drawn on this phone, shown in a sheet, with a way to hand it over."""
+    pg.get_by_role("button", name="颁奖海报").click()
+    ok(until(lambda: pg.locator(".sup-poster img").count() == 1, 8000), f"{tag}: the poster is drawn")
+    size = pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); return [i.naturalWidth, i.naturalHeight, i.src.startsWith('data:image/png')]; }")
+    ok(size[0] == 1080 and size[1] > 600 and size[2], f"{tag}: a 1080-wide PNG {size[:2]}")
+    ok(pg.locator(".ui-sheet button", has_text=re.compile("发给朋友|保存图片")).count() == 1, f"{tag}: a share or save button")
+    shot(pg, f"sup-poster-{tag}")
+    pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); window.__poster = i.src; }")
+    pg.locator(".ui-sheet").get_by_role("button", name=re.compile("^(关闭|Close)$")).last.click()
+    ok(until(lambda: not pg.locator(".sup-poster img").is_visible(), 3000), f"{tag}: the sheet closes")
+
+
 def t_superlatives_single(browser):
     pg = phone(browser, "solo", players=PLAYERS[:4])
     pg.goto(BASE + "#/g/superlatives", wait_until="networkidle")
@@ -210,6 +223,7 @@ def t_superlatives_single(browser):
     ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 3000), "one phone: then the whole table's toast, as online")
     ok("全场" in pg.locator(".stamp-layer").inner_text(), "one phone: the toast is for everyone")
     clear_stamps([pg])
+    poster_check(pg, "solo")
     pg.get_by_role("button", name="再来五个奖").click()
     ok(until(lambda: pg.locator(".pass-curtain").count() == 1, 3000) and "第 6 个奖" in pg.locator(".award-count").inner_text(), "one phone: five more awards")
     errors([pg])
@@ -312,6 +326,7 @@ def t_superlatives_online(browser):
     ok(until(lambda: more.is_enabled(), 2000), "then the host can go on")
     clear_stamps(everyone)
     shot(host, "sup-net-ceremony")
+    poster_check(guests[0], "online")
     errors(everyone)
     for g in [host] + guests:
         g.context.close()

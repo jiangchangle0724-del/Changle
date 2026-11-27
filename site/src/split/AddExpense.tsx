@@ -24,7 +24,7 @@ import { MAX_FILES } from "./changes";
 import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
-import { asAmountText, press, type Key } from "./input";
+import { asAmountText, press, totalOf, type Key } from "./input";
 import { dayLabel, extrasText, nameFor, spentOn } from "./lines";
 import { DETAIL_MAX, DETAILS, isDay, NOTE_MAX, type Detail } from "./ops";
 import { Bar, Keypad } from "./parts";
@@ -249,7 +249,12 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const type = (k: Key) => {
     setReading((r) => (r === "none" ? null : r));
     setJustRead(false);
-    setDraft((d) => ({ ...d, text: press(d.text, k, decimalsOf(d.currency)) }));
+    setDraft((d) => {
+      // amounts being added up go on from where they were, while they still come to the amount
+      const dec = decimalsOf(d.currency);
+      const now = press(d.terms !== undefined && totalOf(d.terms, dec) === d.text ? d.terms : d.text, k, dec);
+      return now.includes("+") ? { ...d, terms: now, text: totalOf(now, dec) } : { ...d, terms: undefined, text: now };
+    });
   };
 
   // Today's rates are asked for while the currency is being picked, the rate looked at, or a rate
@@ -266,7 +271,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       if (sheet || photos || e.metaKey || e.ctrlKey || e.altKey) return;
       const at = e.target as HTMLElement | null;
       if (at && (at.tagName === "INPUT" || at.tagName === "TEXTAREA")) return;
-      if (/^[0-9.]$/.test(e.key)) type(e.key as Key);
+      if (/^[0-9.+]$/.test(e.key)) type(e.key as Key);
       else if (e.key === "Backspace") type("back");
       else return;
       e.preventDefault();
@@ -330,8 +335,17 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const twinLine = twin
     ? say(lang, "twinSeen", { what: [dayLabel(spentOn(twin), today, lang), twin.merchant, money(twin.paidIn?.amount ?? twin.amount, twin.paidIn?.currency ?? ledger.currency, lang)].filter(Boolean).join(" ") })
     : null;
-  const readLine = comes || twinLine ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
-  const extrasLine = comes || reading || twinLine ? null : fresh && aboutSaid ? say(lang, "readExtras", { what: aboutSaid }) : amountSaid ? amountSaid.charAt(0).toUpperCase() + amountSaid.slice(1) : null;
+  // amounts being added up (the keypad's +): each as typed, in the line's place, while they come to the amount
+  const sumLine =
+    !comes && draft.terms?.includes("+") && totalOf(draft.terms, decimalsOf(draft.currency)) === draft.text
+      ? draft.terms
+          .split("+")
+          .map((t) => (t ? typed(t, draft.currency, lang) : ""))
+          .join(" + ")
+          .trim()
+      : null;
+  const readLine = comes || twinLine || sumLine ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
+  const extrasLine = comes || reading || twinLine || sumLine ? null : fresh && aboutSaid ? say(lang, "readExtras", { what: aboutSaid }) : amountSaid ? amountSaid.charAt(0).toUpperCase() + amountSaid.slice(1) : null;
   // the 详情 line: the day, then what it was for and where and how it was paid, as far as they go
   const detailsSaid = [draft.note, draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
@@ -380,7 +394,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : readLine || twinLine || extrasLine || hint ? " is-read" : ""}${scanning ? " is-scanning" : ""}`}>
+        <div className={`split-add-amount${comes ? " is-abroad" : sumLine || readLine || twinLine || extrasLine || hint ? " is-read" : ""}${scanning ? " is-scanning" : ""}`}>
           <output
             className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}${justRead && fresh ? " is-just-read" : ""}`}
             aria-label={say(lang, "amount")}
@@ -401,6 +415,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
               </span>
             </button>
           )}
+          {sumLine && <p className="split-add-read split-add-sum">{sumLine}</p>}
           {readLine && <p className="split-add-read">{readLine}</p>}
           {twinLine && (
             <p className="split-add-read is-twin">

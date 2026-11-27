@@ -3753,3 +3753,31 @@ button.ecard.is-legal:active {
   flex: none;
   color: var(--gel);
 }
+/* the awards poster, in its sheet: the one picture a long press opens a menu on (WeChat saves it that way) */
+.sup-poster {
+  display: grid;
+  gap: var(--space-3);
+}
+.sup-poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  -webkit-touch-callout: default;
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+.sup-poster-hint {
+  margin: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.sup-poster-hint.is-loud {
+  color: var(--moon);
+  font-weight: 700;
+}
+.sup-poster-actions {
+  display: grid;
+  gap: var(--space-2);
+}

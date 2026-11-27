@@ -9,7 +9,8 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, THIN_MS, type ArenaId, type TagCall } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
 import { other, t, type Key } from "../i18n";
-import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
+import { BASE } from "../base";
+import { buzz, installAudioUnlock, loadVoices, say, sfx, startMusic, stopMusic } from "../sound";
 import { Icon, type IconName } from "./chrome";
 import { QUESTS } from "./quest";
 
@@ -263,10 +264,19 @@ export interface Callout {
  * first blood, a double kill and on, a spree, a rampage, a shutdown), every screen shows it for a
  * moment with who made it, and plays its stab; the one who made it feels it too.
  */
-export function useCallout(events: readonly EventView[]): Callout | null {
+/**
+ * The call of the latest tag, on screen for a moment, and said: the announcer's voice (`say`) on the big
+ * screen for every call, on a phone for the calls about it (its tags, or a tag on it), or for every call
+ * when the room has no big screen (a phone plays only its own things beside one). Before the voice has
+ * loaded, the synthesised stinger instead.
+ */
+export function useCallout(events: readonly EventView[], hears: { screen: boolean; screens: number }): Callout | null {
   const last = events.length ? events[events.length - 1].id : 0;
   const seen = useRef(last);
   const [shown, setShown] = useState<Callout | null>(null);
+  useEffect(() => {
+    loadVoices(BASE);
+  }, []);
   useEffect(() => {
     const fresh = events.filter((event) => event.id > seen.current);
     if (!fresh.length) return;
@@ -274,7 +284,12 @@ export function useCallout(events: readonly EventView[]): Callout | null {
     const called = [...fresh].reverse().find((event) => event.call);
     if (!called?.call) return;
     setShown({ call: called.call, who: called.who, you: called.byYou, id: called.id });
-    sfx.callout(TIER[called.call]);
+    const mine = called.byYou || called.onYou;
+    // (and if the sound was only unlocked since the round began, the voice starts loading now)
+    loadVoices(BASE);
+    if (hears.screen || mine || hears.screens === 0) {
+      if (!say(called.call)) sfx.callout(TIER[called.call]);
+    }
     if (called.byYou) buzz([20, 40, 20, 40, 70]);
   }, [last]);
   useEffect(() => {

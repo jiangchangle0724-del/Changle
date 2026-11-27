@@ -153,7 +153,14 @@ they agree after a crowd of orders, changes and cancellations at once.
   close first) at the live shops that are shown there, and those shops (60 at most, newest
   first). A shop is shown unless its own people untick it on its page (`shops.listed`,
   `migrations/0006_listed.sql`, which keeps the test shop of 2026-11-13 off it: its group buy is
-  for those given its link); its links work either way. A card says only what the group
+  for those given its link); its links work either way.
+- **The goods are in**: a merchant says so on the group buy's page (货到了), with a line on when
+  and where if they like (200 characters at most; `offers.arrived_at`, `arrived_note`,
+  `migrations/0008_arrived.sql`). The group buy's page shows it at the top, and each order's page
+  too (come and pick yours up, or it's on its way), but not once the order is handed over or if it
+  was cancelled. The merchant's page has a note to copy for the group (the group buy, the line, the
+  link), a way to change the line, and one to take it all back. Nobody is messaged: buyers learn it
+  from the group and the pages. A card says only what the group
   buy's own page already shows: the order count is left out where the list of who's in is off.
   The search and the kinds of shop work on the phone, over what came.
 - **A buyer** signs in to nothing. An order opens with its 6-character code and the last four

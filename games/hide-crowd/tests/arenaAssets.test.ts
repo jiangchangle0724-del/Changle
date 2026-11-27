@@ -7,7 +7,13 @@ import { fileURLToPath } from "node:url";
 
 const art = new URL("../src/client/art/", import.meta.url);
 const dir = fileURLToPath(art);
-const sizes: Record<string, number> = Object.fromEntries(readdirSync(dir).map((name) => [name, statSync(dir + name).size]));
+const sizes: Record<string, number> = Object.fromEntries(
+  readdirSync(dir)
+    .filter((name) => statSync(dir + name).isFile())
+    .map((name) => [name, statSync(dir + name).size])
+);
+// the announcer's calls are a folder of their own (voice/*.mp3)
+const voices: Record<string, number> = Object.fromEntries(readdirSync(dir + "voice").map((name) => [name, statSync(dir + "voice/" + name).size]));
 const credits = readFileSync(new URL("../src/client/ui/Credits.tsx", import.meta.url), "utf8");
 const design = readFileSync(new URL("../DESIGN.md", import.meta.url), "utf8");
 
@@ -68,6 +74,18 @@ test("pictures are WebP and within their budgets", () => {
   }
   const total = Object.values(sizes).reduce((sum, size) => sum + size, 0);
   assert.ok(total < 2_000_000, `all the art is ${total} bytes`);
+});
+
+test("the announcer's calls are MP3s, small, all twelve there, and credited", () => {
+  const lines = ["first", "double", "triple", "quadra", "penta", "spree", "rampage", "shutdown", "final", "qualified", "eliminated", "champion"];
+  assert.deepEqual(Object.keys(voices).sort(), lines.map((line) => `${line}.mp3`).sort());
+  for (const [name, size] of Object.entries(voices)) {
+    assert.ok(size <= 40_000, `${name} is ${size} bytes`);
+    const head = readFileSync(dir + "voice/" + name).subarray(0, 3);
+    assert.ok(head.toString("ascii") === "ID3" || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0), `${name} is an MP3`);
+  }
+  assert.ok(Object.values(voices).reduce((sum, size) => sum + size, 0) < 450_000);
+  assert.ok(credits.includes("voice/*.mp3") && design.includes("voice/*.mp3"), "credited");
 });
 
 test("every art file is credited on the credits page and in DESIGN.md", () => {

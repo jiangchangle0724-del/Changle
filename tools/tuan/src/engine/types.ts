@@ -38,6 +38,14 @@ export interface Offer {
   status: OfferStatus;
   closesAt: number;
   roster: Roster;
+  /** the merchant's word that the goods are in, or null */
+  arrived: Arrived | null;
+}
+
+/** The merchant's word that the goods are in, for pickup or on their way: when they said it, and a line on when and where. */
+export interface Arrived {
+  at: number;
+  note: string;
 }
 
 export interface Item {
