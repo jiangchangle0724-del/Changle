@@ -165,7 +165,7 @@ Phase 1（合成数据上搭）：
 - [ ] 夹具工具下一步：编出来的 CSV 账还对得上（余额按编的金额重算）；PDF 读取器有了以后，编出来的 PDF 版式也一样
 - [x] 服务器存块的那一半（#782，2026-11-25）：`src/server/chunks.ts`，同步的两个调用跑在每人自己的 SQLite 上，通过了规矩本通过的全部测试。Codex 审了两眼（C7：#784、#787），都是通过
 - [x] 会话和请求检查（#789，2026-11-25）：`src/server/sessions.ts`、`src/server/request.ts`。Codex 审过（C8，#792）：通过，没有要改的
-- [ ] Worker 和 Durable Object 的外壳，**写好了，Codex 第一眼提了两条，都改了，等它复核**（#814，2026-11-26，没合并、没上线、闸门关着；两条和改法见下面 11-26 晚的记录）：兑换交接码、闸门（`GATE`：关 / 只有 Steve / 名单）、把请求送到「这个会话自己的」那个库、配额、安全事件记录、`Internal`（删号清空、换邮箱全部登出）、同步走 HTTP 的格式，都在；本机用 Cloudflare 自己的运行环境测过（`npm run test:server`）。说明在安全评估 1.8。还差：Codex 的审查（卡片 C9，要占用 Steve 的屏幕把说明贴进去）；重置保险库和它的 7 天等待（要先设计设备那一头）；每周清扫；主站那一页。下面是原来的说明：兑换交接码、允许名单、把请求送到「这个会话自己的」那个库、配额怎么由 Steve 调、重置保险库、安全事件记录（T-1 到 T-3、T-14、T-22、T-23）。账号对话的交接码已经上线（#690：主站 `POST /api/handoff` 发码，`Handoff` 入口的 `redeem`、`exists`），可以直接接。主站那一页（`changle.ca/tools/finance?handoff=<nonce>` 要码再跳回来）归这个对话写
+- [x] Worker 和 Durable Object 的外壳，**写好了，审过了（Codex 第一眼的两条都改了；复核由 Claude Opus 5.5 做，结论通过，见 11-27 的记录）**（#814，2026-11-26，没合并、没上线、闸门关着；两条和改法见下面 11-26 晚的记录）：兑换交接码、闸门（`GATE`：关 / 只有 Steve / 名单）、把请求送到「这个会话自己的」那个库、配额、安全事件记录、`Internal`（删号清空、换邮箱全部登出）、同步走 HTTP 的格式，都在；本机用 Cloudflare 自己的运行环境测过（`npm run test:server`）。说明在安全评估 1.8。还差：Codex 的审查（卡片 C9，要占用 Steve 的屏幕把说明贴进去）；重置保险库和它的 7 天等待（要先设计设备那一头）；每周清扫；主站那一页。下面是原来的说明：兑换交接码、允许名单、把请求送到「这个会话自己的」那个库、配额怎么由 Steve 调、重置保险库、安全事件记录（T-1 到 T-3、T-14、T-22、T-23）。账号对话的交接码已经上线（#690：主站 `POST /api/handoff` 发码，`Handoff` 入口的 `redeem`、`exists`），可以直接接。主站那一页（`changle.ca/tools/finance?handoff=<nonce>` 要码再跳回来）归这个对话写
 - [ ] 应用页面（Preact）：建保险库、解锁、导入、流水、分类、看板、隐私和数据页
 - [ ] 演示、介绍页、工具页卡片
 - [ ] 同意和资格（CON-1 到 CON-7，T-15）、安全事件记录（SEC-17）
@@ -183,12 +183,14 @@ Phase 1（合成数据上搭）：
 ## 交给别的对话
 
 - 「平台 · 账号与头像」：三件事，写在 [`docs/moneylens/accounts-requests.md`](../moneylens/accounts-requests.md)。**第 1、2 件已经做好上线（#690，2026-11-20）**：交接码（主站 `POST /api/handoff`，256 位、60 秒、一次；`Handoff` 入口的 `redeem(code, aud)` 和 `exists(ids)`，用 service binding 接）、删号通知重试到成功。第 3 件换邮箱也上线了（#704，11-21）：换好的那一刻会调 `accountChanged(id)`，账号 id 不变，保险库照旧跟着 id 走。**请你们记着**：MoneyLens 第一次部署以后，`site/worker/wrangler.jsonc` 的 services 要加 `MONEY`（你们的状态文件里已经写了这条待办）。
+  - **新的一条（2026-11-27，#814 的审查提的，小事，不急）**：`site/worker/hub.ts` 的 `endSessions` 在「没有别的会话」时直接返回，不清交接码。所以换邮箱那一刻，如果这个账号有一个刚好过期的会话要过码，那个码还能在它的 60 秒里换成功，换出来的 MoneyLens 会话就在「所有设备重新登录」之后。请在 `emailMade` 里无条件清一次这个账号等着的码（`forgetHandoffs(this.sql, id, false)`），或者让每个码记下是哪个会话要的、会话没了码就作废。MoneyLens 不靠这一条挡人（登录时两头都对一遍登记处的戳），这只是让「换邮箱以后还能换成功的码，只可能是换了以后才要的」这句话成真。
 - 「平台 · 首页与上线」：全站的 Privacy Policy 和 Terms 要放在主站 `/legal/` 并且页脚有链接（PRIV-5、DOC-5）。草稿由这个对话出，页面和页脚归你们。另外 SEC-7 要求给仓库开自动的依赖更新 PR（Dependabot），这是 GitHub 设置，要 Steve 同意。
 
 ## 最近的改动
 
 - 2026-11-26 moneylens: 服务器外壳写好了（Worker、每人一个 Durable Object、闸门、兑换交接码、同步走 HTTP），评估 0.13；**还没合并**，等 Codex 审（C9，#814）。线上没有变化
 - 2026-11-26 晚 moneylens: C9 第一眼的两条发现改完（评估 0.14），#814 还是没合并，等 Codex 复核。线上没有变化
+- 2026-11-27 moneylens: 服务器外壳审过、合并（#814）。复核 Codex 没做成，审查人是 Claude Opus 5.5（单独的代理），结论通过；三条不挡合并的发现记在档案里，其中限速那条要在开闸前解决。线上没有变化（没接部署，闸门关着）
 - 2026-11-26 moneylens: PDF 账单能读成交易了（第一种版式：信用卡月结单），试读页面第 3 版；服务器外壳的设计先记进 `docs/moneylens/server-shell.md`（#808）
 - 2026-11-25 moneylens: Steve 的第一份真账单（一张信用卡的 CSV，发来的是「编出来的版本」）照出三处：读取器把这种卡的正负读反了；夹具工具把一张卡编成了几十张；试读页面读不了 PDF 的时候不说原因。三处都改了，页面是第 2 版（#799）
 - 2026-11-25 moneylens: 会话和请求检查（`src/server/sessions.ts`、`request.ts`），评估 0.12；Codex 审过，通过（#789、#792）。只有库，没有 Worker，线上没有变化
@@ -242,3 +244,8 @@ Phase 1（合成数据上搭）：
   2. **应用的第一批页面**，照 `tools/when` 的做法（Preact、esbuild、`tokens.css` 抄主站的一份并用测试盯着不许走样、中英文都在 `i18n.ts`）：Worker 自己先接所有请求（`assets` 加 `run_worker_first: true`），闸门关着时任何页面都只回「还没有开放」，开着才发页面，每个回答带安全头和 CSP（`script-src 'self'`，没有内联脚本）。页面一打开：地址里有 `#h=<码>` 就拿去换会话、把地址擦干净；没登录就给一个去 `/enter` 的按钮；没有保险库就建（口令两遍、弱口令的提示用 `weakness()`、恢复码只显示一次并让人抄回最后一组）；有就解锁（口令或恢复码）。打开以后先只有一个空首页（锁上、退出、设备列表），导入和流水是再下一块。15 分钟不动就锁（VAULT-3）。浏览器测试：`wrangler dev` 开 https，Chrome 用 `--host-resolver-rules` 把 `money.changle.test` 指到本机，主站那一页由替身顶替，这样 Origin 和 `__Host-` Cookie 都是真的。
   3. **主站的 `/tools/finance?handoff=<nonce>`**（`site/src/tools/`，归这个对话）：查 nonce 的样子；已登录就自动 `POST /handoff {aud:"moneylens", nonce}`，拿到码以后去 `https://money.changle.ca/#h=<码>`（目的地写死，不从地址里读）；没登录先走主站的登录再回来；429 和出错有人话和「再试一次」。不带 `handoff` 时现在只写一句「还没有开放」，介绍页和工具页卡片以后再做。想过要不要每次都让人点一下「继续」：码只会进到发起那个浏览器自己的地址里、和它的 nonce Cookie 对不上就换不了，所以自动继续不会把会话交给别人，就不加这一下了。
 - 2026-11-26，会员对话交来的一条（它写进了这份状态文件的最后一行，合并 main 时留下了）：Steve 11-26 定的会员规则里，MoneyLens「导入一份账单」算一次，每个账号送 3 次，会员不限；**内测（邀请制 25 人）期间不计次，什么都不用做**；正式开放时，导入一份账单之前问 `MEMBER.use(uid, "moneylens")`，只记次数，账单内容照旧只在用户自己的库里。规则在 `docs/membership.md`。做导入页面时留好这个口子，Phase 3 以后再接。
+- 2026-11-27 凌晨，#814 的审查怎么收的尾。Codex 的复核没做成：它的应用把那条复核的话挡了（「This content can't be shown… cybersecurity requests… Try Daybreak」）；换了一条不带「发现」字样的短话再交，它也没动（clone 里一直没有新提交）。「Daybreak」是它给「有授权的安全工作」开的模式，要不要开是 Steve 的事，我没点。当时 Chrome 的扩展没连上（Steve 在手机上），Claude 自带的浏览器里 DeepSeek 没登录，另外两个模型也够不着。SEC-9 要的是「没写这段代码的第二个模型或人」，所以这次的审查人是 **Claude Opus 5.5**：单独起的一个代理，只给它这个提交的干净检出（`818039e5`）、任务卡和 Codex 留下的测试文件，不让它看后面的工作，也不让它改源码。它交了 [`docs/moneylens/reviews/server-shell.md`](../moneylens/reviews/server-shell.md) 和 `tools/moneylens/tests/second-shell.test.ts`（43 个测试；Codex 的 9 个留在里面，它的两条旧发现现在都当普通测试跑，通过）。我核对过以后原样提交：两个类型检查干净，它的 43 个里 41 个通过、2 个是标着 `todo` 的新发现，它说的账号服务里那一处我对着 `hub.ts` 看过，是对的。**结论：通过（APPROVE），在闸门关着、没接部署的情况下可以合并。** 它自己写明的局限：和作者是同一家的模型，独立性打折扣。所以 Codex 或 DeepSeek 能用了再让它们看一遍，Phase 3 前的独立审查（SEC-15）照旧要做。三条新发现，都不挡合并：
+  1. **开闸之前必须解决，「只有 Steve」那一档也算。** 代码里没有限速：`owner` 档下随便编一个账号 id 放进 Cookie 就能碰到一个 Durable Object；`/api/session` 随便带一个 nonce 就要问一次登记处和主站的账号服务（全站共用的那一个）。改法：Phase 2 用「名单」档、名单里只有 Steve 的账号 id（Worker 就在碰到任何库之前把别的 id 挡掉），再加按来源地址的限速。在「门」的分支上改。
+  2. 账号服务那边的一处（`site/worker/hub.ts` 的 `endSessions`）：换邮箱时如果这个账号没有别的会话，等着的交接码不会被清掉，所以一个刚好过期的会话要的码，还能在它的 60 秒里换成功。影响很小。已写给账号对话（见「交给别的对话」）；`flows.ts` 和评估 1.8 里那句话在「门」的分支上改成和实际一样。
+  3. 小毛病：`PUSH_MAX` 少算了帧头的 4 个字节，没有真设备会碰到。在「门」的分支上改。
+  它给后面几块留的要求（清空保险库、每周清扫、页面、服务器保管的钥匙）在审查文件最后一节，做到哪块对着看。
