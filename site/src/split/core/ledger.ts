@@ -50,7 +50,8 @@ export function problem(e: Pick<Expense, "payer" | "amount" | "split" | "paidIn"
     if (off !== 0) return { what: "sum", off };
   }
   if (e.paidIn && (!isAmount(e.paidIn.amount) || !isRate(e.paidIn.rate))) return { what: "rate" };
-  if (e.payers !== undefined) {
+  // (none: one paid it all; null, as a draft says it, is none too)
+  if (e.payers) {
     const paid = Object.entries(e.payers);
     if (e.paidIn || paid.length < 2 || !(e.payer in e.payers) || paid.some(([id, n]) => !roster.includes(id) || !isAmount(n)) || paid.reduce((a, [, n]) => a + n, 0) !== e.amount) return { what: "payers" };
   }

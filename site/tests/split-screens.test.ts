@@ -26,7 +26,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, mostPaid, paidOf, payersOf, payersProblem, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, dayBefore, decimalsOf, localDay, money, signedMoney, signOf, typed } from "../src/split/format";
 import { asAmountText, MAX_TERMS, press, totalOf, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
@@ -340,9 +340,9 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
 
   // what is said to the ledger
-  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
+  eq(saying(thirty, five), { payer: "s", payers: null, amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
   eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
-  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", payers: null, amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
 
   // opened again
   const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, date, merchant, place, payment, ...said }) => ({ ...said, ...(date ? { date } : {}), ...(merchant ? { merchant } : {}), ...(place ? { place } : {}), ...(payment ? { payment } : {}) }))(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
@@ -1661,6 +1661,29 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const back = expensesOf(l)[1];
   const d = draftOf(back, l);
   eq([d.refund, saying(d, l)?.refund, saying({ ...d, tip: "5.00" }, l)?.tip, saying({ ...d, refund: false }, l)?.refund, blankDraft(l, "s", 5000).refund], [true, true, null, null, false], "a refund opened is one, saved it says so and never a tip; turned off it says null; a new one isn't");
+}
+
+// ---------- 27. 几个人一起付 on the screens: the draft, its problems, the row, search ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }];
+  const l = startLedger("p", "周末", "CAD", people);
+  const d = { ...blankDraft(l, "s", 5000), text: "186" };
+  const two = { ...d, payers: { s: "100", w: "86" } };
+  eq([payersOf(two, l), mostPaid({ s: 9300, w: 9300 }), mostPaid({ s: 100, w: 8600 }), payersOf(d, l)], [{ s: 10000, w: 8600 }, "s", "w", null], "what each typed, in cents; of two the same the first pays, else the one who paid the most; one alone: none");
+  eq(
+    [payersProblem(two, l), payersProblem({ ...two, payers: { s: "100", w: "80" } }, l), payersProblem({ ...two, payers: { s: "100", w: "90" } }, l), payersProblem({ ...two, payers: { s: "186", w: "" } }, l), payersProblem({ ...two, text: "" }, l), payersProblem({ ...two, currency: "USD", rate: "1.4" }, l)],
+    [null, { what: "paidOff", off: 600 }, { what: "paidOff", off: -400 }, { what: "paidFew" }, null, { what: "paidAbroad" }],
+    "what is wrong: $6 still to pay, $4 too much, one alone, (no amount yet: nothing to say), another currency",
+  );
+  eq([draftProblem({ ...two, payers: { s: "100", w: "80" } }, l), saying({ ...two, payers: { s: "100", w: "80" } }, l)], [{ what: "paidOff", off: 600 }, null], "and while it is, the draft can't be saved");
+  const said = saying({ ...two, payers: { s: "86", w: "100" } }, l)!;
+  eq([said.payer, said.payers], ["w", { s: 8600, w: 10000 }], "saved: what each paid, and the one who paid the most as the payer");
+  const dinner = addExpense(l, { id: "e1", at: 1000, payer: "s", amount: 18600, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, payers: { s: 10000, w: 8600 } });
+  const e = expensesOf(dinner)[0];
+  eq([draftOf(e, dinner).payers, saying(draftOf(e, dinner), dinner)?.payers, saying({ ...draftOf(e, dinner), payers: null }, dinner)?.payers], [{ s: "100.00", w: "86.00" }, { s: 10000, w: 8600 }, null], "opened: what each paid, as typed; saved the same; one alone again says null");
+  eq([paidBy(e, dinner, "s", "zh"), paidBy(e, dinner, "m", "zh"), paidBy(e, dinner, "w", "en"), paidBy({ ...e, refund: true }, dinner, "m", "zh")], ["你、小王一起付", "Steve、小王一起付", "Steve, you paid", "Steve、小王收到"], "its row: who paid it together (你 for you), or got it back");
+  const found = (typed: string) => expensesOf(dinner).filter((x) => matches(x, dinner, typed, "m", "zh")).map((x) => x.id);
+  eq([found("小王"), found("Steve"), found("阿美")], [["e1"], ["e1"], []], "search finds it by each of them who paid");
 }
 
 if (failed) {

@@ -298,6 +298,15 @@ export const W = {
   // 几个人一起付 (2026-11-27), in the record
   historyPayers: { zh: "改成 {who} 一起付", en: "now paid by {who} together" },
   youInList: { zh: "你", en: "you" },
+  // 几个人一起付 on the screens: the payer sheet's two ways, what each paid, and the row
+  payOne: { zh: "一个人", en: "One person" },
+  paySeveral: { zh: "几个人", en: "Several" },
+  paidFor: { zh: "{who}付了多少", en: "What {who} paid" },
+  paidLeft: { zh: "还差 {amount}", en: "{amount} still to pay" },
+  paidFew: { zh: "至少两个人付", en: "Two or more have to pay" },
+  paidAbroad: { zh: "别的货币付的，只能一个人付", en: "Paid in another currency: one person only" },
+  payTypeFirst: { zh: "先输金额，再填每个人付了多少。", en: "Type the amount first, then what each one paid." },
+  paidByMany: { zh: "{who}一起付", en: "{who} paid" },
   // 退款 on the screens: turned on in 详情, said on the add screen, its row and its statement line
   refund: { zh: "退款", en: "Refund" },
   refundToggle: { zh: "这是一笔退款", en: "It's a refund" },
