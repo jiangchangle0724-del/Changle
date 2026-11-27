@@ -18,24 +18,34 @@ type Bound = string | number | null | ArrayBuffer;
 /** Node's SQLite, shaped like a Durable Object's storage: a blob goes in and comes out as an ArrayBuffer, and a transaction is a function. */
 export function sqlite(): Db & { raw: DatabaseSync } {
   const raw = new DatabaseSync(":memory:");
+  let depth = 0;
+  const prepared = new Map<string, ReturnType<DatabaseSync["prepare"]>>();
   return {
     raw,
     sql: {
       exec: (query: string, ...args: Bound[]) => {
-        const rows = raw.prepare(query).all(...args.map((arg) => (arg instanceof ArrayBuffer ? new Uint8Array(arg) : arg))) as Record<string, unknown>[];
+        // (a statement is prepared once for each wording: the tests that try every order run the same few many thousands of times)
+        let statement = prepared.get(query);
+        if (!statement) prepared.set(query, (statement = raw.prepare(query)));
+        const rows = statement.all(...args.map((arg) => (arg instanceof ArrayBuffer ? new Uint8Array(arg) : arg))) as Record<string, unknown>[];
         const out = rows.map((row) => Object.fromEntries(Object.entries(row).map(([name, value]) => [name, value instanceof Uint8Array ? value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) : value])));
         return { toArray: () => out };
       },
     },
+    // One inside another is a savepoint, as with a Durable Object's `transactionSync` (tests/platform/server.test.ts
+    // shows that the platform does the same): what the inner one wrote goes if the outer one fails.
     atomically: <T>(work: () => T): T => {
-      raw.exec("BEGIN");
+      const name = `s${depth++}`;
+      raw.exec(`SAVEPOINT ${name}`);
       try {
         const out = work();
-        raw.exec("COMMIT");
+        raw.exec(`RELEASE ${name}`);
         return out;
       } catch (error) {
-        raw.exec("ROLLBACK");
+        raw.exec(`ROLLBACK TO ${name}; RELEASE ${name}`);
         throw error;
+      } finally {
+        depth--;
       }
     },
   };

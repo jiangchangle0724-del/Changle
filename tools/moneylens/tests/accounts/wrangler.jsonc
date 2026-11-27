@@ -1,7 +1,7 @@
 // The stand-in for the accounts service (worker.ts), under the real one's name, so that MoneyLens's
 // binding to `changle-rooms` reaches it on this machine (`npm run test:server`). It is bound back
 // to MoneyLens twice: to pass the tests' requests on, and to its `Internal` entrypoint, as the real
-// accounts service will be. Never published.
+// accounts service will be. `Probe` is a Durable Object of the tests' own (worker.ts). Never published.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "changle-rooms",
@@ -10,5 +10,7 @@
   "services": [
     { "binding": "APP", "service": "moneylens" },
     { "binding": "MONEY", "service": "moneylens", "entrypoint": "Internal" }
-  ]
+  ],
+  "durable_objects": { "bindings": [{ "name": "PROBE", "class_name": "Probe" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Probe"] }]
 }

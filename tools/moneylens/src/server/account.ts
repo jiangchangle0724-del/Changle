@@ -11,8 +11,9 @@
  *
  * Two ways in.
  *
- * `signIn` is called once a handoff code has been traded for an account (ARCH-3; worker.ts does
- * the trading). It asks the gate (SEC-10), makes the tables the first time, and opens a session.
+ * `signIn` is called once a handoff code has been traded for an account (ARCH-3; flows.ts is the
+ * trading). It asks the gate (SEC-10), makes the tables the first time, and opens a session, all
+ * in one transaction.
  *
  * `act` is every other request. It is one synchronous stretch: the session is checked and the
  * thing is done with nothing in between, so nothing done here was allowed by a session that had
@@ -67,38 +68,51 @@ export type SignIn = {
   owner: boolean;
 };
 
+/** Thrown inside `signIn`'s one transaction to undo what it had written, and caught there. */
+const REFUSED = Symbol("refused");
+
 /**
  * Opens a session for an account whose handoff code was just traded.
  *
  * "not-admitted": the gate does not let this account in; nothing is written. "too-many": more sign-ins in the last
  * hour than one account makes. "refused": this database belongs to another account, or the session could not be
  * opened (what was handed over is not an id, a hash and a label).
+ *
+ * All of it or none of it: the tables the first time, the session (and the oldest one it pushes out when there are
+ * eight), and the line in the events log are one transaction. A sign-in that fails at any step, whether it is refused
+ * or the database fails under it, leaves every session that was there, and no session nobody was given the token of
+ * (the review of #814, finding 2).
  */
 export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "not-admitted" | "too-many" | "refused" {
   if (!made || !isAccount(made.account) || typeof made.owner !== "boolean" || !isTime(now)) return "refused";
   if (!admits(gate, made.account, made.owner)) return "not-admitted";
-  if (isSetUp(db)) {
+  const first = !isSetUp(db);
+  if (!first) {
     const held = whose(db);
     if (!held || held.id !== made.account) return "refused";
     const recent = Number(db.sql.exec(`SELECT COUNT(*) AS n FROM events WHERE kind = 'sign-in' AND at > ?`, now - HOUR).toArray()[0]?.n ?? 0);
     if (recent >= SIGN_INS_PER_HOUR) return "too-many";
-  } else {
-    db.atomically(() => {
-      db.sql.exec(`CREATE TABLE account (one INTEGER PRIMARY KEY CHECK (one = 1), id TEXT NOT NULL, owner INTEGER NOT NULL)`);
-      db.sql.exec(`CREATE TABLE events (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL, session TEXT)`);
-      sessionTables(db);
-      chunkTables(db);
-      db.sql.exec(`INSERT INTO account (one, id, owner) VALUES (1, ?, ?)`, made.account, made.owner ? 1 : 0);
-    });
   }
-  if (!openSession(db, { id: made.session, hash: made.hash, label: made.label }, now)) return "refused";
-  db.atomically(() => {
-    // (whether it is the owner's is what the accounts service says now, not what it said last time)
-    db.sql.exec(`UPDATE account SET owner = ? WHERE one = 1`, made.owner ? 1 : 0);
-    note(db, "sign-in", made.session, now);
-    db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
-    db.sql.exec(`DELETE FROM events WHERE n <= (SELECT n FROM events ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
-  });
+  try {
+    db.atomically(() => {
+      if (first) {
+        db.sql.exec(`CREATE TABLE account (one INTEGER PRIMARY KEY CHECK (one = 1), id TEXT NOT NULL, owner INTEGER NOT NULL)`);
+        db.sql.exec(`CREATE TABLE events (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL, session TEXT)`);
+        sessionTables(db);
+        chunkTables(db);
+        db.sql.exec(`INSERT INTO account (one, id, owner) VALUES (1, ?, ?)`, made.account, made.owner ? 1 : 0);
+      }
+      if (!openSession(db, { id: made.session, hash: made.hash, label: made.label }, now)) throw REFUSED;
+      // (whether it is the owner's is what the accounts service says now, not what it said last time)
+      db.sql.exec(`UPDATE account SET owner = ? WHERE one = 1`, made.owner ? 1 : 0);
+      note(db, "sign-in", made.session, now);
+      db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
+      db.sql.exec(`DELETE FROM events WHERE n <= (SELECT n FROM events ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+    });
+  } catch (error) {
+    if (error === REFUSED) return "refused";
+    throw error;
+  }
   return "ok";
 }
 

@@ -18,8 +18,8 @@
  *   kind may be (SEC-5).
  * - `POST /api/session` trades the code, here, server to server, and checks the nonce the code
  *   was bound to against the cookie. Then the account is noted in the registry, and a session is
- *   opened in that account's own Durable Object with a token made here. The code, the nonce and
- *   the token are never logged.
+ *   opened in that account's own Durable Object with a token made here (flows.ts has the steps
+ *   and why they come in that order). The code, the nonce and the token are never logged.
  * - Any other request names its account in its cookie. That name is an address and nothing more
  *   (ISO-2): the request goes to that account's object, which checks the token. The body is
  *   handed on unread, as a stream: a Worker on the Free plan has ten milliseconds of processor
@@ -29,16 +29,18 @@
  * anything but what it says it is (SEC-1). No `Access-Control-*` header is ever sent.
  *
  * `Internal` is the other way in, for the accounts service alone, over a service binding: an
- * account deleted there is emptied here, and an account whose email changed is signed out.
+ * account deleted there is emptied here, and an account whose email changed is signed out
+ * (flows.ts again).
  */
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import { newId } from "../core/ids";
 import { LIMITS } from "../vault/protocol";
 import { ACTIONS, act, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
 import type { Db } from "./chunks";
-import { admits, configOf, type Config, type Settings } from "./gate";
-import { countAccounts, forgetAccount, noteAccount, registryTables } from "./registry";
-import { fromOurOrigin, isAccount, isNonce, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
+import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
+import { configOf, type Config, type Settings } from "./gate";
+import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "./registry";
+import { fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
 import { hashOf, newToken } from "./sessions";
 import { HEAD_MAX } from "./wire";
 
@@ -52,6 +54,23 @@ export interface Env extends Settings {
   VAULTS: DurableObjectNamespace<VaultDO>;
   REGISTRY: DurableObjectNamespace<Registry>;
   ACCOUNTS: Accounts;
+}
+
+/** The objects as flows.ts reaches them: the registry (one for all), the accounts service, and each account's own. */
+function doorsOf(env: Env): Doors {
+  const registry = () => env.REGISTRY.get(env.REGISTRY.idFromName("registry"));
+  const vault = (account: string) => env.VAULTS.get(env.VAULTS.idFromName(account));
+  return {
+    stampNow: () => registry().stampNow(),
+    newStamp: () => registry().newStamp(),
+    note: (account) => registry().note(account),
+    forget: (account) => registry().forget(account),
+    redeem: (code) => env.ACCOUNTS.redeem(code, "moneylens"),
+    exists: async (account) => (await env.ACCOUNTS.exists([account])).includes(account),
+    signIn: (made, stamp) => vault(made.account).signIn({ ...made, stamp }),
+    signEveryoneOut: (account) => vault(account).signEveryoneOut(),
+    erase: (account) => vault(account).erase(),
+  };
 }
 
 /** The longest body of a request that is not a push: a code, an id, a vault's name. */
@@ -90,13 +109,6 @@ function lengthOf(request: Request): number | null {
   return stated !== null && /^\d{1,9}$/.test(stated) ? Number(stated) : null;
 }
 const typed = (request: Request, type: string): boolean => (request.headers.get("Content-Type") ?? "").split(";")[0]!.trim().toLowerCase() === type;
-
-/** Are these two the same text? Every character is compared, wherever the first difference is. */
-function same(a: string, b: string): boolean {
-  let differ = a.length ^ b.length;
-  for (let i = 0; i < a.length; i++) differ |= a.charCodeAt(i) ^ b.charCodeAt(i % (b.length || 1));
-  return differ === 0;
-}
 
 /** What is wrong with a body's kind and length, or null. */
 function unfit(request: Request, type: string, most: number): Response | null {
@@ -163,21 +175,14 @@ async function trade(request: Request, env: Env, config: Config): Promise<Respon
     code = undefined;
   }
   if (typeof code !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(code)) return refuse(400, "bad-request", over);
-  const account = await env.ACCOUNTS.redeem(code, "moneylens");
-  // one answer for a code that is wrong, used, out of time or bound to another browser's nonce
-  if (!account || !isAccount(account.id) || typeof account.master !== "boolean" || !isNonce(account.nonce) || !same(account.nonce, nonce)) return refuse(401, "code", over);
-  if (!admits(config.gate, account.id, account.master)) return refuse(403, "not-admitted", over);
+  // The token is made here and its hash goes on; the token itself goes to the browser, and only if the trade says ok.
   const token = newToken();
   const hash = await hashOf(token);
-  const cookie = sessionCookie(account.id, token);
-  if (!hash || !cookie) return refuse(500, "unavailable", over);
-  // noted before its database is touched: there is never a database the registry does not know of
-  if (!(await env.REGISTRY.get(env.REGISTRY.idFromName("registry")).note(account.id))) return refuse(500, "unavailable", over);
-  const said = await env.VAULTS.get(env.VAULTS.idFromName(account.id)).signIn({ account: account.id, session: newId(), hash, label: labelOf(request.headers.get("User-Agent")), owner: account.master });
-  if (said === "too-many") return refuse(429, "too-many", over);
-  if (said === "not-admitted") return refuse(403, "not-admitted", over);
-  if (said !== "ok") return refuse(500, "unavailable", over);
-  return json(200, { ok: true }, [cookie, ...over]);
+  if (!hash) return refuse(500, "unavailable", over);
+  const traded = await tradeCode(doorsOf(env), { code, nonce, gate: config.gate, session: newId(), hash, label: labelOf(request.headers.get("User-Agent")) });
+  if (!traded.ok) return refuse(traded.status, traded.why, over);
+  const cookie = sessionCookie(traded.account, token);
+  return cookie ? json(200, { ok: true }, [cookie, ...over]) : refuse(500, "unavailable", over);
 }
 
 export default {
@@ -196,19 +201,35 @@ const dbOf = (storage: DurableObjectStorage): Db => ({ sql: storage.sql as unkno
 
 /** One person's MoneyLens: the object's own SQLite database, and the functions of account.ts on it (ISO-1). */
 export class VaultDO extends DurableObject<Env> {
-  /** From the Worker, once a handoff code has been traded for this account. */
-  signIn(made: SignIn): "ok" | "not-admitted" | "too-many" | "refused" {
+  /** How many times a notice has done its work here since this object was loaded (flows.ts, `signInHere`). */
+  private noticed = 0;
+
+  /**
+   * From the Worker, once a handoff code has been traded for this account. `stamp` is the registry's stamp as the
+   * Worker read it before it traded the code: the session is opened only if no notice came since (flows.ts).
+   */
+  async signIn(made: SignIn & { stamp: string }): Promise<Entered> {
     const config = configOf(this.env);
-    return config ? signIn(dbOf(this.ctx.storage), made, Date.now(), config.gate) : "refused";
+    if (!config) return "refused";
+    return signInHere(
+      {
+        noticed: () => this.noticed,
+        stampNow: () => this.env.REGISTRY.get(this.env.REGISTRY.idFromName("registry")).stampNow(),
+        open: () => signIn(dbOf(this.ctx.storage), made, Date.now(), config.gate),
+      },
+      made?.stamp,
+    );
   }
 
   /** From `Internal`: the account's email address changed. */
   signEveryoneOut(): void {
+    this.noticed++;
     signEveryoneOut(dbOf(this.ctx.storage), Date.now());
   }
 
   /** From `Internal`: the account is gone, and so is everything here. */
   async erase(): Promise<void> {
+    this.noticed++;
     await this.ctx.storage.deleteAll();
   }
 
@@ -258,6 +279,13 @@ export class Registry extends DurableObject<Env> {
   count(): number {
     return countAccounts(this.open());
   }
+  /** The stamp as it stands, and a new one (registry.ts, flows.ts). */
+  stampNow(): string {
+    return stampOf(this.open());
+  }
+  newStamp(): void {
+    setStamp(this.open(), newId());
+  }
 }
 
 /**
@@ -269,14 +297,13 @@ export class Internal extends WorkerEntrypoint<Env> {
   /** The changle.ca account was deleted: everything MoneyLens holds of it goes (ARCH-10). */
   async accountGone(id: string): Promise<void> {
     if (!isAccount(id)) throw new Error("not an account");
-    await this.env.VAULTS.get(this.env.VAULTS.idFromName(id)).erase();
-    await this.env.REGISTRY.get(this.env.REGISTRY.idFromName("registry")).forget(id);
+    await accountGone(doorsOf(this.env), id);
   }
 
   /** The account's email address changed: everyone signs in again (ARCH-9). */
   async accountChanged(id: string): Promise<void> {
     if (!isAccount(id)) throw new Error("not an account");
-    await this.env.VAULTS.get(this.env.VAULTS.idFromName(id)).signEveryoneOut();
+    await accountChanged(doorsOf(this.env), id);
   }
 
   /** How many accounts have signed in to MoneyLens and are still noted: a number, and nothing about any of them (ADM-1). */

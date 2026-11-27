@@ -92,6 +92,17 @@ and `wire.ts` is how a push and the answers to sync are written for HTTP (a fram
 the reason is in the assessment, 1.8). `src/web/remote.ts` is the device's end of it.
 `src/vault/protocol.ts` is what both ends go by; neither imports the other.
 
+`flows.ts` is what is done across more than one object, and in which order: trading a code for
+a session, and the accounts service's two notices (an account is gone; its address changed).
+The order is a rule: a notice sets the registry's stamp before it does anything else, a sign-in
+reads the stamp before it trades its code, and the account's own object reads it again, and
+looks at its own count of notices, right before it opens the session. Whoever adds a step that
+touches another object adds it there, and to `tests/flows.test.ts`, which runs a sign-in and a
+notice in every order their steps can come in and checks, after every step, that the registry
+knows of every database there is. In `VaultDO.signIn` nothing that waits may come after
+`signInHere` has asked the registry; and a method that does a notice's work on an object counts
+it first (`this.noticed++`) and only then does the work (`tests/objects.test.ts`).
+
 **Not published.** `wrangler.jsonc` is the Worker's settings, with the gate shut (`GATE`:
 `closed`, `owner` or `list`). Nothing is live until a Workers Build is connected to this folder
 in Cloudflare, which is Steve's to do, and the gate is his to open.

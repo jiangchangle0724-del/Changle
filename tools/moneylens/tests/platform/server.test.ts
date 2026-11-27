@@ -152,13 +152,15 @@ async function send(server: Server, path: string, body: string | Uint8Array | nu
 const said = async (answer: Response): Promise<[number, unknown]> => [answer.status, ((await answer.json()) as { why?: unknown }).why];
 
 /** A handoff code, made by the stand-in for the accounts service as the main site would have one made for whoever is signed in there. */
-async function codeFor(server: Server, id: string, nonce: string, more: { master?: boolean; aud?: string } = {}): Promise<string> {
-  const made = await fetch(`${server.base}/test/mint`, { method: "POST", body: JSON.stringify({ id, nonce, master: more.master ?? false, aud: more.aud ?? "moneylens" }) });
+async function codeFor(server: Server, id: string, nonce: string, more: { master?: boolean; aud?: string; during?: Notice } = {}): Promise<string> {
+  const made = await fetch(`${server.base}/test/mint`, { method: "POST", body: JSON.stringify({ id, nonce, master: more.master ?? false, aud: more.aud ?? "moneylens", during: more.during }) });
   return ((await made.json()) as { code: string }).code;
 }
+/** A notice from the accounts service that is sent, and heard, while a code is being traded: after the trade, before its answer (tests/accounts/worker.ts). */
+type Notice = { what: "gone" | "changed"; id: string };
 
 /** Signs in as an account, the whole way round: /enter, the nonce to the main site, a code back, the trade. */
-async function signInAs(server: Server, account: string, more: { master?: boolean } = {}): Promise<{ jar: Jar; answer: Response }> {
+async function signInAs(server: Server, account: string, more: { master?: boolean; during?: Notice } = {}): Promise<{ jar: Jar; answer: Response }> {
   const jar: Jar = new Map();
   const entered = await send(server, "/enter", null, jar, { method: "GET", origin: null });
   assert.equal(entered.status, 302);
@@ -468,6 +470,71 @@ test("the accounts service says an email changed, or an account is gone (ARCH-9,
     await open.stop();
     rmSync(open.kept, { recursive: true, force: true });
   }
+});
+
+test("a notice that comes while a code is being traded turns the sign-in away, and nothing is opened (the review of #814, finding 1)", async () => {
+  const [account, late] = ["utestrace7", "utestlate8"];
+  const open = await start(8794, { GATE: "list", ALLOWED_ACCOUNTS: `${account},${late},${A}` });
+  try {
+    const noted = async (): Promise<number> => ((await (await fetch(`${open.base}/test/count`)).json()) as { accounts: number }).accounts;
+    const kinds = async (jar: Jar): Promise<string[]> => ((await (await send(open, "/api/events", "{}", jar)).json()) as { events: { kind: string }[] }).events.map((e) => e.kind);
+    const devices = async (jar: Jar): Promise<number> => ((await (await send(open, "/api/sessions", "{}", jar)).json()) as { sessions: unknown[] }).sessions.length;
+    const [phone, bystander] = [await signInAs(open, account), await signInAs(open, A)];
+    assert.deepEqual([phone.answer.status, bystander.answer.status, await noted()], [200, 200, 2]);
+
+    // The address changes while a laptop's code is being traded: no session for the laptop, no cookie, and the nonce is spent.
+    const laptop = await signInAs(open, account, { during: { what: "changed", id: account } });
+    assert.deepEqual(await said(laptop.answer), [503, "try-again"]);
+    assert.deepEqual([...laptop.jar.keys()], []);
+    // the phone was signed out by the notice, as everyone is
+    assert.deepEqual(await said(await send(open, "/api/sessions", "{}", new Map(phone.jar))), [401, "signed-out"]);
+    // trying again works, and the sign-in that was turned away left no trace: one device, and no line of its own in the log
+    const again = await signInAs(open, account);
+    assert.equal(again.answer.status, 200);
+    assert.equal(await devices(again.jar), 1);
+    assert.deepEqual(await kinds(again.jar), ["sign-in", "email-changed", "sign-in"]);
+
+    // Someone else's notice while this account signs in: turned away too, and nothing else happens to it.
+    const second = await signInAs(open, account, { during: { what: "changed", id: A } });
+    assert.deepEqual(await said(second.answer), [503, "try-again"]);
+    assert.equal(await devices(again.jar), 1);
+    assert.deepEqual(await said(await send(open, "/api/sessions", "{}", new Map(bystander.jar))), [401, "signed-out"]);
+    assert.equal((await signInAs(open, account)).answer.status, 200);
+    assert.equal(await devices(again.jar), 2);
+
+    // A first sign-in that is turned away: the account is on the registry (it still exists), and has nothing here.
+    const first = await signInAs(open, late, { during: { what: "changed", id: A } });
+    assert.deepEqual(await said(first.answer), [503, "try-again"]);
+    assert.equal(await noted(), 3);
+    const then = await signInAs(open, late);
+    assert.equal(then.answer.status, 200);
+    assert.deepEqual([await devices(then.jar), await kinds(then.jar)], [1, ["sign-in"]]);
+
+    // The account is deleted while one of its codes is being traded: nothing is opened, nothing of it is left, and it is off the registry.
+    const vault = newId();
+    assert.equal((await send(open, "/api/vault/start", JSON.stringify({ vault }), again.jar)).status, 200);
+    const last = await signInAs(open, account, { during: { what: "gone", id: account } });
+    assert.deepEqual(await said(last.answer), [503, "try-again"]);
+    assert.deepEqual([...last.jar.keys()], []);
+    assert.equal(await noted(), 2);
+    assert.deepEqual(await said(await send(open, "/api/sessions", "{}", new Map(again.jar))), [401, "signed-out"]);
+    // (were the account to exist again, it would start from nothing)
+    const reborn = await signInAs(open, account);
+    assert.equal(((await (await send(open, "/api/vault", "{}", reborn.jar)).json()) as { vault: null }).vault, null);
+    assert.deepEqual(await kinds(reborn.jar), ["sign-in"]);
+    // and the other account that was here all along still is
+    assert.equal(await devices(then.jar), 1);
+  } finally {
+    await open.stop();
+    rmSync(open.kept, { recursive: true, force: true });
+  }
+});
+
+test("a transaction inside a transaction, on this platform, is what signing in takes it to be", async () => {
+  // (asked of a Durable Object of the tests' own: tests/accounts/worker.ts, `Probe`)
+  const seen = (await (await fetch(`${server.base}/test/nested`)).json()) as { same: boolean; tables: number; rows: number[] };
+  // the outer one failing takes the inner one's writes with it, what was thrown comes out as itself, and an inner one failing alone takes only its own
+  assert.deepEqual(seen, { same: true, tables: 0, rows: [3, 5] });
 });
 
 test("what is kept is still there after the server stops and starts", async () => {

@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.13, 26 November 2026. It records the choices the requirements leave to this document
+Version 0.14, 26 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -37,7 +37,9 @@ its latest copy's time), and one more way a field can come back is written into 
 0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). Version
 0.12 adds sessions and what a request has to show (1.7). Version 0.13 adds the Worker and the
 Durable Objects around all of it: a request's way in, the gate, and sync as it travels (1.8).
-None of it is published.
+Version 0.14 follows the review of 1.8: a sign-in and a notice from the accounts service are put
+in order ("A sign-in and a notice at the same time"), and signing in is one transaction. None of
+it is published.
 
 ## 1. The vault
 
@@ -742,10 +744,11 @@ not published: no Workers Build is connected to its folder, and its gate is shut
 repository. Two classes of Durable Object, both on SQLite. `VaultDO` is one person's: named by
 the account's id, it holds that person's sessions (1.7), sealed chunks (1.6), an events log, and
 one row saying whose it is. `Registry` is one object that knows which accounts have ever signed
-in, and nothing else about them.
+in, and nothing else about them; it also keeps one value that is about no account, the stamp
+(below).
 
 The rules stay in plain functions, tested on Node's SQLite: `gate.ts`, `account.ts`,
-`registry.ts`, `wire.ts`, beside `sessions.ts`, `request.ts`, `chunks.ts`. `worker.ts` reads
+`registry.ts`, `wire.ts`, `flows.ts`, beside `sessions.ts`, `request.ts`, `chunks.ts`. `worker.ts` reads
 requests and adapts storage. It is tested on Cloudflare's own runtime on a developer's machine
 and in CI (`npm run test:server`), with a stand-in for the accounts service.
 
@@ -765,7 +768,11 @@ and in CI (`npm run test:server`), with a stand-in for the accounts service.
   is wrong, used, out of time, for another audience or bound to another browser gets one answer.
   Then the gate is asked, a token and a session id are made here (never taken from the caller),
   the account is noted in the registry, and `signIn` opens the session in that account's own
-  object. The answer sets `__Host-ml` and clears the nonce's cookie. The session's label is
+  object, unless a notice from the accounts service came in the meantime (below). Opening it is
+  one transaction: the tables the first time, the session, the oldest session it pushes out
+  when there are eight, and the line in the events log are written together or not at all, so
+  a sign-in that fails half way leaves every device that was signed in, and no session whose
+  token nobody was given. The answer sets `__Host-ml` and clears the nonce's cookie. The session's label is
   worked out from the User-Agent out of a fixed set of words ("Chrome on Windows"); none of the
   request's own text goes into it. The code, the nonce and the token are never logged; what is
   logged of an error is its kind.
@@ -793,10 +800,59 @@ reached, so taking an id off the list takes effect at once; the owner is on the 
 let in. A sign-in that is not let in writes nothing anywhere, the registry included. Opening
 the gate is the operator changing that setting.
 
+**A sign-in and a notice at the same time (`flows.ts`; the review of this section, finding
+1).** A sign-in goes to three places one after another: the accounts service (the code), the
+registry (the note), the account's object (the session). The accounts service's two notices,
+"this account is gone" and "this account's address changed", go to two: the object and the
+registry. Nothing holds those still, so a whole notice can pass between two steps of a sign-in.
+Left alone, a code traded just before an address changed could open a session just after
+everyone had been signed out; and a code traded just before an account was deleted could put
+tables back into a database that had just been emptied, for an account the registry had just
+forgotten.
+
+Two things put them in order. The registry keeps a stamp: 128 random bits, new each time, and
+one for everybody, since a sign-in does not know whose it is until its code is traded. A notice
+sets a new stamp before it does anything else. A sign-in reads the stamp before it trades its
+code, and the account's object reads it again just before it opens the session, and opens none
+if the two differ. And the object counts, in memory, the notices that have done their work on
+it since it was loaded: it takes the count, asks the registry, and opens the session only if
+the count has not moved. From that second look at the count to the session's being written,
+nothing waits.
+
+For a notice about the account that is signing in, one of three things is then true. Its stamp
+was set before the sign-in first read it: then the accounts service had done its own part
+before the code was traded, and in that part it drops the waiting codes of an account it
+deletes and of an account whose other devices it signs out (`site/worker/hub.ts`,
+`endSessions`; `handoffCodes.ts`, `forgetHandoffs`), so a deleted account's code no longer
+trades, and a code that still trades after a change of address is one asked for after the
+change or by the one device the change left signed in. Or its stamp was set after that and
+before the object read it: the stamps differ. Or its stamp was set after the object read it:
+then its work on the object comes later still, either while the object waits for the registry's
+answer, and the count has moved, or after the session was written, and ends it.
+
+A sign-in turned away like this has written nothing, so there is nothing to undo and no undoing
+that could fail half way. The person is asked to try again ("try-again", 503). If the account
+has meanwhile been deleted, the Worker takes it off the registry again, emptying its database
+first as the notice does; if it cannot, the entry stays for the weekly sweep, which goes by the
+registry. The rule that holds throughout, a failure at any step included: there is never a
+database the registry does not know of.
+
+What this costs, and what it rests on. A notice about one account turns away the sign-ins of
+other accounts that were under way at that moment; with twenty-five people that is rare, and
+they try again. A sign-in asks the registry twice more than before. The count is in memory
+only, which is enough: it has to hold from the object's first look to its second, within one
+call, and an object that is restarted in between drops the call with it. The stamp is random
+and not a number counted up, so that a registry put back from a copy cannot hand out a value it
+had handed out before. The order rests on the registry being one object that does one thing at
+a time, and on what the accounts service does before it tells MoneyLens, which is its code and
+not this tool's: if it ever told the apps before dropping the codes, the first of the three
+cases would no longer hold.
+
 **What a wrong guess costs.** An address someone made up reaches an object only with the gate
 open to the owner (with a list, the Worker stops it). There it costs one request and one read:
 a database nobody signed in to has no tables, and none is made. A wrong token for a real account
-costs one request and at most eight short rows read, and writes nothing. Neither is limited in
+costs one request and at most eight short rows read, and writes nothing. A made-up code costs
+one read of the registry's stamp and one question to the accounts service. None of these is limited in
 this code, because an object cannot refuse a request without having been asked. A rule on
 `/api/*` in Cloudflare's own rate limiting is a setting, to be asked of the operator before
 Phase 3. Sign-ins are limited here: twelve an hour for one account (eight sessions are kept, so
@@ -826,10 +882,11 @@ person's database. Unlocks, exports, deletions and consent changes are not logge
 come with the screens that do them.
 
 **The other way in.** `Internal`, reachable only over a service binding from the accounts
-service: `accountGone(id)` empties the account's object (`deleteAll`) and takes it off the
-registry, `accountChanged(id)` ends all its sessions, `count()` says how many accounts are
-noted. All answer normally for an account that was never here, and the first two throw when
-they fail, so that the caller tries again.
+service: `accountGone(id)` sets a new stamp, empties the account's object (`deleteAll`) and
+takes it off the registry, in that order; `accountChanged(id)` sets a new stamp and ends all
+the account's sessions; `count()` says how many accounts are noted. All answer normally for an
+account that was never here, and the first two throw when they fail, so that the caller tries
+again; a notice whose stamp could not be set does nothing else.
 
 **Decided here.** A restored database can bring back sessions that had been ended, up to
 twelve hours' worth: the restore runbook ends every session of a restored account

@@ -9,7 +9,7 @@ import { newId } from "../src/core/ids";
 import { ACTIONS, act, isSetUp, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
 import { chunkTables, lastDay, pushChunks, startVault, type Db } from "../src/server/chunks";
 import { admits, configOf, gateOf, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
-import { countAccounts, forgetAccount, noteAccount, registryTables } from "../src/server/registry";
+import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "../src/server/registry";
 import { labelOf } from "../src/server/request";
 import { hashOf, newToken } from "../src/server/sessions";
 import { packPush, unpackPulled, unpackPushed } from "../src/server/wire";
@@ -142,8 +142,116 @@ test("signing in: the gate is asked, and whoever is not let in leaves nothing be
   ])
     assert.equal(signIn(blank, made, T0, config().gate), "refused");
   for (const when of [-1, 1.5, NaN]) assert.equal(signIn(blank, { account: A, session: newId(), hash, label: "x", owner: true }, when, config().gate), "refused");
-  // (an account that was let in and then handed a bad session has its tables and no session)
+  // (an account that was let in and then handed a bad session has nothing here: no session, and no tables either)
+  assert.deepEqual([isSetUp(blank), tables(blank)], [false, 0]);
   assert.equal(why(ask(blank, A, hash, "sessions", T0, config()))[0], 401);
+});
+
+/** Everything a database holds, as text: its tables, and every row of each. */
+function everything(db: Db & { raw: { prepare(sql: string): { all(): unknown[] } } }): string {
+  const names = (db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all() as { name: string }[]).map((row) => row.name);
+  return JSON.stringify(names.map((name) => [name, db.raw.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all()]));
+}
+
+/** The same database, whose nth statement that writes fails. `fired` says whether it got that far. */
+function failingAt(db: Db, n: number): { db: Db; fired: () => boolean } {
+  let writes = 0;
+  let fired = false;
+  return {
+    fired: () => fired,
+    db: {
+      atomically: (work) => db.atomically(work),
+      sql: {
+        exec: (query, ...args) => {
+          if (/^\s*(INSERT|UPDATE|DELETE|CREATE)\b/i.test(query) && ++writes === n) {
+            fired = true;
+            throw new Error("injected");
+          }
+          return db.sql.exec(query, ...args);
+        },
+      },
+    },
+  };
+}
+
+test("signing in is all of it or none of it: whichever write fails, the database is as it was (the review of #814, finding 2)", async () => {
+  const cfg = config();
+  for (const devices of [0, 1, 8]) {
+    let n = 1;
+    for (; ; n++) {
+      const db = sqlite();
+      for (let i = 0; i < devices; i++) assert.equal((await enter(db, A, T0 + i, cfg)).said, "ok");
+      const before = everything(db);
+      const broken = failingAt(db, n);
+      const made = { account: A, session: newId(), hash: (await hashOf(newToken()))!, label: "Chrome on Windows", owner: true };
+      if (n > 40) assert.fail("a sign-in does not write this much");
+      let said: string | undefined;
+      try {
+        said = signIn(broken.db, made, T0 + 100, cfg.gate);
+      } catch (error) {
+        assert.equal((error as Error).message, "injected");
+      }
+      if (!broken.fired()) {
+        // (past its last write: it went through)
+        assert.equal(said, "ok");
+        break;
+      }
+      assert.equal(said, undefined, `write ${n} failed and the sign-in said ${said}`);
+      // no table that was not there, no session nobody was given, and every device that was signed in still is
+      assert.equal(everything(db), before, `${devices} devices, write ${n}`);
+    }
+    // the first sign-in makes the tables and the account's row; the ninth pushes the oldest out; all of them write the session, the owner's mark and the event
+    assert.ok(n > (devices === 0 ? 8 : devices === 8 ? 5 : 4), `${devices} devices: ${n - 1} writes`);
+  }
+});
+
+test("a sign-in that is refused writes nothing, the ninth device's included", async () => {
+  const cfg = config();
+  const db = sqlite();
+  const eight: { hash: string; session: string }[] = [];
+  for (let i = 0; i < 8; i++) eight.push(await enter(db, A, T0 + i, cfg));
+  const before = everything(db);
+  const hash = (await hashOf(newToken()))!;
+  for (const made of [
+    // a session id already in use, a token already in use, and what is not a session at all
+    { account: A, session: eight[3]!.session, hash, label: "x", owner: true },
+    { account: A, session: newId(), hash: eight[5]!.hash, label: "x", owner: true },
+    { account: A, session: newId(), hash, label: "x\ny", owner: true },
+    { account: A, session: "short", hash, label: "x", owner: true },
+  ]) {
+    assert.equal(signIn(db, made, T0 + 50, cfg.gate), "refused");
+    assert.equal(everything(db), before);
+  }
+  // (the same holds for the answers that were already given before anything is written)
+  assert.equal(signIn(db, { account: B, session: newId(), hash, label: "x", owner: true }, T0 + 50, cfg.gate), "refused");
+  assert.equal(signIn(db, { account: A, session: newId(), hash, label: "x", owner: false }, T0 + 50, cfg.gate), "not-admitted");
+  assert.equal(everything(db), before);
+  // and a ninth that goes through pushes out the one that has been quiet longest, and only that one
+  assert.equal(signIn(db, { account: A, session: newId(), hash, label: "x", owner: true }, T0 + 50, cfg.gate), "ok");
+  for (const [i, device] of eight.entries()) assert.equal(why(ask(db, A, device.hash, "sessions", T0 + 51, cfg))[0], i === 0 ? 401 : 200);
+});
+
+test("the registry's stamp: empty at first, and each new one takes the place of the last", () => {
+  const db = sqlite();
+  registryTables(db);
+  assert.equal(stampOf(db), "");
+  const [first, second] = [newId(), newId()];
+  setStamp(db, first);
+  assert.equal(stampOf(db), first);
+  setStamp(db, second);
+  assert.equal(stampOf(db), second);
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) AS n FROM fence`).all().length, 1);
+  assert.equal((db.raw.prepare(`SELECT COUNT(*) AS n FROM fence`).all()[0] as { n: number }).n, 1);
+  // what is not an id is no stamp, and says so: a notice whose stamp was not set must not go on
+  for (const odd of ["", "short", 5, null, undefined, `${first}x`, first.slice(0, -1), { toString: () => first }]) assert.throws(() => setStamp(db, odd), /stamp/);
+  assert.equal(stampOf(db), second);
+  // the tables can be asked for again without losing it, and it is about no account
+  registryTables(db);
+  assert.equal(stampOf(db), second);
+  assert.equal(countAccounts(db), 0);
+  // a stamp that was stored as something else reads as none
+  db.raw.prepare(`UPDATE fence SET stamp = 5`).all();
+  assert.equal(typeof stampOf(db), "string");
 });
 
 test("signing in: a dozen an hour for one account, and the owner's mark is the latest sign-in's", async () => {
