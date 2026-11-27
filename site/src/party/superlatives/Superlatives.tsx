@@ -1,4 +1,4 @@
-import { Check, PenLine, Shuffle } from "lucide-react";
+import { Check, ImageDown, PenLine, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEFAULT_PACKS, deckFor, PACKS, TITLES, type Pack } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
@@ -12,6 +12,9 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { flavorOf, mindReader } from "./flavor";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
+import { posterOf } from "./poster";
+import { AV_COLORS, colorFor } from "../../account/Avatar";
+import { PosterSheet } from "./PosterSheet";
 import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import "../../styles/party.css";
 
@@ -61,6 +64,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [hits, setHits] = useState<Record<string, number>>(saved?.hits ?? {});
   const [streak, setStreak] = useState<{ id: string; n: number } | null>(saved?.streak ?? null);
   const [paid, setPaid] = useState(saved?.paid ?? false);
+  const [poster, setPoster] = useState(false);
   const [advance, setAdvance] = useState(saved?.advance ?? false);
   const penalty = usePenalty();
   const pen = usePenaltyText();
@@ -403,6 +407,11 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                 return m && { names: m.ids.map((id) => name[id] ?? "?"), hits: m.hits, of: m.of };
               })()}
             />
+            <button type="button" className="btn btn-ghost btn-block" onClick={() => setPoster(true)}>
+              <ImageDown size={16} />
+              {zh ? "颁奖海报" : "The awards poster"}
+            </button>
+            <PosterSheet open={poster} onClose={() => setPoster(false)} poster={() => posterOf({ lang: zh ? "zh" : "en", people: players.map((p) => ({ id: p.id, name: p.name, color: AV_COLORS[colorFor(p.name)] })), awards, hits, round })} />
           </>
         )}
 
