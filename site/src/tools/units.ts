@@ -126,3 +126,28 @@ export function rankPacks(packs: Pack[], units: Unit[]): Ranking {
   // rounded down, so "20% less" is never more than the truth (and 99.9% never reads as 100%)
   return { per, verdict: { best, next, pct: Math.floor(((high - low) / high) * 100 + 1e-9), save: high - low } };
 }
+
+/** A comparison kept on the phone after 清空: when, weight, volume or count, the currency, the packs. */
+export type Past = { at: number; kind: Kind; cur: string; packs: Pack[] };
+/** The most comparisons kept: the last few aisles, as Better Deal keeps five. */
+export const MAX_PAST = 5;
+
+/** The packs worth keeping: those with a price or a size. */
+export const keptPacks = (packs: Pack[]) => packs.filter((p) => p.price || p.qty);
+
+/** The list with a comparison on top, newest first: the same packs aren't kept twice, five at most. */
+export function remember(list: Past[], entry: Past): Past[] {
+  const key = (e: Past) => e.kind + JSON.stringify(e.packs.map((p) => [p.price, p.qty, p.unit, p.count || ""]));
+  return [entry, ...list.filter((e) => key(e) !== key(entry))].slice(0, MAX_PAST);
+}
+
+/** What a phone kept, cleaned: only well-formed entries, newest first, five at most. */
+export function readPast(raw: unknown): Past[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e): e is Past => !!e && typeof e === "object" && typeof (e as Past).at === "number" && isKind((e as Past).kind) && typeof (e as Past).cur === "string" && Array.isArray((e as Past).packs))
+    .map((e) => ({ ...e, packs: e.packs.filter((p) => p && typeof p.price === "string" && typeof p.qty === "string" && typeof p.unit === "string").slice(0, MAX_PACKS) }))
+    .filter((e) => e.packs.length >= 2)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, MAX_PAST);
+}

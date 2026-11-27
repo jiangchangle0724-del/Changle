@@ -207,7 +207,15 @@ export function UnitPrice({ fx }: { fx: FxState & { refresh: () => void } }) {
           ))}
         </select>
       </label>
-      <PackCompare kind={state.kind} symbol={SYMBOL[state.cur]} lang={lang} />
+      <PackCompare
+        kind={state.kind}
+        cur={state.cur}
+        lang={lang}
+        onRestore={(kind, cur) => {
+          pickKind(kind);
+          set({ cur });
+        }}
+      />
     </section>
   );
 }
