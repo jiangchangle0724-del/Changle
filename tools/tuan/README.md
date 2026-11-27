@@ -59,6 +59,14 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 
 ### The pages
 
+Bright, unlike the rest of changle.ca (Steve's call on 2026-11-26: clean and light, the way Uber
+Eats looks). `styles.css` maps the site's tokens on `:root`: paper for the page and sheets, greys
+mixed from paper and ink for cards, chips and fields, ink for text, and `--press` (ink) for the
+thing to press, with paper on it. The tools' amber is kept for what wants noticing (what closes
+soon, what a case still wants, the shop's dot, a new order), and as text in a deeper mix that reads
+on paper (`--gel-ink`, and the same for success and danger). Headings are in the text face. The
+pickup code is paper and ink whatever the page is.
+
 One HTML file for every page; the address decides what shows. A buyer's pages are one script
 (`src/client/main.tsx`, with what it shares with the merchant's in a chunk); the merchant's pages
 come in a script of their own (`src/client/my.tsx`, with their words in `src/client/i18n-my.ts`)
