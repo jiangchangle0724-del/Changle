@@ -18,7 +18,7 @@ import type { Lang } from "../i18n";
 import { applyChange, type Change, type Sent } from "./changes";
 import type { Entry, Expense, Ledger, Transfer } from "./core";
 import { dayName, money } from "./format";
-import { afterEdit, DETAILS, NAME_MAX, NOTE_MAX, tidy, type Detail } from "./ops";
+import { DETAILS, NAME_MAX, NOTE_MAX, PAY_MAX, afterEdit, tidy, type Detail } from "./ops";
 import { say, type Word } from "./words";
 
 /** How the record says an expense's business, place or what paid it changed, or was taken off. */
@@ -145,6 +145,12 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const name = tidy(c.name, NAME_MAX);
         names.set(c.member, name);
         lines.push(line(was ? say(lang, "historyRename", { who: was, name }) : say(lang, "historyRenameSomeone", { name })));
+        break;
+      }
+      case "pay": {
+        // (what it says isn't repeated here: the record is for what happened, the 收款方式 is on the person)
+        const name = nameOf(c.member) || say(lang, "someone");
+        lines.push(line(say(lang, tidy(c.pay, PAY_MAX) ? "historyPay" : "historyPayOff", { who: name })));
         break;
       }
       case "remove": {
