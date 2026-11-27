@@ -40,6 +40,8 @@ export function Home() {
   const shops = useMemo(() => (page?.shops ?? []).filter((shop) => (!kind || shop.kind === kind) && (!q || has(q, shop.name, shop.about))), [page, kind, q]);
   // (a kind is offered only where there's something of it)
   const kinds = (Object.keys(KINDS) as ShopKind[]).filter((each) => page?.shops.some((shop) => shop.kind === each));
+  // (nothing open and no shop: nothing to search)
+  const bare = page !== null && !page.offers.length && !page.shops.length;
 
   return (
     <div class="page page-home">
@@ -49,55 +51,57 @@ export function Home() {
         <p>{t("homeLine")}</p>
       </section>
 
-      <div class="finder">
-        <label class="search">
-          <IconSearch />
-          <input
-            type="search"
-            name="q"
-            enterKeyHint="search"
-            autocomplete="off"
-            aria-label={t("homeSearch")}
-            placeholder={t("homeSearch")}
-            value={query}
-            onInput={(event) => {
-              toFound();
-              setQuery(event.currentTarget.value);
-            }}
-            // (the keyboard's search key puts the keyboard away: what's found is already there)
-            onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
-          />
-        </label>
-        {kinds.length > 1 && (
-          <div class="tabs home-kinds" role="group" aria-label={t("homeKinds")}>
-            <button
-              type="button"
-              class="tab"
-              aria-pressed={kind === null}
-              onClick={() => {
+      {!bare && (
+        <div class="finder">
+          <label class="search">
+            <IconSearch />
+            <input
+              type="search"
+              name="q"
+              enterKeyHint="search"
+              autocomplete="off"
+              aria-label={t("homeSearch")}
+              placeholder={t("homeSearch")}
+              value={query}
+              onInput={(event) => {
                 toFound();
-                setKind(null);
+                setQuery(event.currentTarget.value);
               }}
-            >
-              {t("homeAll")}
-            </button>
-            {kinds.map((each) => (
+              // (the keyboard's search key puts the keyboard away: what's found is already there)
+              onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+            />
+          </label>
+          {kinds.length > 1 && (
+            <div class="tabs home-kinds" role="group" aria-label={t("homeKinds")}>
               <button
-                key={each}
                 type="button"
                 class="tab"
-                aria-pressed={kind === each}
+                aria-pressed={kind === null}
                 onClick={() => {
                   toFound();
-                  setKind(kind === each ? null : each);
+                  setKind(null);
                 }}
               >
-                {t(KINDS[each])}
+                {t("homeAll")}
               </button>
-            ))}
-          </div>
-        )}
-      </div>
+              {kinds.map((each) => (
+                <button
+                  key={each}
+                  type="button"
+                  class="tab"
+                  aria-pressed={kind === each}
+                  onClick={() => {
+                    toFound();
+                    setKind(kind === each ? null : each);
+                  }}
+                >
+                  {t(KINDS[each])}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <Mine />
 
@@ -122,8 +126,14 @@ export function Home() {
               <Deal key={offer.id} offer={offer} now={page.now} at={at} />
             ))}
           </ul>
+        ) : q || kind ? (
+          <p class="hint home-none">{t("homeNothing")}</p>
         ) : (
-          <p class="hint home-none">{q || kind ? t("homeNothing") : t("homeNone")}</p>
+          <div class="home-empty">
+            <IconBasket />
+            <strong>{t("homeEmptyTitle")}</strong>
+            <p class="hint">{page.shops.length ? t("homeEmptyShops") : t("homeEmptyBody")}</p>
+          </div>
         )}
       </section>
 
@@ -267,6 +277,16 @@ function FindOrder() {
         {t("open")}
       </button>
     </form>
+  );
+}
+
+function IconBasket() {
+  return (
+    <svg class="home-empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M6 10l3-6M18 10l-3-6" />
+      <path d="M3 10h18l-1.8 8.4A2 2 0 0 1 17.2 20H6.8a2 2 0 0 1-2-1.6z" />
+      <path d="M9 14v2.5M12 14v2.5M15 14v2.5" />
+    </svg>
   );
 }
 
