@@ -1941,3 +1941,18 @@ export const ANY_TWISTS: T[] = [
   t("大家发现：刚才的录音笔一直开着", "Everyone realises the voice recorder has been running the whole time."),
   t("一张旧照片从书里掉了出来，照片背面写着今天的日期", "An old photo falls out of a book. Today's date is written on the back."),
 ];
+
+/**
+ * 台下喊一嗓子: the moods the audience can call out for one actor mid-scene (improv's emotional
+ * rollercoaster). The actor plays on in it for the next twenty seconds or so.
+ */
+export const MOODS: T[] = [
+  t("哭着演", "In tears"),
+  t("憋不住笑", "Can't stop laughing"),
+  t("突然暴怒", "Suddenly furious"),
+  t("害羞到不行", "Painfully shy"),
+  t("吓坏了", "Terrified"),
+  t("深情款款", "Madly in love"),
+  t("喝高了", "Tipsy"),
+  t("慢动作", "Slow motion"),
+];

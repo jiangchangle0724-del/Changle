@@ -3502,6 +3502,90 @@ test("drama: an actor walking out mid-act: without the culprit, a duelist or any
   ok(!!t.view<V>("p0").result?.left, "nobody left to read: it stops");
 });
 
+test("drama: from the audience: calls out mid-scene, twice each and not on top of each other; a guess locked in early binds the vote and, if right, scores one more", () => {
+  type V = V<"drama">;
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { total: 2 });
+  // two on stage, four watching
+  for (const id of t.ids) t.g(id, "want", { want: id === "p1" || id === "p2" ? "act" : "watch" });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string };
+  const actors = s.cast;
+  const watchers = t.ids.filter((id) => !actors.includes(id));
+  const innocent = actors.find((a) => a !== s.culprit)!;
+  ok(actors.length === 2 && watchers.length === 4, "two acting, four watching");
+  t.g(watchers[0], "call", { kind: "again" });
+  t.g(watchers[0], "lock", { guess: s.culprit });
+  ok(!t.view<V>("p0").calls?.length && !t.view<V>(watchers[0]).myLock, "nothing to call out or lock in while the cards are read");
+  for (const a of actors) t.g(a, "ready");
+  ok(t.view<V>("p0").phase === "act", "the scene plays");
+
+  // 台下喊一嗓子
+  t.g(actors[0], "call", { kind: "again" });
+  ok(!t.view<V>("p0").calls?.length, "actors don't call out at their own scene");
+  t.g(watchers[0], "call", { kind: "again" });
+  let calls = t.view<V>(actors[1]).calls ?? [];
+  ok(calls.length === 1 && calls[0].by === watchers[0] && calls[0].kind === "again" && calls[0].to === null, "换个说法 reaches every phone, with who called it");
+  t.g(watchers[1], "call", { kind: "again" });
+  ok((t.view<V>("p0").calls ?? []).length === 1, "not on top of the last call");
+  t.advance(8_100);
+  t.g(watchers[1], "call", { kind: "mood", to: watchers[2], mood: 1 });
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0], mood: 99 });
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0] });
+  t.g(watchers[1], "call", { kind: "shout" });
+  ok((t.view<V>("p0").calls ?? []).length === 1, "a mood needs an actor on stage and one of the moods");
+  t.g(watchers[1], "call", { kind: "mood", to: actors[0], mood: 1 });
+  calls = t.view<V>("p0").calls ?? [];
+  ok(calls.length === 2 && calls[1].kind === "mood" && calls[1].to === actors[0] && calls[1].mood === 1, "a mood for one actor");
+  t.advance(8_100);
+  t.g(watchers[0], "call", { kind: "again" });
+  t.advance(8_100);
+  t.g(watchers[0], "call", { kind: "again" });
+  ok((t.view<V>("p0").calls ?? []).filter((c) => c.by === watchers[0]).length === 2, "twice an act each");
+
+  // 当场识破
+  t.g(actors[0], "lock", { guess: actors[1] });
+  ok(t.view<V>("p0").locked === 0, "actors don't lock in on their own scene");
+  t.g(watchers[0], "lock", { guess: watchers[1] });
+  ok(t.view<V>("p0").locked === 0, "only someone on stage can be named");
+  t.g(watchers[0], "lock", { guess: s.culprit });
+  t.g(watchers[0], "lock", { guess: innocent });
+  ok(t.view<V>(watchers[0]).myLock === s.culprit, "locked in once, for good");
+  t.advance(30_000);
+  t.g(watchers[1], "lock", { guess: innocent });
+  ok(t.view<V>(actors[0]).locked === 2 && t.view<V>(actors[0]).myLock === null && t.view<V>(watchers[2]).myLock === null, "everyone sees how many have locked in, only the guesser sees whom");
+  t.advance(400_000);
+  let v = t.view<V>("p0");
+  ok(v.phase === "vote" && !v.calls?.length && v.locked === 2, "the vote: the calls are over, the locks still hold");
+  const stars = Object.fromEntries(actors.map((a) => [a, 4]));
+  t.g(watchers[0], "vote", { guess: innocent, stars });
+  t.g(watchers[1], "vote", { guess: s.culprit, stars });
+  ok(t.view<V>(watchers[0]).myVote?.guess === s.culprit && t.view<V>(watchers[1]).myVote?.guess === innocent, "a locked-in guess is the vote's guess, whatever is sent later");
+  for (const w of watchers.slice(2)) t.g(w, "vote", { guess: s.culprit, stars });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.caught, "the reveal");
+  const early = v.result!.early ?? [];
+  ok(early.length === 1 && early[0].pid === watchers[0] && early[0].at > 0 && early[0].at < 60_000, "eagle eyes: the right guess locked in early, and when");
+  ok(v.result!.gained[watchers[0]] === 2 && v.result!.gained[watchers[2]] === 1 && !v.result!.gained[watchers[1]], "a right guess is a point, locked in early one more; a wrong lock-in is just wrong");
+
+  // the next act starts clean; a lock on an actor who walks out is let go
+  t.advance(8_100);
+  t.g("p0", "next");
+  v = t.view<V>(watchers[0]);
+  ok(v.phase === "brief" && v.locked === 0 && v.myLock === null && !v.calls?.length, "the next act starts clean");
+  const s2 = t.eng.d.game!.s as { cast: string[]; culprit: string };
+  for (const a of s2.cast) t.g(a, "ready");
+  const watcher = t.ids.find((id) => !s2.cast.includes(id))!;
+  const bystander = s2.cast.find((a) => a !== s2.culprit);
+  if (bystander && s2.cast.length > 2) {
+    t.g(watcher, "lock", { guess: bystander });
+    ok(t.view<V>(watcher).myLock === bystander, "locked in on an actor");
+    t.act(bystander, { a: "leave" });
+    ok(t.view<V>(watcher).myLock === null && t.view<V>("p0").phase === "act", "they walk out: the lock is let go, the scene plays on");
+  }
+});
+
 test("drama: a scene written for every number of actors, at every table", () => {
   type V = V<"drama">;
   const missing: string[] = [];
