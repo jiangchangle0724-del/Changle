@@ -888,7 +888,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null, category: null, refund: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null, category: null, refund: null, payers: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -1549,6 +1549,30 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.detail ?? ""), ["Now a refund", "Now an expense", ""], "in English");
   const undo = lines[0].action?.change;
   eq(undo && (applyChange(now, undo)?.entries[0] as Expense).refund, undefined, "changing the last edit back makes it an expense again");
+}
+
+// ---------- 24c. 几个人一起付: the sums and the record ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }];
+  const three = { how: "equal" as const, among: ["s", "w", "m"] };
+  const start = startLedger("p", "周末", "CAD", people);
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1000, payer: "s", amount: 18600, note: "晚饭", split: three, rot: 0, payers: { s: 10000, w: 8600 } };
+  const l = applyChange(start, { do: "expense", expense: dinner })!;
+  eq([summaryOf(l).paidMost, peopleOf(l).map((p) => [p.id, p.paid, p.net]), statementOf(l, "w").expenses.map((x) => [x.paid, x.share])], [{ who: ["s"], amount: 10000 }, [["s", 10000, 3800], ["w", 8600, 2400], ["m", 0, -6200]], [[8600, 6200]]], "总结, 每个人 and a statement: what each of them paid");
+  const csv = csvOf(l, "en").slice(1).split("\r\n");
+  eq(csv[1].split(",").slice(4), ['"Steve', ' 小王"', "186.00", "CAD", "38.00", "24.00", "-62.00"], "the export: both who paid it, each one's column what they paid less their part");
+  // the record: who paid them, and changing back
+  const to = { payer: "s", amount: 18600, note: "晚饭", split: three };
+  const steps: Change[] = [{ do: "expense", expense: dinner }, { do: "edit", entry: "e1", to: { ...to, payers: null } }, { do: "edit", entry: "e1", to: { ...to, payers: { s: 9300, w: 9300 } } }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `p${i}`, at: 1000 + i, change, by: "s" } };
+  });
+  eq(historyOf(now, log, [], "s", "zh", 5000).map((x) => x.detail ?? ""), ["改成 你、小王 一起付", "改成你付", ""], "the record: who paid it together, or one alone again");
+  eq(historyOf(now, log, [], "w", "en", 5000)[0].detail, "Now paid by Steve, you together", "in English");
+  const undo = historyOf(now, log, [], "s", "zh", 5000)[0].action?.change;
+  eq(undo && "payers" in applyChange(now, undo)!.entries[0], false, "changing the last edit back: Steve alone again");
 }
 
 // ---------- 25. 分类 on the screens: picked or read into the draft, summed up, exported, searched ----------

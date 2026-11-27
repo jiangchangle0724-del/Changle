@@ -17,7 +17,7 @@
  * (tests/split-screens.test.ts).
  */
 import type { Lang } from "../i18n";
-import { balances, fromMinor, portionsOf, spent, type Ledger } from "./core";
+import { balances, fromMinor, paidBy, portionsOf, spent, type Ledger } from "./core";
 import { decimalsOf, localDay } from "./format";
 import { categoryOf } from "./kinds";
 import { CATEGORY_WORD, spentOn } from "./lines";
@@ -69,14 +69,14 @@ export function csvOf(l: Ledger, lang: Lang): string {
     if (e.kind === "expense") {
       // (a refund the other way round: whoever got it holds everyone's part of it)
       const way = e.refund ? -1 : 1;
-      add(e.payer, way * e.amount);
+      for (const [id, n] of Object.entries(paidBy(e))) add(id, way * n);
       for (const [id, part] of Object.entries(portionsOf(e, l))) add(id, -way * part);
       const other = e.paidIn ? [e.paidIn.currency, fromMinor(e.paidIn.amount, decimalsOf(e.paidIn.currency)), e.paidIn.rate] : ["", "", ""];
       const tip = e.tip ? inLedger(e.tip, e) : 0;
       const tax = e.tax ? inLedger(e.tax, e) : 0;
       tips += tip;
       taxes += tax;
-      row = [spentOn(e), say(lang, e.refund ? "refund" : "csvExpense"), text(e.note), say(lang, CATEGORY_WORD[categoryOf(e)]), ...(shopped ? [text(e.merchant ?? ""), text(e.place ?? ""), text(e.payment ?? "")] : []), text(name(e.payer)), plain(way * e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
+      row = [spentOn(e), say(lang, e.refund ? "refund" : "csvExpense"), text(e.note), say(lang, CATEGORY_WORD[categoryOf(e)]), ...(shopped ? [text(e.merchant ?? ""), text(e.place ?? ""), text(e.payment ?? "")] : []), text(l.members.filter((m) => m.id in paidBy(e)).map((m) => m.name).join(say(lang, "nameAnd"))), plain(way * e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
     } else {
       add(e.from, e.amount);
       add(e.to, -e.amount);

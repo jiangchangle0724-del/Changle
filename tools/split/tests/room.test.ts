@@ -156,6 +156,21 @@ test("退款: money that came back is kept as a refund, and refund said any othe
   assert.deepEqual(room.push("key", [edit({ refund: "no" })], NOW), { ok: false, error: "bad" }, "and one saying anything else isn't a change");
 });
 
+test("几个人一起付: what each of several paid is kept when it comes to the amount, and payers said any other way aren't a change", () => {
+  const { room } = make();
+  const paidOf = (got: ReturnType<typeof room.push>) => (got.ok ? [got.took.join(), ...got.ledger.entries.map((e) => (e as Expense).payers ?? null)] : got.error);
+  assert.deepEqual(paidOf(room.push("key", [expense("e1", { amount: 18600, payers: { s: 10000, w: 8600 } })], NOW)), ["new", { s: 10000, w: 8600 }], "Steve $100 and 小王 $86 of $186: kept");
+  assert.deepEqual(paidOf(room.push("key", [expense("e2", { amount: 18600, payers: { s: 10000, w: 8000 } })], NOW)), ["nothing", { s: 10000, w: 8600 }], "ones that don't add up to it: taken, and nothing changes");
+  for (const payers of ["s", { s: 18600 }, { s: "100", w: 8600 }, null]) {
+    assert.deepEqual(room.push("key", JSON.parse(JSON.stringify([expense("e3", { payers: payers as unknown as Record<string, number> })])), NOW), { ok: false, error: "bad" }, `payers ${JSON.stringify(payers)} isn't a change`);
+  }
+  const said = { payer: "s", amount: 18600, note: "", split: { how: "equal" as const, among: ["s", "w", "m"] } };
+  const edit = (to: Record<string, unknown>): unknown => ({ id: `c${++n}`, at: NOW, change: { do: "edit", entry: "e1", to: { ...said, ...to } } });
+  assert.deepEqual(paidOf(room.push("key", [edit({ payers: null })], NOW)), ["new", null], "an edit saying null: Steve paid it all");
+  assert.deepEqual(paidOf(room.push("key", [edit({ payers: { s: 9300, w: 9300 } })], NOW)), ["new", { s: 9300, w: 9300 }], "and several again");
+  assert.deepEqual(paidOf(room.push("key", [edit({ amount: 20000 })], NOW)), ["new", null], "a page from before changes the amount: they go, and Steve paid it all");
+});
+
 test("a request with anything in it that isn't a change is turned away whole", () => {
   const { room, store } = make();
   const good = expense("e1");

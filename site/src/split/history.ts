@@ -103,7 +103,7 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const after = edited(before, c.to);
         entries.set(c.entry, after);
         const there = inNow(c.entry);
-        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null, date: before.date ?? null, merchant: before.merchant ?? null, place: before.place ?? null, payment: before.payment ?? null, category: before.category ?? null, refund: before.refund ?? null } };
+        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null, date: before.date ?? null, merchant: before.merchant ?? null, place: before.place ?? null, payment: before.payment ?? null, category: before.category ?? null, refund: before.refund ?? null, payers: before.payers ?? null } };
         // (only where it would go through: whoever paid it or shared it may have been taken off since)
         const offer = !locked && lastEdit.get(c.entry) === s.key && !!there && there.gone === undefined && applyChange(now, back) !== null;
         lines.push(line(say(lang, "historyEdit", { what: expense(after) }), {
@@ -172,12 +172,16 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
 const edited = (before: Expense, to: Extract<Change, { do: "edit" }>["to"]): Expense => afterEdit(before, to) ?? before;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Several who paid, in one order, to be compared. */
+const sorted = (p: Record<string, number> | undefined) => (p ? Object.entries(p).sort(([a], [b]) => (a < b ? -1 : 1)) : null);
 
 /** What an edit changed, said briefly: the amount, who paid, the note, how it is shared, the other currency, the photos, the tip, the tax and the day. */
 function changed(before: Expense, after: Expense, me: string | undefined, lang: Lang, nameOf: (id: string) => string, amount: (n: number) => string, currency: string): string | undefined {
   const parts: string[] = [];
   if (before.amount !== after.amount) parts.push(say(lang, "historyAmount", { from: amount(before.amount), to: amount(after.amount) }));
-  if (before.payer !== after.payer) parts.push(after.payer === me ? say(lang, "historyPayerYou") : say(lang, "historyPayer", { who: nameOf(after.payer) || say(lang, "someone") }));
+  // (who paid: one, or several together)
+  if (after.payers && !same(sorted(before.payers), sorted(after.payers))) parts.push(say(lang, "historyPayers", { who: Object.keys(after.payers).map((id) => (id === me ? say(lang, "youInList") : nameOf(id) || say(lang, "someone"))).join(say(lang, "nameAnd")) }));
+  else if (!after.payers && (before.payer !== after.payer || before.payers)) parts.push(after.payer === me ? say(lang, "historyPayerYou") : say(lang, "historyPayer", { who: nameOf(after.payer) || say(lang, "someone") }));
   if (before.note !== after.note) parts.push(after.note ? say(lang, "historyNote", { note: after.note }) : say(lang, "historyNoteGone"));
   if (!same(before.split, after.split)) parts.push(say(lang, "historySplit"));
   if (!same(before.paidIn, after.paidIn)) parts.push(say(lang, "historyCurrency"));
