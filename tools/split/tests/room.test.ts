@@ -298,6 +298,26 @@ test("a 查看链接: its key lets people look, and does nothing else", () => {
   assert.ok(room.view("key2", "view4").ok && room.look("view4").ok, "the new key makes the next");
 });
 
+test("收款方式: set by the ledger's people, kept, and never read through a 查看链接", () => {
+  const { room, store } = make();
+  const pay = (id: string, member: string, to: string): Sent => ({ id, at: NOW, change: { do: "pay", member, pay: to } });
+  const set = room.push("key", [pay("p1", "s", "  steve@example.com "), pay("p2", "nobody", "x@y.z")], NOW + 1);
+  assert.ok(set.ok && set.took.join() === "new,nothing", "set for someone in the ledger, tidied; not for someone who isn't");
+  const mine = room.read("key");
+  assert.ok(mine.ok && mine.ledger.members.find((m) => m.id === "s")?.pay === "steve@example.com", "the ledger's people read it");
+  assert.deepEqual(room.push("key", [pay("p3", "s", "steve@example.com")], NOW + 2).ok && room.snapshot()!.seq, 1, "the same again changes nothing");
+  room.view("key", "view");
+  const seen = room.look("view");
+  assert.ok(seen.ok && seen.ledger.members.length === 3 && seen.ledger.members.every((m) => !("pay" in m)), "a 查看链接 reads the people, and nobody's 收款方式");
+  assert.ok(seen.ok && JSON.stringify(seen.ledger.entries) === JSON.stringify(mine.ok && mine.ledger.entries), "and the rest as it is");
+  const own = room.look("key");
+  assert.ok(own.ok && own.ledger.members.find((m) => m.id === "s")?.pay === "steve@example.com", "the ledger's own key, looking, still reads it");
+  assert.deepEqual(room.push("view", [pay("p4", "s", "thief@example.com")], NOW + 3), { ok: false, error: "key" }, "a 查看链接 can't change it");
+  assert.ok(new LedgerRoom(store).read("key").ok && new LedgerRoom(store).snapshot()!.ledger.members[0].pay === "steve@example.com", "it survives a restart");
+  const off = room.push("key", [pay("p5", "s", "   ")], NOW + 4);
+  assert.ok(off.ok && !("pay" in room.snapshot()!.ledger.members[0]), "nothing left once tidied: taken off");
+});
+
 test("a locked ledger with its key changed: both hold", () => {
   const { room } = make({ ownerHash: "owner" });
   room.lock("owner", true, NOW + 1);

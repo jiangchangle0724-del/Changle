@@ -26,12 +26,14 @@
  *    paid stays the same (ops.ts, ExpenseEdit).
  *  - An expense's date is the day it was spent ("2026-11-15"), read off its receipt or picked; one
  *    without it was spent the day it was recorded. A change that doesn't mention it leaves it.
+ *  - Someone's 收款方式 (an e-Transfer email or phone) is a line of words on them, set or taken
+ *    off by anyone in the ledger, like their name. A 查看链接 never gets it (the server keeps it back).
  *  - Where it was bought and how it was paid are lines of words (the business, the place, what
  *    paid: "McDonald's", "Aldergrove, BC", "Mastercard"), read off its receipt or typed. A change
  *    that doesn't mention one leaves it; one that says none (null or nothing) takes it off.
  */
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
-import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
+import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, PAY_MAX, putBack, removeMember, renameLedger, renameMember, setPay, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
@@ -56,6 +58,8 @@ export type Change =
   | { do: "member"; member: Member }
   /** someone renamed */
   | { do: "rename"; member: string; name: string }
+  /** someone's 收款方式 set, or taken off (nothing) */
+  | { do: "pay"; member: string; pay: string }
   /** someone no entry names taken off the roster */
   | { do: "remove"; member: string }
   /** the ledger renamed */
@@ -121,6 +125,10 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
     case "rename": {
       const was = l.members.find((m) => m.id === c.member);
       return was && tidy(c.name, NAME_MAX) !== was.name ? moved(renameMember(l, c.member, c.name)) : null;
+    }
+    case "pay": {
+      const was = l.members.find((m) => m.id === c.member);
+      return was && tidy(c.pay, PAY_MAX) !== (was.pay ?? "") ? moved(setPay(l, c.member, c.pay)) : null;
     }
     case "remove":
       return l.members.some((m) => m.id === c.member) ? moved(removeMember(l, c.member)) : null;
@@ -312,6 +320,8 @@ function asChange(x: Record<string, unknown>): Change | null {
     }
     case "rename":
       return isId(x.member) && isText(x.name) ? { do: "rename", member: x.member, name: x.name } : null;
+    case "pay":
+      return isId(x.member) && isText(x.pay) ? { do: "pay", member: x.member, pay: x.pay } : null;
     case "remove":
       return isId(x.member) ? { do: "remove", member: x.member } : null;
     case "title":

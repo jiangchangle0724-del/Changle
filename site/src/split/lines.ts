@@ -125,13 +125,20 @@ export function paysLine(l: Ledger, from: string, to: string, me: string | undef
 }
 
 /**
- * The plan to settle up, as text for a group chat: the ledger's name, then a transfer a line. Real
- * names throughout, never 你: whoever reads it in the chat isn't the one who copied it.
+ * The plan to settle up, as text for a group chat: the ledger's name, then a transfer a line, then
+ * how each person still to be paid takes money, when they have said (收款方式). Real names
+ * throughout, never 你: whoever reads it in the chat isn't the one who copied it.
  */
 export function planText(l: Ledger, plan: Settlement, lang: Lang): string {
   const lines = [say(lang, "planTitle", { name: l.name })];
   for (const s of plan.steps) lines.push(say(lang, "planLine", { from: nameOf(l, s.from), to: nameOf(l, s.to), amount: money(s.amount, l.currency, lang) }) + (s.paid ? say(lang, "planPaid") : ""));
   if (plan.clear) lines.push(say(lang, "planSquare"));
+  // (how the people still to be paid take money, a line each, when they have said: so the group has it where the transfers are)
+  const owed = [...new Set(plan.steps.filter((s) => !s.paid).map((s) => s.to))];
+  for (const id of owed) {
+    const pay = l.members.find((m) => m.id === id)?.pay;
+    if (pay) lines.push(say(lang, "planPay", { who: nameOf(l, id), pay }));
+  }
   return lines.join("\n");
 }
 
@@ -186,6 +193,10 @@ export function lostLine(l: Ledger, sent: Sent, lang: Lang): string {
     case "remove": {
       const who = nameOf(l, c.member);
       return who ? say(lang, "lostRemove", { who }) : say(lang, "lostOther");
+    }
+    case "pay": {
+      const who = nameOf(l, c.member);
+      return who ? say(lang, "lostPay", { who }) : say(lang, "lostOther");
     }
     default:
       return say(lang, "lostOther");

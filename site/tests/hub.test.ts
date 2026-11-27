@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { Handoff } from "../worker/handoff";
+import Stripe from "stripe";
 import { Hub, type Call } from "../worker/hub";
 
 let n = 0;
@@ -542,6 +543,375 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   assert.equal((late.json as Row).error, "full");
   assert.equal((await give({ email: "ann@example.test", months: 3 })).status, 400);
   ok("会员: five lifetime memberships and no sixth; a lifetime member isn't given months on top");
+}
+
+// ---- paying with Stripe (worker/stripe.ts): a stand-in for Stripe's client, events signed for real ----
+type O = Record<string, any>;
+function fakeStripe(live: boolean) {
+  const signer = new Stripe("sk_test_only_for_signing");
+  let seq = 0;
+  const id = (p: string) => `${p}_${String(++seq).padStart(4, "0")}`;
+  const nowS = () => Math.floor(Date.now() / 1000);
+  const calls: { op: string; args: any }[] = [];
+  const st = {
+    prices: [] as O[],
+    products: [] as O[],
+    hooks: [] as O[],
+    portals: [] as O[],
+    customers: new Map<string, O>(),
+    sessions: new Map<string, O>(),
+    subs: new Map<string, O>(),
+    invoices: new Map<string, O>(),
+    invoicePayments: [] as { pi: string; invoice: string }[],
+    charges: new Map<string, O>(),
+  };
+  const missing = (what: string) => Object.assign(new Error(`No such ${what}`), { type: "StripeInvalidRequestError" });
+  const api = {
+    prices: {
+      list: async (p: O) => ({ data: st.prices.filter((x) => x.active && p.lookup_keys.includes(x.lookup_key)) }),
+      create: async (p: O) => {
+        if (p.transfer_lookup_key) for (const x of st.prices) if (x.lookup_key === p.lookup_key) x.lookup_key = null;
+        const x = { id: id("price"), active: true, currency: p.currency, unit_amount: p.unit_amount, recurring: p.recurring ?? null, tax_behavior: p.tax_behavior, lookup_key: p.lookup_key, product: p.product };
+        st.prices.push(x);
+        return x;
+      },
+    },
+    products: { create: async (p: O) => (st.products.push({ id: id("prod"), ...p }), st.products.at(-1)) },
+    billingPortal: {
+      configurations: { create: async (p: O) => (st.portals.push(p), { id: id("bpc") }) },
+      sessions: { create: async (p: O) => (calls.push({ op: "portal", args: p }), { url: `https://billing.stripe.test/p/${p.customer}` }) },
+    },
+    webhookEndpoints: {
+      list: async () => ({ data: st.hooks }),
+      create: async (p: O) => {
+        const w = { id: id("we"), url: p.url, enabled_events: p.enabled_events, status: "enabled", api_version: p.api_version, secret: `whsec_test_${seq}` };
+        st.hooks.push({ ...w, secret: undefined });
+        return w;
+      },
+      update: async (i: string, p: O) => Object.assign(st.hooks.find((w) => w.id === i)!, p),
+      del: async (i: string) => ((st.hooks = st.hooks.filter((w) => w.id !== i)), { id: i, deleted: true }),
+    },
+    customers: {
+      create: async (p: O, o?: O) => {
+        const k = o?.idempotencyKey ?? id("key");
+        if (!st.customers.has(k)) st.customers.set(k, { id: id("cus"), ...p });
+        return st.customers.get(k)!;
+      },
+    },
+    checkout: {
+      sessions: {
+        create: async (p: O) => {
+          const sid = `cs_${live ? "live" : "test"}_a1b2c3d4e5f6${String(++seq).padStart(4, "0")}`;
+          const x = { id: sid, url: `https://checkout.stripe.test/c/${sid}`, status: "open", payment_status: "unpaid", mode: p.mode, customer: p.customer, client_reference_id: p.client_reference_id, metadata: p.metadata, subscription: null, payment_intent: null, expires_at: p.expires_at ?? nowS() + 86400, params: p };
+          st.sessions.set(sid, x);
+          calls.push({ op: "checkout", args: p });
+          return x;
+        },
+        retrieve: async (i: string) => st.sessions.get(i) ?? Promise.reject(missing("session")),
+        expire: async (i: string) => {
+          const x = st.sessions.get(i);
+          if (!x || x.status !== "open") throw missing("open session");
+          x.status = "expired";
+          calls.push({ op: "expire", args: i });
+          return x;
+        },
+      },
+    },
+    subscriptions: {
+      retrieve: async (i: string) => st.subs.get(i) ?? Promise.reject(missing("subscription")),
+      update: async (i: string, p: O) => (calls.push({ op: "sub.update", args: [i, p] }), Object.assign(st.subs.get(i)!, p)),
+      cancel: async (i: string) => (calls.push({ op: "sub.cancel", args: i }), Object.assign(st.subs.get(i)!, { status: "canceled", ended_at: nowS() })),
+    },
+    invoicePayments: {
+      list: (p: O) => ({
+        async *[Symbol.asyncIterator]() {
+          for (const r of st.invoicePayments.filter((x) => x.pi === p.payment.payment_intent)) yield { invoice: r.invoice };
+        },
+      }),
+    },
+    invoices: { retrieve: async (i: string) => st.invoices.get(i) },
+    charges: { retrieve: async (i: string) => st.charges.get(i) },
+    webhooks: signer.webhooks,
+  };
+  const priceOf = (plan: string) => st.prices.find((x) => x.lookup_key === `changle_member_${plan}`)!;
+  const helpers = {
+    api,
+    st,
+    calls,
+    priceOf,
+    /** someone pays on the Checkout page: the session completes (a subscription starts, or the payment lands) */
+    paid(sid: string, opts: { periodEnd?: number; slow?: boolean } = {}) {
+      const x = st.sessions.get(sid)!;
+      x.status = "complete";
+      x.payment_status = opts.slow ? "unpaid" : "paid";
+      if (x.mode === "subscription") {
+        const plan = x.metadata.plan;
+        const sub = { id: id("sub"), customer: x.customer, status: "active", created: nowS(), cancel_at_period_end: false, cancel_at: null, ended_at: null, metadata: x.metadata, items: { data: [{ current_period_end: Math.floor((opts.periodEnd ?? Date.now() + 30 * 864e5) / 1000), price: priceOf(plan) }] } };
+        st.subs.set(sub.id, sub);
+        x.subscription = sub.id;
+        const pi = id("pi");
+        const inv = { id: id("in"), parent: { type: "subscription_details", subscription_details: { subscription: sub.id } } };
+        st.invoices.set(inv.id, inv);
+        st.invoicePayments.push({ pi, invoice: inv.id });
+        st.charges.set(`ch_for_${pi}`, { id: `ch_for_${pi}`, payment_intent: pi });
+        return { sub, pi };
+      }
+      x.payment_intent = id("pi");
+      st.charges.set(`ch_for_${x.payment_intent}`, { id: `ch_for_${x.payment_intent}`, payment_intent: x.payment_intent });
+      return { sub: null, pi: x.payment_intent as string };
+    },
+    /** an event, signed with the webhook's secret */
+    async event(secret: string, type: string, object: O, evid = id("evt")) {
+      const raw = JSON.stringify({ id: evid, object: "event", type, livemode: live, created: nowS(), api_version: Stripe.API_VERSION, data: { object } });
+      return { raw, sig: await signer.webhooks.generateTestHeaderStringAsync({ payload: raw, secret }), id: evid };
+    },
+  };
+  return helpers;
+}
+{
+  // no key: nothing to buy
+  {
+    const { hub } = await hubOn();
+    const ann = await join(hub, "ann@example.test", "ann-phone-0001");
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).pay, null);
+    assert.equal((await req(hub, "POST", "/stripe/checkout", { plan: "month" }, ann.token, "ann-phone-0001")).status, 503);
+    assert.equal((await hub.stripeWebhook("{}", "t=1,v1=x")).status, 503);
+    ok("付款: no Stripe key, no buy buttons and nothing to buy");
+  }
+
+  // a sandbox key: set up by the owner; only he and his admins may try it
+  {
+    const fake = fakeStripe(false);
+    const { hub, s } = await hubOn({ STRIPE_SECRET_KEY: "sk_test_51abcDEF", STRIPE_CLIENT: fake.api });
+    const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+    const ann = await join(hub, "ann@example.test", "ann-phone-0001");
+    const adm = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") => req(hub, method, path, body, boss.token, "boss-phone-0001");
+    assert.equal((await req(hub, "POST", "/admin/stripe/setup", {}, ann.token, "ann-phone-0001")).status, 403);
+    const before = (await adm("/admin/stripe")).json as Row;
+    assert.equal((before.status as Row).ready, false);
+    const set = (await adm("/admin/stripe/setup", {})).json as Row;
+    const status = set.status as Row;
+    assert.equal(status.mode, "test");
+    assert.equal(status.ready, true);
+    assert.deepEqual(
+      fake.st.prices.map((x) => [x.lookup_key, x.unit_amount, x.currency, x.recurring?.interval ?? null, x.tax_behavior]),
+      [
+        ["changle_member_month", 520, "cad", "month", "inclusive"],
+        ["changle_member_year", 5200, "cad", "year", "inclusive"],
+        ["changle_member_life", 52000, "cad", null, "inclusive"],
+      ],
+    );
+    assert.equal(fake.st.products.length, 2);
+    assert.equal(fake.priceOf("month").product, fake.priceOf("year").product);
+    assert.notEqual(fake.priceOf("month").product, fake.priceOf("life").product);
+    assert.equal(fake.st.hooks.length, 1);
+    assert.equal(fake.st.hooks[0].url, "https://rooms.changle.ca/api/stripe/webhook");
+    assert.equal(fake.st.hooks[0].api_version, Stripe.API_VERSION);
+    assert.ok(fake.st.hooks[0].enabled_events.includes("invoice.paid") && fake.st.hooks[0].enabled_events.includes("charge.dispute.created"));
+    assert.equal(fake.st.portals[0].features.subscription_cancel.mode, "at_period_end");
+    assert.ok(!JSON.stringify(set).includes("whsec_"), "the signing secret never leaves the hub");
+    await adm("/admin/stripe/setup", {});
+    assert.equal(fake.st.prices.length, 3);
+    assert.equal(fake.st.hooks.length, 1);
+    assert.equal(fake.st.portals.length, 1);
+    ok("付款: setting up makes two products, three CAD prices with tax included, the billing page and the webhook, once; its secret is never shown");
+
+    assert.equal(((await req(hub, "GET", "/member", {}, ann.token, "ann-phone-0001")).json as Row).pay, null);
+    assert.equal(((await req(hub, "GET", "/member", {}, boss.token, "boss-phone-0001")).json as Row).pay, "test");
+    assert.equal((await req(hub, "POST", "/stripe/checkout", { plan: "month" }, ann.token, "ann-phone-0001")).status, 503);
+    const c = await req(hub, "POST", "/stripe/checkout", { plan: "month", lang: "en", site: "https://evil.example" }, boss.token, "boss-phone-0001");
+    assert.equal(c.status, 200);
+    const p = fake.calls.find((x) => x.op === "checkout")!.args;
+    assert.equal(p.success_url, "https://changle.ca/member?paid={CHECKOUT_SESSION_ID}");
+    assert.equal(p.locale, "en");
+    void s;
+    ok("付款: with a sandbox key only the owner and admins see or reach checkout; a return address that isn't ours goes to changle.ca");
+  }
+
+  // a live key: buying, renewing, failing, ending, lifetime's five, refunds and disputes
+  {
+    const fake = fakeStripe(true);
+    const { hub, s } = await hubOn({ STRIPE_SECRET_KEY: "rk_live_51abcDEF", STRIPE_CLIENT: fake.api });
+    const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+    const ann = await join(hub, "ann@example.test", "ann-phone-0001");
+    const ben = await join(hub, "ben@example.test", "ben-phone-0001");
+    await req(hub, "POST", "/admin/stripe/setup", {}, boss.token, "boss-phone-0001");
+    const secret = String((s.db.prepare(`SELECT v FROM stripe_kv WHERE k = 'live:hook-secret'`).get() as Row).v);
+    const as = (who: { token: string }, dev: string) => (method: string, path: string, body?: unknown) => req(hub, method, path, body, who.token, dev);
+    const A = as(ann, "ann-phone-0001");
+    const B = as(ben, "ben-phone-0001");
+    const send = async (type: string, object: O, evid?: string) => {
+      const e = await fake.event(secret, type, object, evid);
+      return hub.stripeWebhook(e.raw, e.sig);
+    };
+    const me = async (X: typeof A) => ((await X("GET", "/me/member")).json as Row);
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).pay, "live");
+
+    const c = await A("POST", "/stripe/checkout", { plan: "month", lang: "zh", site: "https://changle.ca" });
+    assert.equal(c.status, 200);
+    const p = fake.calls.filter((x) => x.op === "checkout").at(-1)!.args;
+    assert.equal(p.mode, "subscription");
+    assert.equal(p.client_reference_id, ann.id);
+    assert.equal(p.payment_method_types, undefined);
+    assert.equal(p.subscription_data.billing_mode.type, "flexible");
+    assert.match(p.integration_identifier, /^changle-member-[a-z]{8}$/);
+    assert.equal(p.line_items[0].price, fake.priceOf("month").id);
+    assert.equal(p.automatic_tax, undefined);
+    const sid = String(c.json.url).split("/").at(-1)!;
+    ok("付款: a monthly checkout is a subscription on Stripe's page, for this account, with no card types forced and no tax added");
+
+    assert.equal((await hub.stripeWebhook("{\"id\":\"evt_x\"}", "t=1,v1=00")).status, 400);
+    const { sub } = fake.paid(sid);
+    const evid = "evt_completed_0001";
+    assert.equal((await send("checkout.session.completed", { id: sid, object: "checkout.session" }, evid)).body, "ok");
+    let mine = await me(A);
+    assert.equal(((mine.standing as Row).member as Row).tier, "month");
+    assert.equal(Math.round(Number(((mine.standing as Row).member as Row).until) / 1000), sub!.items.data[0].current_period_end);
+    assert.deepEqual(mine.sub, { plan: "month", status: "active", periodEnd: sub!.items.data[0].current_period_end * 1000, cancelAtEnd: false });
+    assert.equal(mine.billing, true);
+    assert.equal((await send("checkout.session.completed", { id: sid, object: "checkout.session" }, evid)).body, "seen");
+    assert.deepEqual(await hub.memberUse(ann.id, "split"), { ok: true, member: true, left: null });
+    ok("付款: paid on Stripe, the signed event makes a monthly member to the end of the period; a forged one is refused, a repeat ignored");
+
+    assert.equal((await B("GET", "/stripe/done", { id: sid })).status, 403);
+    const done = await A("GET", "/stripe/done", { id: sid });
+    assert.equal(done.json.paid, true);
+    assert.equal(((done.json.standing as Row).member as Row).tier, "month");
+    assert.equal((await A("POST", "/stripe/checkout", { plan: "year" })).status, 409);
+    const portal = await A("POST", "/stripe/portal", { lang: "en" });
+    assert.match(String(portal.json.url), /^https:\/\/billing\.stripe\.test\//);
+    assert.equal((await B("POST", "/stripe/portal", {})).status, 404);
+    ok("付款: back from Checkout the page sees it at once (only its own payment); a subscriber manages it on the billing page instead of buying twice");
+
+    // a renewal that fails: the period moves on, the membership doesn't
+    const paidTo = Number(((((await me(A)).standing as Row).member as Row).until));
+    Object.assign(sub!, { status: "past_due" });
+    sub!.items.data[0].current_period_end += 30 * 86400;
+    await send("invoice.payment_failed", { id: "in_x", object: "invoice", parent: { type: "subscription_details", subscription_details: { subscription: sub!.id } } });
+    mine = await me(A);
+    assert.equal(Number(((mine.standing as Row).member as Row).until), paidTo);
+    assert.equal((mine.sub as Row).status, "past_due");
+    // paid after all: on to the new period's end
+    Object.assign(sub!, { status: "active" });
+    await send("invoice.paid", { id: "in_y", object: "invoice", parent: { type: "subscription_details", subscription_details: { subscription: sub!.id } } });
+    assert.equal(Number(((((await me(A)).standing as Row).member as Row).until)), sub!.items.data[0].current_period_end * 1000);
+    ok("付款: a renewal that doesn't go through doesn't extend the membership; once it's paid, it does");
+
+    // cancelled on the billing page: to the period's end, then over
+    Object.assign(sub!, { cancel_at_period_end: true });
+    await send("customer.subscription.updated", { id: sub!.id, object: "subscription" });
+    assert.equal(((await me(A)).sub as Row).cancelAtEnd, true);
+    Object.assign(sub!, { status: "canceled", ended_at: Math.floor(Date.now() / 1000) - 5 });
+    await send("customer.subscription.deleted", { id: sub!.id, object: "subscription" });
+    mine = await me(A);
+    assert.equal((mine.standing as Row).member, null);
+    assert.equal(mine.sub, null);
+    ok("付款: cancelled, it runs to the period's end; when Stripe ends it, the membership ends");
+
+    // lifetime: five places, held while someone pays
+    for (let i = 0; i < 3; i++) {
+      await join(hub, `life${i}@example.test`, `life${i}-phone-0001`);
+      assert.equal((await req(hub, "POST", "/admin/members", { email: `life${i}@example.test`, life: true }, boss.token, "boss-phone-0001")).status, 200);
+    }
+    const annLife = await A("POST", "/stripe/checkout", { plan: "life" });
+    assert.equal(annLife.status, 200);
+    const lifeParams = fake.calls.filter((x) => x.op === "checkout").at(-1)!.args;
+    assert.equal(lifeParams.mode, "payment");
+    assert.ok(lifeParams.expires_at * 1000 - Date.now() > 30 * 60_000 && lifeParams.expires_at * 1000 - Date.now() <= 31 * 60_000);
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 1);
+    assert.equal((await A("POST", "/stripe/checkout", { plan: "life" })).json.url, annLife.json.url);
+    const benLife = await B("POST", "/stripe/checkout", { plan: "life" });
+    assert.equal(benLife.status, 200);
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 0);
+    const dan = await join(hub, "dan@example.test", "dan-phone-0001");
+    const full = await req(hub, "POST", "/stripe/checkout", { plan: "life" }, dan.token, "dan-phone-0001");
+    assert.equal(full.status, 409);
+    assert.equal(full.json.error, "full");
+    const benSid = String(benLife.json.url).split("/").at(-1)!;
+    await send("checkout.session.expired", { id: benSid, object: "checkout.session" });
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 1);
+    ok("付款: a lifetime place is held while someone pays (the same page again for them, \"full\" for the next); a page left to expire frees it");
+
+    const annSid = String(annLife.json.url).split("/").at(-1)!;
+    const { pi } = fake.paid(annSid);
+    await send("checkout.session.completed", { id: annSid, object: "checkout.session" });
+    mine = await me(A);
+    assert.equal(((mine.standing as Row).member as Row).tier, "life");
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 1);
+    assert.equal((await A("POST", "/stripe/checkout", { plan: "life" })).json.error, "life");
+    ok("付款: a lifetime payment lands: lifetime member, one place fewer, and nothing more to buy");
+
+    await send("charge.refunded", { id: `ch_for_${pi}`, object: "charge", refunded: true, payment_intent: pi });
+    assert.equal(((await me(A)).standing as Row).member, null);
+    assert.equal(((await req(hub, "GET", "/member", {}, "", "anon-phone-0001")).json as Row).lifeLeft, 2);
+    ok("付款: refunded in full, the lifetime membership ends and its place is for sale again");
+
+    // a yearly one refunded within the week: cancelled at once, over now
+    const y = await B("POST", "/stripe/checkout", { plan: "year" });
+    const ySid = String(y.json.url).split("/").at(-1)!;
+    assert.deepEqual(fake.calls.at(-1)!.op, "checkout");
+    const yp = fake.paid(ySid, { periodEnd: Date.now() + 365 * 864e5 });
+    await send("checkout.session.completed", { id: ySid, object: "checkout.session" });
+    assert.equal((((await me(B)).standing as Row).member as Row).tier, "year");
+    await send("charge.refunded", { id: `ch_for_${yp.pi}`, object: "charge", refunded: false, payment_intent: yp.pi });
+    assert.equal((((await me(B)).standing as Row).member as Row).tier, "year");
+    await send("charge.refunded", { id: `ch_for_${yp.pi}`, object: "charge", refunded: true, payment_intent: yp.pi });
+    assert.ok(fake.calls.some((x) => x.op === "sub.cancel" && x.args === yp.sub!.id));
+    assert.equal(((await me(B)).standing as Row).member, null);
+    ok("付款: a part refund changes nothing; a yearly one refunded in full is cancelled and ends now");
+
+    // disputed: the owner hears of it, and the membership ends
+    const m2 = await A("POST", "/stripe/checkout", { plan: "month" });
+    const m2Sid = String(m2.json.url).split("/").at(-1)!;
+    const m2p = fake.paid(m2Sid);
+    await send("checkout.session.completed", { id: m2Sid, object: "checkout.session" });
+    const mailsBefore = Number((s.db.prepare(`SELECT COUNT(*) AS n FROM mail_out WHERE to_addr = 'boss@example.test'`).get() as Row).n);
+    await send("charge.dispute.created", { id: "du_1", object: "dispute", amount: 520, reason: "fraudulent", charge: `ch_for_${m2p.pi}`, payment_intent: null });
+    assert.equal(((await me(A)).standing as Row).member, null);
+    await send("radar.early_fraud_warning.created", { id: "issfr_1", object: "radar.early_fraud_warning", fraud_type: "stolen_card", charge: `ch_for_${m2p.pi}`, payment_intent: m2p.pi });
+    assert.equal(Number((s.db.prepare(`SELECT COUNT(*) AS n FROM mail_out WHERE to_addr = 'boss@example.test'`).get() as Row).n), mailsBefore + 2);
+    ok("付款: a dispute ends the membership it paid for, and a dispute or a fraud warning mails the owner");
+
+    // the owner ends a paying member, or the account is deleted: the subscription stops at once
+    const m3 = await B("POST", "/stripe/checkout", { plan: "month" });
+    const m3Sid = String(m3.json.url).split("/").at(-1)!;
+    const m3p = fake.paid(m3Sid);
+    await send("checkout.session.completed", { id: m3Sid, object: "checkout.session" });
+    await req(hub, "POST", "/admin/members", { uid: ben.id, end: true }, boss.token, "boss-phone-0001");
+    assert.ok(fake.calls.some((x) => x.op === "sub.cancel" && x.args === m3p.sub!.id));
+    assert.equal(((await me(B)).standing as Row).member, null);
+    const m4 = await B("POST", "/stripe/checkout", { plan: "month" });
+    const m4Sid = String(m4.json.url).split("/").at(-1)!;
+    const m4p = fake.paid(m4Sid);
+    await send("checkout.session.completed", { id: m4Sid, object: "checkout.session" });
+    assert.equal((await B("DELETE", "/me")).status, 200);
+    await s.settled();
+    assert.ok(fake.calls.some((x) => x.op === "sub.cancel" && x.args === m4p.sub!.id));
+    ok("付款: ending a paid member in the back office, or deleting the account, cancels the subscription in Stripe");
+
+    // the earlier Checkout page is closed when a new one opens
+    const e1 = await A("POST", "/stripe/checkout", { plan: "month" });
+    const e2 = await A("POST", "/stripe/checkout", { plan: "year" });
+    assert.ok(fake.calls.some((x) => x.op === "expire" && x.args === String(e1.json.url).split("/").at(-1)));
+    ok("付款: opening a new Checkout page closes the account's earlier one, so it can't be paid twice");
+
+    // the owner gives lifetime to a subscriber: the subscription stops renewing
+    const e2Sid = String(e2.json.url).split("/").at(-1)!;
+    const e2p = fake.paid(e2Sid, { periodEnd: Date.now() + 365 * 864e5 });
+    await send("checkout.session.completed", { id: e2Sid, object: "checkout.session" });
+    assert.equal((await req(hub, "POST", "/admin/members", { email: "ann@example.test", life: true }, boss.token, "boss-phone-0001")).status, 200);
+    assert.ok(fake.calls.some((x) => x.op === "sub.update" && x.args[0] === e2p.sub!.id && x.args[1].cancel_at_period_end === true));
+    assert.equal((((await me(A)).standing as Row).member as Row).tier, "life");
+    ok("付款: lifetime given to a subscriber stops the subscription renewing");
+
+    // after going live, the sandbox's webhook still calls: acknowledged, nothing done
+    s.db.prepare(`INSERT INTO stripe_kv (k, v) VALUES ('test:hook-secret', 'whsec_old_sandbox')`).run();
+    const stale = await fake.event("whsec_old_sandbox", "customer.subscription.deleted", { id: e2p.sub!.id, object: "subscription" });
+    assert.deepEqual(await hub.stripeWebhook(stale.raw, stale.sig), { status: 200, body: "other mode" });
+    const forged = await fake.event("whsec_someone_else", "customer.subscription.deleted", { id: e2p.sub!.id, object: "subscription" });
+    assert.deepEqual(await hub.stripeWebhook(forged.raw, forged.sig), { status: 400, body: "bad signature" });
+    ok("付款: the other mode's webhook is answered and ignored; an unknown signature is still refused");
+  }
 }
 
 console.log(`\nall ${n} passed`);

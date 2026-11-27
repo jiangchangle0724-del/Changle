@@ -1,9 +1,9 @@
 import { Camera, ChevronDown, Crown, DoorOpen, Feather, Gem, Hand, MessageCircle, Wine, type LucideIcon } from "lucide-react";
 import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform, type PanInfo, type Variants } from "motion/react";
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { haptic } from "../lib/sfx";
 import { useWakeLock } from "../party/sensors";
-import { RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank, type Suit } from "../data/rogue13";
+import { ruleFor, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type House, type Power, type Rank, type Suit } from "../data/rogue13";
 import type { Lang } from "../i18n";
 import { usePenaltyText, useStore } from "../store";
 import { warmHi } from "./rogueSounds";
@@ -17,6 +17,12 @@ import "../styles/rogue.css";
  */
 
 export const POWER_ICON: Record<Power, LucideIcon> = { buddy: Wine, camera: Camera, nose: Hand, wc: DoorOpen, trouble: MessageCircle };
+
+/** 每张牌可换玩法: the table's house rules, for every card drawn under it (the screen provides them; none means the classic deck). */
+export const HouseContext = createContext<House>({});
+export const useHouse = () => useContext(HouseContext);
+/** The rule a rank plays by at this table. */
+export const useRule = (rank: Rank) => ruleFor(rank, useHouse());
 const COURT_ICON: Partial<Record<Rank, LucideIcon>> = { J: Feather, Q: Gem, K: Crown };
 
 /* the face is drawn in a 200 by 280 box: the index top left, the pips in the middle, the band along the bottom */
@@ -85,7 +91,7 @@ const TEXT = { fontFamily: "var(--font-text)" } as const;
  * recognized (a big rank, the band, the power's mark), not read.
  */
 export const CardFace = memo(function CardFace({ rank, suit, lang, custom, mini = false }: { rank: Rank; suit?: Suit; lang: Lang; custom: boolean; mini?: boolean }) {
-  const rule = RULE_BY_RANK[rank];
+  const rule = useRule(rank);
   const words = ruleWords(rule, custom);
   const red = suit ? SUIT_RED[suit] : false;
   const ink = red ? "var(--rg-red)" : "var(--rg-ink)";
@@ -514,7 +520,7 @@ export const HeldCard = memo(function HeldCard({
 }) {
   const { lang } = useStore();
   const custom = usePenaltyText().isCustom;
-  const power = RULE_BY_RANK[rank].power;
+  const power = useRule(rank).power;
   const Icon = power ? POWER_ICON[power] : null;
   const body = (
     <>

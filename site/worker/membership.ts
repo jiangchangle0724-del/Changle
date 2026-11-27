@@ -10,6 +10,11 @@ export function memberSchema(q: (s: string) => void) {
   q(`CREATE TABLE IF NOT EXISTS members (uid TEXT PRIMARY KEY, tier TEXT NOT NULL, until INTEGER, since INTEGER NOT NULL, source TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', by TEXT NOT NULL DEFAULT '')`);
   // free uses had, per account and tool (counted only while not a member)
   q(`CREATE TABLE IF NOT EXISTS uses (uid TEXT NOT NULL, tool TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (uid, tool))`);
+  // each lifetime membership bought with Stripe (worker/stripe.ts), from the moment checkout opens:
+  // `session` its Checkout Session; `state` open (paying now, until `expires`) | pending (paid by a
+  // slow method, not landed yet) | paid | refunded | disputed | ended | gone (left, or failed).
+  // An open or pending one holds one of the five, so a sixth can't be sold while someone pays.
+  q(`CREATE TABLE IF NOT EXISTS life_sales (session TEXT PRIMARY KEY, uid TEXT NOT NULL, mode TEXT NOT NULL, state TEXT NOT NULL, url TEXT NOT NULL DEFAULT '', expires INTEGER NOT NULL, pi TEXT NOT NULL DEFAULT '', at INTEGER NOT NULL)`);
 }
 
 /** The account's membership while it runs; null when it has none or it ended. */
@@ -38,9 +43,54 @@ export function useTool(sql: SqlStorage, uid: string, tool: Counted, now: number
   return { ok: true, member: false, left: FREE_USES - n - 1 };
 }
 
-/** Lifetime memberships still for sale (a lifetime one given by the owner takes one of the five too). */
-export function lifeLeft(sql: SqlStorage): number {
-  return Math.max(0, LIFE_SLOTS - Number(sql.exec(`SELECT COUNT(*) AS n FROM members WHERE tier = 'life'`).one().n));
+/**
+ * Lifetime memberships still for sale: a lifetime one given by the owner takes one of the five too,
+ * and so does one someone is paying for right now (life_sales).
+ */
+export function lifeLeft(sql: SqlStorage, now = Date.now()): number {
+  const had = Number(sql.exec(`SELECT COUNT(*) AS n FROM members WHERE tier = 'life'`).one().n);
+  const held = Number(
+    sql.exec(`SELECT COUNT(DISTINCT uid) AS n FROM life_sales WHERE state IN ('open', 'pending') AND expires > ? AND uid NOT IN (SELECT uid FROM members WHERE tier = 'life')`, now).one().n,
+  );
+  return Math.max(0, LIFE_SLOTS - had - held);
+}
+
+/**
+ * Paid with Stripe through `until` (worker/stripe.ts): a month or a year, never shortening one
+ * that runs longer (months the owner gave on top), and never touching a lifetime one.
+ */
+export function setPaid(sql: SqlStorage, uid: string, tier: "month" | "year", until: number, now: number) {
+  sql.exec(
+    `INSERT INTO members (uid, tier, until, since, source, note, by) VALUES (?, ?, ?, ?, 'stripe', '', '')
+     ON CONFLICT (uid) DO UPDATE SET tier = excluded.tier, until = MAX(COALESCE(members.until, 0), excluded.until),
+       since = CASE WHEN members.until > ? THEN members.since ELSE excluded.since END, source = 'stripe'
+     WHERE members.tier != 'life'`,
+    uid,
+    tier,
+    until,
+    now,
+    now,
+  );
+}
+
+/** A paid month or year ended (cancelled, or never paid after all): it runs no later than `at`. */
+export function endPaid(sql: SqlStorage, uid: string, at: number) {
+  sql.exec(`UPDATE members SET until = MIN(COALESCE(until, ?), ?) WHERE uid = ? AND tier IN ('month', 'year')`, at, at, uid);
+}
+
+/** A lifetime membership paid for: for good, whatever ran before it. */
+export function setLife(sql: SqlStorage, uid: string, now: number) {
+  sql.exec(
+    `INSERT INTO members (uid, tier, until, since, source, note, by) VALUES (?, 'life', NULL, ?, 'stripe', '', '')
+     ON CONFLICT (uid) DO UPDATE SET tier = 'life', until = NULL, since = excluded.since, source = 'stripe'`,
+    uid,
+    now,
+  );
+}
+
+/** A paid lifetime membership taken back (refunded, or the payment disputed): its place is for sale again. */
+export function dropLife(sql: SqlStorage, uid: string) {
+  sql.exec(`DELETE FROM members WHERE uid = ? AND tier = 'life' AND source = 'stripe'`, uid);
 }
 
 /** The same day of the month, `months` later (the 31st becomes the month's last day). */

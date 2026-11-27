@@ -20,6 +20,12 @@ export type How = Split["how"];
 export type Draft = {
   /** the amount as typed on the keypad ("86.4"), in `currency`; empty before anything is typed */
   text: string;
+  /**
+   * amounts typed with the keypad's + between them ("12.50+8.75+"), while they are: `text` is what
+   * they come to (input.ts, totalOf). Anything else that sets `text` leaves this behind, and then it
+   * no longer comes to `text` and is let go.
+   */
+  terms?: string;
   /** the currency it was paid in: the ledger's own, or another the site knows */
   currency: string;
   /** paid in another currency: how many of the ledger's for one of it, as typed or filled in; empty while there is none */

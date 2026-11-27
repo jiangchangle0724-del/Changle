@@ -17,7 +17,8 @@ import { MAX_MEMBERS, type Ledger } from "./core";
 import { ExportSheet } from "./ExportSheet";
 import { HistorySheet } from "./HistorySheet";
 import { InviteSheet } from "./Join";
-import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
+import { LEDGER_NAME_MAX, NAME_MAX, PAY_MAX, inAnyEntry, nameTaken, tidy } from "./ops";
+import { Sentences } from "./parts";
 import { StorageSheet } from "./StorageSheet";
 import { newId } from "./store";
 import { eraseLedger, iAm, lockLedger, record, rekeyLedger, removeLedger } from "./syncing";
@@ -293,15 +294,16 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
 }
 
 /**
- * Who is in the ledger. At rest a line is a name. Opened, it is that person's name to change, "this
- * is me", and taking them off the ledger (only someone no entry names yet, and never the last two).
+ * Who is in the ledger. At rest a line is a name, and their 收款方式 under it when they have said.
+ * Opened, it is that person's name and 收款方式 to change, "this is me", and taking them off the
+ * ledger (only someone no entry names yet, and never the last two).
  * In a locked ledger the people are as they are. A line is still there to tap, for "this is me":
  * that is this phone's own business, and changes nothing in the ledger.
  */
 function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; lang: Lang }) {
   const [next, setNext] = useState("");
-  /** whose line is open, and their name as it is being typed */
-  const [open, setOpen] = useState<{ id: string; name: string } | null>(null);
+  /** whose line is open, and their name and 收款方式 as they are being typed */
+  const [open, setOpen] = useState<{ id: string; name: string; pay: string } | null>(null);
   const fresh = tidy(next, NAME_MAX);
   const taken = !!fresh && nameTaken(ledger, fresh);
   const full = ledger.members.length >= MAX_MEMBERS;
@@ -340,12 +342,15 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
           if (open?.id !== m.id)
             return (
               <li key={m.id}>
-                <button type="button" className="split-person" onClick={() => setOpen({ id: m.id, name: m.name })}>
+                <button type="button" className="split-person" onClick={() => setOpen({ id: m.id, name: m.name, pay: m.pay ?? "" })}>
                   <Face name={m.name} />
                   <span className="ui-visually-hidden">{`${say(lang, "renamePerson")} `}</span>
-                  <span className="split-person-name">
-                    {m.name}
-                    {m.id === me && <small>{say(lang, "you")}</small>}
+                  <span className="split-person-text">
+                    <span className="split-person-name">
+                      {m.name}
+                      {m.id === me && <small>{say(lang, "you")}</small>}
+                    </span>
+                    {m.pay && <span className="split-person-pay">{m.pay}</span>}
                   </span>
                   <Pencil aria-hidden="true" />
                 </button>
@@ -353,6 +358,7 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
             );
           const to = tidy(open.name, NAME_MAX);
           const clash = !!to && nameTaken(ledger, to, m.id);
+          const pay = tidy(open.pay, PAY_MAX);
           // why this one stays on the ledger, when they do (you yourself always stay, and need no telling)
           const stays = m.id === me ? "" : ledger.members.length <= 2 ? say(lang, "lastTwo") : inAnyEntry(ledger, m.id) ? say(lang, "hasEntries") : "";
           return (
@@ -363,15 +369,25 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                   e.preventDefault();
                   if (!to || clash) return;
                   // (refused only when another phone took the name a moment ago: the line stays open and says so)
-                  if (to === m.name || record(ledger.id, { do: "rename", member: m.id, name: to })) setOpen(null);
+                  const named = to === m.name || record(ledger.id, { do: "rename", member: m.id, name: to });
+                  const paid = pay === (m.pay ?? "") || record(ledger.id, { do: "pay", member: m.id, pay });
+                  if (named && paid) setOpen(null);
                 }}
               >
                 <span className="field">
-                  <input value={open.name} onChange={(e) => setOpen({ id: m.id, name: e.target.value })} maxLength={NAME_MAX} aria-label={say(lang, "renamePerson")} enterKeyHint="done" autoComplete="off" autoFocus />
+                  <input value={open.name} onChange={(e) => setOpen({ ...open, name: e.target.value })} maxLength={NAME_MAX} aria-label={say(lang, "renamePerson")} enterKeyHint="done" autoComplete="off" autoFocus />
                   <Button tone="quiet" size="sm" type="submit" disabled={!to || clash}>
                     {say(lang, "save")}
                   </Button>
                 </span>
+                {/* 收款方式: shown to whoever pays them; anyone in the ledger can put it right, as with a name */}
+                <label className="split-person-pay-field">
+                  <span>{say(lang, "payLabel")}</span>
+                  <input value={open.pay} onChange={(e) => setOpen({ ...open, pay: e.target.value })} maxLength={PAY_MAX} placeholder={say(lang, "payHint")} inputMode="email" autoComplete="off" enterKeyHint="done" />
+                </label>
+                <p className="split-note">
+                  <Sentences text={say(lang, "payNote")} lang={lang} />
+                </p>
                 {m.id !== me && (
                   <div className="split-person-acts">
                     <Button

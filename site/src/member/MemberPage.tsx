@@ -1,45 +1,151 @@
-import { CalendarDays, Clock, Crown, Infinity as Forever, Store, UserRound } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, Crown, FlaskConical, Infinity as Forever, Store, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import { TopBar } from "../components/TopBar";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
+import { go as goTo } from "../router";
 import { COUNTED, FREE_USES, LIFE_SLOTS, PRICES, type Standing } from "../shared/member";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Pill } from "../ui/Pill";
-import { cad, leftText, tierName, TOOL_NAMES, TOOL_USE, untilText } from "./words";
+import { ToastProvider, useToast } from "../ui/Toast";
+import { cad, leftText, payWhy, renewText, tierName, TOOL_NAMES, TOOL_USE, untilText } from "./words";
 import "./member.css";
+
+type Plan = "month" | "year" | "life";
+/** "live": anyone can buy; "test": a sandbox key, only the owner's people see the buttons; null: not open */
+type PayMode = "live" | "test" | null;
+type Sub = { plan: "month" | "year"; status: string; periodEnd: number | null; cancelAtEnd: boolean };
+type Mine = { standing: Standing; lifeLeft: number; pay: PayMode; sub: Sub | null; billing: boolean };
+/** back from Stripe's Checkout (?paid=): checking it, in, paid by a slow method, or not confirmed yet */
+type Back = "checking" | "paid" | "pending" | "slow" | null;
 
 /**
  * changle.ca/member (docs/membership.md, Steve 2026-11-26): what a member gets, the three ways to
- * pay, how the free uses are counted, and where you stand. Payments open in step 2 (Stripe);
- * until then the page says so, and the owner gives memberships in the back office.
+ * pay, how the free uses are counted, and where you stand. Paying goes to Stripe's own pages
+ * (worker/stripe.ts): Checkout to buy, the billing page to change a card, switch or cancel.
  */
-export function MemberPage({ onBack }: { onBack: () => void }) {
+export function MemberPage({ onBack, paid }: { onBack: () => void; paid?: string }) {
+  return (
+    <ToastProvider>
+      <Member onBack={onBack} paid={paid} />
+    </ToastProvider>
+  );
+}
+
+/** `paid`: back from Stripe's Checkout with this session (/member?paid=…) */
+function Member({ onBack, paid }: { onBack: () => void; paid?: string }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const { me, status, openSignIn } = useAccount();
+  const toast = useToast();
+  const { me, status, openSignIn, refresh } = useAccount();
   const [lifeLeft, setLifeLeft] = useState<number | null>(null);
   const [standing, setStanding] = useState<Standing | null>(null);
+  const [pay, setPay] = useState<PayMode>(null);
+  const [mine, setMine] = useState<Mine | null>(null);
+  const [busy, setBusy] = useState<Plan | "portal" | null>(null);
+  const [back, setBack] = useState<Back>(paid ? "checking" : null);
 
+  const took = (r: Mine) => {
+    setMine(r);
+    setStanding(r.standing);
+    setLifeLeft(r.lifeLeft);
+    setPay(r.pay);
+  };
   useEffect(() => {
     const stop = new AbortController();
-    api<{ lifeLeft: number }>("/member", { signal: stop.signal })
-      .then((r) => setLifeLeft(r.lifeLeft))
+    api<{ lifeLeft: number; pay: PayMode }>("/member", { signal: stop.signal })
+      .then((r) => {
+        setLifeLeft(r.lifeLeft);
+        setPay((p) => p ?? r.pay);
+      })
       .catch(() => {});
     return () => stop.abort();
   }, []);
   useEffect(() => {
     if (!me) return setStanding(null);
     const stop = new AbortController();
-    api<{ standing: Standing; lifeLeft: number }>("/me/member", { signal: stop.signal })
-      .then((r) => {
-        setStanding(r.standing);
-        setLifeLeft(r.lifeLeft);
-      })
+    api<Mine>("/me/member", { signal: stop.signal })
+      .then(took)
       .catch(() => {});
     return () => stop.abort();
   }, [me]);
+
+  // back from paying: asked at once (the hub checks with Stripe), then again while the payment lands
+  const uid = me?.id;
+  useEffect(() => {
+    if (!paid || !uid) return;
+    let stopped = false;
+    let tries = 0;
+    let timer = 0;
+    const settle = (b: Back) => {
+      setBack(b);
+      // (the address loses ?paid=, so coming back to the page later doesn't ask again)
+      goTo({ kind: "member" }, true);
+    };
+    const ask = async () => {
+      try {
+        const r = await api<Mine & { paid: boolean; pending: boolean }>(`/stripe/done?id=${encodeURIComponent(paid)}`);
+        if (stopped) return;
+        took(r);
+        if (r.standing.member) {
+          settle("paid");
+          void refresh();
+          return;
+        }
+        if (r.pending) return settle("pending");
+      } catch (e) {
+        if (e instanceof ApiError && e.status < 500 && e.status !== 429) return settle("slow");
+      }
+      if (stopped) return;
+      if (++tries < 8) timer = window.setTimeout(() => void ask(), 2500);
+      else settle("slow");
+    };
+    void ask();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [paid, uid, refresh]);
+
+  const go = async (what: Plan | "portal") => {
+    if (!me) return openSignIn();
+    if (busy) return;
+    setBusy(what);
+    try {
+      const body = { lang, site: location.origin, ...(what === "portal" ? {} : { plan: what }) };
+      const r = await api<{ url: string }>(what === "portal" ? "/stripe/portal" : "/stripe/checkout", { body });
+      // (busy stays on: the page is leaving for Stripe's)
+      location.assign(r.url);
+    } catch (e) {
+      toast(payWhy(e instanceof ApiError ? e.code : "", lang));
+      setBusy(null);
+    }
+  };
+  const member = mine?.standing.member ?? me?.member ?? null;
+  const sub = mine?.sub ?? null;
+  /** the button under a plan, when buying is open */
+  const action = (k: Plan) => {
+    if (!pay || (k === "life" && lifeLeft === 0)) return null;
+    if (!me)
+      return (
+        <Button tone="quiet" size="sm" block icon={UserRound} onClick={() => openSignIn()}>
+          {zh ? "登录后开通" : "Sign in to join"}
+        </Button>
+      );
+    if (member?.tier === "life") return null;
+    if (k !== "life" && sub) return sub.plan === k ? <Pill tone="tool">{zh ? "你现在的方案" : "Your plan"}</Pill> : null;
+    return (
+      <Button tone="primary" size="sm" block onClick={() => void go(k)} disabled={busy !== null}>
+        {busy === k ? (zh ? "正在打开付款页" : "Opening checkout") : k === "life" ? (zh ? "买终身" : "Buy") : zh ? "开通" : "Join"}
+      </Button>
+    );
+  };
+  const manage = pay && mine?.billing && (
+    <Button tone="quiet" size="sm" icon={CreditCard} onClick={() => void go("portal")} disabled={busy !== null}>
+      {busy === "portal" ? (zh ? "正在打开" : "Opening") : zh ? "管理付款" : "Manage payments"}
+    </Button>
+  );
 
   const plans = [
     { k: "month", icon: CalendarDays, price: PRICES.month, per: zh ? "每月" : "a month", line: zh ? "每月自动续，随时取消" : "Renews monthly, cancel any time", tag: null },
@@ -77,20 +183,50 @@ export function MemberPage({ onBack }: { onBack: () => void }) {
               {zh ? "登录 / 注册" : "Sign in or sign up"}
             </Button>
           </>
-        ) : me.member ? (
-          <p>
-            <strong>{zh ? `你是会员（${tierName(me.member.tier, lang)}）` : `You're a member (${tierName(me.member.tier, lang)})`}</strong>
-            {" · "}
-            {untilText(me.member.until, lang)}
-          </p>
+        ) : member ? (
+          <>
+            <p>
+              <strong>{zh ? `你是会员（${tierName(member.tier, lang)}）` : `You're a member (${tierName(member.tier, lang)})`}</strong>
+              {" · "}
+              {untilText(member.until, lang)}
+              {sub && member.tier !== "life" && ` · ${renewText(sub, lang)}`}
+            </p>
+            {manage}
+          </>
         ) : me.master ? (
-          <p>
-            <strong>{zh ? "站长账号：工具不限次" : "The owner's account: tools without limit"}</strong>
-          </p>
+          <>
+            <p>
+              <strong>{zh ? "站长账号：工具不限次" : "The owner's account: tools without limit"}</strong>
+            </p>
+            {manage}
+          </>
         ) : (
-          <p>{standing ? leftText(standing.left, lang) : zh ? "正在看你还剩几次" : "Checking your free uses"}</p>
+          <>
+            <p>{sub?.status === "past_due" ? renewText(sub, lang) : standing ? leftText(standing.left, lang) : zh ? "正在看你还剩几次" : "Checking your free uses"}</p>
+            {manage}
+          </>
         )}
       </section>
+
+      {back && (
+        <p className={`member-back${back === "paid" ? " is-in" : ""}`} role="status">
+          {back === "checking"
+            ? zh
+              ? "正在确认付款…"
+              : "Checking your payment…"
+            : back === "paid"
+              ? zh
+                ? "开通好了，欢迎！收据 Stripe 会发到你的邮箱。"
+                : "You're in. Welcome! Stripe emails you the receipt."
+              : back === "pending"
+                ? zh
+                  ? "付款交上去了。银行确认以后会员就开通，可能要几天。"
+                  : "Your payment is on its way. Membership starts once the bank confirms it, which can take a few days."
+                : zh
+                  ? "付款还没确认。过一会儿再打开这一页看看。"
+                  : "Your payment isn't confirmed yet. Open this page again in a little while."}
+        </p>
+      )}
 
       <ul className="member-plans">
         {plans.map((p) => (
@@ -111,13 +247,28 @@ export function MemberPage({ onBack }: { onBack: () => void }) {
                 <Pill tone="tool">{p.tag}</Pill>
               </span>
             )}
+            {pay && <div className="member-plan-go">{action(p.k)}</div>}
           </li>
         ))}
       </ul>
-      <p className="member-soon">
-        <Clock size={16} aria-hidden="true" />
-        {zh ? "付款很快开通，到时候在这里直接买。" : "Payments open soon, right here."}
-      </p>
+      {pay === "test" ? (
+        <p className="member-soon member-test">
+          <FlaskConical size={16} aria-hidden="true" />
+          {zh
+            ? "测试模式：只有站长和管理员看得见付款按钮。付款页用测试卡 4242 4242 4242 4242，日期填将来任何一天，CVC 随便填，不会真扣钱。"
+            : "Test mode: only the owner and admins see these buttons. On the payment page use the test card 4242 4242 4242 4242, any future date and any CVC. No real money moves."}
+        </p>
+      ) : pay ? (
+        <p className="member-soon">
+          <CreditCard size={16} aria-hidden="true" />
+          {zh ? "在 Stripe 的付款页付，卡号不经过 changle.ca。" : "You pay on Stripe's own page; your card never touches changle.ca."}
+        </p>
+      ) : (
+        <p className="member-soon">
+          <Clock size={16} aria-hidden="true" />
+          {zh ? "付款很快开通，到时候在这里直接买。" : "Payments open soon, right here."}
+        </p>
+      )}
 
       <section className="member-more">
         <h2>{zh ? `免费的 ${FREE_USES} 次怎么算` : `How the ${FREE_USES} free uses count`}</h2>

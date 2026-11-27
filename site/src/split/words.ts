@@ -265,6 +265,7 @@ export const W = {
   lostAdd: { zh: "加人：{who}", en: "New person: {who}" },
   lostRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
   lostRemove: { zh: "去掉：{who}", en: "Removed: {who}" },
+  lostPay: { zh: "收款方式：{who}", en: "Payment details: {who}" },
   lostOther: { zh: "一处别的改动", en: "Another change" },
   lostMore: { zh: "还有 {n} 处", en: "and {n} more" },
   gotIt: { zh: "知道了", en: "Got it" },
@@ -287,6 +288,8 @@ export const W = {
   historyRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
   historyRenameSomeone: { zh: "改名：改成 {name}", en: "Renamed someone {name}" },
   historyRemove: { zh: "去掉了一个人：{who}", en: "Removed: {who}" },
+  historyPay: { zh: "填了{who}的收款方式", en: "Payment details set: {who}" },
+  historyPayOff: { zh: "去掉了{who}的收款方式", en: "Payment details removed: {who}" },
   historyRemoveSomeone: { zh: "去掉了一个人", en: "Removed someone" },
   historyTitle: { zh: "改了账本名：{name}", en: "Ledger renamed: {name}" },
   historyLock: { zh: "锁上了账本", en: "Locked the ledger" },
@@ -403,6 +406,7 @@ export const W = {
   undo: { zh: "撤销", en: "Undo" },
   backspace: { zh: "删一位", en: "Delete a digit" },
   point: { zh: "小数点", en: "Decimal point" },
+  plus: { zh: "加上", en: "Plus" },
   amount: { zh: "金额", en: "Amount" },
 
   // paid in another currency
@@ -459,6 +463,17 @@ export const W = {
   markPaid: { zh: "标成已转", en: "Mark as paid" },
   undoPaid: { zh: "撤销已转", en: "Undo paid" },
   copyAmount: { zh: "复制金额", en: "Copy the amount" },
+  // 收款方式 (2026-11-26): how someone takes money, for whoever pays them
+  payLabel: { zh: "收款方式", en: "Payment details" },
+  payHint: { zh: "e-Transfer 邮箱或电话", en: "e-Transfer email or phone" },
+  payNote: { zh: "转钱给 TA 的人在结清页一点就能复制。\n查看链接看不到。", en: "Whoever pays them can copy it on Settle up.\nView links don't show it." },
+  payOf: { zh: "{who}的收款方式", en: "{who}'s payment details" },
+  payOfYou: { zh: "你的收款方式", en: "Your payment details" },
+  payMissing: { zh: "{who}还没填收款方式。", en: "{who} hasn't added payment details." },
+  payAddMine: { zh: "填上你的收款方式，转钱给你的人一点就能复制。", en: "Add your payment details so whoever pays you can copy them." },
+  paySave: { zh: "存上", en: "Save" },
+  copyPay: { zh: "复制", en: "Copy" },
+  planPay: { zh: "{who}的收款方式：{pay}", en: "Pay {who} at {pay}" },
   copied: { zh: "复制好了", en: "Copied" },
   copyFailed: { zh: "没复制上，再点一次", en: "That didn't copy. Tap again" },
   // (on a button half the width of the screen)

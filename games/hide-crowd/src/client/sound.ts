@@ -88,6 +88,56 @@ function now(): number | null {
   return ctx.currentTime;
 }
 
+/**
+ * The announcer's lines (art/voice/*.mp3, English for every screen: made with Kokoro TTS and given a
+ * stinger by tools/voice/make.py). Each file is the whole call, its stinger in it. Fetched and decoded
+ * once the sound has been unlocked (a round's start asks), about 370 KB for the twelve.
+ */
+export type VoiceLine = "first" | "double" | "triple" | "quadra" | "penta" | "spree" | "rampage" | "shutdown" | "final" | "qualified" | "eliminated" | "champion";
+const VOICE_LINES: readonly VoiceLine[] = ["first", "double", "triple", "quadra", "penta", "spree", "rampage", "shutdown", "final", "qualified", "eliminated", "champion"];
+const voices = new Map<VoiceLine, AudioBuffer>();
+let voicesAsked = false;
+let speaking: AudioBufferSourceNode | null = null;
+
+export function loadVoices(base: string): void {
+  if (voicesAsked || !ctx || typeof fetch === "undefined") return;
+  voicesAsked = true;
+  const context = ctx;
+  for (const line of VOICE_LINES) {
+    fetch(`${base}/art/voice/${line}.mp3`)
+      .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status)))))
+      .then((data) => context.decodeAudioData(data))
+      .then((buffer) => void voices.set(line, buffer))
+      .catch(() => {
+        // (no voice: the calls keep their synthesised stinger)
+      });
+  }
+}
+
+/** Say a line, cutting off one still ringing; false when it can't (not loaded yet, or the sound off). */
+export function say(line: VoiceLine): boolean {
+  const t = now();
+  const buffer = voices.get(line);
+  if (t === null || !buffer) return false;
+  try {
+    speaking?.stop(t + 0.04);
+  } catch {
+    // (already over)
+  }
+  const source = ctx!.createBufferSource();
+  source.buffer = buffer;
+  const level = ctx!.createGain();
+  level.gain.value = 1;
+  source.connect(level);
+  level.connect(master!);
+  source.start(t);
+  speaking = source;
+  source.onended = () => {
+    if (speaking === source) speaking = null;
+  };
+  return true;
+}
+
 /** One voice: an oscillator gliding from one pitch to another, with a quick attack and a fall. */
 function voice(type: OscillatorType, from: number, to: number, start: number, length: number, level: number, out: AudioNode = master!, attack = 0.006): void {
   const c = ctx!;

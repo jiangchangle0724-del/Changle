@@ -13,10 +13,12 @@
 - 规则（联机时在房间服务器上跑）：`site/src/shared/engine/games/rogue.ts`
 - 单机画面：`site/src/games/Rogue13.tsx`
 - 联机画面：`site/src/online/games/NetRogue.tsx`
-- 内容：`site/src/data/rogue13.ts`（规矩、每张技能牌叫什么、罚单上的那行字）
+- 内容：`site/src/data/rogue13.ts`（规矩、每张技能牌叫什么、罚单上的那行字；每张牌的别的玩法在 `VARIANTS`，查当前玩法用 `ruleFor(rank, house)`）
+- 换玩法：`site/src/games/rogueHouse.tsx`（玩法那张单子，每张牌底下一排可选的玩法；单机的选择存在 `localStorage` 的 `changle.rogue.house`）
 - 五个技能的音效：`site/src/games/rogueSounds.ts`（合成的，没有音频文件；单机、联机、大屏用同一套）
 - 牌桌：`site/src/games/rogueCards.tsx`（这副牌的牌面和牌背、牌堆、下滑抽牌、翻牌、弃牌堆、手里的技能牌）和它的样式 `site/src/styles/rogue.css`（单机、联机、大屏用同一副牌）
-- 牌谱：`site/src/games/rogueLog.tsx`（点弃牌堆打开的那张单子：每种牌还剩几张，翻过的牌谁抽的谁喝的；单机、联机共用，样式也在 `rogue.css`）
+- 牌谱和结算：`site/src/games/rogueLog.tsx`（点弃牌堆打开的那张单子：每种牌还剩几张，翻过的牌谁抽的谁喝的；一副牌打完它自己弹出来，上面多一段这副牌的结算；单机、联机共用，样式也在 `rogue.css`）
+- 摇一摇洗牌：`site/src/games/rogueShake.tsx`（牌堆空了时听手机的动作感应；那行提示和开启按钮）
 - 录音：`site/public/sounds/rogue/`（陪酒那声「hello」，来源和处理写在那里的 README）
 - 首页卡片：`site/src/games/registry.ts` 里 id 是 `rogue` 的那一项（共用文件，只改这一项）
 
@@ -46,15 +48,21 @@
   - 开桌时牌堆从上面落下来（弹簧），减弱动态时直接在位。玩的时候屏幕常亮（`useWakeLock`，单机、联机、大屏都是）。牌面、牌背、小牌、弃牌堆都 memo 了，计时器跳动不再重画整副牌。
   - 减弱动态时：翻牌、飞牌都只剩淡入淡出，洗牌和拍立得的 keyframes 不跑。
 - 牌谱和剩牌（2026-11-26，Steve 从开源喝酒游戏的四样里选的，第一样）：弃牌堆是个按钮，角上的标签写「牌谱 N」，点开一张单子：上面 13 个格子是每种牌还剩几张（点数加数字，剩 0 的划掉），下面是这副牌翻过的牌，最新的在最上，每行是小牌面、这条规矩的名字、谁抽的、这张牌罚了谁（自定义惩罚时写「受罚」）。只记牌自己的罚：技能（照相机、摸鼻子、神经病、没票上厕所）罚的人落在别人的牌上，不写进那张牌那一行。重洗就从头记。联机的牌谱是房间的（引擎 `S.log`，视图里 `log`、`stock`，老房间没有就不显示剩牌、牌谱从下一张起记）；单机自己记在进度里（`Kept.log`，存的是名字，刷新了还在），剩牌从牌堆算。大屏不开单子，弃牌堆还只是图。
+- 一副牌打完的结算页（2026-11-26，四样里的第二样）：第 52 张牌走了、牌堆空了，牌谱那张单子自己弹出来，标题「这副牌打完了」，上面一段是结算：谁喝得最多（并列都写）、几个人几次、一次没中的是谁、每人这副牌的次数（技能罚的也算进去，和牌谱那行「只记牌自己的罚」不一样，因为结算问的是这副牌谁喝了多少）。底下还是整副牌的牌谱，剩牌那排全是 0 就不画了。底部两个按钮：「知道了」关掉（之后点弃牌堆还能再看），「洗牌，下一副」直接洗牌发下一张——单机谁都能按，联机只有下一位抽牌的人和主人有这个按钮。下一副的第一张发出来，所有手机上的单子自己收起。引擎记 `tally`（每副重数），单机存进度里（`Kept.tally`，按名字）。
+- 每张牌可换玩法（2026-11-26，四样里的最后一样）：「玩法」那张单子就是换的地方，有别的玩法的牌底下一排选项，点一下就换；单机谁都能换，手机记住，下次开局还是；联机只有主人能换，全桌一起变（引擎 `house`，视图里带着），客人的单子只看不选。每种牌的玩法：A 指定｜瀑布（全场喝）；2 陪酒｜点名；3 逛三园｜自己喝｜押韵；4 抢数字｜摸地；5 照相机｜举手；6 摸鼻子｜真心话；7 逢七过｜举手；8 WC 票｜左右（两边都喝）；9 自己喝｜押韵；10 神经病｜问题大师｜定规矩；J 左边｜分类；Q 右边｜真心话；K 国王｜国王请客（全场喝）。押韵、分类、举手、摸地、真心话都是「桌上玩，玩完抽牌的人点出输的人（或没人输）」这一种机制（引擎 kind `judge`，联机 phase `judge`，单机就是原来的 group-loser 画面）；问题大师、定规矩和神经病是同一张技能牌换了说法（power 还是 trouble，牌上的按钮和罚单那行字跟着变）。技能牌不换主人：照相机、摸鼻子、WC 票、陪酒只在自己那张牌上，两张牌不会同时发同一个技能。一张牌换走了技能（比如 8 换成左右），手里那张票就收回牌堆；换回来再发。正在玩的那张牌的那一行锁着，写「这张牌打完再换」。大屏的字也跟着桌上的玩法（`TvRogue.tsx` 外面包了一层 `HouseContext`，一行 `ruleFor`——大屏那边的文件，只加了这几行）。
+- 摇一摇洗牌（2026-11-26，四样里的第三样）：牌堆空了、轮到洗牌时，使劲摇一下手机就等于拉牌堆：弃牌堆飞回去、洗牌、发下一张。单机哪部手机都行，联机只有下一位抽牌的人和主人的手机听。只认真摇（0.7 秒内四下够劲的动、持续至少 0.2 秒，门槛是蹦迪那边的四倍），拿起放下、磕一下都不算；摇到了震一下。动作感应一局只要开一次，必须从点一下开始要（iPhone 会弹窗；Chrome 不点就去要，回的是 prompt 不是 granted，所以不能悄悄要）：结算页和空牌堆底下那行先是「开启摇一摇洗牌」按钮，开了之后变成「摇一摇手机也能洗牌」；没有感应器的手机（电脑、拒绝过的）不显示这行。用的是 `party/sensors.ts` 里蹦迪、Limbo 那套 `enableSensors`、`useMotionWatch`，没改它们。
 - 抽牌是往下滑（2026-11-25，Steve 定的）：手指按住牌堆顶上那张往下拉，牌跟着手指走（略歪一点），拉过 72 像素药丸变成「松手」，松手才翻；没拉到位就弹回去，快甩一下也算。拉的时候页面不滚（那张牌 `touch-action: none`，页面别处照常滚）。点一下不抽，只晃一下示意；牌发完了点一下是洗牌。键盘上回车、空格也抽。翻牌从松手的位置开始飞回牌堆上翻过来。联机一样，服务器的牌没来之前那张牌停在原处，0.7 秒没来弹回去。单机底部的「抽牌」按钮还在，不想滑可以按。大屏不抽牌，不受影响。
 
 ## 还剩什么
 
 - 陪酒那声「hello」Steve 还没在真机上听过（2026-11-25 换的）。对话里另发了几个候选（耳语的、清亮的），要换就把新文件放成 `public/sounds/rogue/hi.mp3`，README 写了规格。
+- 每张牌的别的玩法是我按 Kings Cup 的常见规矩配的（`rogue13.ts` 的 `VARIANTS`），Steve 还没看过：想加、想删、想改字都在那一处，加一种新机制才要动引擎。
+- 摇一摇的门槛 Steve 还没在真机上试过（本地只有合成的事件）：`rogueShake.tsx` 开头的 `SHAKES`、`WINDOW_MS`、`SPAN_MS`，和传给 `useMotionWatch` 的灵敏度 0.25（越小越难触发）。
 - 下滑抽牌的手感要调：拉多远算抽在 `rogueCards.tsx` 的 `PULL_PX`（72）、甩的速度 `FLICK`；翻牌的时长和抬起的高度在 `FLYER`，洗牌散开的幅度在 `sprayOf`、每张的间隔 `SPRAY_STEP_MS`，两个画面等洗牌的时间是 `GATHER_MS + RIFFLE_MS`。
 
 ## 交给别的对话
 
+- 平台 · 大屏：`TvRogue.tsx` 2026-11-26 被我加了三处（`HouseContext` 外层、`ruleFor`、`NO_HOUSE`），为了换过玩法的牌在大屏上字对。没改别的。大屏的技能牌 `POWERS` 还按点数写死（2、5、6、8、10），技能只在这几张牌上，不受换玩法影响。
 - 平台 · 大屏：`TvRogue.tsx` 的照相机只在定格阶段画钟。现在「谁动了」阶段也有 20 秒时限（`ROGUE_MS.judge`，`interrupt.endsAt` 已经是那个时刻），大屏可以照样画一个钟，不画也不影响。
 - 平台 · 大屏：大屏的牌已经自动换成新牌面（`PlayingCard` 还从 `games/Rogue13` 导出）。想要牌堆厚度跟着 `v.left` 变、牌飞到弃牌堆，可以改用 `rogueCards.tsx` 的 `RogueTable`（`canDraw={false}`），底下的技能牌也可以用 `HeldCard`。不改也不影响。（2026-11-19 全站设计做了，Steve 要电视和手机画面一致）
 - 平台 · 全站设计：游戏壳的底部按钮换了意思还留在原地，快速点两下会连走两步。2026-11-04 在 main 上粗查，我从来没有、最佳称号、额头便利贴都这样（流氓十三张自己修了，见「定过的事」）。要么壳里统一挡一下，要么各游戏自己挡。
@@ -64,6 +72,9 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 Rogue Thirteen: every rank can play another way, chosen on the rules sheet
+- 2026-11-26 Rogue Thirteen: shake the phone to shuffle when the deck has run out
+- 2026-11-26 Rogue Thirteen: the deck runs out: the log opens by itself as the deck's recap, and deals the next deck
 - 2026-11-26 Rogue Thirteen: the pile opens the deck's log: what is left of each rank, and who drew and drank each card
 - 2026-11-26 Rogue Thirteen: the shuffle sprays and gathers, the deck drops in, the screen stays on
 - 2026-11-25 Rogue Thirteen: pull the top card down to draw it, and a real woman's hello for the buddy
@@ -93,4 +104,7 @@
 - 2026-11-18 Steve 发来另一个对话（藏在人群里）用 /find-skills 找到 5 个 GitHub 技能的截图，要流氓十三张也来一次大升级；问过后定了只做画面和手感，规则不动。那 5 个技能里 threejs 的四个对口三维游戏，和这个二维牌桌不沾边，game-feel 讲的那套（蓄力、回弹、落地的分量）直接照着做了，都没装。换掉了 `components.css` 里旧的 `.pcard*` 那一块（只有这个游戏用），新样式都在 `rogue.css`。首屏变了，PR 加 `update-screenshots` 标签换了基准图。
 - 2026-11-25 Steve 要两样：陪酒换成网上找的真人女声、妩媚一点；抽牌改成往下滑、松手才看到牌、滑的时候页面不动。声音在 freesound 挑的（搜索页对脚本不开放，走的标签页；候选都用 whisper 听过一遍再选），CC0。六个测试脚本里抽牌那几行改了：单机的点底部「抽牌」按钮，联机的用 `pull_deck` 拖。首屏的药丸从「抽牌」变成「下滑抽牌」加箭头，又换了一次基准图。另外从这次起每次收尾也写 `docs/status/rogue.md`（十行以内的现状）。
 - 2026-11-26 Steve 要看看 GitHub 上有没有类似的开源项目，借思路深度优化。看了 Kings Cup / Ring of Fire 一类的牵牌喝酒游戏（OwenKDuffy/KingsCup、kabirseth4/deck-of-fire-client、frontend-rob/ring-of-fire、fernandomema/drinking-game、The-Huginn/party-game）和 pakastin/deck-of-cards 牌库。能借的：deck-of-cards 的洗牌（每张牌各自飞出再收回）和发牌入场；喝酒类 app 常有的牌谱、剩牌统计、每张牌可换玩法（自定义牌组）、一副牌打完的结算、摇一摇。问过 Steve，四样玩法都要，分几个 PR 做：先手感和工程（#836），再牌谱和剩牌、结算页、摇一摇洗牌，最后每张牌可换玩法（动引擎最多）。
-- 2026-11-26 牌谱和剩牌做了（第二个 PR）。引擎加了 `log`（每张牌：牌、谁抽、罚了谁）和视图里的 `stock`（每种牌剩几张，从牌堆数，不靠日志，老房间也对）；技能的罚单改走 `penPower`，不记在牌上。单子用 `src/ui/Sheet`（新组件库的）。共用文件动了 `protocol.ts` 的 `RogueView`（加 `stock`、`log` 两个可选字段）。CI 的截图是开局那张，没有弃牌堆，基准图不用换。
+- 2026-11-26 牌谱和剩牌做了（第二个 PR）。引擎加了 `log`（每张牌：牌、谁抽、罚了谁）和视图里的 `stock`（每种牌剩几张，从牌堆数，不靠日志，老房间也对）；技能的罚单改走 `penPower`，不记在牌上。单子用 `src/ui/Sheet`（新组件库的）。共用文件动了 `protocol.ts` 的 `RogueView`（加 `stock`、`log` 两个可选字段）。CI 的截图是开局那张，没有弃牌堆，基准图不用换。#844 合了。
+- 2026-11-26 结算页做了（第三个 PR）：就是牌谱那张单子在牌堆空了时自己弹出来，多一段结算和两个按钮，没有另做一页。引擎加 `tally`（`pen` 和 `penPower` 都计），视图多一个可选字段。联机整副牌跑过一遍（3 部手机，52 张，4 分钟）：三部都弹，抽牌的和主人有「洗牌，下一副」，发了牌全收起。#852 合了。
+- 2026-11-26 摇一摇洗牌做了（第四个 PR）。本地用合成的 devicemotion 事件试的（Playwright 的 Chromium 没有真感应器）：牌没发完摇了没事、一下短促的磕不算、持续摇才洗；真机的手感 Steve 得试，门槛在 `rogueShake.tsx` 开头（`SHAKES`、`WINDOW_MS`、`SPAN_MS`，和 `useMotionWatch` 的灵敏度 0.25）。顺带发现 Chromium 153 起 `DeviceMotionEvent.requestPermission` 不从点击里调会回 `prompt`，`sensors.ts` 的 `enableSensors` 会把它当拒绝——蹦迪、Limbo 都是从按钮里调的，不受影响，但谁想「自动开」会踩到。#858 合了。
+- 2026-11-26 每张牌可换玩法做了（第五个 PR，四样齐了）。规矩数据加了 `id`、`play`、`action`、`note` 字段和 `VARIANTS`、`ruleFor`、`POWER_RANK`；引擎加了 `house`（主人的 `house` 动作）、`judge`、`all`、`sides` 三种 kind，`group` 按 `play` 分流而不是按点数；所有 `RULE_BY_RANK[rank]` 的查法换成 `ruleFor(rank, house)`（牌面、小牌、牌谱走 `HouseContext`）。共用文件：`protocol.ts` 的 `RoguePhase` 加 `judge`、`RogueView` 加 `house`；`TvRogue.tsx` 加了外层的 context 和一行 `ruleFor`（大屏那边的文件）。单机、联机各跑了一遍：瀑布全场喝、押韵判输、问题大师／定规矩的牌、刷新还在、恢复经典、客人只读、正在玩的牌锁着、大屏的字跟着变。

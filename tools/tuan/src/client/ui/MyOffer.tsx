@@ -3,18 +3,19 @@
 // what the scale said), and the two sheets: what to get ready, and what goes where. Opening it
 // counts as having been told of its new orders (the server stops the mail for them).
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { MyOfferPage, OrderMove } from "../../api";
+import type { MyOfferPage, OfferMove, OrderMove } from "../../api";
 import { BASE } from "../../base";
 import { chainText, type ChainWords } from "../../engine/chain";
 import { ordersCsv, type CsvWords } from "../../engine/csv";
 import { lineAmount, MILLI } from "../../engine/money";
+import { ARRIVED_NOTE_MAX } from "../../engine/offer";
 import { leftOf } from "../../engine/order";
 import { dueOf, summarize } from "../../engine/summary";
 import { vancouverClock } from "../../engine/time";
 import { UNITS, weighed, type Order, type Unit } from "../../engine/types";
 import { ApiFail, getMyOffer, moveOffer, moveOrder, session } from "../api";
 import { inWeChat, t, unitName, whenText } from "../i18n";
-import { Copyable, CopyButton, IconBack, IconCheck, IconClock, Lines, money, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
+import { ArrivedNote, Copyable, CopyButton, IconBack, IconCheck, IconClock, Lines, money, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 import { offerState, onReturn, shutOut, stateWord, troubleOf, TroublePanel, type Trouble } from "./My";
 import { amountOf, caseText, dueAll, goodsText, ordersAt, phoneLink, phoneText, placesText } from "./sheets";
 
@@ -39,6 +40,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
   /** in WeChat, which can't save a file: where to export it instead */
   const [elsewhere, setElsewhere] = useState(false);
   const [poster, setPoster] = useState(false);
+  const [arriving, setArriving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const skew = useRef(0);
   const shown = useRef(false);
@@ -111,6 +113,18 @@ export function MyOfferView({ offerId }: { offerId: string }) {
     } finally {
       setBusy(null);
     }
+  }
+
+  /** The goods are in, said with a line on when and where (or taken back). */
+  async function arrive(move: OfferMove) {
+    setBusy("offer");
+    try {
+      setPage(await moveOffer(offerId, move));
+      setArriving(false);
+    } catch (e) {
+      setToast(t(e instanceof ApiFail && e.code === "network" ? "netDown" : "failed"));
+    }
+    setBusy(null);
   }
 
   async function turn(what: "open" | "close") {
@@ -188,6 +202,11 @@ export function MyOfferView({ offerId }: { offerId: string }) {
               {t("closeNow")}
             </button>
           )}
+          {state !== "draft" && page.shop.status !== "pending" && !offer.arrived && (
+            <button type="button" class="btn btn-quiet btn-sm" onClick={() => setArriving(true)}>
+              {t("arrivedButton")}
+            </button>
+          )}
           {state !== "open" && now < offer.closesAt && (
             <button type="button" class="btn btn-primary btn-sm" disabled={busy !== null} onClick={() => void turn("open")}>
               {t(state === "draft" ? "openDraft" : "reopen")}
@@ -204,6 +223,21 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           </button>
         </div>
       </section>
+
+      {/* buyers were told the goods are in: what they read, a note for the group, a change of words, or taking it back */}
+      {offer.arrived && (
+        <ArrivedNote line={t("arrivedSaid", { when: whenText(offer.arrived.at) })} note={offer.arrived.note}>
+          <div class="row">
+            <CopyButton text={arrivedText(page, link)} label={t("arrivedCopy")} />
+            <button type="button" class="btn btn-quiet btn-sm" onClick={() => setArriving(true)}>
+              {t("arrivedEdit")}
+            </button>
+            <button type="button" class="btn btn-quiet btn-sm" disabled={busy !== null} onClick={() => void arrive({ do: "unarrived" })}>
+              {t("arrivedUndo")}
+            </button>
+          </div>
+        </ArrivedNote>
+      )}
 
       <dl class="stats">
         <div>
@@ -446,6 +480,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
         </Sheet>
       )}
       {poster && <PosterSheet page={page} link={link} onClose={() => setPoster(false)} />}
+      {arriving && <ArriveSheet first={offer.arrived?.note ?? ""} busy={busy !== null} onSend={(note) => void arrive({ do: "arrived", note })} onClose={() => setArriving(false)} />}
       {elsewhere && (
         <Sheet title={t("csvWeChatTitle")} onClose={() => setElsewhere(false)}>
           <p>{t("csvWeChat")}</p>
@@ -469,6 +504,31 @@ const chainWords = (page: MyOfferPage): ChainWords => ({
   and: t("chainAnd"),
   unit: Object.fromEntries(UNITS.map((unit) => [unit, unitName(unit)])) as Record<Unit, string>,
 });
+/** A word for the group chat that the goods are in: the group buy, the merchant's line, its link. */
+const arrivedText = (page: MyOfferPage, link: string): string => [`【${page.shop.name}】${page.offer.title}`, t("arrivedChain"), page.offer.arrived?.note ?? "", t("arrivedChainLink", { link })].filter(Boolean).join("\n");
+
+/** Telling buyers the goods are in, with a line on when and where if there's one to say. */
+function ArriveSheet({ first, busy, onSend, onClose }: { first: string; busy: boolean; onSend: (note: string) => void; onClose: () => void }) {
+  const [note, setNote] = useState(first);
+  return (
+    <Sheet
+      title={t("arrivedSheetTitle")}
+      onClose={onClose}
+      footer={
+        <button type="button" class="btn btn-primary btn-block" disabled={busy} onClick={() => onSend(note.trim())}>
+          {t("arrivedSend")}
+        </button>
+      }
+    >
+      <label class="field">
+        <span class="field-label">{t("arrivedNoteLabel")}</span>
+        <textarea name="arrived-note" rows={3} maxLength={ARRIVED_NOTE_MAX} value={note} placeholder={t("arrivedNotePlaceholder")} onInput={(event) => setNote(event.currentTarget.value)} />
+        <span class="hint">{t("arrivedNoteHint")}</span>
+      </label>
+    </Sheet>
+  );
+}
+
 /** The text for a group chat (src/engine/chain.ts), in the merchant's language. */
 const chainOf = (page: MyOfferPage, link: string): string => chainText(page, page.shop.name, page.orders, link, chainWords(page));
 

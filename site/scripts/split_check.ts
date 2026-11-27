@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -293,7 +293,7 @@ const pastInvite = async (page: Page) => {
   await page.keyboard.press("Escape");
   await closed(page);
 };
-const key = (page: Page, d: string) => page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) }).click();
+const key = (page: Page, d: string) => (d === "+" ? page.locator(".split-key.is-plus") : page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) })).click();
 const type = async (page: Page, digits: string) => {
   for (const d of digits) await key(page, d);
 };
@@ -484,7 +484,11 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("done").click();
   await fill("120", null, "油费");
   await button("done").click();
-  await fill("81.50", "阿美", "早餐");
+  // (breakfast typed as two amounts, with the keypad's +: it comes to the same $81.50)
+  await fill("60+21.50", "阿美", "早餐");
+  await shot("04b-add-sum");
+  const summed = { figure: await page.locator(".split-add-amount .split-figure").innerText(), line: await page.locator(".split-add-sum").innerText(), keys: await page.locator(".split-key").count() };
+  ok(summed.figure === "$81.50" && summed.line === "$60 + $21.50" && summed.keys === 13, `${lang} ${width}x${height}: 60 + 21.50 on the keypad comes to ${summed.figure}, the amounts under it (${summed.line}), thirteen keys`);
   await button("done").click();
   await button("addExpense").waitFor();
   await shot("05-ledger");
@@ -1209,7 +1213,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await type(page, "9999999999");
   await shot("47-yen-most");
   await whole("the most yen there can be");
-  for (let i = 0; i < 10; i++) await page.locator(".split-key").last().click();
+  for (let i = 0; i < 10; i++) await page.locator(".split-key.is-back").click();
   await corner.click();
   await cur("韩元", "KRW").click();
   await closed(page);
@@ -1274,7 +1278,7 @@ async function fits() {
       await page.goto(`${base}/split/${id}`);
       await page.locator(".split-row").first().click();
       await page.locator(".split-key").first().waitFor();
-      for (let i = 0; i < 4; i++) await page.locator(".split-key").last().click(); // 100.00 becomes 10
+      for (let i = 0; i < 4; i++) await page.locator(".split-key.is-back").click(); // 100.00 becomes 10
       await page.waitForTimeout(200);
       const m = (await page.evaluate(`(() => {
         const box = (s) => document.querySelector(s).getBoundingClientRect();
@@ -1707,7 +1711,7 @@ async function behave() {
     await page.getByRole("button", { name: re(t("members")) }).click();
     await page.getByRole("dialog").getByText(t("addPerson")).waitFor();
     await page.getByRole("button", { name: re(`${t("renamePerson")} ${who}`) }).click();
-    await page.getByRole("dialog").locator(".split-person-edit input").fill(to);
+    await page.getByRole("dialog").locator(".split-person-edit .field input").fill(to);
     await page.getByRole("dialog").locator(".split-person-edit").getByRole("button", { name: t("save"), exact: true }).click();
     await page.getByRole("dialog").locator(".split-person-edit").waitFor({ state: "detached" });
     await page.keyboard.press("Escape");
@@ -1905,7 +1909,7 @@ async function behave() {
       await closed(page);
     };
     const wipe = async (digits: number) => {
-      for (let i = 0; i < digits; i++) await page.locator(".split-key").last().click();
+      for (let i = 0; i < digits; i++) await page.locator(".split-key.is-back").click();
     };
     const top = async () => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
 
@@ -2368,7 +2372,7 @@ async function behave() {
 
       await pb.locator("button.split-row").first().click();
       await pb.locator(".split-add-comes").waitFor();
-      for (let i = 0; i < 4; i++) await pb.locator(".split-key").last().click();
+      for (let i = 0; i < 4; i++) await pb.locator(".split-key.is-back").click();
       await type(pb, "5000");
       await button(pb, "saveChanges").click();
       await pa.locator(".split-row-amount", { hasText: "JP¥5,000" }).waitFor({ timeout: 8000 });
@@ -2376,7 +2380,7 @@ async function behave() {
 
       await pa.locator("button.split-row").first().click();
       await pick(pa, "加元");
-      for (let i = 0; i < 4; i++) await pa.locator(".split-key").last().click();
+      for (let i = 0; i < 4; i++) await pa.locator(".split-key.is-back").click();
       await type(pa, "45");
       await button(pa, "saveChanges").click();
       await pb.locator(".split-row-amount", { hasText: /^\$45\.00$/ }).waitFor({ timeout: 8000 });
@@ -2561,7 +2565,7 @@ async function behave() {
       // changed on the first phone while the record is open on the second: it reads it again
       await pa.locator("button.split-row").first().click();
       await pa.locator(".split-keys").waitFor();
-      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key").last().click();
+      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key.is-back").click();
       await type(pa, "45");
       await button(pa, "saveChanges").click();
       await pa.locator(".split-keys").waitFor({ state: "hidden" });
@@ -2670,7 +2674,7 @@ async function behave() {
       await button(pa, "markPaid").click();
       await closed(pa);
       await pa.waitForTimeout(500);
-      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
+      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-rows:not(.split-people) .split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
 
       // 导出账目 through the same share sheet: the ledger as one CSV file
       await button(pa, "more").click();
@@ -2866,7 +2870,7 @@ async function gate() {
     await page.locator("button.split-row", { hasText: from }).click();
     await page.locator(".split-keys").waitFor();
     // (an expense opened again shows its amount with its cents: "11.00")
-    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key").last().click();
+    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key.is-back").click();
     await type(page, to);
     await button(page, "saveChanges").click();
     await page.locator(".split-keys").waitFor({ state: "hidden" });
@@ -3132,7 +3136,7 @@ async function reading() {
   await pa.locator(".split-photo-button img, .split-photo-button .split-thumb").first().waitFor({ timeout: 15_000 });
   await pa.waitForTimeout(800);
   ok(asked.length === 1 && (await amount()) === "$9", "with an amount typed first, the receipt isn't read: what was typed stands");
-  await pa.locator(".split-key").last().click();
+  await pa.locator(".split-key.is-back").click();
   await pa.waitForTimeout(300);
   ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "a receipt already there, the amount taken back to nothing: no hint");
   await button(pa, "close").first().click();
@@ -3145,7 +3149,7 @@ async function reading() {
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
   await pa.locator(".split-row").first().click();
   await pa.locator(".split-keys").waitFor();
-  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key.is-back").click();
   await pa.waitForTimeout(300);
   ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "an expense being changed, its amount taken back to nothing: no hint");
   await button(pa, "close").first().click();
@@ -3240,7 +3244,7 @@ async function reading() {
   await pa.locator(".split-row", { hasText: "Joe's Diner" }).click();
   await pa.locator(".split-keys").waitFor();
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
-  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key.is-back").click();
   await type(pa, "10");
   ok((await extras.count()) === 0 && (await detailsLine(pa).innerText()).includes("Joe's Diner"), "the amount typed down below them: the line under it goes (they wouldn't be kept), the business stays on the 详情 line");
   await button(pa, "close").first().click();
@@ -3584,7 +3588,7 @@ async function reading() {
   await pb.locator(".split-photo-button.is-scanning:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
   await type(pb, "5");
   ok((await scan.count()) === 0 && (await pb.locator(".split-add-read").count()) === 0 && (await shot.textContent()) === "$5", "a key pressed while it is read: the scan stops there, and what is typed stands");
-  await pb.locator(".split-key").last().click();
+  await pb.locator(".split-key.is-back").click();
   await scan.waitFor({ timeout: 5_000 });
   ok(true, "taken back to nothing while it is still being read: the scan is there again");
   held = false;
@@ -3603,7 +3607,7 @@ async function reading() {
   await type(pb, "4");
   going = "go";
   await pb.locator(".split-photo-button:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
-  await pb.locator(".split-key").last().click();
+  await pb.locator(".split-key.is-back").click();
   await pb.waitForTimeout(400);
   ok((await scan.count()) === 0 && (await receiptLine.count()) === 0 && (await shot.textContent()) === "$0", "a key pressed while the photo was still going: it isn't read, and no scan is left waiting once the amount is taken back");
   await button(pb, "close").first().click();
@@ -3799,6 +3803,115 @@ async function searching() {
   await a.close();
 }
 
+// ---------- pay: 收款方式 ----------
+/**
+ * 收款方式 (2026-11-26): added from a transfer to you, changed in the list of people; shown to whoever
+ * pays you, with a button to copy it; in the plan copied as text; never on a 查看链接's page.
+ */
+async function paying() {
+  if (!local) {
+    console.log("pay: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const pa = await open(a, true);
+  await start(pa, "收款", ["阿甲"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  await spend(pa, "60");
+  const synced = () => pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const planRow = (p: Page) => p.locator(".split-rows:not(.split-people) .split-row").first();
+  await planRow(pa).click();
+  const sheet = pa.getByRole("dialog");
+  // a transfer to you, and you haven't said how you take money: a line to say it
+  const field = sheet.getByPlaceholder(t("payHint"));
+  await field.waitFor();
+  ok((await sheet.getByText(t("payAddMine")).count()) === 1, "a transfer to you, with no 收款方式 yet: a line to add yours");
+  await pa.screenshot({ path: join(out, "pay-add-zh-390x664.png") });
+  await field.fill("  me@example.com ");
+  await sheet.getByRole("button", { name: t("paySave"), exact: true }).click();
+  await sheet.locator(".split-pay-line strong").waitFor();
+  ok((await sheet.locator(".split-pay-line strong").innerText()) === "me@example.com" && (await sheet.locator(".split-pay-label").innerText()) === t("payOfYou"), "saved: it says it, tidied, as yours");
+  await sheet.getByRole("button", { name: t("copyPay"), exact: true }).click();
+  ok((await pa.evaluate(() => navigator.clipboard.readText())) === "me@example.com", "复制 copies it as it is");
+  await pa.screenshot({ path: join(out, "pay-shown-zh-390x664.png") });
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // in the list of people: under the name, and changed there
+  await pa.getByRole("tab", { name: t("expenses") }).click();
+  await pa.locator(".split-crew-faces").click();
+  const people = pa.getByRole("dialog");
+  await people.locator(".split-person-pay", { hasText: "me@example.com" }).waitFor();
+  await people.locator(".split-person", { hasText: "me@example.com" }).click();
+  const input = people.getByPlaceholder(t("payHint"));
+  ok((await input.inputValue()) === "me@example.com", "opened in the list of people, it is there to change");
+  await pa.screenshot({ path: join(out, "pay-people-zh-390x664.png") });
+  await input.fill("604 555 0101");
+  await people.getByRole("button", { name: t("save"), exact: true }).click();
+  await people.locator(".split-person-pay", { hasText: "604 555 0101" }).waitFor();
+  ok(true, "changed there: the list says the new one");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await synced();
+  // the plan as text, for the group: who takes money how
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  await button(pa, "sendPicture").click();
+  await pa.getByRole("dialog").locator(".split-picture img").waitFor({ timeout: 15_000 });
+  await pa.getByRole("dialog").getByRole("button", { name: re(t("copyAsText")) }).click();
+  const text = String(await pa.evaluate("navigator.clipboard.readText()"));
+  ok(text.split("\n").includes(say("zh", "planPay", { who: "我", pay: "604 555 0101" })), "the plan copied as text says how the one to be paid takes money");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // a friend's phone: the transfer they make, with it to copy
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("invite")) }).click();
+  await pa.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+  const invite = String(await pa.evaluate("navigator.clipboard.readText()")).split("\n").pop() ?? "";
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  const b = await phone(390, 664, "zh");
+  await b.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const pb = await b.newPage();
+  watch(pb, true);
+  await pb.goto(invite);
+  await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+  await pb.locator(".split-standing").waitFor();
+  await pb.getByRole("tab", { name: t("settle") }).click();
+  await planRow(pb).click();
+  await pb.getByRole("dialog").locator(".split-pay-line strong").waitFor();
+  ok((await pb.getByRole("dialog").locator(".split-pay-line strong").innerText()) === "604 555 0101" && (await pb.getByRole("dialog").locator(".split-pay-label").innerText()) === say("zh", "payOf", { who: "我" }), "on the phone of the one paying: whose it is, and what it says");
+  await pb.getByRole("dialog").getByRole("button", { name: t("copyPay"), exact: true }).click();
+  ok((await pb.evaluate(() => navigator.clipboard.readText())) === "604 555 0101", "and they copy it");
+  await pb.screenshot({ path: join(out, "pay-friend-zh-390x664.png") });
+  await pb.keyboard.press("Escape");
+  await closed(pb);
+  // a 查看链接: nobody's, on the page or in what the server sends it
+  await button(pa, "viewLink").click();
+  await pa.getByRole("dialog").getByRole("button", { name: t("copyLink"), exact: true }).click();
+  const viewLinkText = String(await pa.evaluate("navigator.clipboard.readText()")).split("\n").pop() ?? "";
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  const c = await phone(390, 664, "zh");
+  const pc = await c.newPage();
+  watch(pc, true);
+  await pc.goto(viewLinkText);
+  await pc.locator(".split-viewing").waitFor({ timeout: 15_000 });
+  await pc.getByRole("tab", { name: t("settle") }).click();
+  await planRow(pc).click();
+  await pc.getByRole("dialog").getByRole("button", { name: re(t("copyAmount")) }).waitFor();
+  const onPage = await pc.getByRole("dialog").locator(".split-pay").count();
+  const url = new URL(viewLinkText);
+  const sent = (await pc.evaluate(
+    ([id, key]) => fetch(`/split/api/ledgers/${id}`, { headers: { "x-split-key": key } }).then((r) => r.text()),
+    [url.pathname.split("/").pop() ?? "", url.hash.slice(3)] as const,
+  )) as string;
+  ok(onPage === 0 && !sent.includes("604 555 0101") && !sent.includes('"pay"'), "a 查看链接: nobody's 收款方式 on the transfer, nor in what the server sends it");
+  await c.close();
+  await b.close();
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -3811,6 +3924,7 @@ if ((what === "all" || what === "friends") && local) await friends();
 if ((what === "all" || what === "read") && local) await reading();
 if (what === "all" || what === "view") await viewing();
 if (what === "all" || what === "search") await searching();
+if (what === "all" || what === "pay") await paying();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

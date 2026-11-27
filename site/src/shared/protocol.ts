@@ -140,7 +140,7 @@ export type RoomEvent =
 
 /* ---------- per-game views (what one phone is allowed to see) ---------- */
 
-export type RoguePhase = "draw" | "pick" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
+export type RoguePhase = "draw" | "pick" | "judge" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
 export type RogueHolders = { buddy?: string; camera?: string; nose?: string; wc?: string; trouble?: string };
 export type RogueView = {
   id: "rogue";
@@ -158,6 +158,10 @@ export type RogueView = {
   stock?: number[];
   /** 牌谱: this deck's cards as they came, oldest first: who drew each, who its own penalty landed on */
   log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
+  /** this deck's penalties by player, the powers' included (the recap when the deck runs out) */
+  tally?: Record<string, number>;
+  /** 每张牌可换玩法: the host's choice for each rank, by variant id (a rank left out plays the classic way) */
+  house?: Partial<Record<Rank, string>>;
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
@@ -312,12 +316,23 @@ export type WheelView = {
 
 export type SuperView = {
   id: "superlatives";
-  /** setup: the host picks the packs and how many awards, then starts */
-  phase: "setup" | "vote" | "reveal" | "ceremony";
+  /**
+   * setup: the host picks the packs, how many awards and the mode, then starts. The vote: vote,
+   * reveal. Paranoia (偷偷问): ask (the asker alone reads the title), dare (someone was named: they
+   * pay a sip to see it, or pass), peek (they did or didn't). Then the ceremony.
+   */
+  phase: "setup" | "vote" | "reveal" | "ceremony" | "ask" | "dare" | "peek";
   round: number;
   total: number;
   /** the packs of titles in play (data/superlatives.ts PACKS); empty: every title */
   packs: string[];
+  /** the vote, or paranoia */
+  mode: "vote" | "whisper";
+  /** paranoia: who reads the title this round, whom they named, whether the one named paid to see it */
+  asker: string | null;
+  named: string | null;
+  seen: boolean | null;
+  /** the title; in paranoia "？？？" to everyone who isn't to see it */
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;

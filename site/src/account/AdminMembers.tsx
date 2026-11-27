@@ -7,6 +7,7 @@ import { useStore } from "../store";
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
+import { AdminStripe } from "./AdminStripe";
 
 type Row = { uid: string; name: string; email: string; tier: Tier; until: number | null; since: number; source: string; note: string; active: boolean };
 type Reply = { members: Row[]; lifeLeft: number };
@@ -90,10 +91,11 @@ export function AdminMembers() {
       <p className="hint adm-members-hint">
         {data
           ? zh
-            ? `终身还剩 ${data.lifeLeft} 个（一共 ${LIFE_SLOTS} 个）。付款开通以前，会员在这里送。`
-            : `${data.lifeLeft} of ${LIFE_SLOTS} lifetime memberships left. Until payments open, memberships are given here.`
+            ? `终身还剩 ${data.lifeLeft} 个（一共 ${LIFE_SLOTS} 个）。在这里送会员；结束一个付费会员会马上停掉他的订阅，退款在 Stripe 里退。`
+            : `${data.lifeLeft} of ${LIFE_SLOTS} lifetime memberships left. Give memberships here; ending a paid one stops its subscription at once (refunds are made in Stripe).`
           : ""}
       </p>
+      <AdminStripe />
       <form
         className="adm-members-give"
         onSubmit={(e) => {
@@ -132,7 +134,7 @@ export function AdminMembers() {
               <div className="adm-who">
                 <span className="adm-name">{r.name || r.email}</span>
                 <span className="adm-sub">
-                  {[tierName(r.tier, lang), r.active ? untilText(r.until, lang) : zh ? "已结束" : "Ended", r.email, r.note].filter(Boolean).join(" · ")}
+                  {[tierName(r.tier, lang), r.source === "stripe" ? "Stripe" : "", r.active ? untilText(r.until, lang) : zh ? "已结束" : "Ended", r.email, r.note].filter(Boolean).join(" · ")}
                 </span>
               </div>
               {r.active && (

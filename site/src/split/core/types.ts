@@ -6,8 +6,13 @@
  * yen (money.ts).
  */
 
-/** One person in a ledger. The order of `Ledger.members` is the roster's order, and never changes. */
-export type Member = { id: string; name: string };
+/**
+ * One person in a ledger. The order of `Ledger.members` is the roster's order, and never changes.
+ * `pay` is how they take money (收款方式, 2026-11-26: an e-Transfer email or phone, as they typed
+ * it), shown to whoever pays them; one line, and a member without one has none. A 查看链接 never
+ * gets it (tools/split/src/room/ledger.ts, look).
+ */
+export type Member = { id: string; name: string; pay?: string };
 
 /** Who an expense is shared between, and how. The ids are members' ids. */
 export type Split =

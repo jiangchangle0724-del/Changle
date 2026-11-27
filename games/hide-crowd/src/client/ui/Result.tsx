@@ -11,7 +11,7 @@ import type { ClientMsg, PlayerView, RoomView, TallyView } from "../../room/prot
 import { reducedNow } from "../prefs";
 import { t } from "../i18n";
 import { Icon } from "./chrome";
-import { Awards } from "./roundFx";
+import { Awards, useLotCall } from "./roundFx";
 
 /** When a row's points start to fill (after the row comes in), and how long each point takes. */
 const COUNT_AFTER_MS = 150;
@@ -23,6 +23,15 @@ const ROWS_FROM_MS = 200;
 export function resultTitle(view: RoomView): string {
   const result = view.result;
   if (!result) return "";
+  // a knockout: this phone's lot (through, out, champion), or on the big screen what the stage did
+  const knockout = result.knockout;
+  if (knockout) {
+    if (knockout.you === "champion") return t("koYouChampion");
+    if (knockout.done) return knockout.champion ? t("koChampion", { name: knockout.champion }) : t("koNoChampion");
+    if (knockout.you === "through") return t("koYouThrough");
+    if (knockout.you === "out") return t("koYouOut");
+    return t("koThrough", { n: knockout.through });
+  }
   // the last place of a match: the match's winner
   const match = result.match;
   if (match?.done) {
@@ -39,7 +48,9 @@ export function resultTitle(view: RoomView): string {
  * The round's players, best first: most tags, then least spotted, then the order they joined in. In
  * a match, the most points so far first, and everyone who has played in it (they may have left).
  */
-export function ranked(players: readonly PlayerView[], match = false): PlayerView[] {
+export function ranked(players: readonly PlayerView[], match = false, knockout = false): PlayerView[] {
+  // (a knockout's stage: in the order it ended, ties already decided)
+  if (knockout) return players.filter((player) => player.rank !== undefined).sort((a, b) => a.rank! - b.rank!);
   return players
     .map((player, order) => ({ player, order }))
     .filter(({ player }) => player.inRound || (match && (player.total ?? 0) > 0))
@@ -51,6 +62,7 @@ export function ranked(players: readonly PlayerView[], match = false): PlayerVie
 export function resultLabel(view: RoomView, practice = false): string {
   const result = view.result;
   if (!result) return "";
+  if (result.knockout) return result.knockout.final ? t("koFinalOver") : t("koStageOver", { i: result.knockout.stage });
   if (result.match) return t("matchPlaceOver", { i: result.match.index, n: result.match.of });
   return t(practice ? "practiceOver" : "roundOver", { n: result.round });
 }
@@ -89,10 +101,12 @@ function Count(props: { to: number; delay: number; now: boolean; target: number 
 
 export function ResultTable(props: { view: RoomView; now?: boolean }) {
   const match = props.view.result?.match ?? null;
-  const players = ranked(props.view.players, !!match);
-  const target = props.view.game?.scoreToWin ?? SCORE_TO_WIN;
-  // (a crown for the round's winner, or once a match is over, the match's; none in a draw)
-  const crowned = match?.done ? match.winner : props.view.result?.winner ?? null;
+  const knockout = props.view.result?.knockout ?? null;
+  const players = ranked(props.view.players, !!match, !!knockout);
+  // (a knockout's stage has no target: as many pips as points)
+  const target = props.view.game?.scoreToWin ?? (knockout ? 0 : SCORE_TO_WIN);
+  // (a crown for the round's winner, or once a match is over, the match's, or a knockout's champion; none in a draw)
+  const crowned = knockout?.done ? knockout.champion : match?.done ? match.winner : props.view.result?.winner ?? null;
   return (
     <table class="result-table">
       <thead>
@@ -108,15 +122,19 @@ export function ResultTable(props: { view: RoomView; now?: boolean }) {
       <tbody>
         {players.map((player, index) => {
           const first = !!crowned && player.name === crowned;
-          // (equal scores share a place)
-          const place = players.findIndex((other) => (match ? other.total === player.total : other.score === player.score)) + 1;
+          // (equal scores share a place; a knockout's places are all decided)
+          const place = knockout ? player.rank ?? index + 1 : players.findIndex((other) => (match ? other.total === player.total : other.score === player.score)) + 1;
+          // a knockout: through or out, stamped on; the champion's stamp once it's won; a line under the last through
+          const stamp = !knockout ? null : knockout.done && first ? "koStampChampion" : player.through && !knockout.final ? "koStampThrough" : "koStampOut";
+          const cut = !!knockout && !knockout.final && index === knockout.through - 1 && index < players.length - 1;
           return (
-            <tr key={index} class={`${player.you ? "is-you" : ""}${first ? " is-winner" : ""}`} style={`--i: ${index}`}>
+            <tr key={index} class={`${player.you ? "is-you" : ""}${first ? " is-winner" : ""}${cut ? " is-cut" : ""}`} style={`--i: ${index}`}>
               <th scope="row">
                 <span class="result-place" aria-hidden="true">
                   {first ? <Icon name="crown" size={18} /> : place}
                 </span>
                 <span class="result-name">{player.name}</span>
+                {stamp && <span class={`result-stamp ${stamp === "koStampOut" ? "is-out" : "is-through"}`}>{t(stamp)}</span>}
               </th>
               <td>
                 <Count to={player.score} delay={ROWS_FROM_MS + index * ROW_STEP_MS + COUNT_AFTER_MS} now={!!props.now} target={target} />
@@ -129,6 +147,18 @@ export function ResultTable(props: { view: RoomView; now?: boolean }) {
       </tbody>
     </table>
   );
+}
+
+/** Where the match or the knockout goes next (and with how many, a knockout's), if it goes on. */
+export function NextLine(props: { view: RoomView }) {
+  const result = props.view.result;
+  const knockout = result?.knockout;
+  if (knockout?.next) {
+    const vars = { place: t(knockout.next), n: knockout.nextPlayers };
+    return <p class="result-next">{t(knockout.nextPlayers <= 3 ? "koNextFinal" : "koNext", vars)}</p>;
+  }
+  if (result?.match?.next) return <p class="result-next">{t("matchNext", { place: t(result.match.next) })}</p>;
+  return null;
 }
 
 /** A phone's own round in tags: who spotted them and whom they spotted (names, and how often when more than once). */
@@ -163,12 +193,16 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
   // a tap on the results (not on a button) shows it all at once
   const [now, setNow] = useState(false);
   useEffect(() => setNow(false), [result?.round]);
+  // (a knockout: this phone's lot, said as the results come up)
+  useLotCall(view, false);
   if (!result) return null;
   const online = view.players.filter((player) => player.online).length;
   const mine = result.mine;
   const match = result.match ?? null;
-  // (the last place of a match: the match's titles instead of the round's)
-  const awards = match?.done ? match.awards : result.awards ?? [];
+  const knockout = result.knockout ?? null;
+  // (the last place of a match, or a knockout's final: their titles instead of the round's; between a
+  // knockout's stages, none: who's through is the news)
+  const awards = knockout ? (knockout.done ? knockout.awards : []) : match?.done ? match.awards : result.awards ?? [];
   const side = awards.length > 0 || !!(mine && (mine.by.length || mine.got.length));
   return (
     <div class="result-layer">
@@ -188,13 +222,17 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
         </div>
         <div class="result-side">
           {mine && <Mine mine={mine} />}
-          <Awards awards={awards} label={match?.done ? "matchTitles" : "awards"} quest={match?.done ? null : props.view.game?.arena ?? null} />
-          {match?.next && <p class="result-next">{t("matchNext", { place: t(match.next) })}</p>}
+          <Awards
+            awards={awards}
+            label={knockout?.done ? "koTitles" : match?.done ? "matchTitles" : "awards"}
+            quest={knockout?.done || match?.done ? null : props.view.game?.arena ?? null}
+          />
+          <NextLine view={view} />
           <div class="result-actions">
             {view.you.host ? (
               <>
                 <button type="button" class="btn btn-primary btn-lg btn-block" disabled={online < 2} onClick={() => send({ t: "start" })}>
-                  {t(match ? (match.done ? "matchAgain" : "matchNextGo") : "again")}
+                  {t(knockout ? (knockout.done ? "koAgain" : knockout.nextPlayers <= 3 ? "koFinalGo" : "koNextGo") : match ? (match.done ? "matchAgain" : "matchNextGo") : "again")}
                 </button>
                 <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
                   {t("otherArena")}

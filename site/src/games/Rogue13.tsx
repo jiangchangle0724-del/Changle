@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
-import { fullDeck, ROGUE_MS, ROGUE_NOTES, RULES, RULE_BY_RANK, ruleWords, type Card, type Power, type Rank } from "../data/rogue13";
+import { fullDeck, POWER_RANK, ROGUE_MS, ROGUE_NOTES, ruleFor, ruleWords, VARIANTS, type Card, type Power, type Rank, type Rule } from "../data/rogue13";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
-import { HeldCard, RogueTable, type LeaveTo } from "./rogueCards";
+import { HeldCard, HouseContext, RogueTable, type LeaveTo } from "./rogueCards";
+import { RogueRules, useHouseStorage } from "./rogueHouse";
 import { RogueLog, stockOf, type LogLine } from "./rogueLog";
+import { ShakeHint, useShakeToShuffle } from "./rogueShake";
 import { playPower } from "./rogueSounds";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { TimerArc } from "../components/TimerArc";
@@ -50,6 +52,8 @@ type Kept = {
   turn: number;
   /** 牌谱: this deck's cards as they came, with names (older saves: it starts with the next card) */
   log?: LogLine[];
+  /** this deck's penalties by name, the powers' included (the recap when the deck runs out) */
+  tally?: Record<string, number>;
 };
 
 /** The cards, in the order a Deck keeps them by (its kept places point into this). */
@@ -81,6 +85,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [reshuffled, setReshuffled] = useState(saved?.reshuffled ?? false);
   // the 牌谱 (Steve, 11-26): each card of this deck as it came, who drew it, who it landed on; and what is left of each rank
   const [log, setLog] = useState<LogLine[]>(saved?.log ?? []);
+  const [tally, setTally] = useState<Record<string, number>>(saved?.tally ?? {});
   const [logOpen, setLogOpen] = useState(false);
   // (the kept places change exactly when the count does)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,9 +108,12 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     reshuffled,
     turn: ending ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
     log,
+    tally,
   }, played);
 
-  const rule = card ? RULE_BY_RANK[card.rank] : null;
+  // 每张牌可换玩法: the table's house rules, kept on this phone between games
+  const [house, setHouse] = useHouseStorage();
+  const rule = card ? ruleFor(card.rank, house) : null;
   // the card's words: drinking, or the penalty set in settings
   const words = rule ? ruleWords(rule, custom) : null;
 
@@ -141,14 +149,15 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setRemaining(deck.current.remaining);
     setCard(c);
     setPhase("revealed");
-    // a new line in the log (a fresh deck starts a fresh log)
+    // a new line in the log (a fresh deck starts a fresh log and a fresh tally)
     const by = turn.current?.name ?? "";
     setLog((l) => [...(r ? [] : l), { rank: c.rank, suit: c.suit, by, hit: [] }]);
+    if (r) setTally({});
     if (sound) {
       sfx.cardSlide();
       window.setTimeout(() => sfx.flip(), 180);
       // a power's card: its own sound once the card has turned over
-      const power = RULE_BY_RANK[c.rank].power;
+      const power = ruleFor(c.rank, house).power;
       if (power) window.setTimeout(() => playPower(power), 520);
     }
     haptic(10);
@@ -187,9 +196,9 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const held = useMemo(
     () =>
       (Object.entries(holders) as [Rank, Player][])
-        .filter(([, p]) => p)
-        .map(([rank, p]) => [rank, p, RULE_BY_RANK[rank].power!] as [Rank, Player, Power]),
-    [holders],
+        .filter(([rank, p]) => p && ruleFor(rank, house).power)
+        .map(([rank, p]) => [rank, p, ruleFor(rank, house).power!] as [Rank, Player, Power]),
+    [holders, house],
   );
 
   /** The holder of a power, if the card is out. */
@@ -201,7 +210,8 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
    * shout for the buddy, who drinks too (on one phone that is said out loud, not tapped).
    */
   const punish = (call: PenaltyCall, endsTurn: boolean) => {
-    const withBuddy = buddy && call.kind !== "safe" && !call.who.includes(buddy.name);
+    // (everyone drinking already has the buddy in it)
+    const withBuddy = buddy && call.kind !== "safe" && call.kind !== "everyone" && !call.who.includes(buddy.name);
     const line = !withBuddy
       ? undefined
       : custom
@@ -213,8 +223,15 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           : `Shout “buddy!” and ${buddy.name} drinks too`;
     setTurnStamp(endsTurn);
     if (endsTurn) setLeaveTo("pile");
-    // the card's own penalty goes on its line of the log (a power's lands during another card: it stays off)
-    if (endsTurn && call.kind !== "safe") setLog((l) => (l.length ? [...l.slice(0, -1), { ...l[l.length - 1], hit: [...l[l.length - 1].hit, ...call.who] }] : l));
+    // the card's own penalty goes on its line of the log (a power's lands during another card: it stays off); every one counts in the deck's tally
+    const hit = call.kind === "everyone" && !call.who.length ? players.map((p) => p.name) : call.who;
+    if (endsTurn && call.kind !== "safe") setLog((l) => (l.length ? [...l.slice(0, -1), { ...l[l.length - 1], hit: [...l[l.length - 1].hit, ...hit] }] : l));
+    if (call.kind !== "safe")
+      setTally((t) => {
+        const n = { ...t };
+        for (const w of hit) n[w] = (n[w] ?? 0) + 1;
+        return n;
+      });
     penalty.show(line ? { ...call, note: call.note ? `${call.note} · ${line}` : line } : call, endsTurn ? endTurn : undefined);
     // the buddy's toast, once the stamp has landed
     if (line && sound) window.setTimeout(() => playPower("buddy", 0.9), 1400);
@@ -240,7 +257,14 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       case "right":
         punish({ who: [turn.right.name], kind: "sip", note: tr(words.title) }, true);
         return;
+      case "sides":
+        punish({ who: [...new Set([turn.left.name, turn.right.name])], kind: "sip", note: tr(words.title) }, true);
+        return;
+      case "all":
+        punish({ who: [], kind: "everyone", note: tr(words.title) }, true);
+        return;
       case "group":
+      case "judge":
         setPhase("group-loser");
         return;
       case "hold":
@@ -313,14 +337,14 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   };
 
   /** What a tap on a held card does, for whoever holds the phone. */
-  const trayAction = (power: Power): { words: string; onTap: () => void; used?: boolean; quiet?: boolean } | null => {
+  const trayAction = (power: Power, rank: Rank): { words: string; onTap: () => void; used?: boolean; quiet?: boolean } | null => {
     switch (power) {
       case "camera":
         return { words: zh ? "拍照" : "Shoot", onTap: useCamera, used: !!used.camera };
       case "nose":
         return { words: zh ? "喊摸鼻子" : "Call it", onTap: useNose, used: !!used.nose };
       case "trouble":
-        return { words: zh ? "谁接话了" : "Who answered?", onTap: askTrouble };
+        return { words: tr(ruleFor(rank, house).action ?? { zh: "谁接话了", en: "Who answered?" }), onTap: askTrouble };
       case "wc":
         return { words: zh ? "上厕所" : "Bathroom", onTap: askWc, used: wcUsed, quiet: true };
       default:
@@ -337,7 +361,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       <button type="button" className={`btn btn-lg ${rule.kind === "hold" ? "btn-primary" : "btn-penalty"}`} onClick={resolve}>
         {rule.kind === "pick"
           ? ui("pickOne")
-          : rule.kind === "group"
+          : rule.kind === "group" || rule.kind === "judge"
             ? zh
               ? "玩完了，谁输了"
               : "Played it. Who lost?"
@@ -351,10 +375,14 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                   : zh
                     ? "我喝"
                     : "I drink"
-                : rule.kind === "left" || rule.kind === "right"
-                  ? zh
-                    ? "罚"
-                    : "Penalty"
+                : rule.kind === "all"
+                  ? custom
+                    ? ui("everyone")
+                    : ui("everyoneDrinks")
+                  : rule.kind === "left" || rule.kind === "right" || rule.kind === "sides"
+                    ? zh
+                      ? "罚"
+                      : "Penalty"
                   : custom
                     ? ui("whoPenalty")
                     : ui("whoDrinks")}
@@ -365,192 +393,203 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </button>
     ) : undefined;
 
-  const rules = (
-    <ul className="rule-list">
-      {RULES.map((r) => (
-        <li key={r.rank}>
-          <span className="rule-rank en-display">{r.rank}</span>
-          <span>
-            <strong>{tr(ruleWords(r, custom).title)}</strong>
-            <br />
-            {tr(ruleWords(r, custom).rule)}
-            {howOnOnePhone(r) && (
-              <>
-                <br />
-                <span style={{ color: "var(--lamp)" }}>{tr(howOnOnePhone(r)!)}</span>
-              </>
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
+  /** A rank switches its way of playing: a held card of its old power goes back in the deck (the classic way leaves no entry). */
+  const pickWay = (rank: Rank, id: string) => {
+    const was = ruleFor(rank, house);
+    const now = ruleFor(rank, { [rank]: id });
+    if (was.power && was.power !== now.power) setHolders((h) => (h[rank] ? { ...h, [rank]: undefined } : h));
+    setHouse((h) => {
+      const n = { ...h };
+      if (now.id === VARIANTS[rank][0].id) delete n[rank];
+      else n[rank] = id;
+      return n;
+    });
+  };
+  const rules = <RogueRules house={house} onPick={pickWay} locked={card?.rank ?? null} how={howOnOnePhone} />;
 
   // the pile: every card dealt from this deck but the one up on the table (none while it gathers back)
   const drawn = gathering ? 0 : Math.max(0, deck.current.total - remaining - (card ? 1 : 0));
+  // the deck has run out: the sheet opens by itself as this deck's recap, and can deal the next (it goes when the next deck is dealt)
+  const out = remaining === 0 && !card && phase === "idle" && !gathering && !shuffling;
+  useEffect(() => setLogOpen(out), [out]);
+  const recap = useMemo(() => (out ? players.map((p) => ({ name: p.name, n: tally[p.name] ?? 0 })) : null), [out, players, tally]);
+  // a shake of the phone deals the next deck too
+  const shake = useShakeToShuffle(out, draw);
 
   return (
-    <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
-      <div className="turn-line">
-        <span className="hint">{ui("yourTurn")}</span>
-        <span className="turn-name">{turn.current?.name}</span>
-        <span className="hint tabular">{ui("remaining", { n: remaining })}</span>
-      </div>
-
-      <div className="card-stage">
-        <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "下滑抽牌" : "Swipe down"} shuffling={shuffling} leaveTo={leaveTo} onPile={() => setLogOpen(true)} />
-      </div>
-      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} />
-
-      <AnimatePresence mode="wait">
-        {card && rule && words && phase === "revealed" && (
-          <motion.div
-            key={card.rank + card.suit}
-            className="porcelain rule-card"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ delay: 0.45, duration: 0.3 }}
-          >
-            <h2 className={`rule-title ${zh ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
-            <p className="rule-body">{tr(words.rule)}</p>
-            {howOnOnePhone(rule) && <p className="hint-ink rule-online">{tr(howOnOnePhone(rule)!)}</p>}
-            {reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
-          </motion.div>
-        )}
-
-        {card && rule && words && (phase === "pick" || phase === "group-loser") && (
-          <motion.div key="pick" className="porcelain rule-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <p className="hint-ink" style={{ marginBottom: 10 }}>
-              {phase === "pick" ? ui("chooseTarget") : zh ? "点一下输的人。没人输就跳过。" : "Tap whoever lost. Nobody? Skip."}
-            </p>
-            <PlayerPicker players={players} tone="lacquer" onPick={(p) => punish({ who: [p.name], kind: "sip", note: tr(words.title) }, true)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* the powers out on the table: the holder calls it out loud, whoever holds the phone taps the card */}
-      {held.length > 0 && (
-        <div className="rg-tray">
-          {held.map(([rank, p, power]) => {
-            const act = trayAction(power);
-            return act ? (
-              <HeldCard key={rank} rank={rank} who={p.name} action={act.words} quiet={act.quiet} used={act.used} disabled={act.used && power !== "wc"} onTap={act.onTap} />
-            ) : (
-              <HeldCard key={rank} rank={rank} who={p.name} />
-            );
-          })}
+    <HouseContext.Provider value={house}>
+      <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
+        <div className="turn-line">
+          <span className="hint">{ui("yourTurn")}</span>
+          <span className="turn-name">{turn.current?.name}</span>
+          <span className="hint tabular">{ui("remaining", { n: remaining })}</span>
         </div>
-      )}
 
-      <AnimatePresence>
-        {flash > 0 && (
-          <motion.div key={flash} className="camera-flash" initial={{ opacity: 0.95 }} animate={{ opacity: 0 }} transition={{ duration: 0.7, ease: "easeOut" }} onAnimationComplete={() => setFlash(0)} />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {using && usingCard && (
-          <motion.div
-            key={using.power + ("step" in using ? using.step : "")}
-            className="interrupt-layer"
-            role="dialog"
-            aria-modal="true"
-            aria-label={tr(RULE_BY_RANK[usingCard[0]].title)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {using.power === "camera" && camera ? (
-              using.step === "freeze" ? (
-                <div className="interrupt-stage">
-                  {/* the photo, developing: the table holds still until it is done */}
-                  <div className="rg-photo">
-                    <div className="rg-photo-pic">
-                      <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "定格" : "Freeze"}</p>
-                      <TimerArc seconds={ROGUE_MS.freeze / 1000} running size={64} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
-                    </div>
-                    <p className="rg-photo-line">{zh ? `${camera.name} 拍照了，别动` : `${camera.name} took a photo. Don't move.`}</p>
-                  </div>
-                </div>
+        <div className="card-stage">
+          <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "下滑抽牌" : "Swipe down"} shuffling={shuffling} leaveTo={leaveTo} onPile={() => setLogOpen(true)} />
+        </div>
+        {out && <ShakeHint shake={shake} />}
+        <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} recap={recap} onShuffle={out ? draw : undefined} recapExtra={<ShakeHint shake={shake} />} />
+
+        <AnimatePresence mode="wait">
+          {card && rule && words && phase === "revealed" && (
+            <motion.div
+              key={card.rank + card.suit}
+              className="porcelain rule-card"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ delay: 0.45, duration: 0.3 }}
+            >
+              <h2 className={`rule-title ${zh ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
+              <p className="rule-body">{tr(words.rule)}</p>
+              {howOnOnePhone(rule) && <p className="hint-ink rule-online">{tr(howOnOnePhone(rule)!)}</p>}
+              {reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
+            </motion.div>
+          )}
+
+          {card && rule && words && (phase === "pick" || phase === "group-loser") && (
+            <motion.div key="pick" className="porcelain rule-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <p className="hint-ink" style={{ marginBottom: 10 }}>
+                {phase === "pick" ? ui("chooseTarget") : zh ? "点一下输的人。没人输就跳过。" : "Tap whoever lost. Nobody? Skip."}
+              </p>
+              <PlayerPicker players={players} tone="lacquer" onPick={(p) => punish({ who: [p.name], kind: "sip", note: tr(words.title) }, true)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* the powers out on the table: the holder calls it out loud, whoever holds the phone taps the card */}
+        {held.length > 0 && (
+          <div className="rg-tray">
+            {held.map(([rank, p, power]) => {
+              const act = trayAction(power, rank);
+              return act ? (
+                <HeldCard key={rank} rank={rank} who={p.name} action={act.words} quiet={act.quiet} used={act.used} disabled={act.used && power !== "wc"} onTap={act.onTap} />
               ) : (
-                <div className="interrupt-stage">
-                  <div className="rg-photo">
-                    <div className="rg-photo-pic">
-                      <Camera size={44} />
-                      <p className="interrupt-sub">{zh ? "谁动了？" : "Who moved?"}</p>
-                    </div>
-                    <p className="rg-photo-line">{zh ? `${camera.name} 看照片` : `${camera.name} checks the photo`}</p>
-                  </div>
-                  <PlayerPicker players={players} exclude={[camera.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.camera)} />
-                  <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
-                    {zh ? "没人动" : "Nobody moved"}
-                  </button>
-                </div>
-              )
-            ) : using.power === "nose" && nose ? (
-              <div className="interrupt-stage">
-                <Hand size={52} className="rg-wiggle" />
-                <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "摸鼻子" : "Nose"}</p>
-                <p className="interrupt-sub">{zh ? `${nose.name} 喊摸鼻子。最后一个摸到的是谁？` : `${nose.name} says: nose! Who was last?`}</p>
-                <PlayerPicker players={players} exclude={[nose.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.noseSlow)} />
-                <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
-                  {zh ? "都挺快，算了" : "All quick enough"}
-                </button>
-              </div>
-            ) : using.power === "wc" && wcHolder ? (
-              using.went ? (
-                <div className="interrupt-stage">
-                  <DoorOpen size={52} className="rg-swing" />
-                  <p className="interrupt-sub">{zh ? `${using.went.name} 用掉了 WC 票，去吧` : `${using.went.name} used the pass. Go ahead.`}</p>
-                  <p className="hint">{zh ? "票用过一次就作废，下一张 8 再发一张。" : "The pass is good once. The next 8 deals a new one."}</p>
-                  <button type="button" className="btn btn-primary btn-lg" onClick={() => setUsing(null)}>
-                    {zh ? "好" : "OK"}
-                  </button>
-                </div>
-              ) : (
-                <div className="interrupt-stage">
-                  <DoorOpen size={44} />
-                  <p className="interrupt-sub">{zh ? "谁要去厕所？" : "Who needs the bathroom?"}</p>
-                  <p className="hint">
-                    {wcUsed
-                      ? zh
-                        ? `${wcHolder.name} 的 WC 票用过了，谁去都${custom ? "先受罚" : "先喝一口"}`
-                        : `${wcHolder.name}'s pass is used up. Anyone who goes ${custom ? "takes the penalty" : "drinks"} first.`
-                      : zh
-                        ? `WC 票在 ${wcHolder.name} 手上，其他人${custom ? "先受罚" : "先喝一口"}再去`
-                        : `${wcHolder.name} holds the pass. Anyone else ${custom ? "takes the penalty" : "drinks"} first.`}
-                  </p>
-                  <PlayerPicker players={players} onPick={wentToWc} />
-                  <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
-                    {zh ? "不去了" : "Never mind"}
-                  </button>
-                </div>
-              )
-            ) : using.power === "trouble" && trouble ? (
-              <div className="interrupt-stage">
-                <MessageCircle size={52} className="rg-bob" />
-                <p className="interrupt-sub">{zh ? `谁接了 ${trouble.name} 的话？` : `Who answered ${trouble.name}?`}</p>
-                <PlayerPicker
-                  players={players}
-                  exclude={[trouble.id]}
-                  onPick={(p) => {
-                    if (sound) playPower("trouble");
-                    powerPenalty(p, ROGUE_NOTES.trouble);
-                  }}
-                />
-                <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
-                  {zh ? "没人接" : "Nobody did"}
-                </button>
-              </div>
-            ) : null}
-          </motion.div>
+                <HeldCard key={rank} rank={rank} who={p.name} />
+              );
+            })}
+          </div>
         )}
-      </AnimatePresence>
-    </GameShell>
+
+        <AnimatePresence>
+          {flash > 0 && (
+            <motion.div key={flash} className="camera-flash" initial={{ opacity: 0.95 }} animate={{ opacity: 0 }} transition={{ duration: 0.7, ease: "easeOut" }} onAnimationComplete={() => setFlash(0)} />
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {using && usingCard && (
+            <motion.div
+              key={using.power + ("step" in using ? using.step : "")}
+              className="interrupt-layer"
+              role="dialog"
+              aria-modal="true"
+              aria-label={tr(ruleFor(usingCard[0], house).title)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {using.power === "camera" && camera ? (
+                using.step === "freeze" ? (
+                  <div className="interrupt-stage">
+                    {/* the photo, developing: the table holds still until it is done */}
+                    <div className="rg-photo">
+                      <div className="rg-photo-pic">
+                        <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "定格" : "Freeze"}</p>
+                        <TimerArc seconds={ROGUE_MS.freeze / 1000} running size={64} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
+                      </div>
+                      <p className="rg-photo-line">{zh ? `${camera.name} 拍照了，别动` : `${camera.name} took a photo. Don't move.`}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="interrupt-stage">
+                    <div className="rg-photo">
+                      <div className="rg-photo-pic">
+                        <Camera size={44} />
+                        <p className="interrupt-sub">{zh ? "谁动了？" : "Who moved?"}</p>
+                      </div>
+                      <p className="rg-photo-line">{zh ? `${camera.name} 看照片` : `${camera.name} checks the photo`}</p>
+                    </div>
+                    <PlayerPicker players={players} exclude={[camera.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.camera)} />
+                    <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
+                      {zh ? "没人动" : "Nobody moved"}
+                    </button>
+                  </div>
+                )
+              ) : using.power === "nose" && nose ? (
+                <div className="interrupt-stage">
+                  <Hand size={52} className="rg-wiggle" />
+                  <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "摸鼻子" : "Nose"}</p>
+                  <p className="interrupt-sub">{zh ? `${nose.name} 喊摸鼻子。最后一个摸到的是谁？` : `${nose.name} says: nose! Who was last?`}</p>
+                  <PlayerPicker players={players} exclude={[nose.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.noseSlow)} />
+                  <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
+                    {zh ? "都挺快，算了" : "All quick enough"}
+                  </button>
+                </div>
+              ) : using.power === "wc" && wcHolder ? (
+                using.went ? (
+                  <div className="interrupt-stage">
+                    <DoorOpen size={52} className="rg-swing" />
+                    <p className="interrupt-sub">{zh ? `${using.went.name} 用掉了 WC 票，去吧` : `${using.went.name} used the pass. Go ahead.`}</p>
+                    <p className="hint">{zh ? "票用过一次就作废，下一张 8 再发一张。" : "The pass is good once. The next 8 deals a new one."}</p>
+                    <button type="button" className="btn btn-primary btn-lg" onClick={() => setUsing(null)}>
+                      {zh ? "好" : "OK"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="interrupt-stage">
+                    <DoorOpen size={44} />
+                    <p className="interrupt-sub">{zh ? "谁要去厕所？" : "Who needs the bathroom?"}</p>
+                    <p className="hint">
+                      {wcUsed
+                        ? zh
+                          ? `${wcHolder.name} 的 WC 票用过了，谁去都${custom ? "先受罚" : "先喝一口"}`
+                          : `${wcHolder.name}'s pass is used up. Anyone who goes ${custom ? "takes the penalty" : "drinks"} first.`
+                        : zh
+                          ? `WC 票在 ${wcHolder.name} 手上，其他人${custom ? "先受罚" : "先喝一口"}再去`
+                          : `${wcHolder.name} holds the pass. Anyone else ${custom ? "takes the penalty" : "drinks"} first.`}
+                    </p>
+                    <PlayerPicker players={players} onPick={wentToWc} />
+                    <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
+                      {zh ? "不去了" : "Never mind"}
+                    </button>
+                  </div>
+                )
+              ) : using.power === "trouble" && trouble ? (
+                <div className="interrupt-stage">
+                  <MessageCircle size={52} className="rg-bob" />
+                  <p className="interrupt-sub">{zh ? `谁接了 ${trouble.name} 的话？` : `Who answered ${trouble.name}?`}</p>
+                  <PlayerPicker
+                    players={players}
+                    exclude={[trouble.id]}
+                    onPick={(p) => {
+                      if (sound) playPower("trouble");
+                      powerPenalty(p, ruleFor(POWER_RANK.trouble, house).note ?? ROGUE_NOTES.trouble);
+                    }}
+                  />
+                  <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
+                    {zh ? "没人接" : "Nobody did"}
+                  </button>
+                </div>
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </GameShell>
+    </HouseContext.Provider>
   );
 }
 
-const howOnOnePhone = (r: { power?: Power }) => (r.power ? ONE_PHONE_HOW[r.power] : undefined);
+const howOnOnePhone = (r: Rule) => ONE_PHONE_HOW_BY_ID[r.id] ?? (r.power ? ONE_PHONE_HOW[r.power] : r.kind === "judge" ? JUDGE_HOW : undefined);
+
+/** The rounds played off the screen: whoever holds the phone names the loser afterwards. */
+const JUDGE_HOW = { zh: "玩完了，点一下输的人；没人输就跳过。", en: "Once it's played, tap whoever lost, or skip if nobody did." };
+
+/** The troublemaker's cousins, in their own words (the rest go by their power). */
+const ONE_PHONE_HOW_BY_ID: Record<string, { zh: string; en: string }> = {
+  question: { zh: "问题大师牌摆在下面。谁答了你的问题，点那张牌，点他。", en: "The question master's card sits below. Tap it and pick whoever answered you." },
+  rulemaker: { zh: "规矩牌摆在下面。谁犯规了，点那张牌，点他。", en: "The rule's card sits below. Tap it and pick whoever broke it." },
+};
 
 /** How each power is used when the table shares one phone (under the card, and in the rules). */
 const ONE_PHONE_HOW: Partial<Record<Power, { zh: string; en: string }>> = {

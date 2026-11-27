@@ -11,7 +11,7 @@ import { phoneDigits } from "../../engine/phone";
 import { weighed, type DeliveryRule, type How } from "../../engine/types";
 import { ApiFail, changeOrder, getOffer, getOrder, handOver, newKey, photoUrl, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
 import { leftText, t, unitName, whenText } from "../i18n";
-import { Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useDrawn, useLang, useTitle } from "./common";
+import { ArrivedNote, Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useDrawn, useLang, useTitle } from "./common";
 
 interface Line {
   item: PublicItem;
@@ -297,6 +297,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
           {page.offer.state === "paused" ? t("paused") : open ? `${t("closesAt", { when: whenText(page.offer.closesAt) })} · ${t("closesIn", { left: leftText(page.offer.closesAt - now) })}` : t("closed")}
         </p>
         {!open && <p class="hint">{page.offer.state === "paused" ? t("pausedLine") : t("closedLine")}</p>}
+        {page.offer.arrived && !changing && <ArrivedNote line={t("arrivedTitle")} note={page.offer.arrived.note} />}
         {page.offer.roster !== "off" && page.orders > 0 && !changing && (
           <button type="button" class="link-btn joined" onClick={() => document.getElementById("roster")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" })}>
             {t("joined", { n: page.orders })}

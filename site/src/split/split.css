@@ -1517,10 +1517,17 @@ label.split-field:focus-within {
 }
 
 /* the keypad: twelve keys under the thumb, each as tall as the screen has room for */
+/* four across: the digits in threes, the + down the right at the top and delete under it (where the
+   thumb found it when there were three across), 0 twice as wide */
 .split-keys {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(4, minmax(var(--tap), 1fr));
+  grid-template-areas:
+    ". . . plus"
+    ". . . plus"
+    ". . . back"
+    "point zero zero back";
   gap: var(--space-2);
   flex: 1 1 auto;
   max-height: calc(4 * (var(--tap-crowded) + var(--space-2)) + 3 * var(--space-2));
@@ -1554,6 +1561,23 @@ label.split-field:focus-within {
 .split-key svg {
   width: var(--icon-sm);
   height: var(--icon-sm);
+}
+.split-key.is-point {
+  grid-area: point;
+}
+.split-key.is-zero {
+  grid-area: zero;
+}
+.split-key.is-back {
+  grid-area: back;
+}
+.split-key.is-plus {
+  grid-area: plus;
+  color: var(--gel);
+}
+/* amounts being added up, under what they come to: the + keeps its spaces, the line its one line */
+.split-add-sum {
+  font-variant-numeric: tabular-nums;
 }
 /* A web page gets less of the phone than the phone has (the browser's bars take a sixth of it), so
    these heights are everyday ones. Up to 700 tall, less air; up to 640 (a small iPhone in Safari,
@@ -1770,6 +1794,58 @@ button.split-person {
 .split-person-name small {
   color: var(--color-text-2);
   font-size: var(--text-xs);
+}
+/* someone's 收款方式, under their name in the list of people */
+.split-person-pay {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+/* and as a line to type, under their name when their line is open (a form's labels are blocks: this one is its words over its field) */
+.split-form .split-person-pay-field {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.split-person-pay-field > input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--r-field);
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  font-size: var(--text-md);
+  caret-color: var(--gel);
+}
+.split-person-pay-field > input:focus-visible {
+  border-color: var(--gel);
+  outline: none;
+}
+/* a transfer's 收款方式: whose it is, then what it says and the button to copy it */
+.split-pay {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  margin-top: var(--space-3);
+  text-align: start;
+}
+.split-pay-label {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.split-pay-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.split-pay-line > strong {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 .split-person-part {
   flex: none;

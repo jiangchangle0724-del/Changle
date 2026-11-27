@@ -139,6 +139,19 @@ def errors(pages):
 
 # ------------------------------------------------------------------ superlatives
 
+def poster_check(pg, tag):
+    """The awards poster: drawn on this phone, shown in a sheet, with a way to hand it over."""
+    pg.get_by_role("button", name="颁奖海报").click()
+    ok(until(lambda: pg.locator(".sup-poster img").count() == 1, 8000), f"{tag}: the poster is drawn")
+    size = pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); return [i.naturalWidth, i.naturalHeight, i.src.startsWith('data:image/png')]; }")
+    ok(size[0] == 1080 and size[1] > 600 and size[2], f"{tag}: a 1080-wide PNG {size[:2]}")
+    ok(pg.locator(".ui-sheet button", has_text=re.compile("发给朋友|保存图片")).count() == 1, f"{tag}: a share or save button")
+    shot(pg, f"sup-poster-{tag}")
+    pg.evaluate("() => { const i = document.querySelector('.sup-poster img'); window.__poster = i.src; }")
+    pg.locator(".ui-sheet").get_by_role("button", name=re.compile("^(关闭|Close)$")).last.click()
+    ok(until(lambda: not pg.locator(".sup-poster img").is_visible(), 3000), f"{tag}: the sheet closes")
+
+
 def t_superlatives_single(browser):
     pg = phone(browser, "solo", players=PLAYERS[:4])
     pg.goto(BASE + "#/g/superlatives", wait_until="networkidle")
@@ -210,6 +223,7 @@ def t_superlatives_single(browser):
     ok(until(lambda: pg.locator(".stamp-layer").count() == 1, 3000), "one phone: then the whole table's toast, as online")
     ok("全场" in pg.locator(".stamp-layer").inner_text(), "one phone: the toast is for everyone")
     clear_stamps([pg])
+    poster_check(pg, "solo")
     pg.get_by_role("button", name="再来五个奖").click()
     ok(until(lambda: pg.locator(".pass-curtain").count() == 1, 3000) and "第 6 个奖" in pg.locator(".award-count").inner_text(), "one phone: five more awards")
     errors([pg])
@@ -312,8 +326,81 @@ def t_superlatives_online(browser):
     ok(until(lambda: more.is_enabled(), 2000), "then the host can go on")
     clear_stamps(everyone)
     shot(host, "sup-net-ceremony")
+    poster_check(guests[0], "online")
     errors(everyone)
     for g in [host] + guests:
+        g.context.close()
+
+
+def t_superlatives_whisper(browser):
+    """Paranoia online: the asker alone reads the title, names someone; they drink to see it, or pass."""
+    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay"])
+    mia, jay = guests
+    everyone = [host] + guests
+    start_game(host, everyone, "superlatives")
+    ok(until(lambda: (view(host) or {}).get("phase") == "setup"), "paranoia: the setup")
+    host.get_by_role("button", name="偷偷问").click()
+    ok(until(lambda: (view(mia) or {}).get("mode") == "whisper", 3000), "paranoia: the host picks it, every phone knows")
+    host.get_by_role("button", name="5", exact=True).click()
+    host.get_by_role("button", name="开始颁奖").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "ask") for g in everyone), "paranoia: the first title, for the host alone")
+    host.wait_for_timeout(500)
+    title = view(host)["title"]["zh"]
+    ok(title != "？？？" and "？？？" not in host.locator(".award-title").inner_text(), "paranoia: the asker reads the title")
+    ok(view(mia)["title"]["zh"] == "？？？" and "？？？" in mia.locator(".award-title").inner_text(), "paranoia: the others see ？？？")
+    ok(mia.locator(".ballot .nominee").count() == 0 and host.locator(".ballot .nominee").count() == 3, "paranoia: only the asker has the names to tap")
+    shot(host, "sup-whisper-ask")
+    shot(mia, "sup-whisper-ask")
+    host.locator(".ballot .nominee", has_text="Mia").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "dare") for g in everyone), "paranoia: Mia is named")
+    mia.wait_for_timeout(400)
+    ok(mia.get_by_role("button", name="喝一口，看题").count() == 1 and jay.get_by_role("button", name="喝一口，看题").count() == 0, "paranoia: the one named has the choice, nobody else")
+    ok("Mia" in jay.locator(".sup-named").inner_text() and "？？？" in jay.locator(".award-title").inner_text(), "paranoia: Jay hears the name, not the title")
+    shot(mia, "sup-whisper-dare")
+    shot(jay, "sup-whisper-dare")
+    mia.get_by_role("button", name="喝一口，看题").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "peek") for g in everyone), "paranoia: Mia pays")
+    ok(until(lambda: mia.locator(".stamp-layer").count() == 1, 3000) and until(lambda: "Mia" in jay.locator(".stamp-layer").inner_text(), 2000), "paranoia: Mia's sip, and the whole table sees her take it")
+    ok("？？？" not in mia.locator(".stamp-layer").inner_text() and title not in mia.locator(".stamp-layer").inner_text(), "paranoia: the stamp doesn't give the title away")
+    clear_stamps(everyone)
+    ok(view(mia)["title"]["zh"] == title and view(jay)["title"]["zh"] == "？？？" and view(host)["title"]["zh"] == title, "paranoia: now Mia reads it, Jay still doesn't")
+    ok(until(lambda: title in mia.locator(".award-title").inner_text(), 3000), "paranoia: the title on Mia's card")
+    shot(mia, "sup-whisper-peek")
+    nxt = host.get_by_role("button", name=re.compile("下一题"))
+    ok(until(lambda: nxt.is_enabled(), 3000), "paranoia: the host can move on")
+    nxt.click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "ask" and view(g).get("round") == 2) for g in everyone), "paranoia: round 2")
+    ok(view(host)["asker"] == me(mia) and view(host)["title"]["zh"] == "？？？" and view(mia)["title"]["zh"] != "？？？", "paranoia: Mia asks next, and the host no longer reads it")
+    mia.wait_for_timeout(400)
+    mia.locator(".ballot .nominee", has_text="Jay").click()
+    ok(until(lambda: (view(jay) or {}).get("phase") == "dare"), "paranoia: Jay is named")
+    jay.wait_for_timeout(400)
+    jay.get_by_role("button", name="不看了").click()
+    ok(until(lambda: (view(jay) or {}).get("phase") == "peek" and view(jay)["seen"] is False), "paranoia: Jay passes")
+    ok(jay.locator(".stamp-layer").count() == 0 and view(jay)["title"]["zh"] == "？？？" and "不想知道" in host.locator(".sup-ask").inner_text(), "paranoia: no sip, still in the dark, the table hears so")
+    shot(host, "sup-whisper-passed")
+    # three more quick rounds, then the ceremony shows every title
+    for r in range(3, 6):
+        host.get_by_role("button", name=re.compile("下一题")).click()
+        ok(until(lambda r=r: (view(host) or {}).get("round") == r and view(host)["phase"] == "ask", 4000), f"paranoia: round {r}")
+        asker = by_pid(everyone, view(host)["asker"])
+        asker.wait_for_timeout(400)
+        asker.locator(".ballot .nominee:not([disabled])").first.click()
+        ok(until(lambda: (view(host) or {}).get("phase") == "dare", 3000), f"paranoia: round {r}: named")
+        named = by_pid(everyone, view(host)["named"])
+        named.wait_for_timeout(400)
+        named.get_by_role("button", name="不看了").click()
+        ok(until(lambda: (view(host) or {}).get("phase") == "peek", 3000), f"paranoia: round {r}: passed")
+    host.get_by_role("button", name="开颁奖典礼").click()
+    ok(all(until(lambda g=g: (view(g) or {}).get("phase") == "ceremony") for g in everyone), "paranoia: the ceremony")
+    host.wait_for_timeout(600)
+    chips = jay.locator(".award-chip").all_inner_texts()
+    ok(len(chips) == 5 and all("？？？" not in c for c in chips), f"paranoia: every title on the shelves, none hidden {chips}")
+    ok(jay.locator(".ceremony-mind").count() == 0, "paranoia: no mind reader (nobody voted)")
+    shot(jay, "sup-whisper-ceremony")
+    clear_stamps(everyone)
+    errors(everyone)
+    for g in everyone:
         g.context.close()
 
 
@@ -2306,7 +2393,7 @@ def t_drama_read(browser):
 
 TESTS = {
     "trip": [t_trip_single, t_trip_online],
-    "superlatives": [t_superlatives_single, t_superlatives_scroll, t_superlatives_online],
+    "superlatives": [t_superlatives_single, t_superlatives_scroll, t_superlatives_online, t_superlatives_whisper],
     "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups, t_drama_read],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],

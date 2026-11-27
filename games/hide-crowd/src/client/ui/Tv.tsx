@@ -11,13 +11,13 @@ import { BASE, joinUrl, onChangle } from "../base";
 import { other, t } from "../i18n";
 import { Arena, preloadArena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
-import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
+import { ArenaVote, ARENA_RULE, matchLine, penaltyLine, PlayerChips } from "./Lobby";
 import { Icon } from "./chrome";
 import { QUESTS } from "./quest";
 import { PenaltyStamp } from "./Penalty";
-import { clockText, Scoreboard, useClock } from "./Play";
-import { ResultTable, resultLabel, resultTitle } from "./Result";
-import { arenaEvents, Awards, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
+import { clockText, roundLine, Scoreboard, useClock } from "./Play";
+import { NextLine, ResultTable, resultLabel, resultTitle } from "./Result";
+import { arenaEvents, Awards, CalloutBanner, DrillCall, INTRO_WINDOW_MS, LotCall, MomentBanner, useCallout, useDrill, useFinalCall, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -105,7 +105,19 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
         <ol class="tv-steps">
           <li>{t("tvStep1")}</li>
           <li>{t("tvStep2")}</li>
-          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</li>
+          <li>
+            {t(
+              // (four or more with the whole match on: a knockout, its stages run their time)
+              view.settings.match && view.players.filter((player) => player.online).length >= 4
+                ? "tvStep3Knockout"
+                : !view.settings.penalties
+                  ? "tvStep3Off"
+                  : view.settings.custom
+                    ? "tvStep3Custom"
+                    : "tvStep3",
+              { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 }
+            )}
+          </li>
         </ol>
       </div>
       <aside class="tv-lobby-side">
@@ -124,6 +136,11 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
           {view.players.length ? <PlayerChips view={view} /> : <p class="hint">{t("joinPhones")}</p>}
         </section>
         <section class="tv-panel">
+          {/* (the format: four or more play a knockout, 8 → 5 → 3 → 1) */}
+          <p class="panel-line">
+            <span class="panel-label">{t("matchSwitch")}</span>
+            {matchLine(view)}
+          </p>
           <p class="panel-line">
             <span class="panel-label">{t("penalty")}</span>
             {penaltyLine(view)}
@@ -168,7 +185,8 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
   const drill = useDrill(game, receivedAt);
-  const callout = useCallout(game.events);
+  const callout = useCallout(game.events, { screen: true, screens: view.screens });
+  useFinalCall(view, true);
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
@@ -212,10 +230,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         </div>
         <div class={`tv-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
           <b>{clockText(game.phase === "playing" ? seconds : 0)}</b>
-          <span>
-            {t("firstTo", { n: game.scoreToWin })}
-            {view.match && ` · ${t("matchPlace", { i: view.match.index, n: view.match.of })}`}
-          </span>
+          <span>{roundLine(view, game)}</span>
         </div>
         <div class="tv-hud-right">
           <Scoreboard view={view} target={game.scoreToWin} />
@@ -240,11 +255,12 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
                 <h2 class="tv-result-title">{resultTitle(view)}</h2>
                 <ResultTable view={view} />
                 <Awards
-                  awards={view.result!.match?.done ? view.result!.match.awards : view.result!.awards ?? []}
-                  label={view.result!.match?.done ? "matchTitles" : "awards"}
-                  quest={view.result!.match?.done ? null : game.arena}
+                  awards={tvAwards(view)}
+                  label={view.result!.knockout?.done ? "koTitles" : view.result!.match?.done ? "matchTitles" : "awards"}
+                  quest={view.result!.knockout?.done || view.result!.match?.done ? null : game.arena}
                 />
-                {view.result!.match?.next && <p class="result-next">{t("matchNext", { place: t(view.result!.match.next) })}</p>}
+                <NextLine view={view} />
+                <LotCall view={view} />
                 <p class="tv-wait">{t("nextWhenReady")}</p>
               </section>
             )}
@@ -253,6 +269,17 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
       </Stage>
     </>
   );
+}
+
+/**
+ * The titles on the big screen: the round's, a match's last place's, or a knockout's once it's won (none
+ * between its stages: who's through is the news); a full room shows the first four, so it all fits.
+ */
+function tvAwards(view: RoomView) {
+  const result = view.result!;
+  const knockout = result.knockout;
+  const awards = knockout ? (knockout.done ? knockout.awards : []) : result.match?.done ? result.match.awards : result.awards ?? [];
+  return view.players.filter((player) => player.inRound || player.rank !== undefined).length > 5 ? awards.slice(0, 4) : awards;
 }
 
 export function TvPage({ view, receivedAt, table, notice }: { view: RoomView | null; receivedAt: number; table: string | null; notice: string | null }) {

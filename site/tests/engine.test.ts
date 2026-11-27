@@ -1512,6 +1512,72 @@ test("superlatives: the same winner award after award counts a streak; another w
   ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
 }));
 
+test("superlatives: paranoia, one person reads the title and names someone, who pays a sip to see it or passes", ownDice(() => {
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "superlatives" });
+  t.g("p0", "config", { mode: "whisper", total: 5 });
+  ok(t.view<V<"superlatives">>("p1").mode === "whisper", "the host picks paranoia");
+  t.g("p0", "start");
+  let v = t.view<V<"superlatives">>("p0");
+  const title = v.title;
+  ok(v.phase === "ask" && v.asker === "p0" && v.title.zh !== "？？？", "the host asks first and reads the title");
+  ok(t.view<V<"superlatives">>("p1").title.zh === "？？？" && t.view<V<"superlatives">>("p1").asker === "p0", "the others see who is reading, not what");
+  ok(nothing(t.g("p1", "name", { target: "p2" })) || t.view<V<"superlatives">>("p0").phase === "ask", "only the asker names");
+  t.g("p0", "name", { target: "p0" });
+  ok(t.view<V<"superlatives">>("p0").phase === "ask", "not themselves");
+  t.g("p0", "name", { target: "p2" });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "dare" && v.named === "p2" && v.title.zh === "？？？" && v.awards.p2?.length === 1, "p2 is named: on the spot, title still hidden, the award on p2's shelf");
+  ok(t.view<V<"superlatives">>("p0").title.zh === title.zh, "the asker still reads it");
+  t.g("p1", "peek", { yes: true });
+  ok(t.view<V<"superlatives">>("p0").phase === "dare", "only the one named answers");
+  t.g("p2", "peek", { yes: true });
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "peek" && v.seen === true && v.title.zh === title.zh, "p2 pays: now p2 reads it");
+  ok(t.view<V<"superlatives">>("p3").title.zh === "？？？", "p3 still doesn't");
+  ok(v.stampAt === clock + 600, "the sip lands 0.6 s in");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "peek", "the host can't move on under the sip");
+  t.advance(700);
+  const pen = t.pens().slice(-1)[0];
+  ok(pen && pen.who.join() === "p2" && pen.kind === "sip" && pen.note?.zh !== title.zh, "p2 drinks; the stamp doesn't give the title away");
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p2");
+  ok(v.phase === "ask" && v.round === 2 && v.asker === "p2" && v.title.zh !== "？？？", "round 2: the one named asks, and reads");
+  ok(t.view<V<"superlatives">>("p0").title.zh === "？？？", "the host no longer reads it");
+  // the asker swaps the title, then names p3, who passes
+  const swapped = v.title.zh;
+  t.g("p2", "skip");
+  ok(t.view<V<"superlatives">>("p2").title.zh !== swapped && t.view<V<"superlatives">>("p2").phase === "ask", "the asker can swap the title");
+  t.g("p2", "name", { target: "p3" });
+  t.g("p3", "peek", { yes: false });
+  v = t.view<V<"superlatives">>("p3");
+  ok(v.phase === "peek" && v.seen === false && v.title.zh === "？？？" && v.stampAt === 0 && v.awards.p3?.length === 1, "p3 passes: still in the dark, no sip, the title on the shelf all the same");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").asker === "p3" && t.view<V<"superlatives">>("p0").round === 3, "round 3: p3 asks");
+  // an asker who sits on it: the next seat asks; someone named who doesn't answer: passes
+  t.advance(60_100);
+  ok(t.view<V<"superlatives">>("p0").asker === "p0" && t.view<V<"superlatives">>("p0").phase === "ask", "a minute on: the next seat reads the title");
+  t.g("p0", "name", { target: "p1" });
+  t.advance(45_100);
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "no answer in 45 s: passed");
+  // the one named leaves mid-dare: passed; the ceremony shows every title
+  t.g("p0", "next");
+  t.g("p1", "name", { target: "p2" });
+  t.act("p2", { a: "leave" });
+  ok(t.view<V<"superlatives">>("p0").phase === "peek" && t.view<V<"superlatives">>("p0").seen === false, "the one named left: passed");
+  t.g("p0", "next");
+  ok(t.view<V<"superlatives">>("p0").phase === "ask" && t.view<V<"superlatives">>("p0").round === 5 && t.view<V<"superlatives">>("p0").asker !== "p2", "round 5, with someone still here asking");
+  const asker = t.view<V<"superlatives">>("p0").asker!;
+  const other = ["p0", "p1", "p3"].find((x) => x !== asker)!;
+  t.g(asker, "name", { target: other });
+  t.g(other, "peek", { yes: false });
+  t.g("p0", "next");
+  v = t.view<V<"superlatives">>("p0");
+  ok(v.phase === "ceremony" && Object.values(v.awards).flat().length === 5 && Object.values(v.awards).flat().every((a) => a.zh !== "？？？"), "after five: the ceremony, every title on the shelves, none hidden");
+}));
+
 test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
@@ -6719,7 +6785,7 @@ test("rogue: the camera and the nose go once per card; the next card of theirs i
   ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
 });
 
-test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line; a new deck starts both over", () => {
+test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line but counts in the deck's tally; a new deck starts it all over", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "rogue" });
   const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
@@ -6734,6 +6800,7 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   t.g(d1, "draw");
   let line = rv().log![rv().log!.length - 1];
   ok(rv().log!.length === 1 && line.rank === "9" && line.suit === "spade" && line.by === d1 && line.hit.join() === d1, "the nine's line: drawn by d1, d1 drank");
+  ok(rv().tally![d1] === 1 && Object.keys(rv().tally!).length === 1, "and the deck's tally has d1 once");
   ok(rv().stock![at("9")] === nines - 1 && sum(rv().stock!) === 52, "one nine fewer to come (the card up is out of the stock)");
   t.g(d1, "next");
   // an ace: the pick lands on the line once it is made
@@ -6751,6 +6818,7 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   const before = t.pens().length;
   t.g(d2, "trouble", { target: victim });
   ok(t.pens().length === before + 1 && rv().log![1].hit.join() === target, "the power's penalty was given, but the card's line is the card's own");
+  ok(rv().tally![victim] === (victim === target ? 2 : 1) && rv().tally![target]! >= 1, "the tally counts the power's penalty too");
   t.g(d2, "next");
   // a seven's round: the one who slips is on the seven's line
   s.deck.push(6); // the seven of spades
@@ -6766,7 +6834,92 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   const d4 = rv().turn;
   t.g(d4, "draw");
   ok(rv().reshuffled && rv().log!.length === 1 && rv().log![0].by === d4, "a new deck's log starts with its first card");
+  ok(Object.keys(rv().tally!).length <= 1 && Object.values(rv().tally!).every((n) => n === 1), "and a new tally (at most the first card's own penalty)");
   ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
+});
+
+test("rogue: 每张牌可换玩法 (Steve, 11-26): the host picks a rank's way; the card then plays that way (everyone, both sides, a judged round, the 10's cousins); the card up waits; a held power goes back when its rank changes; the classic choice clears the entry", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[]; phase: string };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  const last = () => t.pens()[t.pens().length - 1];
+  // a guest can't; the host can; an unknown way is ignored
+  t.g("p1", "house", { rank: "A", id: "waterfall" });
+  ok(!rv().house?.A, "a guest's choice changes nothing");
+  t.g("p0", "house", { rank: "A", id: "tsunami" });
+  ok(!rv().house?.A, "nor does a way that doesn't exist");
+  t.g("p0", "house", { rank: "A", id: "waterfall" });
+  ok(rv().house?.A === "waterfall", "the host picks the waterfall for aces");
+  // the ace: everyone drinks, on the card's line and in the tally
+  s.deck.push(0);
+  let d = rv().turn;
+  const before = t.pens().length;
+  t.g(d, "draw");
+  t.advance(1200); // (the card's own penalty lands once the card has turned over)
+  ok(rv().phase === "done" && t.pens().length === before + 1 && last().kind === "everyone" && last().who.length === 4, "an ace is a waterfall: everyone, at once");
+  ok(rv().log![rv().log!.length - 1].hit.length === 4 && t.ids.every((id) => rv().tally![id] === 1), "everyone on the ace's line and in the tally");
+  t.g(d, "next");
+  // 8 as both sides
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  s.deck.push(7);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.advance(1200);
+  ok(last().who.length === 2 && !last().who.includes(d) && rv().holders.wc === undefined, "an 8 hits both neighbours and hands out no pass");
+  t.g(d, "next");
+  // 9 as a judged round: the drawer names the loser, or nobody
+  t.g("p0", "house", { rank: "9", id: "rhyme" });
+  s.deck.push(8);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().phase === "judge", "a rhyme round waits for the drawer's verdict");
+  const loser = t.ids.find((id) => id !== d && id !== "p0")!; // (a guest: the host may judge too)
+  const n = t.pens().length;
+  t.g(loser, "judge", { target: d });
+  ok(rv().phase === "judge" && t.pens().length === n, "only the drawer (or the host) judges");
+  t.g(d, "judge", { target: loser });
+  ok(rv().phase === "done" && last().who.join() === loser && last().note?.zh === "押韵", "the loser drinks under the round's name");
+  t.g(d, "next");
+  s.deck.push(21); // the nine of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  const m = t.pens().length;
+  t.g(d, "judge", {});
+  ok(rv().phase === "done" && t.pens().length === m, "nobody lost: no penalty");
+  t.g(d, "next");
+  // the 10 as the question master: the same held card, its own line
+  t.g("p0", "house", { rank: "10", id: "question" });
+  s.deck.push(9);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.trouble === d, "the question master is held like the troublemaker");
+  t.g(d, "next");
+  const victim = t.ids.find((id) => id !== d)!;
+  t.g(d, "trouble", { target: victim });
+  ok(last().who.join() === victim && last().note?.zh.startsWith("问题大师"), "and its penalty carries the question master's line");
+  // switching the 10 back to the troublemaker keeps the held card (the same power); to a non-power way it goes
+  t.g("p0", "house", { rank: "10", id: "trouble" });
+  ok(rv().house?.["10"] === undefined && rv().holders.trouble === d, "back to the classic way: the entry clears, the card stays (same power)");
+  t.g("p0", "house", { rank: "8", id: "wc" });
+  s.deck.push(20); // the eight of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.wc === d, "an 8 hands out the pass again");
+  t.g(d, "next");
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  ok(rv().holders.wc === undefined, "the pass goes back in when the 8 stops handing it out");
+  // the card up waits: a 3 in its garden can't change way mid-round
+  t.g("p0", "house", { rank: "3", id: "gardens" });
+  s.deck.push(2);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.g(d, "garden", { kind: 1 });
+  ok(rv().phase === "garden", "a garden is on");
+  t.g("p0", "house", { rank: "3", id: "me" });
+  ok(rv().house?.["3"] === undefined, "the 3's way waits for the round to end");
+  t.g("p0", "house", { rank: "4", id: "floor" });
+  ok(rv().house?.["4"] === "floor", "another rank's way changes any time");
 });
 
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {
