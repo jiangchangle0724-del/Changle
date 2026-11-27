@@ -962,7 +962,8 @@ async function serve(entries, screenshot) {
     }
     else {
       // 后厨、雪山、老宅、太空站的关也认（原来只认 table / van，`--screenshots` 截新场景时 404）；远景画只有 table、van 两张，别的世界程序画
-      const match = /^\/(levels|replays)\/([a-z]+-\d{2})$/.exec(path);
+      // 节日关（fest-xmas 这样的编号，C19）也认：原来只认带两位数字的编号，`--screenshots` 截节日关时 404（#851 的 Codex 绕过去截的）
+      const match = /^\/(levels|replays)\/([a-z]+-(?:\d{2}|[a-z]+))$/.exec(path);
       const entry = match && entries.find((e) => e.level.id === match[2]);
       if (!entry) { res.writeHead(404); res.end(); return; }
       res.setHeader('Content-Type', 'application/json');
