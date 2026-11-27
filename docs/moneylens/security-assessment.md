@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.17, 27 November 2026. It records the choices the requirements leave to this document
+Version 0.18, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -46,7 +46,9 @@ sends a signed-in browser over (1.10). Version 0.17 follows the review of the do
 ([`reviews/door.md`](reviews/door.md)): one machine's IPv6 addresses are counted as one (1.8), a
 sign-in starts only at a press on the app's own page (1.10), wrong proofs are kept apart in the
 events log (1.8), an unkept vault's key is dropped after fifteen quiet minutes (1.10), and four
-sentences that the code did not keep are corrected (1.8, 1.9, 1.10). None of it is published.
+sentences that the code did not keep are corrected (1.8, 1.9, 1.10). Version 0.18 records the
+first deployment: since 27 November 2026 the Worker answers at money.changle.ca, with the gate
+open to the owner's account alone (1.8, "What the first deployment showed").
 
 ## 1. The vault
 
@@ -746,9 +748,10 @@ how often an account signs in.
 
 ### 1.8 The server's shell: a request's way in (ARCH-3, ISO-1, ISO-2, SEC-1, SEC-4, SEC-5, SEC-10)
 
-One Worker, `moneylens`, to be served on `money.changle.ca` and nothing else there (D2). It is
-not published: no Workers Build is connected to its folder, and its gate is shut in the
-repository. Two classes of Durable Object, both on SQLite. `VaultDO` is one person's: named by
+One Worker, `moneylens`, served on `money.changle.ca` and nothing else there (D2). It is
+published since 27 November 2026 (Cloudflare builds it from `main`), with the gate open to the
+owner alone: one account id on the list, let in only while the accounts service calls it the
+site owner's. Nobody else is let in before the conditions of Phase 3. Two classes of Durable Object, both on SQLite. `VaultDO` is one person's: named by
 the account's id, it holds that person's sessions (1.7), sealed chunks (1.6), an events log, and
 one row saying whose it is. `Registry` is one object that knows which accounts have ever signed
 in, and nothing else about them; it also keeps one value that is about no account, the stamp
@@ -965,6 +968,22 @@ on the platform what signing in takes it to do: the outer one failing undoes the
 writes, and what was thrown comes out as the thing that was thrown. Fourteen checks in
 `worker.ts` were taken out in turn: each fails a test there. So does each of 68 on Node that
 hold the gate's list, the two limits, what an address is and where a sign-in starts.
+
+**What the first deployment showed (27 November 2026).** The first deployment had the gate
+shut, and was asked for each kind of thing from outside. `/` and `/enter` answered the two
+lines of "not open yet" with 403. The script, the styles, the fonts and the licences were not
+handed out (404): the file store is not served past the gate. Every `/api` route answered
+"closed"; with another origin, or none, "origin". Plain HTTP was sent on to HTTPS. Cloudflare
+took the two rate-limiting bindings on the Free plan, and its build could attach the custom
+domain. Its logs kept nothing of those requests: with the line for each request switched off
+(`wrangler.jsonc`), no event was stored. One thing it added: Cloudflare puts an inline script of
+its own (its bot check) at the end of every HTML page of the zone. Neither page's policy lets
+an inline script run, so it changes the bytes of the page and not what the page does; switching
+it off is a setting of the whole zone and was left alone. The build runs on Node 24, the tests
+on Node 22. Still to be seen on a deployment: what the reviews list under "Only a deployment
+can show" that needs a signed-in session or a phone (the limiters answering, the word sent as
+a page is left, the idle lock on phones, the passphrase's cost on a slow phone, a largest
+push's time on the Free plan).
 
 **Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
 design on the device's side for proving that a session has the vault unlocked. The weekly sweep
