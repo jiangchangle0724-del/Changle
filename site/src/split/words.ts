@@ -65,6 +65,13 @@ export const W = {
   splitShares: { zh: "按份数分", en: "by shares" },
   splitExact: { zh: "按金额分", en: "by amounts" },
   noNote: { zh: "没写备注", en: "No note" },
+  // 搜索账目 (2026-11-26)
+  search: { zh: "搜索账目", en: "Search expenses" },
+  searchHint: { zh: "搜备注、店名、金额、谁付的", en: "Notes, places, amounts, who paid" },
+  searchClear: { zh: "清空", en: "Clear" },
+  searchFound: { zh: "找到 {n} 笔", en: "{n} found" },
+  searchFoundOne: { zh: "找到 1 笔", en: "1 found" },
+  searchNone: { zh: "没有找到", en: "Nothing found" },
   more: { zh: "更多", en: "More" },
   back: { zh: "返回", en: "Back" },
   close: { zh: "关闭", en: "Close" },

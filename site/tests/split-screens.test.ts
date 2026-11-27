@@ -42,6 +42,7 @@ import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
 import { peopleOf, statementOf } from "../src/split/people";
+import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
@@ -1400,6 +1401,41 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     }
   }
   ok(!bad, `400 random ledgers: everyone's nets are the balances and add up to zero, paid and shared each come to what was spent, and every statement adds up to its row${bad ? ` (${bad})` : ""}`);
+}
+
+// ---------- 22. 搜索账目: what a search finds ----------
+{
+  eq([bareText("McDonald's"), bareText("ＴＩＭ Hortons"), bareText(" 晚 饭！")], ["mcdonalds", "timhortons", "晚饭"], "compared on letters and digits alone, in one case and one width");
+  eq(
+    [sumOf("42"), sumOf("42.5"), sumOf("$42.50"), sumOf("42。50"), sumOf("1,234.50"), sumOf("４２"), sumOf("JP¥4,200"), sumOf("CAD 42.50"), sumOf("abc"), sumOf("a4"), sumOf("42.505"), sumOf("4 2"), sumOf("")],
+    [{ whole: 42, part: null }, { whole: 42, part: "5" }, { whole: 42, part: "50" }, { whole: 42, part: "50" }, { whole: 1234, part: "50" }, { whole: 42, part: null }, { whole: 4200, part: null }, { whole: 42, part: "50" }, null, null, null, null, null],
+    "a sum typed: dollars, cents as typed, a sign, a Chinese full stop, thousands, wide digits, a sign with its country, a code; not words, a letter stuck to digits, three decimals, a space inside, nothing",
+  );
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const l: Ledger = { ...startLedger("X", "周末", "CAD", people), entries: [] };
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 4250, note: "晚饭", merchant: "Deer Garden", place: "Vancouver, BC", payment: "Visa", split: { how: "equal", among: ["s", "w"] }, rot: 0 };
+  const usd: Expense = { ...dinner, id: "e2", payer: "w", amount: 4200, note: "", merchant: undefined, place: undefined, payment: undefined, paidIn: { currency: "USD", amount: 3000, rate: "1.4" } };
+  const find = (e: Expense, typed: string, me?: string, lang: "zh" | "en" = "zh") => matches(e, l, typed, me, lang);
+  eq(["", "  "].map((q) => find(dinner, q)), [true, true], "nothing typed: every expense");
+  eq(["晚", "deer", "DEERGARDEN", "deer-garden", "vancouver", "VISA", "steve"].map((q) => find(dinner, q)), [true, true, true, true, true, true, true], "the note, the business (with or without its space), the place, the payment, who paid");
+  eq([find(dinner, "你", "s"), find(dinner, "you", "s", "en"), find(dinner, "你", "w"), find(dinner, "Steve", "s")], [true, true, false, true], "你 is whoever reads it, when they paid; their own name finds it too");
+  eq(["42", "42.5", "42.50", "$42.50", "42.51", "4", "4250", "425"].map((q) => find(dinner, q)), [true, true, true, true, false, false, false, false], "a sum: the dollars find $42.00 to $42.99, with cents only that; not a part of it");
+  eq(["30", "30.00", "42", "29"].map((q) => find(usd, q)), [true, true, true, false], "paid in US dollars: what was paid there finds it, and what it counts for here");
+  eq(["小王", "晚", "zzz", "!!!"].map((q) => find(usd, q)), [true, false, false, false], "a note it doesn't have, or nothing but punctuation, finds nothing");
+  const yen: Ledger = { ...startLedger("Y", "东京", "JPY", people), entries: [] };
+  const ramen: Expense = { ...dinner, id: "e3", amount: 3200, note: "拉面" };
+  eq(["3200", "3200.5", "32"].map((q) => matches(ramen, yen, q, undefined, "zh")), [true, false, false], "in yen: whole yen, no cents to find");
+  let bad = "";
+  for (let seed = 1; seed <= 200 && !bad; seed++) {
+    const r = randomLedger(seed);
+    for (const e of expensesOf(r)) {
+      if (!matches(e, r, "", undefined, "zh")) bad = `seed ${seed} ${e.id}: nothing typed left it out`;
+      else if (e.note.trim() && bareText(e.note) && !matches(e, r, e.note, undefined, "en")) bad = `seed ${seed} ${e.id}: its own note didn't find it`;
+      else if (!matches(e, r, money(e.amount, r.currency, "zh"), undefined, "zh")) bad = `seed ${seed} ${e.id}: its own amount didn't find it`;
+      if (bad) break;
+    }
+  }
+  ok(!bad, `200 random ledgers: nothing typed finds all, and each expense's own note and own amount find it${bad ? ` (${bad})` : ""}`);
 }
 
 if (failed) {

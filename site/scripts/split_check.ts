@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -3736,6 +3736,69 @@ async function viewing() {
   await a.close();
 }
 
+// ---------- search: 搜索账目 ----------
+/**
+ * 搜索账目 (2026-11-26): from six expenses on, a field over the list. A note, a business, a sum, who
+ * paid: each finds its own, and the page says how many; nothing found says so; cleared, all are back.
+ * Shown in English on the narrowest phone too.
+ */
+async function searching() {
+  if (!local) {
+    console.log("search: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "搜一搜", ["阿甲"]);
+  const field = pa.getByRole("textbox", { name: t("search") });
+  const notes = ["早餐", "油费", "晚饭", "Tim Hortons", "门票", "停车"];
+  const sums = ["16.50", "60", "42.50", "7.80", "120", "15"];
+  for (let i = 0; i < notes.length; i++) {
+    if (i === 5) ok((await field.count()) === 0, "with five expenses there is no search: the list is short enough to see");
+    await button(pa, "addExpense").click();
+    await type(pa, sums[i]);
+    await setNote(pa, notes[i]);
+    await button(pa, "done").click();
+    await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  }
+  await field.waitFor();
+  const rows = pa.locator("#split-list .split-row");
+  const found = async (typed: string, want: string[], line: string) => {
+    await field.fill(typed);
+    await pa.waitForFunction((n) => document.querySelectorAll("#split-list .split-row").length === n, want.length);
+    const titles = (await rows.locator("strong").allTextContents()).sort();
+    ok(JSON.stringify(titles) === JSON.stringify([...want].sort()) && (await pa.locator(".split-found").innerText()) === line, `"${typed}" finds ${want.length ? want.join(", ") : "nothing"} (${line})`);
+  };
+  await found("晚", ["晚饭"], say("zh", "searchFoundOne"));
+  await pa.screenshot({ path: join(out, "search-found-zh-390x664.png") });
+  await found("TIM", ["Tim Hortons"], say("zh", "searchFoundOne"));
+  await found("42.5", ["晚饭"], say("zh", "searchFoundOne"));
+  await found("$60", ["油费"], say("zh", "searchFoundOne"));
+  await found("你", notes, say("zh", "searchFound", { n: 6 }));
+  await found("zzz", [], say("zh", "searchNone"));
+  await pa.screenshot({ path: join(out, "search-none-zh-390x664.png") });
+  await pa.getByRole("button", { name: t("searchClear"), exact: true }).click();
+  ok((await field.inputValue()) === "" && (await rows.count()) === 6 && (await pa.locator(".split-found").count()) === 0, "清空 empties the field, and all six are back");
+  await field.fill("tim");
+  await field.press("Enter");
+  ok(await pa.evaluate(() => document.activeElement?.tagName !== "INPUT"), "the keyboard's search key puts the keyboard away");
+  // in English, on the narrowest phone
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  const en = pa.getByRole("textbox", { name: say("en", "search") });
+  await en.waitFor();
+  await en.fill("tim");
+  await pa.locator(".split-found").waitFor();
+  await pa.screenshot({ path: join(out, "search-found-en-320x568.png") });
+  const wide = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  ok(wide && (await pa.locator(".split-found").innerText()) === say("en", "searchFoundOne"), "in English on a 320 phone: the field fits, and says 1 found");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -3747,6 +3810,7 @@ if (what === "all" || what === "gate") await gate();
 if ((what === "all" || what === "friends") && local) await friends();
 if ((what === "all" || what === "read") && local) await reading();
 if (what === "all" || what === "view") await viewing();
+if (what === "all" || what === "search") await searching();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);
