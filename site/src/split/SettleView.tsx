@@ -15,12 +15,12 @@ import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { Sheet } from "../ui/Sheet";
 import { useToast } from "../ui/Toast";
-import { expensesOf, type Ledger, type Settlement } from "./core";
+import { expensesOf, type Ledger, type Member, type Settlement } from "./core";
 import { money } from "./format";
 import { whenText } from "./history";
 import { dayLabel, nameFor, paysLine, personLine, personStands, spentOn, summaryLines } from "./lines";
 import { peopleOf, statementOf } from "./people";
-import { paidId } from "./ops";
+import { paidId, PAY_MAX, tidy } from "./ops";
 import { copyText } from "./parts";
 import { localDay } from "./format";
 import { isStale, type Made } from "./picture";
@@ -44,6 +44,9 @@ export function SettleView({ ledger, me, lang, plan, made, viewing }: { ledger: 
     const timer = window.setTimeout(() => setCopied(null), 2000);
     return () => window.clearTimeout(timer);
   }, [copied]);
+  // who is to be paid on the open transfer: their 收款方式, to copy, or the way to add yours
+  const receiver = line ? ledger.members.find((m) => m.id === line.to) : undefined;
+  const mayChange = ledger.locked === undefined && !viewing;
   // the stamp lands only when the last transfer is marked while this page is open; a ledger opened
   // already square just shows it
   const wasClear = useRef(plan.clear);
@@ -175,12 +178,71 @@ export function SettleView({ ledger, me, lang, plan, made, viewing }: { ledger: 
             <span className="ui-visually-hidden" role="status">
               {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
             </span>
+            {/* 收款方式: how whoever is paid takes money (a 查看链接 never has it) */}
+            {!viewing && receiver && !line.paid && (
+              <PayFor ledger={ledger} member={receiver} me={me} lang={lang} mayChange={mayChange} />
+            )}
             {/* (a locked ledger can't be told a transfer was made, nor can a 查看链接: it says why, in place of how) */}
             <p className="split-note">{say(lang, line.paid ? "paid" : ledger.locked !== undefined ? "locked" : viewing ? "viewOnlyPaid" : "noMoney")}</p>
           </div>
         )}
       </Sheet>
     </>
+  );
+}
+
+/**
+ * One person's 收款方式 on a transfer to them (or on their statement): what they said, to copy. When
+ * they haven't said and they are this phone's owner, a field to say it (the ledger takes it like a
+ * name: changes.ts, pay); when it is someone else, that they haven't.
+ */
+function PayFor({ ledger, member, me, lang, mayChange }: { ledger: Ledger; member: Member; me: string | undefined; lang: Lang; mayChange: boolean }) {
+  const [copied, setCopied] = useState<"done" | "failed" | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const [typed, setTyped] = useState("");
+  const mine = member.id === me;
+  const of = mine ? say(lang, "payOfYou") : say(lang, "payOf", { who: member.name });
+  if (member.pay)
+    return (
+      <div className="split-pay">
+        <span className="split-pay-label">{of}</span>
+        <span className="split-pay-line">
+          <strong>{member.pay}</strong>
+          <Button
+            tone="quiet"
+            size="sm"
+            icon={copied === "done" ? Check : Copy}
+            onClick={async () => setCopied((await copyText(member.pay ?? "")) ? "done" : "failed")}
+          >
+            {say(lang, copied === "done" ? "copied" : copied === "failed" ? "copyFailed" : "copyPay")}
+          </Button>
+        </span>
+      </div>
+    );
+  if (!mine || !mayChange) return <p className="split-note">{say(lang, "payMissing", { who: nameFor(ledger, member.id, me, lang) })}</p>;
+  const pay = tidy(typed, PAY_MAX);
+  return (
+    <form
+      className="split-pay"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pay) record(ledger.id, { do: "pay", member: member.id, pay });
+      }}
+    >
+      <label className="split-pay-label" htmlFor="split-pay-mine">
+        {say(lang, "payAddMine")}
+      </label>
+      <span className="field">
+        <input id="split-pay-mine" value={typed} onChange={(e) => setTyped(e.target.value)} maxLength={PAY_MAX} placeholder={say(lang, "payHint")} inputMode="email" autoComplete="email" enterKeyHint="done" />
+        <Button tone="quiet" size="sm" type="submit" disabled={!pay}>
+          {say(lang, "paySave")}
+        </Button>
+      </span>
+    </form>
   );
 }
 
@@ -264,6 +326,11 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
               </div>
             </dl>
             <p className="split-note">{say(lang, "personHow")}</p>
+            {/* (a 查看链接's ledger has nobody's: the server keeps it back) */}
+            {(() => {
+              const m = ledger.members.find((x) => x.id === person.id);
+              return m?.pay ? <PayFor ledger={ledger} member={m} me={me} lang={lang} mayChange={false} /> : null;
+            })()}
             {statement.expenses.length > 0 && (
               <>
                 <h3 className="split-subhead">{say(lang, "statementExpenses")}</h3>
