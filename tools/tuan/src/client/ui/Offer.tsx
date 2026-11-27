@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import type { OfferPage, OrderInput, OrderPage, PublicItem } from "../../api";
 import { BASE } from "../../base";
 import { lineAmount, MILLI, QTY_MAX } from "../../engine/money";
+import { caseFill } from "../../engine/cases";
 import { deliveryFee } from "../../engine/order";
 import { phoneDigits } from "../../engine/phone";
 import { weighed, type DeliveryRule, type How } from "../../engine/types";
@@ -332,7 +333,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
             {page.items
               .filter((item) => item.section === name)
               .map((item) => (
-                <ItemRow key={item.id} item={item} qty={cart[item.id] ?? 0} room={most(item, heldOf(item))} open={open} canMore={canMore(item)} onLess={() => less(item)} onMore={() => more(item)} onPick={() => setPicking(item.id)} onLook={() => setLooking(item.id)} />
+                <ItemRow key={item.id} item={item} qty={cart[item.id] ?? 0} before={heldOf(item)} room={most(item, heldOf(item))} open={open} canMore={canMore(item)} onLess={() => less(item)} onMore={() => more(item)} onPick={() => setPicking(item.id)} onLook={() => setLooking(item.id)} />
               ))}
           </ul>
         </section>
@@ -405,6 +406,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
         <Look
           item={lookingItem}
           qty={cart[lookingItem.id] ?? 0}
+          before={heldOf(lookingItem)}
           open={open}
           gone={most(lookingItem, heldOf(lookingItem)) < lookingItem.least}
           canMore={canMore(lookingItem)}
@@ -574,7 +576,38 @@ function Thumb({ item, onLook }: { item: PublicItem; onLook: () => void }) {
   );
 }
 
-function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLook }: { item: PublicItem; qty: number; room: number; open: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onLook: () => void }) {
+/** An amount with its unit: "6 lb", "12 袋". */
+const amountWith = (item: PublicItem, n: number): string => (weighed(item.unit) ? qtyText(item.unit, n) : `${qtyText(item.unit, n)} ${unitName(item.unit)}`);
+
+/**
+ * An item that comes only by the case (src/engine/cases.ts): how far everyone's orders fill it,
+ * this cart counted (`qty`, in place of what the order being changed held, `before`).
+ */
+function CaseBar({ item, qty, before }: { item: PublicItem; qty: number; before: number }) {
+  if (item.case === null || item.held === null) return null;
+  const fill = caseFill(item.case, Math.max(0, item.held - before + qty));
+  const text =
+    fill.full === 0 && fill.part === 0
+      ? t("caseSize", { n: amountWith(item, fill.size) })
+      : fill.short === 0
+        ? t("caseFull", { n: fill.full })
+        : fill.full
+          ? t("caseNext", { full: fill.full, n: amountWith(item, fill.short) })
+          : t("caseShort", { n: amountWith(item, fill.short) });
+  return (
+    <p class={fill.short === 0 ? "case case-full" : "case"}>
+      <span class="case-track" aria-hidden="true">
+        <span class="case-fill" style={{ "--fill": fill.short === 0 ? 1 : fill.part / fill.size }} />
+      </span>
+      <span>
+        {qty > 0 && <span class="case-you">{t("caseYou")} · </span>}
+        {text}
+      </span>
+    </p>
+  );
+}
+
+function ItemRow({ item, qty, before, room, open, canMore, onLess, onMore, onPick, onLook }: { item: PublicItem; qty: number; before: number; room: number; open: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onLook: () => void }) {
   const drawn = useDrawn();
   const byWeight = weighed(item.unit);
   const gone = room < item.least;
@@ -594,6 +627,7 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
           {item.perBuyer !== null && <span class="item-tag">{t("perBuyer", { n: qtyText(item.unit, item.perBuyer) })}</span>}
           {gone ? <span class="item-tag item-tag-warn">{t("soldOut")}</span> : item.left !== null && item.left <= 5 * MILLI && <span class="item-tag item-tag-warn">{t("left", { n: qtyText(item.unit, item.left) })}</span>}
         </p>
+        {!gone && <CaseBar item={item} qty={qty} before={before} />}
       </div>
       {open &&
         !gone &&
@@ -613,7 +647,7 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
 }
 
 /** An item's picture, large, with what it is and the same way into the cart as its row. */
-function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem; qty: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
+function Look({ item, qty, before, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem; qty: number; before: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
   const drawn = useDrawn();
   const byWeight = weighed(item.unit);
   return (
@@ -646,6 +680,12 @@ function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose 
         <span> / {unitName(item.unit)}</span>
         {gone && <span class="item-tag item-tag-warn">{t("soldOut")}</span>}
       </p>
+      {item.case !== null && !gone && (
+        <>
+          <CaseBar item={item} qty={qty} before={before} />
+          <p class="hint">{t("caseAbout", { size: amountWith(item, item.case) })}</p>
+        </>
+      )}
     </Sheet>
   );
 }

@@ -66,6 +66,9 @@ function readItem(input: unknown): NewItem | null {
   if (!whole(least, step, QTY_MAX) || least % step !== 0) return null;
   const perBuyer = raw.perBuyer ?? null;
   if (perBuyer !== null && (!whole(perBuyer, least, QTY_MAX) || perBuyer % step !== 0)) return null;
+  // an item that comes only by the case: a case holds whole steps, more than one
+  const size = raw.case ?? null;
+  if (size !== null && (!whole(size, step + 1, STOCK_MAX) || size % step !== 0)) return null;
   if (raw.photo != null && !(typeof raw.photo === "string" && PHOTO_RE.test(raw.photo))) return null;
   return {
     section: cleanLine(raw.section, 30) ?? "",
@@ -79,6 +82,7 @@ function readItem(input: unknown): NewItem | null {
     least,
     stock,
     perBuyer,
+    case: size,
     allergens: cleanLine(raw.allergens, 120) ?? "",
   };
 }
