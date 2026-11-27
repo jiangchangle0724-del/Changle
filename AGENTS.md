@@ -25,6 +25,7 @@ the commands and the settings.
   `site/src/styles/tokens.css`, never written-out values.
 * New screens use `site/src/ui/`; interfaces are in `types.ts`, previews in `site/ui-preview.html`.
 * Night colors only. Text on bright gels, kind colors, success, warning and danger is night-colored.
+  The one exception is 跟一单 (`tools/tuan`), bright since 2026-11-26 (Steve's call): see its README.
 * Game cards use their kind's color: `category` in `site/src/games/registry.ts` (drink, brain, body,
   online); tools are amber. Inside a game, the room light is that game's own gel.
 * Tap targets are at least 44px, 48 where several sit close together.

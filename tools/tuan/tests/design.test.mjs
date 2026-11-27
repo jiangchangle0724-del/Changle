@@ -1,6 +1,6 @@
 // The pages follow changle.ca's design rules (docs/DESIGN.md in the repository): the same tokens
-// as the site, night colors, and no color, type size, shadow or timing written out in the
-// stylesheet. Plain Node (`node --test`): the other tests run inside the Workers runtime, which
+// as the site (this tool maps them to a bright page, the owner's call), and no color, type size,
+// shadow or timing written out in the stylesheet. Plain Node (`node --test`): the other tests run inside the Workers runtime, which
 // has no files to read.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";

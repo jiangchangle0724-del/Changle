@@ -1,12 +1,35 @@
 /*
  * 跟一单 · Count Me In: its own styles. Every color, type size, corner, shadow and timing comes from
  * tokens.css (a copy of changle.ca's, bundled in front of this file); tests/design.test.mjs keeps
- * it that way. Night colors only. A tool's color is amber, so amber is the light in this room: the
- * thing to press, what's in the cart, the amount to pay. The page, bar, panels, fields, buttons,
- * sheets and toast are the same rules as 约时间's (tools/when), so the tools look alike.
+ * it that way. Unlike the site's night, this tool is bright (the owner's call, 2026-11-26: clean and
+ * light, the way Uber Eats looks): paper and ink, greys mixed from the two, the thing to press in
+ * ink, and the tools' amber only where something wants noticing. The page, bar, panels, fields,
+ * buttons, sheets and toast follow the same rules as 约时间's (tools/when), in these colors.
  */
 
 /* ---------- the page ---------- */
+/* paper and ink: everything below reads these, so the whole tool is bright (the site stays night) */
+:root {
+  --color-bg: var(--color-paper);
+  --color-sheet: var(--color-paper);
+  --color-surface: color-mix(in oklab, var(--night) 4%, var(--color-paper));
+  --color-raised: color-mix(in oklab, var(--night) 8%, var(--color-paper));
+  --color-text: var(--night);
+  --color-text-2: color-mix(in oklab, var(--night) 64%, var(--color-paper));
+  --color-text-3: color-mix(in oklab, var(--night) 44%, var(--color-paper));
+  --color-line: color-mix(in oklab, var(--night) 12%, var(--color-paper));
+  --line-soft: color-mix(in oklab, var(--night) 9%, var(--color-paper));
+  --color-accent: var(--night);
+  /* headings in the text face: plain, like the rest of the page */
+  --font-display: var(--font-text);
+  /* the thing to press, and what's written on it */
+  --press: var(--night);
+  --on-press: var(--color-paper);
+  /* the tools' amber and the signal colors, deep enough to read on paper */
+  --gel-ink: color-mix(in oklab, var(--type-tool) 56%, var(--night));
+  --success-ink: color-mix(in oklab, var(--gel-mint) 55%, var(--night));
+  --danger-ink: color-mix(in oklab, var(--stop) 75%, var(--night));
+}
 *,
 *::before,
 *::after {
@@ -19,7 +42,7 @@ html {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-text);
-  color-scheme: dark;
+  color-scheme: light;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -38,15 +61,6 @@ body {
   -webkit-user-select: none;
   user-select: none;
   touch-action: manipulation;
-}
-/* the lamp over the table */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0 0 auto;
-  height: 46vh;
-  pointer-events: none;
-  background: radial-gradient(120% 100% at 50% -24%, color-mix(in oklab, var(--type-tool) 20%, transparent), transparent 72%);
 }
 #app {
   --gel: var(--type-tool);
@@ -182,7 +196,7 @@ input {
   font-size: var(--text-sm);
 }
 .problem {
-  color: var(--color-danger);
+  color: var(--danger-ink);
   font-size: var(--text-sm);
   font-weight: 600;
 }
@@ -307,9 +321,8 @@ input {
   flex-shrink: 0;
 }
 .btn-primary {
-  background: var(--gel);
-  box-shadow: var(--glow);
-  color: var(--on-gel);
+  background: var(--press);
+  color: var(--on-press);
 }
 /* a faded gel reads as mud on the dark room: a resting button goes grey instead */
 .btn-primary:disabled {
@@ -325,7 +338,7 @@ input {
   color: var(--color-text-3);
 }
 .btn-quiet[aria-pressed="true"] {
-  box-shadow: inset 0 0 0 2px var(--gel);
+  box-shadow: inset 0 0 0 2px var(--press);
 }
 .btn-danger {
   background: var(--color-danger);
@@ -348,7 +361,7 @@ input {
   align-items: center;
   min-height: var(--tap);
   padding: 0 var(--space-2);
-  color: var(--gel);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: underline;
@@ -356,7 +369,7 @@ input {
 }
 .link-btn.danger {
   align-self: flex-start;
-  color: var(--color-danger);
+  color: var(--danger-ink);
 }
 .icon-btn {
   flex-shrink: 0;
@@ -576,7 +589,7 @@ textarea {
   min-height: var(--tap);
   margin: calc(var(--space-3) * -1) calc(var(--space-2) * -1) calc(var(--space-3) * -1) 0;
   padding: 0 var(--space-2);
-  color: var(--gel);
+  color: var(--gel-ink);
   font-weight: 800;
 }
 
@@ -632,7 +645,7 @@ a.shop-name {
   flex-shrink: 0;
 }
 .state-open {
-  color: var(--gel);
+  color: var(--gel-ink);
 }
 .state-shut {
   color: var(--color-text-2);
@@ -715,9 +728,9 @@ a.shop-name {
 }
 .tab[aria-current="true"],
 .tab[aria-pressed="true"] {
-  background: var(--gel);
+  background: var(--press);
   box-shadow: none;
-  color: var(--on-gel);
+  color: var(--on-press);
 }
 .section {
   display: flex;
@@ -915,7 +928,7 @@ a.shop-name {
   place-items: center;
   height: 100%;
   background: color-mix(in oklab, var(--gel) 14%, var(--color-raised));
-  color: var(--gel);
+  color: var(--gel-ink);
   font-family: var(--font-display);
   font-size: var(--text-3xl);
   font-weight: 800;
@@ -964,7 +977,7 @@ a.shop-name {
   overflow-wrap: anywhere;
 }
 .deal-meta {
-  color: var(--gel);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 700;
 }
@@ -1027,7 +1040,7 @@ a.shop-name {
 .again-code {
   margin-top: auto;
   padding-top: var(--space-1);
-  color: var(--gel);
+  color: var(--gel-ink);
   font-weight: 800;
 }
 /* the shops */
@@ -1056,7 +1069,7 @@ a.shop-name {
   height: var(--tap-crowded);
   border-radius: var(--r-field);
   background: color-mix(in oklab, var(--gel) 14%, var(--color-raised));
-  color: var(--gel);
+  color: var(--gel-ink);
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 800;
@@ -1202,7 +1215,7 @@ a.shop-name {
 }
 .item-tag-warn {
   background: color-mix(in oklab, var(--color-warning) 18%, var(--color-surface));
-  color: var(--color-warning);
+  color: var(--gel-ink);
 }
 /* an item that comes only by the case: how full the case is (Offer.tsx) */
 .case {
@@ -1234,7 +1247,7 @@ a.shop-name {
 }
 .case-full,
 .case-you {
-  color: var(--gel);
+  color: var(--gel-ink);
 }
 .add {
   display: grid;
@@ -1243,8 +1256,8 @@ a.shop-name {
   height: var(--tap-crowded);
   padding: 0 var(--space-3);
   border-radius: var(--r-pill);
-  background: var(--gel);
-  color: var(--on-gel);
+  background: var(--press);
+  color: var(--on-press);
   font-size: var(--text-sm);
   font-weight: 800;
   white-space: nowrap;
@@ -1255,7 +1268,7 @@ a.shop-name {
 }
 .add-has {
   background: var(--color-surface);
-  box-shadow: inset 0 0 0 2px var(--gel);
+  box-shadow: inset 0 0 0 2px var(--press);
   color: var(--color-text);
 }
 .stepper {
@@ -1283,8 +1296,8 @@ a.shop-name {
   animation: pop-in var(--dur-enter) var(--ease-pop);
 }
 .step-more {
-  background: var(--gel);
-  color: var(--on-gel);
+  background: var(--press);
+  color: var(--on-press);
 }
 .step:disabled {
   background: var(--color-raised);
@@ -1378,7 +1391,7 @@ a.shop-name {
 }
 @keyframes tick {
   from {
-    color: var(--gel);
+    color: var(--gel-ink);
     transform: scale(1.08);
   }
 }
@@ -1427,7 +1440,7 @@ a.shop-name {
   border-top: 1px solid var(--color-line-soft);
 }
 .roster-n {
-  color: var(--gel);
+  color: var(--gel-ink);
   font-family: var(--font-display);
   font-weight: 700;
 }
@@ -1473,8 +1486,8 @@ a.shop-name {
   font-weight: 700;
 }
 .seg-btn[aria-pressed="true"] {
-  background: var(--gel);
-  color: var(--on-gel);
+  background: var(--press);
+  color: var(--on-press);
 }
 .choices {
   display: flex;
@@ -1514,8 +1527,8 @@ a.shop-name {
   background: none;
 }
 .choice input:checked {
-  border-color: var(--gel);
-  background: radial-gradient(circle, var(--gel) 0 42%, transparent 46%);
+  border-color: var(--press);
+  background: radial-gradient(circle, var(--press) 0 42%, transparent 46%);
 }
 /* a box to tick (the declaration on applying for a shop): the field itself is unseen, its tick shows */
 .choice-tick {
@@ -1541,9 +1554,9 @@ a.shop-name {
   visibility: hidden;
 }
 .choice-tick input:checked + .tick {
-  border-color: var(--gel);
-  background: var(--gel);
-  color: var(--color-on-accent);
+  border-color: var(--press);
+  background: var(--press);
+  color: var(--on-press);
 }
 .choice-tick input:checked + .tick svg {
   visibility: visible;
@@ -1614,7 +1627,7 @@ a.shop-name {
   font-weight: 700;
 }
 .sums-total dd {
-  color: var(--gel);
+  color: var(--color-text);
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 700;
@@ -1631,7 +1644,7 @@ a.shop-name {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-success);
+  color: var(--success-ink);
   font-size: var(--text-lg);
   font-weight: 800;
   /* the one moment of this tool that may show a little joy: the order went in */
@@ -1677,15 +1690,15 @@ a.shop-name {
 }
 .chip-good {
   background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
-  color: var(--color-success);
+  color: var(--success-ink);
 }
 .chip-new {
   background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
-  color: var(--gel);
+  color: var(--gel-ink);
 }
 .chip-bad {
   background: color-mix(in oklab, var(--color-danger) 16%, var(--color-surface));
-  color: var(--color-danger);
+  color: var(--danger-ink);
 }
 
 /* a buyer's pickup code (Order.tsx): dark on light, the way cameras read a QR code best */
@@ -1696,13 +1709,14 @@ a.shop-name {
   aspect-ratio: 1;
   padding: var(--space-2);
   border-radius: var(--r-field);
-  background: var(--color-text);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-flat);
 }
 .qr svg {
   display: block;
   width: 100%;
   height: 100%;
-  fill: var(--color-bg);
+  fill: var(--night);
 }
 .pickup-code .hint {
   text-align: center;
@@ -1721,7 +1735,7 @@ a.shop-name {
 .arrived > svg {
   flex-shrink: 0;
   margin-top: var(--space-1);
-  color: var(--color-success);
+  color: var(--success-ink);
 }
 .arrived-what {
   display: flex;
@@ -1742,13 +1756,13 @@ a.shop-name {
 /* a merchant's group buy: items short of a full case (MyOffer.tsx) */
 .case-warn {
   align-self: center;
-  color: var(--color-warning);
+  color: var(--gel-ink);
 }
 .case-line {
   display: block;
 }
 .case-line-short {
-  color: var(--color-warning);
+  color: var(--gel-ink);
 }
 
 /* ---------- lists of rows that open something (My.tsx, Editor.tsx) ---------- */
@@ -1840,7 +1854,7 @@ a.shop-name {
 
 /* ---------- a merchant's pages ---------- */
 .fresh {
-  color: var(--gel);
+  color: var(--gel-ink);
 }
 .bar-lang:disabled {
   color: var(--color-text-3);
@@ -1913,7 +1927,7 @@ a.shop-name {
   font-weight: 700;
 }
 .stats .stat-hot {
-  color: var(--gel);
+  color: var(--gel-ink);
 }
 .filters {
   display: flex;
@@ -1951,7 +1965,7 @@ a.shop-name {
   padding: 0 var(--space-2);
   border-radius: var(--r-pill);
   background: color-mix(in oklab, var(--gel) 18%, var(--color-surface));
-  color: var(--gel);
+  color: var(--gel-ink);
   font-family: var(--font-display);
   font-weight: 700;
 }
@@ -2071,6 +2085,6 @@ a.shop-name {
 }
 @keyframes tint {
   from {
-    color: var(--gel);
+    color: var(--gel-ink);
   }
 }

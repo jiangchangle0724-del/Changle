@@ -7,6 +7,7 @@
 - 这份文件：规则，和为什么。
 
 `site/DESIGN.md` 写的是现在线上的样子和创意方向：夜里的一个房间，每个游戏一盏色灯。这个方向不变。
+例外：跟一单（`tools/tuan`）的页面从 2026-11-26 起是亮色的（Steve 定的：像 Uber Eats 那样干净明亮），只在它自己的 `styles.css` 里把语义颜色换成白底黑字，tokens 还是这一份。
 迁移做完之前，看现状读它，写新东西按这份。旧值怎么换成新 token，见 [ui-inventory.md](ui-inventory.md)。
 整体方案在 [ui-plan.md](ui-plan.md)。
 
