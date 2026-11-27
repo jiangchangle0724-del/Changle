@@ -42,6 +42,8 @@ import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
 import { peopleOf, statementOf } from "../src/split/people";
+import { CATEGORIES, isCategory } from "../src/split/categories";
+import { categoryOf, guessed } from "../src/split/kinds";
 import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
@@ -886,7 +888,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null, category: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -1494,6 +1496,40 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.text), ["Payment details removed: Steve", "Payment details set: Steve"], "in English");
   eq(historyOf(now, log, [], "s", "zh", 5000).some((l) => l.action), false, "and offers nothing to change back");
   eq([lostLine(start, { id: "x", at: 1, change: steps[0] }, "zh"), lostLine(start, { id: "x", at: 1, change: { do: "pay", member: "zz", pay: "x" } }, "en")], ["收款方式：Steve", "Another change"], "one that didn't stick: whose it was");
+}
+
+// ---------- 24. 分类: what an expense's words say it was, and the record ----------
+{
+  const said = (note: string, merchant?: string) => guessed({ note, merchant });
+  eq(
+    [said("", "Petro-Canada"), said("加油"), said("", "Uber"), said("停车费"), said("", "BC Ferries"), said("机票")],
+    ["transport", "transport", "transport", "transport", "transport", "transport"],
+    "transport: a gas station, filling up, a ride, parking, a ferry, a flight",
+  );
+  eq([said("", "Hilton Whistler"), said("酒店"), said("", "Airbnb")], ["lodging", "lodging", "lodging"], "lodging: a hotel (酒店 isn't drink), a rental");
+  eq([said("", "Costco Wholesale"), said("", "T&T Supermarket"), said("超市买菜"), said("", "BC Liquor Store"), said("", "Shoppers Drug Mart"), said("药店")], ["groceries", "groceries", "groceries", "groceries", "groceries", "groceries"], "groceries: Costco, T&T, 超市, a liquor store, a pharmacy");
+  eq([said("", "Deer Garden Signature"), said("晚饭"), said("", "Tim Hortons"), said("", "Starbucks Coffee Shop"), said("火锅"), said("", "McDonald's")], [null, "food", "food", "food", "food", "food"], "food: dinner, Tim Hortons, a coffee shop (not a shop), 火锅, McDonald's; a restaurant's name alone says nothing");
+  eq([said("门票"), said("", "Cineplex Cinemas"), said("", "Whistler Lift Pass")], ["fun", "fun", "fun"], "fun: tickets, a cinema, a lift pass");
+  eq([said("", "Uniqlo"), said("纪念品"), said("", "Metrotown Mall")], ["shopping", "shopping", "shopping"], "shopping: clothes, souvenirs, a mall");
+  eq([said("还钱"), said("", "Joe's"), said("")], [null, null, null], "words that say no kind: none");
+  eq([categoryOf({ note: "晚饭", category: "fun" }), categoryOf({ note: "晚饭" }), categoryOf({ note: "还钱" })], ["fun", "food", "other"], "the kind it keeps first, then its words, then 其他");
+  eq([CATEGORIES.length, CATEGORIES.every(isCategory), isCategory("petrol"), isCategory(undefined)], [7, true, false, false], "seven kinds, and nothing else is one");
+  // the record: an edit says the kind it changed to, and changing it back brings the old one back
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const start = startLedger("k", "周末", "CAD", people);
+  const gas: Expense = { kind: "expense", id: "e1", at: 1000, payer: "s", amount: 5800, note: "油费", split: { how: "equal", among: ["s", "w"] }, rot: 0, category: "transport" };
+  const to = { payer: "s", amount: 5800, note: "油费", split: gas.split };
+  const steps: Change[] = [{ do: "expense", expense: gas }, { do: "edit", entry: "e1", to: { ...to, category: "fun" } }, { do: "edit", entry: "e1", to: { ...to, category: null } }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `k${i}`, at: 1000 + i, change, by: "s" } };
+  });
+  const lines = historyOf(now, log, [], "s", "zh", 5000);
+  eq(lines.map((l) => l.detail ?? ""), ["去掉了分类", "分类改成 玩乐", ""], "the record says the kind it changed to, or that it was taken off");
+  eq(historyOf(now, log, [], "s", "en", 5000)[1].detail, "Category now Fun", "in English");
+  const back = lines[0].action?.change;
+  eq(back && (applyChange(now, back)?.entries[0] as Expense).category, "fun", "changing the last edit back brings the kind back");
 }
 
 if (failed) {

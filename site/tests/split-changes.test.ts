@@ -581,6 +581,30 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq([parseSent({ ...good, change: { do: "pay", member: "s" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: 5 } }), parseSent({ ...good, change: { do: "pay", member: "s s", pay: "x" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: "x".repeat(401) } })], [null, null, null, null], "not without one, not a number, not a made-up member id, not past what is read at all");
 }
 
+// ---------- 分类: an expense's kind, kept, changed, taken off ----------
+{
+  const start = startLedger("k", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const gas: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 5800, note: "", merchant: "Petro-Canada", split: { how: "equal", among: ["s", "w"] }, rot: 0, category: "transport" };
+  const kept = applyChange(start, { do: "expense", expense: gas });
+  eq((kept?.entries[0] as Expense).category, "transport", "recorded with a kind: kept");
+  eq("category" in (applyChange(start, { do: "expense", expense: { ...gas, category: "petrol" as Expense["category"] } })?.entries[0] ?? {}), false, "a kind there isn't: the expense is kept, without it");
+  const said = { payer: "s", amount: 5800, note: "", split: gas.split };
+  eq((applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: "fun" } })?.entries[0] as Expense).category, "fun", "an edit to another kind changes it");
+  eq("category" in (applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: null } })?.entries[0] ?? {}), false, "null takes it off");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, merchant: "Petro-Canada" } }), null, "an edit that doesn't mention it (and changes nothing else) changes nothing: it stays");
+  eq((applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, amount: 6000 } })?.entries[0] as Expense).category, "transport", "an edit about something else leaves it");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, category: "petrol" as Expense["category"] } }), null, "an edit to a kind there isn't: as unsaid, so it stays (and nothing changed)");
+  eq(balances(kept!), balances(applyChange(start, { do: "expense", expense: { ...gas, category: undefined } })!), "it changes nobody's share");
+  // over the network: a kind there is goes through; one there isn't is as good as unsaid
+  const good = { id: "c-k", at: 1, change: { do: "expense", expense: { ...gas } } };
+  eq((parseSent(good)?.change as { expense: Expense }).expense.category, "transport", "read off the network with it");
+  eq("category" in (parseSent({ ...good, change: { do: "expense", expense: { ...gas, category: "petrol" } } })?.change as { expense: Expense }).expense, false, "a kind this side doesn't know: the expense comes through without it");
+  eq([(parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e1", to: { ...said, category: null } } })?.change as { to: Record<string, unknown> }).to.category === null, "category" in (parseSent({ id: "c-e", at: 1, change: { do: "edit", entry: "e1", to: { ...said, category: "petrol" } } })?.change as { to: Record<string, unknown> }).to], [true, false], "an edit: null comes through to take it off; a kind it doesn't know, as unsaid");
+  const served = serve(start, [sent({ do: "expense", expense: gas })]);
+  eq((asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0] as Expense).category, "transport", "the server keeps it, and a phone reads it back");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], category: "spaceflight" }] })?.entries.map((e) => [e.id, "category" in e]), [["e1", false]], "a ledger saying a kind this phone doesn't know: the expense kept, without it");
+}
+
 if (failed) {
   console.log(`\n${failed} failure(s)`);
   process.exit(1);

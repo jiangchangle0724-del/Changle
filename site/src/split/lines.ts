@@ -7,6 +7,7 @@
 import type { Lang } from "../i18n";
 import type { Sent } from "./changes";
 import { balances, expensesOf, type Expense, type Ledger, type Settlement } from "./core";
+import type { Category } from "./categories";
 import type { Person } from "./people";
 import { summaryOf, type Most } from "./summary";
 import { dayBefore, dayName, localDay, money } from "./format";
@@ -22,6 +23,9 @@ const nameOf = (l: Ledger, id: string) => l.members.find((m) => m.id === id)?.na
  * lose it, and someone who joins by a link, later, hasn't said yet. It never guesses.)
  */
 export const mine = (l: Ledger, me: string | undefined) => (me && l.members.some((m) => m.id === me) ? me : undefined);
+
+/** Each kind of spending's name (categories.ts). */
+export const CATEGORY_WORD: Record<Category, Word> = { food: "catFood", groceries: "catGroceries", transport: "catTransport", lodging: "catLodging", fun: "catFun", shopping: "catShopping", other: "catOther" };
 
 /** A member's name as this phone's owner reads it: 你 for themselves. */
 export const nameFor = (l: Ledger, id: string, me: string | undefined, lang: Lang) => (id === me ? say(lang, "you") : nameOf(l, id));

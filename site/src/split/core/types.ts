@@ -72,6 +72,11 @@ export type Expense = {
   merchant?: string;
   place?: string;
   payment?: string;
+  /**
+   * what kind of spending it was (categories.ts): read off its receipt, or picked. Without one, its
+   * words are guessed from. Shown and summed up, and nothing more.
+   */
+  category?: "food" | "groceries" | "transport" | "lodging" | "fun" | "shopping" | "other";
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };
