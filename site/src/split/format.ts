@@ -49,6 +49,15 @@ function grouped(whole: string, lang: Lang): string {
   return nf.format(BigInt(whole));
 }
 
+const percents = new Map<string, Intl.NumberFormat>();
+/** A part of a whole as a whole percent, the way the reader's language writes one ("42%"). */
+export function percent(part: number, whole: number, lang: Lang): string {
+  const locale = lang === "zh" ? "zh-CN" : "en-CA";
+  let nf = percents.get(locale);
+  if (!nf) percents.set(locale, (nf = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 })));
+  return nf.format(whole > 0 ? part / whole : 0);
+}
+
 /** An amount in smallest units, written out: 4250 Canadian cents is "$42.50". Never negative: the words around it say who owes whom. */
 export function money(minor: number, currency: string, lang: Lang): string {
   const [whole, frac] = fromMinor(Math.abs(minor), decimalsOf(currency)).split(".");

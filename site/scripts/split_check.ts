@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -3912,6 +3912,116 @@ async function paying() {
   await a.close();
 }
 
+// ---------- kinds: 分类 ----------
+/**
+ * 分类 (2026-11-26): each expense's kind at the start of its row (what its words say, picked in 详情,
+ * or read off its receipt); a pick let go with a second tap; the record says so; 按分类 in 总结.
+ */
+async function kinding() {
+  if (!local) {
+    console.log("kinds: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "分类", ["阿甲"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const synced = () => pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const icon = async (has: string) => (await pa.locator("#split-list .split-row", { hasText: has }).locator(".split-kind-mark svg").getAttribute("class")) ?? "";
+  const sheet = pa.getByRole("dialog");
+  const pill = (k: Word) => sheet.getByRole("button", { name: t(k), exact: true });
+  const said = () => sheet.locator(".split-kinds .split-note").innerText();
+  // a note that says what it was: counted as that, with its picture
+  await button(pa, "addExpense").click();
+  await type(pa, "60");
+  await setNote(pa, "晚饭");
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await icon("晚饭")).includes("lucide-utensils-crossed"), "晚饭: counted as 餐饮, its picture at the start of the row");
+  // in 详情: what it would count as, then one picked over it, said on the line under 分摊
+  await button(pa, "addExpense").click();
+  await type(pa, "45");
+  await detailsLine(pa).click();
+  await noteInSheet(pa).fill("停车");
+  ok((await said()) === say("zh", "categoryGuess", { kind: t("catTransport") }) && (await sheet.locator(".split-kinds [aria-pressed=true]").count()) === 0, "none picked: it says what its note makes it (交通)");
+  const heights = await sheet.locator(".split-kinds .ui-pill-toggle").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  ok(heights.length === 7 && heights.every((h) => h >= 48), `seven to pick from, each a crowded target's height (${heights.map(Math.round).join(", ")})`);
+  await pill("catFun").click();
+  ok((await pill("catFun").getAttribute("aria-pressed")) === "true" && (await said()) === t("categoryUnpick"), "玩乐 picked: it is lit, and the line says a second tap lets it go");
+  await pa.screenshot({ path: join(out, "kinds-pick-zh-390x664.png") });
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok((await detailsLine(pa).innerText()).includes(t("catFun")), "the line under 分摊 says the kind picked");
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await icon("停车")).includes("lucide-ticket"), "saved: the row has the picked kind's picture, not its words'");
+  // opened again: picked there; a second tap lets it go, and the record says so
+  await pa.locator("#split-list .split-row", { hasText: "停车" }).click();
+  await detailsLine(pa).click();
+  ok((await pill("catFun").getAttribute("aria-pressed")) === "true", "opened again, 玩乐 is still the one picked");
+  await pill("catFun").click();
+  ok((await sheet.locator(".split-kinds [aria-pressed=true]").count()) === 0 && (await said()) === say("zh", "categoryGuess", { kind: t("catTransport") }), "tapped again: none picked, and it counts as its note says once more");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await icon("停车")).includes("lucide-car"), "saved: the row is 交通's again");
+  await synced();
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("history")) }).click();
+  await sheet.getByText(t("historyCategoryGone")).waitFor({ timeout: 10_000 });
+  ok((await sheet.getByText(say("zh", "historyCategory", { kind: t("catFun") })).count()) === 0, "改动记录 says the kind was taken off");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // read off a receipt: the kind it says, picked for it
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:120.00 CAD Hilton Whistler kind=lodging") });
+  await pa.locator(".split-add-extras", { hasText: "Hilton Whistler" }).waitFor({ timeout: 15_000 });
+  ok((await detailsLine(pa).innerText()).includes(t("catLodging")), "a receipt read as a hotel: the line under 分摊 says 住宿");
+  await detailsLine(pa).click();
+  ok((await pill("catLodging").getAttribute("aria-pressed")) === "true", "and in 详情 住宿 is the one picked");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok((await icon("Hilton")).includes("lucide-bed-double"), "saved: a bed at the start of its row");
+  await synced();
+  // 总结: what each kind came to, the most first
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const lines = pa.locator(".split-kinds-spent > li");
+  await lines.first().waitFor();
+  const rows = await lines.evaluateAll((els) => els.map((li) => ({ name: li.querySelector(".split-kinds-spent-name")?.firstChild?.textContent ?? "", sum: li.querySelector(".split-kinds-spent-sum")?.firstChild?.textContent ?? "", share: li.querySelector(".split-kinds-spent-sum small")?.textContent ?? "", bar: Number(li.querySelector(".split-kinds-spent-bar rect + rect")?.getAttribute("width")) })));
+  const wanted = [
+    { name: t("catLodging"), sum: "$120.00", share: "53%", bar: 53 },
+    { name: t("catFood"), sum: "$60.00", share: "27%", bar: 27 },
+    { name: t("catTransport"), sum: "$45.00", share: "20%", bar: 20 },
+  ];
+  ok(rows.length === 3 && rows.every((r, i) => r.name === wanted[i].name && r.sum === wanted[i].sum && r.share === wanted[i].share && Math.round(r.bar) === wanted[i].bar), `按分类: 住宿 $120.00 53%, 餐饮 $60.00 27%, 交通 $45.00 20%, each bar as long as its share (${JSON.stringify(rows)})`);
+  await lines.first().scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "kinds-summary-zh-390x664.png") });
+  // in English, on the narrowest phone: the seven fit, and so does 按分类
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  await pa.getByRole("tab", { name: say("en", "settle") }).click();
+  await lines.first().scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "kinds-summary-en-320x568.png") });
+  const fitsWide = () => pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  const cut = await lines.evaluateAll((els) => els.filter((li) => li.scrollWidth > li.clientWidth + 1).length);
+  ok((await fitsWide()) && cut === 0, "in English on a 320 phone, 按分类 fits");
+  await pa.getByRole("tab", { name: say("en", "expenses") }).click();
+  await pa.locator("#split-list .split-row", { hasText: "晚饭" }).click();
+  await detailsLine(pa).click();
+  await sheet.locator(".split-kinds").scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "kinds-pick-en-320x568.png") });
+  const out320 = await sheet.locator(".split-kinds .ui-pill-toggle").evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().right > window.innerWidth || e.scrollWidth > e.clientWidth + 1).length);
+  ok((await fitsWide()) && out320 === 0 && (await said()) === say("en", "categoryGuess", { kind: say("en", "catFood") }), "and the seven to pick from fit, saying what its note makes it in English");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -3925,6 +4035,7 @@ if ((what === "all" || what === "read") && local) await reading();
 if (what === "all" || what === "view") await viewing();
 if (what === "all" || what === "search") await searching();
 if (what === "all" || what === "pay") await paying();
+if (what === "all" || what === "kinds") await kinding();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

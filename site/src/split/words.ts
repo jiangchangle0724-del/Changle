@@ -299,6 +299,12 @@ export const W = {
   catFun: { zh: "玩乐", en: "Fun" },
   catShopping: { zh: "购物", en: "Shopping" },
   catOther: { zh: "其他", en: "Other" },
+  // 分类 on the screens: picked in 详情, on each row, summed up in 总结 (2026-11-26)
+  category: { zh: "分类", en: "Category" },
+  categoryGuess: { zh: "不选的话，按备注和名称算作{kind}。", en: "Unless you pick one, it counts as {kind}, from its note and name." },
+  categoryNone: { zh: "不选的话，算作{kind}。", en: "Unless you pick one, it counts as {kind}." },
+  categoryUnpick: { zh: "再点一下就不选了。", en: "Tap it again to unpick it." },
+  byKind: { zh: "按分类", en: "By category" },
   historyPay: { zh: "填了{who}的收款方式", en: "Payment details set: {who}" },
   historyPayOff: { zh: "去掉了{who}的收款方式", en: "Payment details removed: {who}" },
   historyRemoveSomeone: { zh: "去掉了一个人", en: "Removed someone" },
@@ -612,9 +618,9 @@ export function say(lang: Lang, key: Word, fill?: Record<string, string | number
  */
 export const KIND_SAYS: [Category, RegExp][] = [
   ["lodging", /hotel|motel|\binn\b|airbnb|hostel|resort|lodge|hilton|marriott|hyatt|westin|sheraton|fairmont|best western|travelodge|住宿|酒店|宾馆|民宿|旅馆|房费/i],
-  ["transport", /\buber\b|\blyft\b|taxi|\bcab\b|\bgas\b|petro|\besso\b|\bshell\b|chevron|husky|parking|impark|easypark|paybyphone|ferr(y|ies)|skytrain|translink|compass card|\bbus\b|\btrain\b|flight|air canada|westjet|car rental|rental car|\bhertz\b|\bavis\b|\btoll\b|加油|油费|停车|打车|出租|地铁|公交|机票|火车|渡轮|租车|过路费|车费/i],
+  ["transport", /\buber\b(?! ?eats)|\blyft\b|taxi|\bcab\b|\bgas\b|petro|\besso\b|\bshell\b|chevron|husky|parking|impark|easypark|paybyphone|ferr(y|ies)|skytrain|translink|compass card|\bbus\b|\btrain\b|flight|air canada|westjet|car rental|rental car|\bhertz\b|\bavis\b|\btoll\b|加油|油费|停车|打车|出租|地铁|公交|机票|火车|渡轮|租车|过路费|车费/i],
   ["groceries", /costco|walmart|\bt ?& ?t\b|safeway|save[- ]?on|superstore|no frills|whole foods|h ?mart|london drugs|shoppers|pharmac|drug ?store|7-?eleven|grocer|supermarket|liquor|\bbcl\b|超市|买菜|菜市场|大统华|便利店|药店|药房|日用/i],
   ["fun", /ticket|cinema|movie|theat(re|er)|museum|aquarium|\bzoo\b|lift pass|\bski\b|golf|karaoke|\bktv\b|bowling|arcade|concert|门票|电影|演唱会|滑雪|唱歌|景点|游乐|球票/i],
-  ["food", /restaurant|\bcafe\b|café|coffee|starbucks|tim hortons|mcdonald|a ?& ?w|wendy|burger|pizza|sushi|ramen|noodle|\bpho\b|\bbbq\b|\bbar\b|\bpub\b|bistro|kitchen|grill|diner|bakery|\btea\b|boba|dim sum|hot ?pot|饭|餐|吃|面|粉|火锅|烧烤|奶茶|咖啡|早茶|夜宵|宵夜|点心|寿司|喝酒|酒吧/i],
+  ["food", /restaurant|\bcafe\b|café|coffee|starbucks|tim hortons|mcdonald|a ?& ?w|wendy|burger|pizza|sushi|ramen|noodle|\bpho\b|\bbbq\b|\bbar\b|\bpub\b|bistro|kitchen|grill|diner|bakery|\btea\b|boba|dim sum|hot ?pot|breakfast|brunch|lunch|dinner|supper|\bmeal|snack|take ?out|uber ?eats|doordash|skip the dishes|饭|餐|吃|面|粉|火锅|烧烤|茶|咖啡|夜宵|宵夜|点心|寿司|喝酒|酒吧/i],
   ["shopping", /\bmall\b|\bstore\b|\bshop\b|amazon|ikea|uniqlo|\bh ?& ?m\b|\bzara\b|gift|souvenir|clothes|outlet|购物|衣服|礼物|纪念品|商场/i],
 ];

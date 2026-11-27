@@ -16,12 +16,13 @@ import { EmptyState } from "../ui/EmptyState";
 import { Sheet } from "../ui/Sheet";
 import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Member, type Settlement } from "./core";
-import { money } from "./format";
+import { money, percent } from "./format";
+import { byKind } from "./kinds";
 import { whenText } from "./history";
-import { dayLabel, nameFor, paysLine, personLine, personStands, spentOn, summaryLines } from "./lines";
+import { CATEGORY_WORD, dayLabel, nameFor, paysLine, personLine, personStands, spentOn, summaryLines } from "./lines";
 import { peopleOf, statementOf } from "./people";
 import { paidId, PAY_MAX, tidy } from "./ops";
-import { copyText } from "./parts";
+import { copyText, KindMark } from "./parts";
 import { localDay } from "./format";
 import { isStale, type Made } from "./picture";
 import { record } from "./syncing";
@@ -389,6 +390,8 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
 /** 总结: what the ledger came to, a line each (lines.ts, summaryLines): its name, the sum, and what it is over. */
 function Summary({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; lang: Lang }) {
   const lines = summaryLines(ledger, me, lang);
+  const kinds = byKind(ledger);
+  const all = kinds.reduce((sum, k) => sum + k.amount, 0);
   if (!lines.length) return null;
   return (
     <>
@@ -404,6 +407,31 @@ function Summary({ ledger, me, lang }: { ledger: Ledger; me: string | undefined;
           </div>
         ))}
       </dl>
+      {/* 按分类 (kinds.ts): each kind's sum and its share of all that was spent, a bar under it; one kind alone says nothing new */}
+      {kinds.length > 1 && (
+        <>
+          <h4 className="split-subhead">{say(lang, "byKind")}</h4>
+          <ul className="split-kinds-spent">
+            {kinds.map((k) => (
+              <li key={k.kind}>
+                <KindMark kind={k.kind} />
+                <span className="split-kinds-spent-name">
+                  {say(lang, CATEGORY_WORD[k.kind])}
+                  <small>{k.count === 1 ? say(lang, "summaryCountOne") : say(lang, "summaryCount", { n: k.count })}</small>
+                </span>
+                <span className="split-kinds-spent-sum">
+                  {money(k.amount, ledger.currency, lang)}
+                  <small>{percent(k.amount, all, lang)}</small>
+                </span>
+                <svg className="split-kinds-spent-bar" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true">
+                  <rect width="100" height="4" />
+                  <rect width={(k.amount / all) * 100} height="4" />
+                </svg>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </>
   );
 }

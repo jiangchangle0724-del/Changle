@@ -25,9 +25,11 @@ import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, totalOf, type Key } from "./input";
-import { dayLabel, extrasText, nameFor, spentOn } from "./lines";
+import { CATEGORY_WORD, dayLabel, extrasText, nameFor, spentOn } from "./lines";
 import { DETAIL_MAX, DETAILS, isDay, NOTE_MAX, type Detail } from "./ops";
-import { Bar, Keypad } from "./parts";
+import { CATEGORIES, type Category } from "./categories";
+import { guessed } from "./kinds";
+import { Bar, KIND_ICONS, Keypad } from "./parts";
 import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
@@ -347,7 +349,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const readLine = comes || twinLine || sumLine ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
   const extrasLine = comes || reading || twinLine || sumLine ? null : fresh && aboutSaid ? say(lang, "readExtras", { what: aboutSaid }) : amountSaid ? amountSaid.charAt(0).toUpperCase() + amountSaid.slice(1) : null;
   // the 详情 line: the day, then what it was for and where and how it was paid, as far as they go
-  const detailsSaid = [draft.note, draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
+  // (its kind only when one is picked or read: one it would only count as is the sheet's to say)
+  const detailsSaid = [draft.note, draft.category ? say(lang, CATEGORY_WORD[draft.category]) : "", draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
   // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
@@ -501,6 +504,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
         onLines={(to) => setDraft((d) => ({ ...d, ...to }))}
         onNote={(note) => setDraft((d) => ({ ...d, note }))}
+        onKind={(category) => setDraft((d) => ({ ...d, category }))}
       />
       {/* several photos chosen at once: an expense each (几张小票), or all of them this one's */}
       <Sheet open={!!several} onClose={() => setSeveral(null)} lang={lang} category="tool" title={say(lang, "severalTitle", { n: several?.length ?? 0 })}>
@@ -719,6 +723,7 @@ function DetailsSheet({
   onExtras,
   onLines,
   onNote,
+  onKind,
 }: {
   open: boolean;
   onClose: () => void;
@@ -730,8 +735,10 @@ function DetailsSheet({
   onExtras: (to: { tip?: string; tax?: string }) => void;
   onLines: (to: Partial<Pick<Draft, Detail>>) => void;
   onNote: (note: string) => void;
+  onKind: (kind: Category | null) => void;
 }) {
   const over = extrasOver(draft);
+  const guess = guessed(draft);
   return (
     <Sheet
       open={open}
@@ -761,6 +768,20 @@ function DetailsSheet({
             <input value={draft[k]} onChange={(e) => onLines({ [k]: e.target.value })} maxLength={DETAIL_MAX} placeholder={say(lang, LINE_WORDS[k][1])} enterKeyHint="next" autoComplete="off" />
           </label>
         ))}
+        {/* 分类: one of the seven, or none (then its words say which it counts as, kinds.ts); the one picked is let go with a second tap */}
+        <div className="split-kinds" role="group" aria-labelledby="split-kinds-head">
+          <h3 className="split-subhead" id="split-kinds-head">
+            {say(lang, "category")}
+          </h3>
+          <div className="split-pills">
+            {CATEGORIES.map((k) => (
+              <Pill key={k} kind="toggle" tone={draft.category === k ? "tool" : "neutral"} selected={draft.category === k} icon={KIND_ICONS[k]} onToggle={(on) => onKind(on ? k : null)}>
+                {say(lang, CATEGORY_WORD[k])}
+              </Pill>
+            ))}
+          </div>
+          <p className="split-note">{draft.category ? say(lang, "categoryUnpick") : say(lang, guess ? "categoryGuess" : "categoryNone", { kind: say(lang, CATEGORY_WORD[guess ?? "other"]) })}</p>
+        </div>
         <div className="split-extras">
           <h3 className="split-subhead">{say(lang, "extrasHead", { currency: lang === "zh" ? currencyName(draft.currency, lang) : draft.currency })}</h3>
           {(["tip", "tax"] as const).map((k) => (

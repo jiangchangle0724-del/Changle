@@ -2,7 +2,7 @@
  * 搜索账目 (2026-11-26, borrowed from Spliit's search, its #51): finding an expense by what it says.
  *
  * What is typed is looked for in the note, the business, the place, the payment and who paid it
- * (by name, and 你 for whoever is reading), on letters and digits alone and in any case: "mcdonalds"
+ * (by name, and 你 for whoever is reading) and its kind of spending (by name), on letters and digits alone and in any case: "mcdonalds"
  * finds McDonald's, "ＴＩＭ" finds Tim Hortons. Typed as a sum, it is also looked for in what was
  * paid, in the ledger's currency or the one it was paid in: "42.50" (or "$42.5") finds $42.50 and
  * nothing else, "42" finds $42.00 to $42.99.
@@ -10,7 +10,9 @@
 import type { Lang } from "../i18n";
 import type { Expense, Ledger } from "./core";
 import { decimalsOf } from "./format";
-import { nameFor } from "./lines";
+import { categoryOf } from "./kinds";
+import { CATEGORY_WORD, nameFor } from "./lines";
+import { say } from "./words";
 
 /** Letters and digits only, in one case and one width: what two texts are compared on. */
 export const bare = (s: string) => s.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -41,7 +43,9 @@ export function matches(e: Expense, l: Ledger, typed: string, me: string | undef
   const want = bare(typed);
   if (!want) return false;
   const name = l.members.find((m) => m.id === e.payer)?.name;
-  return [e.note, e.merchant, e.place, e.payment, name, nameFor(l, e.payer, me, lang)].some((text) => !!text && bare(text).includes(want));
+  // (and its kind of spending, by its name in either language: 交通 or transport)
+  const kind = CATEGORY_WORD[categoryOf(e)];
+  return [e.note, e.merchant, e.place, e.payment, name, nameFor(l, e.payer, me, lang), say("zh", kind), say("en", kind)].some((text) => !!text && bare(text).includes(want));
 }
 
 /** Below this many expenses there is nothing to search: the list is short enough to see whole. */

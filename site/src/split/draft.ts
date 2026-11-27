@@ -13,6 +13,7 @@ import { allot, convert, expensesOf, fromMinor, isAmount, problem, toMinor, type
 import { decimalsOf, localDay } from "./format";
 import type { ExpenseEdit } from "./ops";
 import { lastPaidIn, paidInOf, RECENT, settled, startingRate, todaysRate } from "./rates";
+import type { Category } from "./categories";
 import type { Reading } from "./shape";
 
 export type How = Split["how"];
@@ -63,6 +64,8 @@ export type Draft = {
   merchant: string;
   place: string;
   payment: string;
+  /** its kind of spending (categories.ts), as picked or read off its receipt; none, and it counts as its words say (kinds.ts) */
+  category: Category | null;
 };
 
 /**
@@ -93,6 +96,7 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     merchant: "",
     place: "",
     payment: "",
+    category: null,
   };
 }
 
@@ -122,6 +126,7 @@ export function draftOf(e: Expense, l: Ledger): Draft {
     merchant: e.merchant ?? "",
     place: e.place ?? "",
     payment: e.payment ?? "",
+    category: e.category ?? null,
   };
 }
 
@@ -166,6 +171,8 @@ export function readInto(d: Draft, got: Reading, l: Ledger, today: Rates | null 
     merchant: next.merchant || got.merchant || "",
     place: next.place || got.place || "",
     payment: next.payment || got.payment || "",
+    // (a kind picked stays; else the one the receipt says)
+    category: next.category ?? got.category ?? null,
     tip: part(got.tip),
     tax: part(got.tax),
     date: got.date && !dayPicked ? got.date : next.date,
@@ -284,6 +291,7 @@ export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
     merchant: d.merchant.trim() || null,
     place: d.place.trim() || null,
     payment: d.payment.trim() || null,
+    category: d.category,
   };
   if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extrasOf(d) };
   // (paid in a currency these screens can't show: that, and its tip and tax, unsaid)

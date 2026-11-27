@@ -56,7 +56,7 @@ export function joinBill(a: Draft, b: Draft): Draft {
   const total = (d: Draft) => toMinor(d.text, decimalsOf(d.currency)) ?? 0;
   const [big, small] = total(b) > total(a) ? [b, a] : [a, b];
   const names = [a.merchant.trim(), b.merchant.trim()].filter(Boolean).sort((x, y) => x.length - y.length);
-  return { ...a, text: big.text, tip: big.tip || small.tip, tax: a.tax || b.tax, merchant: names[0] ?? "", place: a.place || b.place, payment: a.payment || b.payment, date: a.date || b.date };
+  return { ...a, text: big.text, tip: big.tip || small.tip, tax: a.tax || b.tax, merchant: names[0] ?? "", place: a.place || b.place, payment: a.payment || b.payment, date: a.date || b.date, category: a.category ?? b.category };
 }
 
 const saidOfExpense = (l: Ledger, e: Expense): Said => ({
