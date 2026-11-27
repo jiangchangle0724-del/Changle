@@ -1580,6 +1580,35 @@ html[data-turned="cw"] {
   --safe-top: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-left, 0px);
 }
+/* the top layer (the tally's <dialog>, the game menu's popover) sits above the body and doesn't turn
+   with it: each is turned the same way itself. From the screen's top-left corner, the body's turn
+   (rotate, then the page's width or height back) and then where it goes on the upright page: the
+   sheet along its bottom, the menu under the header at the right (percentages are the element's own
+   size, so this is the same as `inset` would have been) */
+html[data-turned] :is(.ui-sheet, .ui-game-menu) {
+  inset: 0 auto auto 0;
+  margin: 0;
+  transform-origin: top left;
+}
+html[data-turned] .ui-sheet {
+  width: 100dvh;
+  max-width: none;
+  max-height: calc(100vw - var(--safe-top) - var(--space-4));
+  /* (its slide in is a transform too: it would undo the turn) */
+  animation: none;
+}
+html[data-turned="ccw"] .ui-sheet {
+  transform: rotate(-90deg) translateX(-100dvh) translateY(calc(100vw - 100%));
+}
+html[data-turned="cw"] .ui-sheet {
+  transform: rotate(90deg) translateY(-100vw) translateY(calc(100vw - 100%));
+}
+html[data-turned="ccw"] .ui-game-menu {
+  transform: rotate(-90deg) translateX(-100dvh) translate(calc(100dvh - var(--gutter) - 100%), calc(var(--bar-h) + var(--safe-top)));
+}
+html[data-turned="cw"] .ui-game-menu {
+  transform: rotate(90deg) translateY(-100vw) translate(calc(100dvh - var(--gutter) - 100%), calc(var(--bar-h) + var(--safe-top)));
+}
 .lb {
   display: flex;
   flex-direction: column;
