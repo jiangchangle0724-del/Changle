@@ -380,7 +380,8 @@ test("a sign-in on its own: what is asked, in which order, and what each answer 
     [{ ...offer, nonce: newToken() }, 401, "code"],
     [{ ...offer, nonce: `${nonce}x` }, 401, "code"],
     [{ ...offer, nonce: nonce.slice(0, -1) }, 401, "code"],
-    [{ ...offer, gate: { mode: "owner" } as const }, 403, "not-admitted"],
+    // (the owner's gate: on the list and not the owner's; the owner's and not on the list comes below)
+    [{ ...offer, gate: { mode: "owner", accounts: new Set([A]) } as const }, 403, "not-admitted"],
     [{ ...offer, gate: { mode: "closed" } as const }, 403, "not-admitted"],
   ] as const) {
     asked.length = 0;
@@ -390,9 +391,16 @@ test("a sign-in on its own: what is asked, in which order, and what each answer 
   // the owner's mark is what the accounts service said, and with it the owner's gate lets the owner in
   asked.length = 0;
   const owners = sqlite();
-  const owner = await tradeCode({ ...doors, redeem: async () => ({ id: A, master: true, nonce }), signIn: async (made) => (asked.push(`owner ${made.owner}`), signIn(owners, made, T0, { mode: "owner" })) }, { ...offer, gate: { mode: "owner" } });
+  const ownersGate = { mode: "owner", accounts: new Set([A]) } as const;
+  const asOwner: Doors = { ...doors, redeem: async () => ({ id: A, master: true, nonce }), signIn: async (made) => (asked.push(`owner ${made.owner}`), signIn(owners, made, T0, ownersGate)) };
+  const owner = await tradeCode(asOwner, { ...offer, gate: ownersGate });
   assert.deepEqual(owner, { ok: true, account: A });
   assert.deepEqual(asked, ["stampNow", `note ${A}`, "owner true"]);
+  // the accounts service calls it the owner's, and its id is not the one written down: not let in, and nothing reached
+  asked.length = 0;
+  assert.deepEqual(await tradeCode(asOwner, { ...offer, gate: { mode: "owner", accounts: new Set([B]) } }), { ok: false, status: 403, why: "not-admitted" });
+  assert.deepEqual(await tradeCode(asOwner, { ...offer, gate: { mode: "owner", accounts: new Set() } }), { ok: false, status: 403, why: "not-admitted" });
+  assert.deepEqual(asked, ["stampNow", "stampNow"]);
   // an answer from the accounts service that is not an account with a nonce is no account
   for (const odd of [null, { id: "not an id", master: false, nonce }, { id: A, master: "yes", nonce }, { id: A, master: false, nonce: 5 }, { id: A, master: false }, {}]) {
     asked.length = 0;

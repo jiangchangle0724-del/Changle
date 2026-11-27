@@ -27,7 +27,7 @@ type View =
   | { at: "open"; vault: OpenVault };
 
 const WEAK: Record<Weak, Key> = { "too-short": "weakTooShort", "too-long": "weakTooLong", pattern: "weakPattern", common: "weakCommon", "few-words": "weakFewWords" };
-const ENTERED: Partial<Record<Entered, Key>> = { code: "outCode", "not-admitted": "outNotAdmitted", closed: "outClosed", "too-many": "outTooMany", "try-again": "outTryAgain" };
+const ENTERED: Partial<Record<Entered, Key>> = { code: "outCode", "not-admitted": "outNotAdmitted", closed: "outClosed", "too-many": "outTooMany", "slow-down": "busy", "try-again": "outTryAgain" };
 
 /** Where the page stands when it opens: a handoff code in the address is traded first, and taken out of the address before anything else. */
 async function arrive(ask: Ask): Promise<View> {
@@ -299,6 +299,8 @@ function sayOf(result: Exclude<Opened, { ok: true }>, byCode: boolean): { key: K
       return { key: "unsupported" };
     case "changed":
       return { key: "changed" };
+    case "busy":
+      return { key: "busy" };
     case "offline":
       return { key: "offlineBody" };
     default:

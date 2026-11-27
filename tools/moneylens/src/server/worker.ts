@@ -28,6 +28,12 @@
  *   (ISO-2): the request goes to that account's object, which checks the token. The body is
  *   handed on unread, as a stream: a Worker on the Free plan has ten milliseconds of processor
  *   time for a request (LIM-1), and a push can be eight megabytes.
+ * - What a stranger can make this server do is kept small before it is done (the review of
+ *   #814, finding 1). An account id that is not on the gate's list goes no further than the
+ *   Worker. And whatever would ask something of an object, the registry or the accounts service
+ *   is first counted by the address it came from, by Cloudflare's own rate limiter (`TRADES`
+ *   for the trading of codes, `ASKS` for everything else; `ratelimits` in wrangler.jsonc). With
+ *   the gate open and no limiter bound, nothing is answered.
  *
  * No answer may be kept by anything in between (`no-store`), framed by anyone, or read as
  * anything but what it says it is (SEC-1). No `Access-Control-*` header is ever sent.
@@ -42,7 +48,7 @@ import { LIMITS } from "../vault/protocol";
 import { ACTIONS, act, proofsIn, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
 import type { Db } from "./chunks";
 import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
-import { configOf, type Config, type Settings } from "./gate";
+import { configOf, listed, type Config, type Settings } from "./gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "./registry";
 import { fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
 import { hashOf, newToken } from "./sessions";
@@ -60,6 +66,29 @@ export interface Env extends Settings {
   ACCOUNTS: Accounts;
   /** The app's pages, as files (dist/app; `assets` in wrangler.jsonc). Every request comes to this Worker first, and it asks for a file here. */
   ASSETS: Fetcher;
+  /** Cloudflare's rate limiter, twice (`ratelimits` in wrangler.jsonc): the trading of handoff codes, and every other request with a session's cookie. Counted by the address a request came from. */
+  TRADES: Limiter;
+  ASKS: Limiter;
+}
+
+/** What Cloudflare's rate limiter offers: one more for this key, and whether that is still within the limit. */
+type Limiter = { limit(options: { key: string }): Promise<{ success: boolean }> };
+const isLimiter = (x: unknown): x is Limiter => typeof x === "object" && x !== null && typeof (x as Limiter).limit === "function";
+
+/**
+ * One more request from this address: is it within the limit? Asked only when the request is about to cost something
+ * beyond itself. The count is Cloudflare's, kept per place and brought together in the background, so it is a lid
+ * on what one address can spend and not an exact number. A limiter that fails lets the request through: it guards
+ * what the server spends, and who is let in does not rest on it.
+ */
+async function within(limiter: Limiter, request: Request): Promise<boolean> {
+  try {
+    // (the address is Cloudflare's own word for where the request came from; a caller cannot set it)
+    return (await limiter.limit({ key: request.headers.get("CF-Connecting-IP") || "nowhere" })).success !== false;
+  } catch (e) {
+    console.error("moneylens: the limiter failed", e instanceof Error ? e.name : typeof e);
+    return true;
+  }
 }
 
 /** The objects as flows.ts reaches them: the registry (one for all), the accounts service, and each account's own. */
@@ -81,8 +110,8 @@ function doorsOf(env: Env): Doors {
 
 /** The longest body of a request that is not a push: a code, an id, a vault's name. */
 const SMALL = 4096;
-/** A push at its largest: its blobs and its head. */
-const PUSH_MAX = LIMITS.batchBytes + HEAD_MAX;
+/** The largest push: the frame's four bytes of length, its head, and a batch's worth of blobs (wire.ts). */
+const PUSH_MAX = 4 + HEAD_MAX + LIMITS.batchBytes;
 const JSON_TYPE = "application/json";
 const BYTES_TYPE = "application/octet-stream";
 
@@ -143,19 +172,23 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return reply(405, JSON.stringify({ ok: false, why: "post-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "POST" });
   if (!fromOurOrigin(request.headers, config.origin)) return refuse(403, "origin");
   if (config.gate.mode === "closed") return refuse(403, "closed");
+  // (open, and nothing to count by: the server is not set up to be open)
+  if (!isLimiter(env.TRADES) || !isLimiter(env.ASKS)) return refuse(503, "not-set-up");
   const action = path.slice("/api/".length);
   if (action === "session") return trade(request, env, config);
   if (!ACTIONS.includes(action)) return refuse(404, "no-such-thing");
   const signedOut = [noCookie(SESSION_COOKIE)];
   const cookie = readSession(request.headers.get("Cookie"));
   if (!cookie) return refuse(401, "signed-out", signedOut);
-  // (with a list, an account that is not on it reaches no database at all)
-  if (config.gate.mode === "list" && !config.gate.accounts.has(cookie.account)) return refuse(403, "not-admitted", signedOut);
+  // (an account that is not on the gate's list reaches no database at all)
+  if (!listed(config.gate, cookie.account)) return refuse(403, "not-admitted", signedOut);
   const push = action === "sync/push";
   const wrong = unfit(request, push ? BYTES_TYPE : JSON_TYPE, push ? PUSH_MAX : SMALL);
   if (wrong) return wrong;
   const hash = await hashOf(cookie.token);
   if (!hash) return refuse(401, "signed-out", signedOut);
+  // (from here the request reaches an object: counted first)
+  if (!(await within(env.ASKS, request))) return refuse(429, "slow-down");
   // To that account's own database, and no other. The body goes on as it came, unread.
   const answer = await env.VAULTS.get(env.VAULTS.idFromName(cookie.account)).fetch(`https://vault.internal/${action}`, {
     method: "POST",
@@ -205,6 +238,8 @@ async function trade(request: Request, env: Env, config: Config): Promise<Respon
     code = undefined;
   }
   if (typeof code !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(code)) return refuse(400, "bad-request", over);
+  // (from here the trade asks the registry and the accounts service: counted first. Nothing was traded, so the nonce stays)
+  if (!(await within(env.TRADES, request))) return refuse(429, "slow-down");
   // The token is made here and its hash goes on; the token itself goes to the browser, and only if the trade says ok.
   const token = newToken();
   const hash = await hashOf(token);

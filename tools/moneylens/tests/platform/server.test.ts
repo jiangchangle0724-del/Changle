@@ -418,13 +418,14 @@ test("bodies: of the stated kind, with a stated length, and no longer than the k
   // too long for what it is
   assert.deepEqual(await said(await send(server, "/api/sessions", JSON.stringify({ pad: "x".repeat(5000) }), jar)), [413, "too-big"]);
   assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code: "x".repeat(5000) }), new Map([["__Host-ml-n", newId() + newId()]]))), [413, "too-big"]);
-  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX + 1), jar)), [413, "too-big"]);
+  // (the largest push is a frame's four bytes of length, the largest head, and a batch of blobs: one byte more is too long)
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(4 + HEAD_MAX + LIMITS.batchBytes + 1), jar)), [413, "too-big"]);
   // (a session that has not unlocked its vault is told so, whatever it pushes; this one unlocks, and then its push is looked at)
   assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(64), jar)), [423, "locked"]);
   const held = ((await (await send(server, "/api/vault", "{}", jar)).json()) as { vault: string | null }).vault;
   assert.equal((held === null ? await beginVault(server, jar, newId()) : await unlockAs(server, jar, held)).status, 200);
   // as long as a push may be, and no frame: read, and refused for what it is
-  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX), jar)), [400, "bad-request"]);
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(4 + HEAD_MAX + LIMITS.batchBytes), jar)), [400, "bad-request"]);
   // a body sent in pieces, with no length stated
   const status = await new Promise<number>((done, failed) => {
     const request = http.request(`${server.base}/api/sessions`, { method: "POST", headers: { Origin: ORIGIN, "Content-Type": "application/json", Cookie: `__Host-ml=${jar.get("__Host-ml")}`, "Transfer-Encoding": "chunked" } }, (answer) => {
@@ -690,20 +691,68 @@ test("the gate as the repository sets it: shut, to everyone, on every route (SEC
   }
 });
 
-test("the gate open to the owner: the account the accounts service calls the owner's, and no other", async () => {
-  const owners = await start(8800, { GATE: "owner", ALLOWED_ACCOUNTS: B });
+test("the gate open to the owner: the account written down, when the accounts service calls it the owner's, and no other", async () => {
+  const owners = await start(8800, { GATE: "owner", ALLOWED_ACCOUNTS: `${A},${B}` });
   try {
+    // on the list and not the owner's; the owner's and not on the list: neither is let in
     assert.deepEqual(await said((await signInAs(owners, B)).answer), [403, "not-admitted"]);
+    assert.deepEqual(await said((await signInAs(owners, C, { master: true })).answer), [403, "not-admitted"]);
     const owner = await signInAs(owners, A, { master: true });
     assert.equal(owner.answer.status, 200);
     assert.equal((await send(owners, "/api/sessions", "{}", owner.jar)).status, 200);
     assert.deepEqual(await said((await signInAs(owners, A)).answer), [403, "not-admitted"]);
+    // An id that is not written down goes no further than the Worker, whatever its cookie says. (An object that was
+    // reached would say "signed out", having no session for it; that no object is asked is shown in tests/limits.test.ts.)
+    for (const made of [C, "umadeup0001", "umadeup0002"]) assert.deepEqual(await said(await send(owners, "/api/sessions", "{}", new Map([["__Host-ml", `${made}.${"x".repeat(43)}`]]))), [403, "not-admitted"], made);
     // a dozen sign-ins an hour, and no more (the one above counts; the two that were not let in do not)
     for (let i = 0; i < 11; i++) assert.equal((await signInAs(owners, A, { master: true })).answer.status, 200, `sign-in ${i}`);
     assert.deepEqual(await said((await signInAs(owners, A, { master: true })).answer), [429, "too-many"]);
   } finally {
     await owners.stop();
     rmSync(owners.kept, { recursive: true, force: true });
+  }
+});
+
+test("one address is told to slow down past its limits, on this platform's own count, and nobody else is asked for it (the review of #814, finding 1)", async () => {
+  // (the limits as wrangler.jsonc sets them: twenty trades and three hundred other requests a minute from one address)
+  const counted = await start(8792, { GATE: "list", ALLOWED_ACCOUNTS: A }, undefined, false, "own");
+  // (the local runtime counts by the minute on the clock: each count below is begun with enough of its minute left to finish in)
+  const roomFor = async (ms: number): Promise<void> => {
+    const left = 60_000 - (Date.now() % 60_000);
+    if (left < ms) await new Promise((r) => setTimeout(r, left + 250));
+  };
+  try {
+    await roomFor(20_000);
+    const person = await signInAs(counted, A);
+    assert.equal(person.answer.status, 200);
+    // trades: the one above, nineteen more with codes nobody made, and then no more
+    const bad = async (): Promise<[number, unknown]> => {
+      const jar: Jar = new Map();
+      await send(counted, "/enter", null, jar, { method: "GET", origin: null });
+      return said(await send(counted, "/api/session", JSON.stringify({ code: base64url(crypto.getRandomValues(new Uint8Array(32))) }), jar));
+    };
+    for (let i = 0; i < 19; i++) assert.deepEqual(await bad(), [401, "code"], `trade ${i + 2}`);
+    for (let i = 0; i < 3; i++) assert.deepEqual(await bad(), [429, "slow-down"], `trade ${i + 21}`);
+    // (a real code is turned away too, and is not spent: nobody was asked about it)
+    const late: Jar = new Map();
+    const entered = await send(counted, "/enter", null, late, { method: "GET", origin: null });
+    const code = await codeFor(counted, A, new URL(entered.headers.get("Location")!).searchParams.get("handoff")!);
+    const refused = await send(counted, "/api/session", JSON.stringify({ code }), late);
+    assert.deepEqual([await said(refused), refused.headers.getSetCookie()], [[429, "slow-down"], []]);
+    // other requests have their own count: the session opened above goes on working, three hundred times
+    await roomFor(40_000);
+    let ok = 0;
+    for (let i = 0; i < 300; i++) ok += (await send(counted, "/api/sessions", "{}", person.jar)).status === 200 ? 1 : 0;
+    assert.equal(ok, 300);
+    const stopped = await send(counted, "/api/sessions", "{}", person.jar);
+    assert.deepEqual([await said(stopped), stopped.headers.getSetCookie()], [[429, "slow-down"], []]);
+    // what costs nothing is still answered as what it is
+    assert.deepEqual(await said(await send(counted, "/api/sessions", "{}", new Map())), [401, "signed-out"]);
+    assert.deepEqual(await said(await send(counted, "/api/sessions", "{}", new Map([["__Host-ml", `${C}.${"x".repeat(43)}`]]))), [403, "not-admitted"]);
+    assert.equal((await got(counted, "/")).status, 200);
+  } finally {
+    await counted.stop();
+    rmSync(counted.kept, { recursive: true, force: true });
   }
 });
 

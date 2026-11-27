@@ -60,7 +60,7 @@ export function codeIn(fragment: string): string | null {
  * How a sign-in ended. "code": the code did not trade (used, out of time, or not this browser's: the sign-in starts
  * over). "try-again": the server turned it away for a reason that has passed (assessment 1.8). "offline": no answer.
  */
-export type Entered = "ok" | "code" | "not-admitted" | "closed" | "too-many" | "try-again" | "offline" | "server";
+export type Entered = "ok" | "code" | "not-admitted" | "closed" | "too-many" | "slow-down" | "try-again" | "offline" | "server";
 
 /** Trades the handoff code for a session. The session is a cookie this code never sees. */
 export async function enter(ask: Ask, code: string): Promise<Entered> {
@@ -69,7 +69,8 @@ export async function enter(ask: Ask, code: string): Promise<Entered> {
   if (answer.status === 200 && answer.json.ok === true) return "ok";
   if (answer.status === 401 || answer.status === 400) return "code";
   if (answer.status === 403) return answer.json.why === "not-admitted" ? "not-admitted" : answer.json.why === "closed" ? "closed" : "server";
-  if (answer.status === 429) return "too-many";
+  // ("slow-down": too many requests from this address in a minute; anything else: this account's dozen sign-ins an hour)
+  if (answer.status === 429) return answer.json.why === "slow-down" ? "slow-down" : "too-many";
   if (answer.status === 503 && answer.json.why === "try-again") return "try-again";
   return "server";
 }
@@ -160,12 +161,13 @@ export async function keep(ask: Ask, made: Draft): Promise<"ok" | "another" | "s
  *   outside what is accepted). The secret may well be right. Nothing was shown to the server.
  * - "changed": the proof was right and the wrapper that came back does not open under the same secret, or is not
  *   this vault's. The ways in were altered where they are stored. Never to be shown as a wrong passphrase.
+ * - "busy": too many requests from this address in a minute. Nothing was tried; in a minute it can be.
  */
 export type Opened =
   | { ok: true; vault: OpenVault }
   | { ok: false; why: "wrong-secret"; left: number | null }
   | { ok: false; why: "too-many"; again: number }
-  | { ok: false; why: "no-secret" | "no-way" | "unsupported" | "changed" | "signed-out" | "offline" | "server" };
+  | { ok: false; why: "no-secret" | "no-way" | "unsupported" | "changed" | "busy" | "signed-out" | "offline" | "server" };
 
 /** Opens the vault with one of its secrets: asks for the proof's parameters, shows the proof, and opens the wrapper that comes back. */
 export async function open(ask: Ask, vault: string, secret: Secret): Promise<Opened> {
@@ -174,6 +176,7 @@ export async function open(ask: Ask, vault: string, secret: Secret): Promise<Ope
   if (!way) return { ok: false, why: "offline" };
   if (way.status === 401 || way.status === 403) return { ok: false, why: "signed-out" };
   if (way.status === 404) return { ok: false, why: "no-way" };
+  if (way.status === 429) return { ok: false, why: "busy" };
   if (way.status !== 200 || typeof way.json.id !== "string") return { ok: false, why: "server" };
   const params = way.json.params;
   if (!isProofParams(params) || params.kind !== secret.kind) return { ok: false, why: "unsupported" };
@@ -184,6 +187,8 @@ export async function open(ask: Ask, vault: string, secret: Secret): Promise<Ope
   if (!shown) return { ok: false, why: "offline" };
   if (shown.status === 401 || shown.status === 403) return { ok: false, why: "signed-out" };
   if (shown.status === 422) return { ok: false, why: "wrong-secret", left: typeof shown.json.left === "number" ? shown.json.left : null };
+  // (too many requests from this address is not too many wrong tries: nothing was tried)
+  if (shown.status === 429 && shown.json.why === "slow-down") return { ok: false, why: "busy" };
   if (shown.status === 429) return { ok: false, why: "too-many", again: typeof shown.json.again === "number" && shown.json.again > 0 ? shown.json.again : 60_000 };
   if (shown.status === 404) return { ok: false, why: "no-way" };
   if (shown.status !== 200) return { ok: false, why: "server" };

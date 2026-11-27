@@ -15,6 +15,15 @@
   // puts the security headers on what goes out (src/server/worker.ts, `page`).
   "build": { "command": "node scripts/build-app.mjs" },
   "assets": { "directory": "./dist/app", "binding": "ASSETS", "not_found_handling": "none", "run_worker_first": true },
+  // What one address may ask in a minute before it is told to slow down (src/server/worker.ts,
+  // `within`): twenty trades of a handoff code, three hundred other requests. Cloudflare counts
+  // per place and brings the counts together in the background, so these are lids, not exact
+  // numbers. The namespace ids are this Worker's own (any two numbers no other Worker of the
+  // account uses).
+  "ratelimits": [
+    { "name": "TRADES", "namespace_id": "7301", "simple": { "limit": 20, "period": 60 } },
+    { "name": "ASKS", "namespace_id": "7302", "simple": { "limit": 300, "period": 60 } }
+  ],
   // One Durable Object for each person, named by their account's id, with its own SQLite database
   // (ISO-1): sessions, the vault's sealed chunks, the events log. And one, "registry", that only
   // knows which accounts have ever signed in (src/server/registry.ts).
@@ -33,9 +42,12 @@
     // The one origin requests may come from (SEC-4), and where signing in starts.
     "ORIGIN": "https://money.changle.ca",
     "MAIN_SITE": "https://changle.ca",
-    // The gate (SEC-10): "closed", "owner" (Steve's own account alone) or "list" (the accounts in
-    // ALLOWED_ACCOUNTS, ids apart by commas). Opening it is Steve's decision, recorded with its
-    // date in docs/briefs/moneylens.md. Anything else written here reads as "closed".
+    // The gate (SEC-10): "closed", "owner" or "list". Open either way, ALLOWED_ACCOUNTS (ids apart
+    // by commas) is who may be let in, and an id that is not on it never reaches an object.
+    // "list": everyone on it. "owner": the one on it that the accounts service calls the
+    // owner's (so the list is then Steve's own account id). Opening it is Steve's decision,
+    // recorded with its date in docs/briefs/moneylens.md. Anything else written here reads as
+    // "closed".
     "GATE": "closed",
     "ALLOWED_ACCOUNTS": ""
     // Quotas (LIM-2), when the defaults are to be changed: QUOTA_VAULT_BYTES (10485760),

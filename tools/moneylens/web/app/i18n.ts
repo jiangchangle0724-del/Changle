@@ -30,6 +30,7 @@ const STRINGS = {
   outCode: { zh: "登录没有完成，再点一次。", en: "The sign-in didn't finish. Try once more." },
   outTooMany: { zh: "登录太频繁了，过一小时再试。", en: "Too many sign-ins. Try again in an hour." },
   outTryAgain: { zh: "刚才没进去，再点一次就好。", en: "That didn't go through. Once more will do it." },
+  busy: { zh: "这一会儿请求太多了，过一分钟再试。", en: "Too many requests just now. Try again in a minute." },
   outLeft: { zh: "已经退出登录。", en: "You're signed out." },
 
   // ---------- a new vault: the passphrase ----------

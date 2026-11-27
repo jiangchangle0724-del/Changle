@@ -37,10 +37,13 @@ export type Server = { base: string; port: number; kept: string; stop(): Promise
 /**
  * Starts the Worker with wrangler.jsonc's own settings, except for `vars` (and no address on the internet). `kept`:
  * where its storage is, to start it again on the same. `secure`: over HTTPS, with a certificate wrangler makes for
- * itself, which is what a browser needs before it will keep this server's cookies.
+ * itself, which is what a browser needs before it will keep this server's cookies. `limits`: "own" keeps the two
+ * rate limits as wrangler.jsonc sets them; otherwise they are set far out of reach, because every test comes from
+ * one address and a suite signs in more often in a minute than a person does.
  */
-export async function start(port: number, vars: Record<string, string | undefined>, kept = mkdtempSync(join(tmpdir(), "moneylens-server-")), secure = false): Promise<Server> {
-  const settings = JSON.parse(plainJson(readFileSync("wrangler.jsonc", "utf8"))) as { vars: Record<string, string>; main: string; assets: { directory: string }; routes?: unknown; build?: unknown; $schema?: unknown };
+export async function start(port: number, vars: Record<string, string | undefined>, kept = mkdtempSync(join(tmpdir(), "moneylens-server-")), secure = false, limits: "own" | "far" = "far"): Promise<Server> {
+  const settings = JSON.parse(plainJson(readFileSync("wrangler.jsonc", "utf8"))) as { vars: Record<string, string>; main: string; assets: { directory: string }; ratelimits: { simple: { limit: number } }[]; routes?: unknown; build?: unknown; $schema?: unknown };
+  if (limits === "far") for (const limiter of settings.ratelimits) limiter.simple.limit = 1_000_000;
   delete settings.routes;
   delete settings.$schema;
   // (the pages are built once, before any server starts: see `before`)

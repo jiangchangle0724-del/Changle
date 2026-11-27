@@ -32,8 +32,13 @@
  *    the waiting codes of an account it deletes, and of an account whose other devices it signs
  *    out because the address changed (site/worker/hub.ts, `endSessions`, and handoffCodes.ts,
  *    `forgetHandoffs`). A deleted account's code therefore no longer trades. After a change of
- *    address, a code that still trades is one asked for after the change, or by the one device
- *    the change left signed in: a sign-in the notice was never meant to stop.
+ *    address, a code can still trade when it was asked for after the change, or when the
+ *    account had no other device signed in at that moment (with no session to end, the
+ *    accounts service drops no code). The second is, nearly always, the one device the change
+ *    left signed in: a sign-in the notice was never meant to stop. The exception is a code
+ *    asked for by a session that ran out in the minute before the change: it still trades, and
+ *    opens a session the change should have ended. That is the accounts service's to close (the
+ *    review of #814, finding 2; asked of its owner in docs/briefs/moneylens.md).
  * 2. Its stamp was set after that, and before the object's read. The stamps differ, and no
  *    session is opened.
  * 3. Its stamp was set after the object's read. Its work on the object comes later still, so

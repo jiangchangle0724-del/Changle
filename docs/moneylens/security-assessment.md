@@ -795,13 +795,16 @@ and in CI (`npm run test:server`), with a stand-in for the accounts service.
   now checks), is answered with "unavailable" and nothing is done.
 
 **The gate (SEC-10, T-23).** The setting `GATE`: `closed` (what the repository says), `owner`,
-or `list`; anything else reads as `closed`. With `owner`, a sign-in is let in when the accounts
-service says the account is the owner's, the object remembers what was said at the latest
-sign-in, and every request is asked for it. With `list`, a sign-in is let in when the account's
-id is in `ALLOWED_ACCOUNTS`, and the Worker asks the list on every request before any object is
-reached, so taking an id off the list takes effect at once; the owner is on the list or is not
-let in. A sign-in that is not let in writes nothing anywhere, the registry included. Opening
-the gate is the operator changing that setting.
+or `list`; anything else reads as `closed`. Open either way there is a list of account ids,
+`ALLOWED_ACCOUNTS`, and the Worker asks it on every request before any object is reached: an id
+that is not on it goes no further, and taking an id off the list takes effect at once. With
+`list`, being on the list is what lets an account in; the owner is on it or is not let in. With
+`owner`, the account has to be on the list and the accounts service has to say, at sign-in,
+that it is the owner's; the object remembers what was said at the latest sign-in, and every
+request is asked for it. (Until 0.16 the owner's gate had no list, and an id someone made up
+reached an object of its own: the review of this section, at its second look, finding 1.) A
+sign-in that is not let in writes nothing anywhere, the registry included. Opening the gate is
+the operator changing that setting.
 
 **A sign-in and a notice at the same time (`flows.ts`; the review of this section, finding
 1).** A sign-in goes to three places one after another: the accounts service (the code), the
@@ -827,8 +830,14 @@ was set before the sign-in first read it: then the accounts service had done its
 before the code was traded, and in that part it drops the waiting codes of an account it
 deletes and of an account whose other devices it signs out (`site/worker/hub.ts`,
 `endSessions`; `handoffCodes.ts`, `forgetHandoffs`), so a deleted account's code no longer
-trades, and a code that still trades after a change of address is one asked for after the
-change or by the one device the change left signed in. Or its stamp was set after that and
+trades. After a change of address a code can still trade when it was asked for after the
+change, or when the account had no other device signed in at that moment: with no session to
+end, the accounts service drops no code. That is nearly always the one device the change left
+signed in, a sign-in the notice was never meant to stop. The exception is a code asked for by a
+session that ran out in the minute before the change: it still trades, and opens a session the
+change should have ended. Closing that is the accounts service's (drop the account's waiting
+codes at every change of address), and is asked of its owner in the brief (the second look's
+finding 2). Or its stamp was set after that and
 before the object read it: the stamps differ. Or its stamp was set after the object read it:
 then its work on the object comes later still, either while the object waits for the registry's
 answer, and the count has moved, or after the session was written, and ends it.
@@ -851,15 +860,29 @@ a time, and on what the accounts service does before it tells MoneyLens, which i
 not this tool's: if it ever told the apps before dropping the codes, the first of the three
 cases would no longer hold.
 
-**What a wrong guess costs.** An address someone made up reaches an object only with the gate
-open to the owner (with a list, the Worker stops it). There it costs one request and one read:
-a database nobody signed in to has no tables, and none is made. A wrong token for a real account
-costs one request and at most eight short rows read, and writes nothing. A made-up code costs
-one read of the registry's stamp and one question to the accounts service. None of these is limited in
-this code, because an object cannot refuse a request without having been asked. A rule on
-`/api/*` in Cloudflare's own rate limiting is a setting, to be asked of the operator before
-Phase 3. Sign-ins are limited here: twelve an hour for one account (eight sessions are kept, so
-signing in over and over would push a person's other devices out).
+**What a stranger can make the server do (the second look's finding 1).** An account id someone
+made up reaches no object: it is not on the gate's list, and the Worker stops it there for the
+price of the request. What is left costs something beyond the request, and is counted before
+it is done, by the address the request came from, with Cloudflare's own rate limiter (two
+bindings, `ratelimits` in `wrangler.jsonc`): a wrong token for an account that is on the list
+(one request to that account's object and at most eight short rows read; nothing written) is
+one of three hundred requests a minute from that address, and a made-up code (one read of the
+registry's stamp and one question to the accounts service, the one object behind all of
+changle.ca's accounts) is one of twenty trades a minute. Past the limit the answer is "slow
+down" and nobody is asked. What costs nothing is not counted (no cookie, an id not on the list,
+a body of the wrong kind or length, a code that does not look like one). With the gate open and
+no limiter bound, nothing is answered at all: the server is not set up to be open.
+
+What these limits are and are not. Cloudflare counts per place and brings the counts together
+in the background, so they are a lid on what one address can spend, not an exact number, and
+people behind one address share a lid. A limiter that fails lets the request through: it
+guards what the server spends, and who is let in does not rest on it. They do not stop a
+request from being a request: every one still counts toward the Free plan's daily number,
+which all of changle.ca shares (LIM-1), and many addresses each get their own lid. Stopping
+requests before they reach the Worker is a rule in Cloudflare's dashboard; it is still to be
+set, and still wanted before Phase 3. Sign-ins are also limited per account, as before: twelve
+an hour (eight sessions are kept, so signing in over and over would push a person's other
+devices out).
 
 **Sync as it travels (`wire.ts`).** Blobs are not put into JSON. A push's body and the answers
 to a push and a pull are a frame: four bytes of length, that many bytes of JSON naming each blob

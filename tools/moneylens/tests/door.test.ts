@@ -61,7 +61,7 @@ test("the handoff code is read from the address's fragment, and only when that i
     assert.equal(codeIn(fragment), null, JSON.stringify(fragment));
 });
 
-test("a sign-in ends one of eight ways, and only one of them is in", async () => {
+test("a sign-in ends one of nine ways, and only one of them is in", async () => {
   const sent: unknown[] = [];
   const answers: [{ status: number; json?: Record<string, unknown> } | null, string][] = [
     [{ status: 200, json: { ok: true } }, "ok"],
@@ -72,6 +72,9 @@ test("a sign-in ends one of eight ways, and only one of them is in", async () =>
     [{ status: 403, json: { ok: false, why: "closed" } }, "closed"],
     [{ status: 403, json: { ok: false, why: "origin" } }, "server"],
     [{ status: 429, json: { ok: false, why: "too-many" } }, "too-many"],
+    // (too many requests from this address in a minute is not this account's dozen sign-ins an hour: the wait is a minute)
+    [{ status: 429, json: { ok: false, why: "slow-down" } }, "slow-down"],
+    [{ status: 429, json: {} }, "too-many"],
     [{ status: 503, json: { ok: false, why: "try-again" } }, "try-again"],
     [{ status: 503, json: { ok: false, why: "not-set-up" } }, "server"],
     [{ status: 500, json: { ok: false, why: "unavailable" } }, "server"],
@@ -259,6 +262,14 @@ test("what the server sends is checked before it is used: no proof for cheap par
     assert.deepEqual(await open(swapped(wrapper), vault, secret), { ok: false, why }, JSON.stringify(wrapper));
   // none of that was a wrong passphrase, and none of it was counted as one
   assert.equal(s.tries(), 0);
+
+  // Told to slow down (too many requests from this address), at either step: nothing was tried, and it is not said to be too many wrong tries.
+  const slow = (action: string): Ask => twisted(laptop, action, () => ({ status: 429, json: { ok: false, why: "slow-down" } }));
+  assert.deepEqual(await open(slow("vault/way"), vault, secret), { ok: false, why: "busy" });
+  assert.deepEqual(await open(slow("vault/unlock"), vault, secret), { ok: false, why: "busy" });
+  // (the server's own "too many wrong tries" still says how long, and one that names no time is a minute)
+  assert.deepEqual(await open(twisted(laptop, "vault/unlock", () => ({ status: 429, json: { ok: false, why: "too-many", again: 1234 } })), vault, secret), { ok: false, why: "too-many", again: 1234 });
+  assert.deepEqual(await open(twisted(laptop, "vault/unlock", () => ({ status: 429, json: { ok: false, why: "too-many" } })), vault, secret), { ok: false, why: "too-many", again: 60_000 });
 
   // No answer, or an answer that is no answer, at either step.
   for (const action of ["vault/way", "vault/unlock"]) {

@@ -8,7 +8,7 @@ import test from "node:test";
 import { newId } from "../src/core/ids";
 import { ACTIONS, act, isSetUp, proofsIn, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
 import { chunkTables, lastDay, pushChunks, startVault, type Db } from "../src/server/chunks";
-import { admits, configOf, gateOf, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
+import { admits, configOf, gateOf, listed, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "../src/server/registry";
 import { labelOf } from "../src/server/request";
 import { hashOf, newToken } from "../src/server/sessions";
@@ -20,7 +20,8 @@ const ORIGIN = "https://money.changle.test";
 const [A, B] = ["uaaaaaa1", "ubbbbbb2"];
 const T0 = Date.UTC(2026, 10, 25, 20, 0, 0);
 const MINUTE = 60_000;
-const config = (settings: Settings = {}): Config => configOf({ ORIGIN, GATE: "owner", ...settings })!;
+/** Open to the owner unless said otherwise, with both of these tests' accounts written down: which of them is the owner's is the accounts service's word at sign-in. */
+const config = (settings: Settings = {}): Config => configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: `${A},${B}`, ...settings })!;
 const tables = (db: Db & { raw: { prepare(sql: string): { all(): unknown[] } } }): number => db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all().length;
 const json = (text: string): Uint8Array => new TextEncoder().encode(text);
 const blob = (fill: number, length = 64): Uint8Array => new Uint8Array(length).fill(fill);
@@ -51,7 +52,9 @@ const why = (answer: Answer): [number, unknown] => [answer.status, answer.json?.
 test("the gate: closed unless it is set open, and to whom", () => {
   assert.deepEqual(gateOf({}), { mode: "closed" });
   for (const GATE of ["closed", "open", "Owner", "OWNER", "", " owner", 1, true, null, ["owner"]]) assert.deepEqual(gateOf({ GATE }), { mode: "closed" });
-  assert.deepEqual(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A }), { mode: "owner" });
+  assert.deepEqual(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A }), { mode: "owner", accounts: new Set([A]) });
+  // (open to the owner with no id written down: nobody is on the list, so nobody is let in and no id reaches an object)
+  assert.deepEqual(gateOf({ GATE: "owner" }), { mode: "owner", accounts: new Set() });
   // a list: ids apart by commas, spaces or lines; what is not an account's id is left out; no list is an empty list
   assert.deepEqual(gateOf({ GATE: "list", ALLOWED_ACCOUNTS: ` ${A},${B}\n  ucccccc3 ,, not-an-id, U1234567, u12 ` }), { mode: "list", accounts: new Set([A, B, "ucccccc3"]) });
   assert.deepEqual(gateOf({ GATE: "list" }), { mode: "list", accounts: new Set() });
@@ -61,7 +64,12 @@ test("the gate: closed unless it is set open, and to whom", () => {
 
   // who is let in
   assert.equal(admits({ mode: "closed" }, A, true), false);
-  assert.deepEqual([admits({ mode: "owner" }, A, true), admits({ mode: "owner" }, A, false)], [true, false]);
+  // the owner: on the list, and the accounts service says so. Neither alone is enough.
+  const owner = gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A });
+  assert.deepEqual([admits(owner, A, true), admits(owner, A, false), admits(owner, B, true), admits(owner, B, false)], [true, false, false, false]);
+  assert.deepEqual([admits(gateOf({ GATE: "owner" }), A, true), admits(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: "" }), A, true)], [false, false]);
+  // what the Worker asks before a request reaches an object: is the id on the list at all
+  assert.deepEqual([listed(owner, A), listed(owner, B), listed({ mode: "closed" }, A), listed(gateOf({ GATE: "list", ALLOWED_ACCOUNTS: B }), B), listed(gateOf({ GATE: "list" }), A)], [true, false, false, true, false]);
   const list = gateOf({ GATE: "list", ALLOWED_ACCOUNTS: A });
   // (with a list, the list is all that counts: the owner is on it or is not let in)
   assert.deepEqual([admits(list, A, false), admits(list, A, true), admits(list, B, true), admits(list, B, false)], [true, true, false, false]);
@@ -130,6 +138,9 @@ test("signing in: the gate is asked, and whoever is not let in leaves nothing be
   // open to the owner: the account the accounts service calls the owner's, and no other
   const db = sqlite();
   assert.equal((await enter(db, B, T0, config(), false)).said, "not-admitted");
+  assert.equal(tables(db), 0);
+  // and only when its id is the one written down: the owner's word alone does not open a database
+  for (const written of [B, "", undefined]) assert.equal((await enter(db, A, T0, config({ ALLOWED_ACCOUNTS: written }))).said, "not-admitted", String(written));
   assert.equal(tables(db), 0);
   const first = await enter(db, A, T0, config());
   assert.equal(first.said, "ok");
