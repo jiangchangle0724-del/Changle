@@ -167,6 +167,12 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
     if (res) return cors(res, req, res.headers.get("Cache-Control") ?? "no-store");
   }
   const hub = env.HUB.get(env.HUB.idFromName("hub"));
+  // Stripe's events (worker/stripe.ts): the body handed over exactly as it came, for its signature
+  if (path === "/stripe/webhook" && req.method === "POST") {
+    if (Number(req.headers.get("Content-Length") ?? 0) > 1_000_000) return new Response("size", { status: 413 });
+    const r = await hub.stripeWebhook(await req.text(), req.headers.get("Stripe-Signature") ?? "");
+    return new Response(r.body, { status: r.status, headers: { "Content-Type": "text/plain" } });
+  }
   if (path === "/live") {
     if (!originOk(req)) return new Response("forbidden", { status: 403 });
     return hub.fetch(req);

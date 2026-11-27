@@ -173,3 +173,44 @@
 .member-more strong {
   color: var(--moon);
 }
+
+/* a plan's button, under it (the whole card's width) */
+.member-plan-go {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  display: grid;
+  justify-items: start;
+}
+.member-plan-go > .ui-button {
+  justify-self: stretch;
+}
+.member-plan-go:empty {
+  display: none;
+}
+@media (min-width: 720px) {
+  /* side by side, the buttons line up along the cards' bottoms */
+  .member-plan {
+    grid-template-rows: auto auto auto 1fr;
+  }
+  .member-plan-go {
+    align-self: end;
+    margin-top: var(--space-2);
+  }
+}
+
+/* back from paying */
+.member-back {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--dusk-2);
+  line-height: var(--leading);
+}
+.member-back.is-in {
+  background: var(--gel);
+  color: var(--night);
+  font-weight: 700;
+}
+.member-test {
+  color: var(--moon);
+}
