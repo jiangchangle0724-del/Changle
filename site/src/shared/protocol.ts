@@ -140,7 +140,7 @@ export type RoomEvent =
 
 /* ---------- per-game views (what one phone is allowed to see) ---------- */
 
-export type RoguePhase = "draw" | "pick" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
+export type RoguePhase = "draw" | "pick" | "judge" | "done" | "garden-pick" | "garden" | "grab" | "sevens-start" | "sevens";
 export type RogueHolders = { buddy?: string; camera?: string; nose?: string; wc?: string; trouble?: string };
 export type RogueView = {
   id: "rogue";
@@ -160,6 +160,8 @@ export type RogueView = {
   log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
   /** this deck's penalties by player, the powers' included (the recap when the deck runs out) */
   tally?: Record<string, number>;
+  /** 每张牌可换玩法: the host's choice for each rank, by variant id (a rank left out plays the classic way) */
+  house?: Partial<Record<Rank, string>>;
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;

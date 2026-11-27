@@ -6838,6 +6838,90 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
 });
 
+test("rogue: 每张牌可换玩法 (Steve, 11-26): the host picks a rank's way; the card then plays that way (everyone, both sides, a judged round, the 10's cousins); the card up waits; a held power goes back when its rank changes; the classic choice clears the entry", () => {
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "rogue" });
+  const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[]; phase: string };
+  const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
+  const last = () => t.pens()[t.pens().length - 1];
+  // a guest can't; the host can; an unknown way is ignored
+  t.g("p1", "house", { rank: "A", id: "waterfall" });
+  ok(!rv().house?.A, "a guest's choice changes nothing");
+  t.g("p0", "house", { rank: "A", id: "tsunami" });
+  ok(!rv().house?.A, "nor does a way that doesn't exist");
+  t.g("p0", "house", { rank: "A", id: "waterfall" });
+  ok(rv().house?.A === "waterfall", "the host picks the waterfall for aces");
+  // the ace: everyone drinks, on the card's line and in the tally
+  s.deck.push(0);
+  let d = rv().turn;
+  const before = t.pens().length;
+  t.g(d, "draw");
+  t.advance(1200); // (the card's own penalty lands once the card has turned over)
+  ok(rv().phase === "done" && t.pens().length === before + 1 && last().kind === "everyone" && last().who.length === 4, "an ace is a waterfall: everyone, at once");
+  ok(rv().log![rv().log!.length - 1].hit.length === 4 && t.ids.every((id) => rv().tally![id] === 1), "everyone on the ace's line and in the tally");
+  t.g(d, "next");
+  // 8 as both sides
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  s.deck.push(7);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.advance(1200);
+  ok(last().who.length === 2 && !last().who.includes(d) && rv().holders.wc === undefined, "an 8 hits both neighbours and hands out no pass");
+  t.g(d, "next");
+  // 9 as a judged round: the drawer names the loser, or nobody
+  t.g("p0", "house", { rank: "9", id: "rhyme" });
+  s.deck.push(8);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().phase === "judge", "a rhyme round waits for the drawer's verdict");
+  const loser = t.ids.find((id) => id !== d && id !== "p0")!; // (a guest: the host may judge too)
+  const n = t.pens().length;
+  t.g(loser, "judge", { target: d });
+  ok(rv().phase === "judge" && t.pens().length === n, "only the drawer (or the host) judges");
+  t.g(d, "judge", { target: loser });
+  ok(rv().phase === "done" && last().who.join() === loser && last().note?.zh === "押韵", "the loser drinks under the round's name");
+  t.g(d, "next");
+  s.deck.push(21); // the nine of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  const m = t.pens().length;
+  t.g(d, "judge", {});
+  ok(rv().phase === "done" && t.pens().length === m, "nobody lost: no penalty");
+  t.g(d, "next");
+  // the 10 as the question master: the same held card, its own line
+  t.g("p0", "house", { rank: "10", id: "question" });
+  s.deck.push(9);
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.trouble === d, "the question master is held like the troublemaker");
+  t.g(d, "next");
+  const victim = t.ids.find((id) => id !== d)!;
+  t.g(d, "trouble", { target: victim });
+  ok(last().who.join() === victim && last().note?.zh.startsWith("问题大师"), "and its penalty carries the question master's line");
+  // switching the 10 back to the troublemaker keeps the held card (the same power); to a non-power way it goes
+  t.g("p0", "house", { rank: "10", id: "trouble" });
+  ok(rv().house?.["10"] === undefined && rv().holders.trouble === d, "back to the classic way: the entry clears, the card stays (same power)");
+  t.g("p0", "house", { rank: "8", id: "wc" });
+  s.deck.push(20); // the eight of hearts
+  d = rv().turn;
+  t.g(d, "draw");
+  ok(rv().holders.wc === d, "an 8 hands out the pass again");
+  t.g(d, "next");
+  t.g("p0", "house", { rank: "8", id: "sides" });
+  ok(rv().holders.wc === undefined, "the pass goes back in when the 8 stops handing it out");
+  // the card up waits: a 3 in its garden can't change way mid-round
+  t.g("p0", "house", { rank: "3", id: "gardens" });
+  s.deck.push(2);
+  d = rv().turn;
+  t.g(d, "draw");
+  t.g(d, "garden", { kind: 1 });
+  ok(rv().phase === "garden", "a garden is on");
+  t.g("p0", "house", { rank: "3", id: "me" });
+  ok(rv().house?.["3"] === undefined, "the 3's way waits for the round to end");
+  t.g("p0", "house", { rank: "4", id: "floor" });
+  ok(rv().house?.["4"] === "floor", "another rank's way changes any time");
+});
+
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {
   const e = new RoomEngine(freshRoom("DJDM", clock), host);
   e.screenHello("tv-dm", true, "dj");

@@ -2,8 +2,9 @@ import { Camera, DoorOpen, Hand } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
-import { ROGUE_MS, RANKS, RULES, RULE_BY_RANK, ruleWords, SUITS, type Rank } from "../../data/rogue13";
-import { HeldCard, RogueTable, type LeaveTo } from "../../games/rogueCards";
+import { POWER_RANK, ROGUE_MS, RANKS, ruleFor, ruleWords, SUITS, type House, type Rank, type Rule } from "../../data/rogue13";
+import { HeldCard, HouseContext, RogueTable, type LeaveTo } from "../../games/rogueCards";
+import { RogueRules } from "../../games/rogueHouse";
 import { RogueLog } from "../../games/rogueLog";
 import { ShakeHint, useShakeToShuffle } from "../../games/rogueShake";
 import { playPower } from "../../games/rogueSounds";
@@ -18,28 +19,36 @@ import { HostButton, HostRow, SeatPicker, TurnLine, useYourTurn, Waiting } from 
 
 const t = (zh: string, en: string): T => ({ zh, en });
 
-/** How each card plays when everyone has their own phone. */
-const ONLINE_HOW: Partial<Record<Rank, T>> = {
-  "2": t("以后谁被罚，他的手机上会多一个喊陪酒的按钮，一按你就得陪他喝。", "From now on, anyone who gets a penalty can call you from their phone, and you drink with them."),
-  "3": t("选一个园。从下一位开始轮流说一样，说完在自己手机上按一下。", "Pick a garden. Starting with the next player, each names one thing, then taps their phone."),
-  "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都喝；最后没抢到的也喝。", "Everyone races to tap the next number. Two on the same number both drink; whoever is left drinks too."),
-  "5": t("照相机牌摆在你的手机上，什么时候点你挑，只能点一次。", "The camera card sits on your phone. Tap it whenever you like, once."),
-  "6": t("摸鼻子牌摆在你的手机上，只能点一次。你一点，所有人都要在手机上摸鼻子，最慢的喝。", "The nose card sits on your phone, good for one tap. Tap it and everyone must touch theirs; the slowest drinks."),
-  "7": t("你选一个开始的数，大家轮流在手机上报数，遇到 7 的倍数或带 7 的要按过。", "Pick a starting number. Everyone counts in turn on their phone; on a seven, tap pass."),
-  "8": t("WC 票摆在你的手机上。别人要去厕所，得先在手机上点上厕所，喝一口再去。", "The pass sits on your phone. Anyone else who needs the bathroom taps it on theirs and drinks first."),
-  "10": t("神经病牌摆在你的手机上。谁接了你的话，点那张牌，点他，他喝。", "The troublemaker card sits on your phone. Whoever answers you: tap the card, tap them, and they drink."),
+const NO_HOUSE: House = {};
+
+/** How each card plays when everyone has their own phone, by the rule's id (the classic ones, and the troublemaker's cousins). */
+const ONLINE_HOW: Record<string, T> = {
+  buddy: t("以后谁被罚，他的手机上会多一个喊陪酒的按钮，一按你就得陪他喝。", "From now on, anyone who gets a penalty can call you from their phone, and you drink with them."),
+  gardens: t("选一个园。从下一位开始轮流说一样，说完在自己手机上按一下。", "Pick a garden. Starting with the next player, each names one thing, then taps their phone."),
+  grab: t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都喝；最后没抢到的也喝。", "Everyone races to tap the next number. Two on the same number both drink; whoever is left drinks too."),
+  camera: t("照相机牌摆在你的手机上，什么时候点你挑，只能点一次。", "The camera card sits on your phone. Tap it whenever you like, once."),
+  nose: t("摸鼻子牌摆在你的手机上，只能点一次。你一点，所有人都要在手机上摸鼻子，最慢的喝。", "The nose card sits on your phone, good for one tap. Tap it and everyone must touch theirs; the slowest drinks."),
+  sevens: t("你选一个开始的数，大家轮流在手机上报数，遇到 7 的倍数或带 7 的要按过。", "Pick a starting number. Everyone counts in turn on their phone; on a seven, tap pass."),
+  wc: t("WC 票摆在你的手机上。别人要去厕所，得先在手机上点上厕所，喝一口再去。", "The pass sits on your phone. Anyone else who needs the bathroom taps it on theirs and drinks first."),
+  trouble: t("神经病牌摆在你的手机上。谁接了你的话，点那张牌，点他，他喝。", "The troublemaker card sits on your phone. Whoever answers you: tap the card, tap them, and they drink."),
+  question: t("问题大师牌摆在你的手机上。谁答了你的问题，点那张牌，点他，他喝。", "The question master's card sits on your phone. Whoever answers you: tap the card, tap them, and they drink."),
+  rulemaker: t("规矩牌摆在你的手机上。谁犯规了，点那张牌，点他，他喝。", "The rule's card sits on your phone. Whoever breaks it: tap the card, tap them, and they drink."),
 };
+/** The rounds played off the screen: the drawer names the loser on their phone afterwards. */
+const JUDGE_HOW = t("玩完了，抽牌的人在手机上点出输的人；没人输就跳过。", "Once it's played, the drawer taps whoever lost on their phone, or skips if nobody did.");
 
 /** The same, when the host has set the table's own penalty instead of drinking. */
-const ONLINE_HOW_CUSTOM: Partial<Record<Rank, T>> = {
-  "2": t("以后谁被罚，他的手机上会多一个喊陪罚的按钮，一按你就得陪他一起受罚。", "From now on, anyone who gets a penalty can call you from their phone, and you take it with them."),
-  "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都受罚；最后没抢到的也受罚。", "Everyone races to tap the next number. Two on the same number both take the penalty, and so does whoever is left."),
-  "6": t("摸鼻子牌摆在你的手机上，只能点一次。你一点，所有人都要在手机上摸鼻子，最慢的受罚。", "The nose card sits on your phone, good for one tap. Tap it and everyone must touch theirs; the slowest takes the penalty."),
-  "8": t("WC 票摆在你的手机上。别人要去厕所，得先在手机上点上厕所，受完罚再去。", "The pass sits on your phone. Anyone else who needs the bathroom taps it on theirs and takes the penalty first."),
-  "10": t("神经病牌摆在你的手机上。谁接了你的话，点那张牌，点他，他受罚。", "The troublemaker card sits on your phone. Whoever answers you: tap the card, tap them, and they take the penalty."),
+const ONLINE_HOW_CUSTOM: Record<string, T> = {
+  buddy: t("以后谁被罚，他的手机上会多一个喊陪罚的按钮，一按你就得陪他一起受罚。", "From now on, anyone who gets a penalty can call you from their phone, and you take it with them."),
+  grab: t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都受罚；最后没抢到的也受罚。", "Everyone races to tap the next number. Two on the same number both take the penalty, and so does whoever is left."),
+  nose: t("摸鼻子牌摆在你的手机上，只能点一次。你一点，所有人都要在手机上摸鼻子，最慢的受罚。", "The nose card sits on your phone, good for one tap. Tap it and everyone must touch theirs; the slowest takes the penalty."),
+  wc: t("WC 票摆在你的手机上。别人要去厕所，得先在手机上点上厕所，受完罚再去。", "The pass sits on your phone. Anyone else who needs the bathroom taps it on theirs and takes the penalty first."),
+  trouble: t("神经病牌摆在你的手机上。谁接了你的话，点那张牌，点他，他受罚。", "The troublemaker card sits on your phone. Whoever answers you: tap the card, tap them, and they take the penalty."),
+  question: t("问题大师牌摆在你的手机上。谁答了你的问题，点那张牌，点他，他受罚。", "The question master's card sits on your phone. Whoever answers you: tap the card, tap them, and they take the penalty."),
+  rulemaker: t("规矩牌摆在你的手机上。谁犯规了，点那张牌，点他，他受罚。", "The rule's card sits on your phone. Whoever breaks it: tap the card, tap them, and they take the penalty."),
 };
 
-const onlineHow = (rank: Rank, custom: boolean) => (custom ? ONLINE_HOW_CUSTOM[rank] ?? ONLINE_HOW[rank] : ONLINE_HOW[rank]);
+const onlineHow = (rule: Rule, custom: boolean): T | undefined => (custom ? ONLINE_HOW_CUSTOM[rule.id] ?? ONLINE_HOW[rule.id] : ONLINE_HOW[rule.id]) ?? (rule.kind === "judge" ? JUDGE_HOW : undefined);
 
 const GARDENS: T[] = [t("蔬菜园", "Vegetables"), t("水果园", "Fruits"), t("动物园", "Animals")];
 
@@ -78,7 +87,7 @@ export function useTable(v: RogueView, cardKey: string, openedOn: string) {
   }, [cardKey]);
   const held = holding === cardKey && !!cardKey;
   const drawn = held ? 0 : Math.max(0, DECK_SIZE - v.left - (v.card ? 1 : 0));
-  const leaveTo: LeaveTo = lastRank.current && RULE_BY_RANK[lastRank.current].kind === "hold" ? "tray" : "pile";
+  const leaveTo: LeaveTo = lastRank.current && ruleFor(lastRank.current, v.house).kind === "hold" ? "tray" : "pile";
   return { holding: held, shuffling, drawn, leaveTo };
 }
 
@@ -86,9 +95,10 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   const { me, isHost, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
   const custom = usePenaltyText().isCustom;
-  const rule = v.card ? RULE_BY_RANK[v.card.rank] : null;
+  const house = v.house ?? NO_HOUSE;
+  const rule = v.card ? ruleFor(v.card.rank, house) : null;
   const words = rule ? ruleWords(rule, custom) : null;
-  const how = v.card ? onlineHow(v.card.rank, custom) : undefined;
+  const how = rule ? onlineHow(rule, custom) : undefined;
   const myTurn = v.turn === me;
   const drawer = v.drawer === me;
   const drawerActs = drawer || isHost;
@@ -103,7 +113,7 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   const table = useTable(v, cardKey, openedOn.current);
   useEffect(() => {
     if (!cardKey || cardKey === openedOn.current) return;
-    const power = v.card ? RULE_BY_RANK[v.card.rank].power : undefined;
+    const power = v.card ? ruleFor(v.card.rank, house).power : undefined;
     if (!power) return;
     const id = window.setTimeout(() => playPower(power), 480 + (v.reshuffled ? GATHER_MS + RIFFLE_MS : 0));
     return () => window.clearTimeout(id);
@@ -127,99 +137,90 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   // a shake of the phone deals the next deck too
   const shake = useShakeToShuffle(canDeal, deal);
 
+  // the rules, which the host can change rank by rank (每张牌可换玩法); the card up waits for its round to end
   const rules = (
-    <ul className="rule-list">
-      {RULES.map((r) => (
-        <li key={r.rank}>
-          <span className="rule-rank en-display">{r.rank}</span>
-          <span>
-            <strong>{tr(ruleWords(r, custom).title)}</strong>
-            <br />
-            {tr(ruleWords(r, custom).rule)}
-            {ONLINE_HOW[r.rank] && (
-              <>
-                <br />
-                <span style={{ color: "var(--lamp)" }}>{tr(onlineHow(r.rank, custom)!)}</span>
-              </>
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <RogueRules
+      house={house}
+      onPick={isHost ? (rank, id) => g("house", { rank, id }) : undefined}
+      locked={v.card && v.phase !== "draw" && v.phase !== "done" ? v.card.rank : null}
+      how={(r) => onlineHow(r, custom)}
+    />
   );
 
   return (
-    <NetFrame title={UI.gameRogue} rules={rules} onLeave={onLeave}>
-      <TurnLine
-        pid={v.phase === "draw" ? v.turn : v.drawer}
-        lead={v.phase === "draw" ? undefined : lang === "zh" ? "抽牌的是" : "Drawn by"}
-        mineText={v.phase === "draw" ? undefined : lang === "zh" ? "你抽的牌" : "Your card"}
-        extra={<span className="hint tabular">{ui("remaining", { n: v.left })}</span>}
-      />
-
-      <div className={`card-stage ${live ? "card-stage-small" : ""}`}>
-        <RogueTable
-          card={up && v.card ? { rank: v.card.rank, suit: v.card.suit } : null}
-          remaining={v.left}
-          drawn={table.drawn}
-          canDraw={v.phase === "draw" && (myTurn || isHost) && !v.interrupt && !table.holding}
-          onDraw={() => {
-            g("draw");
-            haptic(10);
-          }}
-          drawLabel={lang === "zh" ? "下滑抽牌" : "Swipe down"}
-          shuffling={table.shuffling}
-          leaveTo={table.leaveTo}
-          onPile={() => setLogOpen(true)}
+    <HouseContext.Provider value={house}>
+      <NetFrame title={UI.gameRogue} rules={rules} onLeave={onLeave}>
+        <TurnLine
+          pid={v.phase === "draw" ? v.turn : v.drawer}
+          lead={v.phase === "draw" ? undefined : lang === "zh" ? "抽牌的是" : "Drawn by"}
+          mineText={v.phase === "draw" ? undefined : lang === "zh" ? "你抽的牌" : "Your card"}
+          extra={<span className="hint tabular">{ui("remaining", { n: v.left })}</span>}
         />
-      </div>
-      <RogueLog
-        open={logOpen}
-        onClose={() => setLogOpen(false)}
-        stock={v.stock ?? []}
-        log={v.log ?? []}
-        nameOf={nameOf}
-        recap={recap}
-        onShuffle={canDeal ? deal : undefined}
-        recapExtra={<ShakeHint shake={shake} />}
-      />
-      {canDeal && <ShakeHint shake={shake} />}
 
-      <AnimatePresence mode="wait">
-        {up && v.card && rule && words && (
-          <motion.div
-            key={`${v.card.rank}${v.card.suit}-${v.left}`}
-            className="porcelain rule-card"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ delay: 0.35, duration: 0.3 }}
-          >
-            <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
-            {!live && <p className="rule-body">{tr(words.rule)}</p>}
-            {how && <p className={`hint-ink ${live ? "" : "rule-online"}`}>{tr(how)}</p>}
-            {v.reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
+        <div className={`card-stage ${live ? "card-stage-small" : ""}`}>
+          <RogueTable
+            card={up && v.card ? { rank: v.card.rank, suit: v.card.suit } : null}
+            remaining={v.left}
+            drawn={table.drawn}
+            canDraw={v.phase === "draw" && (myTurn || isHost) && !v.interrupt && !table.holding}
+            onDraw={() => {
+              g("draw");
+              haptic(10);
+            }}
+            drawLabel={lang === "zh" ? "下滑抽牌" : "Swipe down"}
+            shuffling={table.shuffling}
+            leaveTo={table.leaveTo}
+            onPile={() => setLogOpen(true)}
+          />
+        </div>
+        <RogueLog
+          open={logOpen}
+          onClose={() => setLogOpen(false)}
+          stock={v.stock ?? []}
+          log={v.log ?? []}
+          nameOf={nameOf}
+          recap={recap}
+          onShuffle={canDeal ? deal : undefined}
+          recapExtra={<ShakeHint shake={shake} />}
+        />
+        {canDeal && <ShakeHint shake={shake} />}
+
+        <AnimatePresence mode="wait">
+          {up && v.card && rule && words && (
+            <motion.div
+              key={`${v.card.rank}${v.card.suit}-${v.left}`}
+              className="porcelain rule-card"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ delay: 0.35, duration: 0.3 }}
+            >
+              <h2 className={`rule-title ${lang === "zh" ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
+              {!live && <p className="rule-body">{tr(words.rule)}</p>}
+              {how && <p className={`hint-ink ${live ? "" : "rule-online"}`}>{tr(how)}</p>}
+              {v.reshuffled && <p className="hint-ink">{ui("deckReshuffled")}</p>}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {up && v.card && rule && (
+          <motion.div key={`panel-${v.phase}-${v.left}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.25 }}>
+            <PhasePanel v={v} drawerActs={drawerActs} />
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {up && v.card && rule && (
-        <motion.div key={`panel-${v.phase}-${v.left}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.25 }}>
-          <PhasePanel v={v} drawerActs={drawerActs} />
-        </motion.div>
-      )}
+        <Powers v={v} />
 
-      <Powers v={v} />
+        <HostRow>
+          {v.phase === "draw" && !myTurn && <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{ui("skip")}</HostButton>}
+          {(v.phase === "garden" || v.phase === "grab" || v.phase === "sevens" || v.phase === "garden-pick" || v.phase === "sevens-start" || v.phase === "pick") && !drawer && (
+            <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{lang === "zh" ? "结束这张牌" : "End this card"}</HostButton>
+          )}
+        </HostRow>
 
-      <HostRow>
-        {v.phase === "draw" && !myTurn && <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{ui("skip")}</HostButton>}
-        {(v.phase === "garden" || v.phase === "grab" || v.phase === "sevens" || v.phase === "garden-pick" || v.phase === "sevens-start" || v.phase === "pick") && !drawer && (
-          <HostButton onClick={() => g("skip", { at: `${v.phase}:${v.turn}` })}>{lang === "zh" ? "结束这张牌" : "End this card"}</HostButton>
-        )}
-      </HostRow>
-
-      <Interrupts v={v} />
-    </NetFrame>
+        <Interrupts v={v} />
+      </NetFrame>
+    </HouseContext.Provider>
   );
 }
 
@@ -242,6 +243,21 @@ function PhasePanel({ v, drawerActs }: { v: RogueView; drawerActs: boolean }) {
         </div>
       ) : (
         <Waiting>{pen.line(t(`${drawerName} 在指定谁喝`, `${drawerName} is choosing who drinks`), t(`${drawerName} 在指定谁受罚`, `${drawerName} is choosing who takes the penalty`))}</Waiting>
+      );
+
+    case "judge":
+      return drawerActs ? (
+        <div className="stack" style={{ gap: 10 }}>
+          <p className="hint" style={{ textAlign: "center" }}>
+            {lang === "zh" ? "玩完了，点一下输的人" : "Played it? Tap whoever lost"}
+          </p>
+          <SeatPicker onPick={(pid) => g("judge", { target: pid })} />
+          <button type="button" className="btn btn-ghost" style={{ color: "var(--haze)" }} onClick={() => g("judge", {})}>
+            {lang === "zh" ? "没人输" : "Nobody lost"}
+          </button>
+        </div>
+      ) : (
+        <Waiting>{lang === "zh" ? `玩完了 ${drawerName} 点出输的人` : `${drawerName} names the loser once it's played`}</Waiting>
       );
 
     case "done": {
@@ -417,8 +433,10 @@ const BADGE: Record<keyof RogueHolders, Rank> = { buddy: "2", camera: "5", nose:
 
 function Powers({ v }: { v: RogueView }) {
   const { me, g, nameOf } = useRoom();
-  const { ui, lang } = useStore();
+  const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
+  // the 10's way at this table: the troublemaker, or one of its cousins with words of its own
+  const troubleRule = ruleFor(POWER_RANK.trouble, v.house);
   const watching = useWatching();
   const [troubleOpen, setTroubleOpen] = useState(false);
   const [wcAsk, setWcAsk] = useState(false);
@@ -443,7 +461,7 @@ function Powers({ v }: { v: RogueView }) {
       case "nose":
         return { words: lang === "zh" ? "喊摸鼻子" : "Call it", onTap: () => g("nose"), disabled: busy || spent("nose") };
       case "trouble":
-        return { words: lang === "zh" ? "谁接话了" : "Who answered?", onTap: () => setTroubleOpen((o) => !o) };
+        return { words: tr(troubleRule.action ?? t("谁接话了", "Who answered?")), onTap: () => setTroubleOpen((o) => !o) };
       default:
         return null;
     }
@@ -479,7 +497,11 @@ function Powers({ v }: { v: RogueView }) {
       <AnimatePresence>
         {troubleOpen && iHave("trouble") && (
           <motion.div key="trouble" className="stack" style={{ gap: 8 }} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-            <p className="hint">{pen.line(t("点接了你话的人，他喝", "Tap whoever answered you. They drink."), t("点接了你话的人，他受罚", "Tap whoever answered you. They take the penalty."))}</p>
+            <p className="hint">
+              {troubleRule.id === "rulemaker"
+                ? pen.line(t("点犯规的人，他喝", "Tap whoever broke the rule. They drink."), t("点犯规的人，他受罚", "Tap whoever broke the rule. They take the penalty."))
+                : pen.line(t("点接了你话的人，他喝", "Tap whoever answered you. They drink."), t("点接了你话的人，他受罚", "Tap whoever answered you. They take the penalty."))}
+            </p>
             <SeatPicker
               exclude={[me]}
               onPick={(pid) => {
