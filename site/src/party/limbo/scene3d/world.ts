@@ -523,7 +523,10 @@ export function createWorld(canvas: HTMLCanvasElement, opts: { gel: string; pale
         continue;
       }
       const breath = 0.5 + 0.5 * Math.sin(t * 2.3 + f.phase);
-      applyJoints(f.rig, f.cur, breath);
+      // the strain of a deep lean: a shake that grows past 30° (two tremors, 5 and 7 a second, so it never settles into a rhythm; none with reduced motion)
+      const strain = f.state.pose === "lean" && !reduced ? Math.max(0, Math.min(1, (f.state.lean - 30) / 45)) : 0;
+      const tremor = strain ? strain * strain * (Math.sin(t * 44 + f.phase) * 0.6 + Math.sin(t * 31 + f.phase * 1.7) * 0.4) : 0;
+      applyJoints(f.rig, f.cur, breath, tremor);
       // where it stands: its place along the bar, then its own steps along the way it faces
       const along = f.cur.z - Z_BEFORE;
       f.rig.root.position.set(f.slot + along * FWD.x + f.cur.x * FWD.z, 0, Z_BEFORE + f.depth + along * FWD.z - f.cur.x * FWD.x);

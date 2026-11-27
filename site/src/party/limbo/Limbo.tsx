@@ -169,10 +169,10 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     !trying
       ? QUIET
       : kind === "classic"
-        ? coaching("classic", { lean: lean.lean, target: angle, hold: lean.hold })
+        ? coaching("classic", { lean: lean.lean, target: angle, hold: lean.hold, over: lean.over })
         : moving
           ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
-          : coaching(kind, { lean: pose.lean, target: angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
+          : coaching(kind, { lean: pose.lean, target: angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt, over: pose.over, sideOver: pose.sideOver }),
     grid,
     zh ? "zh" : "en",
   );
@@ -210,6 +210,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       setFailed((f) => [...f, id]);
       setBest((b) => ({ ...b, [id]: deg ?? Math.round(leanBest.current) }));
       sfx.sadTrombone(0.7);
+      haptic([60, 40, 60]);
     }
     setPhase({ k: "verdict", i, ok });
   };
@@ -503,7 +504,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             ) : moving ? (
               <FollowMeter follow={follow} />
             ) : (
-              <LeanGauge lean={lean.lean} target={angle} hold={lean.hold} />
+              <LeanGauge lean={lean.lean} target={angle} hold={lean.hold} over={lean.over} />
             )}
             <p className="hint lb-time tabular">{moving && left <= 0 ? (zh ? "横杆停了" : "The bar stopped") : zh ? `还剩 ${left} 秒` : `${left}s left`}</p>
           </>
