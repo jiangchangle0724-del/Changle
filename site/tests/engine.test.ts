@@ -41,6 +41,7 @@ import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "..
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
 import { ADULT_PAIRS, WORD_PAIRS } from "../src/data/undercover";
+import { sameWord, saysWord } from "../src/shared/engine/games/undercover";
 import { drawMatches } from "../src/shared/engine/games/draw";
 import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
 import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
@@ -734,6 +735,202 @@ ucTest("undercover: the number of undercovers follows the table until the host s
   ok(t4.view<V>(h4).phase === "reveal" && t4.view<V>(h4).winner === "civ", "the reveal stays, now with the result");
   t4.g(h4, "next");
   ok(t4.view<V>(h4).phase === "end" && t4.view<V>(h4).out === null, "the host's tap shows the end");
+});
+
+ucTest("undercover: what other tables taught us (the blank never opens, ties go to a run-off, the blank's last guess, 换一组词, 忌爆字)", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  type St = { roles: Record<string, string>; alive: string[] };
+  const st = (t: ReturnType<typeof setup>) => t.eng.d.game!.s as St;
+  const civWord = (t: ReturnType<typeof setup>) => {
+    const id = Object.keys(st(t).roles).find((x) => st(t).roles[x] === "civ")!;
+    return t.view<V>(id).myWord!;
+  };
+
+  // the blank never speaks first, round after round and game after game
+  let firsts = 0;
+  for (let game = 0; game < 12; game++) {
+    const t = setup(8);
+    t.act("p0", { a: "start", game: "undercover" });
+    t.g("p0", "config", { uc: 1, blank: true });
+    t.g("p0", "deal");
+    for (const id of t.ids) t.g(id, "ready");
+    const v = t.view<V>("p0");
+    ok(st(t).roles[v.order[0]] !== "blank", `game ${game}: the blank does not open the round (${v.order[0]})`);
+    firsts += 1;
+  }
+  ok(firsts === 12, "twelve deals checked");
+
+  // a tie at the top: the two describe again, the rest vote between them
+  const t = setup(6);
+  t.act("p0", { a: "start", game: "undercover" });
+  t.g("p0", "deal");
+  for (const id of t.ids) t.g(id, "ready");
+  t.g("p0", "force", { phase: "talk" });
+  const civs = t.ids.filter((id) => st(t).roles[id] === "civ");
+  const uc = t.ids.find((id) => st(t).roles[id] === "uc")!;
+  const [a, b] = [uc, civs[0]];
+  // three for each: everyone else splits, a and b vote for each other
+  const others = t.ids.filter((id) => id !== a && id !== b);
+  others.forEach((id, i) => t.g(id, "vote", { target: i % 2 ? a : b }));
+  t.g(a, "vote", { target: b });
+  t.g(b, "vote", { target: a });
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.tie && v.out === null, `three and three: a tie (${v.phase}, ${JSON.stringify(v.votes)})`);
+  ok(v.pk.length === 2 && v.pk.includes(a) && v.pk.includes(b), `the tied two go to a run-off (${v.pk})`);
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.phase === "talk" && v.round === 1 && v.order.length === 2 && v.order.every((id) => id === a || id === b), `only the tied two describe, same round (${v.order}, round ${v.round})`);
+  t.g(v.order[0], "desc", { text: "跑加赛" });
+  t.g(v.order[0], "done", { speaker: 0, round: 1 });
+  t.g(v.order[1], "done", { speaker: 1, round: 1 });
+  v = t.view<V>("p0");
+  ok(v.phase === "vote" && v.voters.length === 4 && !v.voters.includes(a) && !v.voters.includes(b), `the other four vote (${v.voters})`);
+  ok(v.said.some((x) => x.round === 1 && x.pk), "the run-off's lines are kept, marked as a run-off");
+  t.g(a, "vote", { target: b });
+  ok(!t.view<V>("p0").voted.includes(a), "a player in the run-off doesn't vote");
+  t.g(others[0], "vote", { target: others[1] });
+  ok(!t.view<V>("p0").voted.includes(others[0]), "nobody outside the run-off can be voted for");
+  for (const id of others) t.g(id, "vote", { target: a });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.out?.pid === a && v.pk.length === 0, `the run-off decides it (${v.out?.pid})`);
+
+  // a run-off that ties again: nobody goes, and the next round is everyone's
+  const t2 = setup(6);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "deal");
+  for (const id of t2.ids) t2.g(id, "ready");
+  t2.g("p0", "force", { phase: "talk" });
+  const [c, d] = t2.ids.filter((id) => st(t2).roles[id] === "civ");
+  const rest2 = t2.ids.filter((id) => id !== c && id !== d);
+  rest2.forEach((id, i) => t2.g(id, "vote", { target: i % 2 ? c : d }));
+  t2.g(c, "vote", { target: d });
+  t2.g(d, "vote", { target: c });
+  t2.g("p0", "next");
+  t2.g("p0", "force", { phase: "talk" });
+  rest2.forEach((id, i) => t2.g(id, "vote", { target: i % 2 ? c : d }));
+  let v2 = t2.view<V>("p0");
+  ok(v2.phase === "reveal" && v2.tie && v2.out === null && v2.pk.length === 0, `two and two again: nobody out, no second run-off (${v2.phase}, ${v2.pk})`);
+  t2.g("p0", "next");
+  v2 = t2.view<V>("p0");
+  ok(v2.phase === "talk" && v2.round === 2 && v2.order.length === 6, `round 2, everyone describes (${v2.round}, ${v2.order.length})`);
+
+  // the blank voted out guesses the civilians' word: a miss, then the host counts a near miss
+  const t3 = setup(7);
+  t3.act("p0", { a: "start", game: "undercover" });
+  t3.g("p0", "config", { uc: 1, blank: true });
+  t3.g("p0", "deal");
+  for (const id of t3.ids) t3.g(id, "ready");
+  t3.g("p0", "force", { phase: "talk" });
+  const blank = t3.ids.find((id) => st(t3).roles[id] === "blank")!;
+  const word = civWord(t3);
+  for (const id of t3.ids) t3.g(id, "vote", { target: id === blank ? t3.ids.find((x) => x !== blank)! : blank });
+  let v3 = t3.view<V>("p0");
+  ok(v3.phase === "guess" && v3.out?.pid === blank && v3.out.role === "blank", `the blank is out and gets a guess (${v3.phase})`);
+  ok(t3.eng.d.timers.some((x) => x.key === "g:guess"), "the guess has a clock");
+  t3.g("p0", "guess", { text: word.zh });
+  ok(t3.view<V>("p0").phase === "guess" || blank === "p0", "only the blank can guess");
+  t3.g(blank, "guess", { text: "完全不对的词" });
+  v3 = t3.view<V>("p0");
+  ok(v3.phase === "reveal" && v3.guess?.right === false && v3.winner === null, `a wrong guess: the game goes on (${v3.winner})`);
+  t3.g("p0", "guessOk");
+  v3 = t3.view<V>("p0");
+  ok(v3.guess?.right === true && v3.winner === "blank", "the host counts it: the blank wins");
+  const pensBefore = t3.pens().length;
+  t3.g("p0", "next");
+  const pen = t3.pens().at(-1)!;
+  ok(t3.pens().length === pensBefore + 1 && pen.who.length === 6 && !pen.who.includes(blank), `everyone but the blank drinks (${pen.who})`);
+
+  // the exact word, in English, wins outright; the clock running out is a miss
+  const t4 = setup(7);
+  t4.act("p0", { a: "start", game: "undercover" });
+  t4.g("p0", "config", { uc: 1, blank: true });
+  t4.g("p0", "deal");
+  for (const id of t4.ids) t4.g(id, "ready");
+  t4.g("p0", "force", { phase: "talk" });
+  const blank4 = t4.ids.find((id) => st(t4).roles[id] === "blank")!;
+  const w4 = civWord(t4);
+  for (const id of t4.ids) t4.g(id, "vote", { target: id === blank4 ? t4.ids.find((x) => x !== blank4)! : blank4 });
+  t4.g(blank4, "guess", { text: ` ${w4.en.toUpperCase()}! ` });
+  ok(t4.view<V>("p0").winner === "blank", `"${w4.en}" in capitals, with a mark: right`);
+  const t5 = setup(7);
+  t5.act("p0", { a: "start", game: "undercover" });
+  t5.g("p0", "config", { uc: 1, blank: true });
+  t5.g("p0", "deal");
+  for (const id of t5.ids) t5.g(id, "ready");
+  t5.g("p0", "force", { phase: "talk" });
+  const blank5 = t5.ids.find((id) => st(t5).roles[id] === "blank")!;
+  for (const id of t5.ids) t5.g(id, "vote", { target: id === blank5 ? t5.ids.find((x) => x !== blank5)! : blank5 });
+  t5.advance(46_000);
+  const v5 = t5.view<V>("p0");
+  ok(v5.phase === "reveal" && v5.guess?.right === false && v5.guess.text === "", `no guess in time: a miss (${v5.phase})`);
+
+  // 换一组词: before anyone speaks, up to three times; a tap arriving twice deals once
+  const t6 = setup(5);
+  t6.act("p0", { a: "start", game: "undercover" });
+  t6.g("p0", "deal");
+  const pairs = [JSON.stringify(civWord(t6))];
+  t6.g("p1", "ready");
+  t6.g("p2", "redeal", { n: 0 });
+  ok(t6.view<V>("p0").redeals === 0, "only the host deals again");
+  t6.g("p0", "redeal", { n: 0 });
+  t6.g("p0", "redeal", { n: 0 });
+  let v6 = t6.view<V>("p0");
+  ok(v6.redeals === 1 && v6.ready.length === 0 && v6.phase === "word", `one fresh deal from a double tap, everyone looks again (${v6.redeals})`);
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 1 });
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 2 });
+  pairs.push(JSON.stringify(civWord(t6)));
+  t6.g("p0", "redeal", { n: 3 });
+  v6 = t6.view<V>("p0");
+  ok(v6.redeals === 3, `three at most (${v6.redeals})`);
+  ok(new Set(pairs).size === 4, "each deal is a different pair");
+  for (const id of t6.ids) t6.g(id, "ready");
+  t6.g("p0", "redeal", { n: 3 });
+  ok(t6.view<V>("p0").phase === "talk", "once the talk starts, no more fresh deals");
+
+  // 忌爆字: a line with your own word in it isn't taken
+  ok(saysWord("就是火锅啊", { zh: "火锅", en: "Hot pot" }) && saysWord("I love hot-pot", { zh: "火锅", en: "Hot pot" }) && saysWord("cats!", { zh: "猫", en: "Cat" }), "the word itself, in either language, gives it away");
+  ok(!saysWord("scatter the seeds", { zh: "猫", en: "Cat" }) && !saysWord("红色的锅", { zh: "火锅", en: "Hot pot" }), "a word inside a longer one, or half the word, doesn't");
+  ok(sameWord("hot pot", { zh: "火锅", en: "Hot pot" }) && sameWord("火锅。", { zh: "火锅", en: "Hot pot" }) && sameWord("Dumpling", { zh: "饺子", en: "Dumplings" }) && !sameWord("锅", { zh: "火锅", en: "Hot pot" }), "the blank's guess: spaces, marks and a plural don't matter, half the word does");
+  const t7 = setup(5);
+  t7.act("p0", { a: "start", game: "undercover" });
+  t7.g("p0", "deal");
+  for (const id of t7.ids) t7.g(id, "ready");
+  let v7 = t7.view<V>("p0");
+  const sp = v7.order[0];
+  const mine = t7.view<V>(sp).myWord;
+  t7.g(sp, "desc", { text: mine ? `我的是${mine.zh}` : "白板" });
+  v7 = t7.view<V>("p0");
+  ok(mine ? v7.desc[sp] === undefined : true, "a line with the speaker's own word isn't kept");
+  t7.g(sp, "desc", { text: "很常见" });
+  ok(t7.view<V>("p0").desc[sp] === "很常见", "a fair line is");
+
+  // 忌跟描: a line someone already typed this game isn't taken either; the record keeps each round's votes
+  const t8 = setup(5);
+  t8.act("p0", { a: "start", game: "undercover" });
+  t8.g("p0", "deal");
+  for (const id of t8.ids) t8.g(id, "ready");
+  let v8 = t8.view<V>("p0");
+  t8.g(v8.order[0], "desc", { text: "嗯嗯啊啊" });
+  t8.g(v8.order[0], "done", { speaker: 0, round: 1 });
+  t8.g(v8.order[1], "desc", { text: "嗯嗯 啊啊！" });
+  v8 = t8.view<V>("p0");
+  ok(v8.desc[v8.order[1]] === undefined, "the same line again, give or take spaces and marks, isn't kept");
+  t8.g(v8.order[1], "desc", { text: "啊啊嗯嗯" });
+  ok(t8.view<V>("p0").desc[v8.order[1]] === "啊啊嗯嗯", "a new line is");
+  t8.g("p0", "force", { phase: "talk" });
+  for (const id of t8.ids) t8.g(id, "vote", { target: id === "p1" ? "p2" : "p1" });
+  v8 = t8.view<V>("p0");
+  const rec = v8.said.at(-1)!;
+  ok(rec.round === 1 && rec.out === "p1" && Object.keys(rec.votes ?? {}).length === 5 && rec.desc[v8.order[0]] === "嗯嗯啊啊", `round 1 in the record: lines, five votes, p1 out (${JSON.stringify(rec)})`);
+  if (!v8.winner) {
+    t8.g("p0", "next");
+    v8 = t8.view<V>("p0");
+    const sp8 = v8.order[0];
+    t8.g(sp8, "desc", { text: "嗯嗯啊啊" });
+    ok(t8.view<V>("p0").desc[sp8] === undefined, "a line from an earlier round isn't taken again");
+  }
 });
 
 test("draw: word only for drawer, guess scoring, timeout penalty", () => {
