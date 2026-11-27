@@ -482,7 +482,7 @@
   font-weight: 600;
 }
 
-/* two packs, which is the better buy: folded under the unit price until asked */
+/* packs, which is the better buy: folded under the unit price until asked */
 .pack-compare {
   margin-top: 14px;
   padding-top: 4px;
@@ -514,35 +514,69 @@
   gap: 8px;
   margin-top: 4px;
 }
-/* tag, price, size, unit on one line; the two amounts share what the unit leaves */
+/* a pack: its letter beside two lines, the price and what it comes to per kg or L, then its size, unit and how many (tools/PackCompare.tsx) */
 .pack-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1.25fr) minmax(0, 1fr) auto;
-  grid-template-areas: "tag price qty unit";
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 6px;
+  align-items: center;
+}
+.pack-row + .pack-row {
+  margin-top: 6px;
+}
+.pack-line {
+  grid-column: 2;
+  display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
-.pack-price {
-  grid-area: price;
-}
+.pack-price,
 .pack-qty {
-  grid-area: qty;
+  flex: 1 1 0;
 }
-.pack-unit {
-  grid-area: unit;
+.pack-count {
+  flex: 0 0 64px;
 }
-/* a narrow phone: the price gets the first line, the size and its unit the second */
+/* a narrow phone: the size, unit and count take the whole width under the letter */
 @media (max-width: 360px) {
-  .pack-row {
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "tag price price"
-      "tag qty unit";
-    row-gap: 6px;
+  .pack-line + .pack-line {
+    grid-column: 1 / -1;
   }
 }
+/* what the pack comes to per kg or L; the cheapest gets a check, not only a color */
+.pack-per {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pack-row.is-better .pack-per {
+  color: var(--moon);
+}
+.pack-per svg {
+  color: var(--go);
+}
+.pack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 12px;
+}
+.pack-actions .link-btn {
+  gap: 4px;
+}
+.pack-reset {
+  margin-left: auto;
+}
 .pack-tag {
-  grid-area: tag;
+  grid-row: 1;
+  grid-column: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;

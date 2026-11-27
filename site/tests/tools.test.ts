@@ -10,7 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
-import { comparePacks, figureDigits, MASS, PACK_MASS, PACK_VOLUME, perBase, perBaseOf, plainFigure, VOLUME } from "../src/tools/units";
+import { figureDigits, MASS, PACK_MASS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, VOLUME, type Pack } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -68,13 +68,25 @@ near(perBase({ price: "4", qty: "1", unit: "gal" }, PACK_VOLUME), 1.06, "a US ga
 eq(perBase({ price: "", qty: "454", unit: "g" }, PACK_MASS), null, "no price, no answer");
 eq(perBase({ price: "5.99", qty: "0", unit: "g" }, PACK_MASS), null, "a zero size, no answer");
 eq(perBase({ price: "5.99", qty: "454", unit: "nonsense" }, PACK_MASS), perBase({ price: "5.99", qty: "454", unit: "g" }, PACK_MASS), "an unknown unit counts as the first one");
-const v1 = comparePacks({ price: "5.99", qty: "454", unit: "g" }, { price: "11.99", qty: "1", unit: "kg" }, PACK_MASS);
-ok(v1?.better === "b" && v1.pct === 9, `454 g at $5.99 vs 1 kg at $11.99: B wins by 9% → ${JSON.stringify(v1)}`);
-const v2 = comparePacks({ price: "10", qty: "1", unit: "kg" }, { price: "10.02", qty: "1", unit: "kg" }, PACK_MASS);
-ok(v2?.better === "same" && v2.pct === 0, `$10 vs $10.02 per kg counts as the same → ${JSON.stringify(v2)}`);
-const v3 = comparePacks({ price: "2", qty: "500", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME);
-ok(v3?.better === "a" && v3.pct === 20, `500 mL at $2 vs 1 L at $5: A wins by 20% → ${JSON.stringify(v3)}`);
-eq(comparePacks({ price: "2", qty: "", unit: "ml" }, { price: "5", qty: "1", unit: "l" }, PACK_VOLUME), null, "half filled in, no verdict yet");
+const g = (price: string, qty: string, unit = "g", count = ""): Pack => ({ price, qty, unit, count });
+const r1 = rankPacks([g("5.99", "454"), g("11.99", "1", "kg")], PACK_MASS).verdict;
+ok(r1?.best.join() === "1" && r1.next === 0 && r1.pct === 9 && Math.abs(r1.save - 1.2033) < 0.001, `454 g at $5.99 vs 1 kg at $11.99: B wins by 9%, $1.20 a kg → ${JSON.stringify(r1)}`);
+const r2 = rankPacks([g("10", "1", "kg"), g("10.02", "1", "kg")], PACK_MASS).verdict;
+ok(r2?.best.join() === "0,1" && r2.next === null && r2.pct === 0, `$10 vs $10.02 per kg counts as the same → ${JSON.stringify(r2)}`);
+const r3 = rankPacks([g("2", "500", "ml"), g("5", "1", "l")], PACK_VOLUME).verdict;
+ok(r3?.best.join() === "0" && r3.pct === 20, `500 mL at $2 vs 1 L at $5: A wins by 20% → ${JSON.stringify(r3)}`);
+eq(rankPacks([g("2", "", "ml"), g("5", "1", "l")], PACK_VOLUME).verdict, null, "half filled in, no verdict yet");
+const r4 = rankPacks([g("2", "", "ml"), g("5", "1", "l"), g("", ""), g("4.5", "1", "l")], PACK_VOLUME);
+ok(r4.verdict?.best.join() === "3" && r4.verdict.next === 1 && r4.verdict.pct === 10, `the packs not filled in are left out: D beats B by 10% → ${JSON.stringify(r4.verdict)}`);
+ok(r4.per[0] === null && r4.per[2] === null && r4.per[1] === 5, "and each filled pack still gets its own price per litre");
+// a multipack: 12 cans of 355 mL for $7.99 against a 2 L bottle for $3.29
+near(perBase(g("7.99", "355", "ml", "12"), PACK_VOLUME), 1.8756, "12 × 355 mL for $7.99 is $1.88 a litre");
+eq(perBase(g("7.99", "355", "ml", ""), PACK_VOLUME), perBase(g("7.99", "355", "ml", "1"), PACK_VOLUME), "no count is one");
+eq(perBase(g("7.99", "355", "ml", "0"), PACK_VOLUME), null, "a count of 0, no answer");
+const r5 = rankPacks([g("7.99", "355", "ml", "12"), g("3.29", "2", "l"), g("1.49", "355", "ml")], PACK_VOLUME).verdict;
+ok(r5?.best.join() === "1" && r5.next === 0 && r5.pct === 12, `the 2 L bottle beats the 12-pack (the next cheapest) by 12% → ${JSON.stringify(r5)}`);
+const r6 = rankPacks([g("3", "1", "kg"), g("3.01", "1", "kg"), g("4", "1", "kg")], PACK_MASS).verdict;
+ok(r6?.best.join() === "0,1" && r6.next === 2 && r6.pct === 25, `two within half a percent share the win, the saving is against the third → ${JSON.stringify(r6)}`);
 
 // 2c. every unit is a field: the price typed in one, the others converted; small prices keep three digits
 const unit = (list: typeof MASS, id: string) => list.find((u) => u.id === id)!;

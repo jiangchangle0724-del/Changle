@@ -1,4 +1,4 @@
-/** Units of weight and volume for the unit-price tool, and the arithmetic behind "which pack is the better buy". */
+/** Units of weight and volume for the unit-price tool, the linked fields' arithmetic, and which pack is the better buy. */
 
 export type Unit = { id: string; zh: string; en: string; size: number };
 
@@ -50,30 +50,53 @@ export function plainFigure(v: number, decimals: number) {
   return s.slice(0, end === i + 1 ? i : end);
 }
 
-export type Pack = { price: string; qty: string; unit: string };
+/** A pack on the shelf: its price, its size in one of the units, and how many come in it (a multipack: 355 mL × 12; empty is 1). */
+export type Pack = { price: string; qty: string; unit: string; count?: string };
 
-/** Price per kilogram or litre of a pack, or null while the price or the amount is missing. */
+/** The most packs the comparison takes: the shelf's sizes, plus a deal or two. */
+export const MAX_PACKS = 6;
+
+/** Price per kilogram or litre of a pack, or null while its price or size is missing. */
 export function perBase(p: Pack, units: Unit[]) {
   const unit = units.find((u) => u.id === p.unit) ?? units[0];
   const price = Number(p.price);
   const qty = Number(p.qty);
-  if (!p.price || !p.qty || !Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0) return null;
-  return price / (qty * unit.size);
+  const count = p.count ? Number(p.count) : 1;
+  if (!p.price || !p.qty || !Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(count) || count <= 0) return null;
+  return price / (qty * count * unit.size);
 }
 
-export type Verdict = { better: "a" | "b" | "same"; a: number; b: number; pct: number } | null;
+export type Ranking = {
+  /** each pack's price per kilogram or litre, null while it isn't filled in */
+  per: (number | null)[];
+  /** null until two packs are filled in */
+  verdict: {
+    /** the cheapest, more than one when they're within half a percent of each other; every filled pack when all are */
+    best: number[];
+    /** the cheapest of the rest, what the saving is named against (as PriceGrab does); null when all cost the same */
+    next: number | null;
+    /** how much less the best costs than `next`, as a share of next's price, rounded down */
+    pct: number;
+    /** and per kilogram or litre */
+    save: number;
+  } | null;
+};
 
 /**
- * Which of two packs costs less per kilogram or litre, and by what share of the dearer one's
- * price. Within half a percent they count as the same; null until both packs are filled in.
+ * Which packs are the better buy, per kilogram or litre. Packs not filled in are left out; within
+ * half a percent counts as the same price.
  */
-export function comparePacks(a: Pack, b: Pack, units: Unit[]): Verdict {
-  const pa = perBase(a, units);
-  const pb = perBase(b, units);
-  if (pa === null || pb === null) return null;
-  const high = Math.max(pa, pb);
-  const pct = high > 0 ? ((high - Math.min(pa, pb)) / high) * 100 : 0;
-  if (pct < 0.5) return { better: "same", a: pa, b: pb, pct: 0 };
+export function rankPacks(packs: Pack[], units: Unit[]): Ranking {
+  const per = packs.map((p) => perBase(p, units));
+  const filled = per.flatMap((v, i) => (v === null ? [] : [i]));
+  if (filled.length < 2) return { per, verdict: null };
+  const low = Math.min(...filled.map((i) => per[i]!));
+  const same = (v: number) => v <= 0 || (v - low) / v < 0.005;
+  const best = filled.filter((i) => same(per[i]!));
+  const rest = filled.filter((i) => !best.includes(i));
+  if (!rest.length) return { per, verdict: { best, next: null, pct: 0, save: 0 } };
+  const next = rest.reduce((a, b) => (per[b]! < per[a]! ? b : a));
+  const high = per[next]!;
   // rounded down, so "20% less" is never more than the truth (and 99.9% never reads as 100%)
-  return { better: pa < pb ? "a" : "b", a: pa, b: pb, pct: Math.floor(pct + 1e-9) };
+  return { per, verdict: { best, next, pct: Math.floor(((high - low) / high) * 100 + 1e-9), save: high - low } };
 }
