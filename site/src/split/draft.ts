@@ -66,6 +66,8 @@ export type Draft = {
   payment: string;
   /** its kind of spending (categories.ts), as picked or read off its receipt; none, and it counts as its words say (kinds.ts) */
   category: Category | null;
+  /** 退款: money that came back rather than money paid out (core/types.ts, refund); then it has no tip or tax */
+  refund: boolean;
 };
 
 /**
@@ -97,6 +99,7 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     place: "",
     payment: "",
     category: null,
+    refund: false,
   };
 }
 
@@ -127,6 +130,7 @@ export function draftOf(e: Expense, l: Ledger): Draft {
     place: e.place ?? "",
     payment: e.payment ?? "",
     category: e.category ?? null,
+    refund: !!e.refund,
   };
 }
 
@@ -292,8 +296,12 @@ export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
     place: d.place.trim() || null,
     payment: d.payment.trim() || null,
     category: d.category,
+    // (always said, so an edit turns it either way)
+    refund: d.refund ? (true as const) : null,
   };
-  if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extrasOf(d) };
+  // (a refund has no tip or tax)
+  const extras = d.refund ? { tip: null, tax: null } : extrasOf(d);
+  if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extras };
   // (paid in a currency these screens can't show: that, and its tip and tax, unsaid)
-  return d.untouched ? said : { ...said, paidIn: null, ...extrasOf(d) };
+  return d.untouched ? said : { ...said, paidIn: null, ...extras };
 }

@@ -666,6 +666,16 @@
 .split-kinds .split-note {
   margin: var(--space-2) 0 0;
 }
+/* 退款 in 详情: one toggle, and what a refund is under it */
+.split-refund {
+  margin-top: var(--space-6);
+}
+.split-refund .ui-pill-toggle {
+  min-height: var(--tap-crowded);
+}
+.split-refund .split-note {
+  margin: var(--space-2) 0 0;
+}
 /* 按分类: the picture, the kind's name and how many expenses, the sum and its share; under them, a bar
    as long as the share */
 .split-kinds-spent {

@@ -27,7 +27,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
-import { currencyName, dayBefore, decimalsOf, localDay, money, signOf, typed } from "../src/split/format";
+import { currencyName, dayBefore, decimalsOf, localDay, money, signedMoney, signOf, typed } from "../src/split/format";
 import { asAmountText, MAX_TERMS, press, totalOf, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
@@ -340,9 +340,9 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
 
   // what is said to the ledger
-  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
   eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
-  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, category: null, refund: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
 
   // opened again
   const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, date, merchant, place, payment, ...said }) => ({ ...said, ...(date ? { date } : {}), ...(merchant ? { merchant } : {}), ...(place ? { place } : {}), ...(payment ? { payment } : {}) }))(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
@@ -1238,7 +1238,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(sum.spentMost, { who: ["w"], amount: shares("w") }, `whose share came to the most (小王 ${shares("w")}, against 阿美 ${shares("m")} and Steve ${shares("s")})`);
   const pair = summaryOf({ ...start, entries: [{ ...tickets, payer: "w", split: { how: "equal", among: ["m", "w"] } }, { ...tickets, id: "e5", payer: "s", split: { how: "equal", among: ["w", "m"] } }] });
   eq([pair.paidMost, pair.spentMost], [{ who: ["s", "w"], amount: 6000 }, { who: ["w", "m"], amount: 6000 }], "two who came to the same: both, in the roster's order");
-  eq(summaryOf(start), { spent: 0, count: 0, tips: 0, tipped: 0, tax: 0, taxed: 0, paidMost: null, spentMost: null }, "nothing spent: nothing to say of anyone");
+  eq(summaryOf(start), { spent: 0, count: 0, refunds: 0, refunded: 0, tips: 0, tipped: 0, tax: 0, taxed: 0, paidMost: null, spentMost: null }, "nothing spent: nothing to say of anyone");
 }
 
 // ---------- 17. the day it was spent, on the screen ----------
@@ -1601,6 +1601,42 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   // words a note or a business goes by, beside the ones in section 24
   eq([guessed({ note: "", merchant: "Uber Eats" }), guessed({ note: "", merchant: "Uber" }), guessed({ note: "Lunch" }), guessed({ note: "茶" }), guessed({ note: "", merchant: "DoorDash" })], ["food", "transport", "food", "food", "food"], "Uber Eats is food, an Uber a ride; lunch, 茶 and DoorDash are food");
   eq(CATEGORIES.map((k) => say("zh", CATEGORY_WORD[k])), ["餐饮", "超市", "交通", "住宿", "玩乐", "购物", "其他"], "the seven kinds' names, in the order they are picked from");
+}
+
+// ---------- 26. 退款 on the screens: the sums, each one's line, the export, search, the draft ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }];
+  const three = { how: "equal" as const, among: ["s", "w", "m"] };
+  const start = startLedger("r", "周末", "CAD", people);
+  const hotel = addExpense(start, { id: "e1", at: 1000, payer: "s", amount: 30000, note: "酒店", split: three, category: "lodging" });
+  const l = addExpense(hotel, { id: "e2", at: 2000, payer: "s", amount: 9000, note: "退了一晚", split: three, refund: true });
+  const asIf = addExpense(start, { id: "e1", at: 1000, payer: "s", amount: 21000, note: "酒店", split: three });
+  const s = summaryOf(l);
+  eq([s.spent, s.count, s.refunds, s.refunded, s.paidMost, s.spentMost], [21000, 1, 9000, 1, { who: ["s"], amount: 21000 }, { who: ["s", "w", "m"], amount: 7000 }], "总结: what was spent less what came back, the refund said apart; who paid the most and spent the most, less it");
+  eq(summaryLines(l, "s", "zh").slice(0, 2).map((x) => [x.term, x.value, x.more]), [["一共花了", "$210.00", "1 笔"], ["退回来的", "$90.00", "1 笔"]], "its lines: spent $210.00, and $90.00 came back");
+  eq(summaryLines(l, "s", "en")[1].more, "1 refund", "in English, a refund counted as one");
+  eq([signedMoney(-9000, "CAD", "zh"), signedMoney(9000, "CAD", "en"), signedMoney(0, "JPY", "en")], ["\u2212$90.00", "$90.00", "JP¥0"], "a sum below nothing has a minus in front");
+  eq(peopleOf(l).map((p) => [p.id, p.paid, p.share, p.net]), peopleOf(asIf).map((p) => [p.id, p.paid, p.share, p.net]), "每个人: what each paid and shares, less the refund, as if the hotel was $210");
+  eq(statementOf(l, "w").expenses.map((x) => [x.expense.id, x.paid, x.share]), [["e2", 0, 3000], ["e1", 0, 10000]], "a statement: the refund with their part of it, as it is");
+  const alone = addExpense(start, { id: "e9", at: 1000, payer: "s", amount: 9000, note: "押金", split: three, refund: true });
+  eq(personLine(peopleOf(alone)[0], "CAD", "zh"), "付了 \u2212$90.00 · 摊 \u2212$30.00", "only money back: what they paid and share is below nothing, with a minus");
+  eq(byKind(l).map((k) => [k.kind, k.amount, k.count]), [["lodging", 30000, 1]], "按分类: a refund whose words say no kind is 其他's, which comes to less than nothing, so it's left out");
+  eq(byKind(addExpense(hotel, { id: "e2", at: 2000, payer: "s", amount: 9000, note: "退了一晚", split: three, refund: true, category: "lodging" })).map((k) => [k.kind, k.amount, k.count]), [["lodging", 21000, 2]], "a refund of a kind comes off it, and counts in it")
+  eq(byKind(alone), [], "a kind that came to nothing or less is left out");
+  // a row says who got it
+  eq([paidBy(expensesOf(l)[1], l, "s", "zh"), paidBy(expensesOf(l)[1], l, "w", "zh"), paidBy(expensesOf(l)[1], l, "w", "en")], ["你收到", "Steve收到", "Steve got it"], "a refund's row: who got it back");
+  // the export: 退款, with a minus, the other way round across the people
+  const csv = csvOf(l, "zh").slice(1).split("\r\n");
+  eq([csv[2], csv[3]], ["2026-11-27,退款,退了一晚,其他,Steve,-90.00,CAD,-60.00,30.00,30.00".replace("2026-11-27", localDay(2000)), ",合计,,,,210.00,CAD,140.00,-70.00,-70.00"], "the export: 退款, its amount with a minus, each one's part back to them, and the total less it");
+  // search finds it by the word
+  const found = (typed: string) => expensesOf(l).filter((e) => matches(e, l, typed, "s", "zh")).map((e) => e.id);
+  eq([found("退款"), found("refund"), found("酒店")], [["e2"], ["e2"], ["e1"]], "search: 退款 or refund finds the refund");
+  // never taken for a receipt already recorded
+  eq(twinIn(addExpense(start, { id: "x", at: 1000, payer: "s", amount: 4250, note: "", split: three, refund: true, merchant: "Tim Hortons" }), { total: 4250, tip: 0, currency: "CAD", date: localDay(1000), merchant: "Tim Hortons" }), null, "a refund is never a receipt recorded twice");
+  // the draft: a refund opened is one; it says so, and never a tip or tax
+  const back = expensesOf(l)[1];
+  const d = draftOf(back, l);
+  eq([d.refund, saying(d, l)?.refund, saying({ ...d, tip: "5.00" }, l)?.tip, saying({ ...d, refund: false }, l)?.refund, blankDraft(l, "s", 5000).refund], [true, true, null, null, false], "a refund opened is one, saved it says so and never a tip; turned off it says null; a new one isn't");
 }
 
 if (failed) {

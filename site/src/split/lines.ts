@@ -10,7 +10,7 @@ import { balances, expensesOf, type Expense, type Ledger, type Settlement } from
 import type { Category } from "./categories";
 import type { Person } from "./people";
 import { summaryOf, type Most } from "./summary";
-import { dayBefore, dayName, localDay, money } from "./format";
+import { dayBefore, dayName, localDay, money, signedMoney } from "./format";
 import { NAME_MAX, NOTE_MAX, tidy } from "./ops";
 import type { Held } from "./sync";
 import type { SyncState, Trouble } from "./syncer";
@@ -67,7 +67,8 @@ export function summaryLines(l: Ledger, me: string | undefined, lang: Lang): { t
       ? { term: say(lang, term), value: say(lang, "summaryAllSame"), more: say(lang, "summaryEach", { amount: sum(m.amount) }) }
       : { term: say(lang, term), value: m.who.map((id) => nameFor(l, id, me, lang) || say(lang, "someone")).join(say(lang, "nameAnd")), more: sum(m.amount) };
   return [
-    { term: say(lang, "summarySpent"), value: sum(s.spent), more: counted(s.count, "summaryCountOne", "summaryCount") },
+    { term: say(lang, "summarySpent"), value: signedMoney(s.spent, l.currency, lang), more: counted(s.count, "summaryCountOne", "summaryCount") },
+    ...(s.refunded ? [{ term: say(lang, "summaryRefunds"), value: sum(s.refunds), more: counted(s.refunded, "summaryRefundCountOne", "summaryRefundCount") }] : []),
     ...(s.tipped ? [{ term: say(lang, "summaryTips"), value: sum(s.tips), more: counted(s.tipped, "summaryOnOne", "summaryOn") }] : []),
     ...(s.taxed ? [{ term: say(lang, "summaryTax"), value: sum(s.tax), more: counted(s.taxed, "summaryOnOne", "summaryOn") }] : []),
     ...(s.paidMost ? [most("summaryPaidMost", s.paidMost)] : []),
@@ -81,7 +82,8 @@ export function summaryLines(l: Ledger, me: string | undefined, lang: Lang): { t
  */
 export function personLine(p: Person, currency: string, lang: Lang): string {
   if (!p.paid && !p.share && !p.sent && !p.received) return say(lang, "personNothing");
-  const part = (w: Word, n: number) => `${say(lang, w)} ${money(n, currency, lang)}`;
+  // (paid and shared count refunds the other way round, so either can be below nothing)
+  const part = (w: Word, n: number) => `${say(lang, w)} ${signedMoney(n, currency, lang)}`;
   return [part("personPaid", p.paid), part("personShare", p.share), ...(p.sent ? [part("personSent", p.sent)] : []), ...(p.received ? [part("personReceived", p.received)] : [])].join(" · ");
 }
 
@@ -110,7 +112,15 @@ export function standing(l: Ledger, me: string | undefined, lang: Lang): string 
 }
 
 /** Who paid an expense, for its row: "你付", "小王付". */
-export const paidBy = (e: Expense, l: Ledger, me: string | undefined, lang: Lang) => (e.payer === me ? say(lang, "paidByYou") : say(lang, "paidBy", { who: nameOf(l, e.payer) }));
+export const paidBy = (e: Expense, l: Ledger, me: string | undefined, lang: Lang) =>
+  // (a refund: who got it back)
+  e.refund
+    ? e.payer === me
+      ? say(lang, "receivedByYou")
+      : say(lang, "receivedBy", { who: nameOf(l, e.payer) })
+    : e.payer === me
+      ? say(lang, "paidByYou")
+      : say(lang, "paidBy", { who: nameOf(l, e.payer) });
 
 /** How an expense was shared, in a few words for its row. */
 export function sharedHow(e: Expense, l: Ledger, me: string | undefined, lang: Lang): string {

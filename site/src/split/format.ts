@@ -58,6 +58,9 @@ export function percent(part: number, whole: number, lang: Lang): string {
   return nf.format(whole > 0 ? part / whole : 0);
 }
 
+/** An amount that may be below nothing (what was spent, less more refunds than that): a minus in front ("−$90.00"). */
+export const signedMoney = (minor: number, currency: string, lang: Lang) => (minor < 0 ? `\u2212${money(-minor, currency, lang)}` : money(minor, currency, lang));
+
 /** An amount in smallest units, written out: 4250 Canadian cents is "$42.50". Never negative: the words around it say who owes whom. */
 export function money(minor: number, currency: string, lang: Lang): string {
   const [whole, frac] = fromMinor(Math.abs(minor), decimalsOf(currency)).split(".");

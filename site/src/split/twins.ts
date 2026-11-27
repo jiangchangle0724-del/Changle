@@ -71,7 +71,7 @@ const saidOfExpense = (l: Ledger, e: Expense): Said => ({
 export function twinIn(l: Ledger, s: Said, but?: string): Expense | null {
   return (
     expensesOf(l)
-      .filter((e) => e.id !== but && sameBill(saidOfExpense(l, e), s))
+      .filter((e) => e.id !== but && !e.refund && sameBill(saidOfExpense(l, e), s))
       .at(-1) ?? null
   );
 }

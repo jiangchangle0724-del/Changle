@@ -25,7 +25,7 @@ import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { AddExpense, Face } from "./AddExpense";
 import { balances, expensesOf, settlement, spent, type Expense, type Ledger } from "./core";
-import { localDay, money } from "./format";
+import { localDay, money, signedMoney } from "./format";
 import { keyFrom } from "./invite";
 import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
@@ -376,7 +376,8 @@ export function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: s
   // a phone that doesn't know which of these people is its owner says what was spent, and nothing about "you"
   const who = mine(ledger, me);
   const net = who ? (balances(ledger)[who] ?? 0) : 0;
-  const total = say(lang, "spent", { amount: money(spent(ledger), ledger.currency, lang) });
+  // (less what came back: below nothing, with a minus)
+  const total = say(lang, "spent", { amount: signedMoney(spent(ledger), ledger.currency, lang) });
   return (
     <div className="split-standing">
       {net !== 0 ? (
@@ -535,9 +536,11 @@ export function ExpenseList({
         {extras && <span className="split-row-extras">{extras}</span>}
       </span>
       <span className="split-row-amount">
-        {money(e.amount, ledger.currency, lang)}
+        {/* (a refund: money back, with a minus, and said so for a screen reader) */}
+        {e.refund && <span className="ui-visually-hidden">{say(lang, "refund")} </span>}
+        {e.refund ? signedMoney(-e.amount, ledger.currency, lang) : money(e.amount, ledger.currency, lang)}
         {/* paid in another currency: what was paid, under what it counts for */}
-        {paid && <small>{money(paid.amount, paid.currency, lang)}</small>}
+        {paid && <small>{e.refund ? signedMoney(-paid.amount, paid.currency, lang) : money(paid.amount, paid.currency, lang)}</small>}
       </span>
     </>
   );

@@ -19,16 +19,17 @@ export const categoryOf = (e: Pick<Expense, "note" | "merchant" | "category">): 
 export type KindSpent = { kind: Category; amount: number; count: number };
 
 /**
- * 按分类: what each kind of spending came to in the ledger's currency, and how many expenses it was,
- * the most first and 其他 last (a kind with none is left out). Together they are all that was spent.
+ * 按分类: what each kind of spending came to in the ledger's currency (less what came back of it),
+ * and how many expenses and refunds it was, the most first and 其他 last. A kind that came to
+ * nothing, or less, is left out; without refunds, together they are all that was spent.
  */
 export function byKind(l: Ledger): KindSpent[] {
   const sums = new Map<Category, KindSpent>();
   for (const e of expensesOf(l)) {
     const kind = categoryOf(e);
     const was = sums.get(kind) ?? { kind, amount: 0, count: 0 };
-    sums.set(kind, { kind, amount: was.amount + e.amount, count: was.count + 1 });
+    sums.set(kind, { kind, amount: was.amount + (e.refund ? -e.amount : e.amount), count: was.count + 1 });
   }
   const last = (k: Category) => (k === "other" ? 1 : 0);
-  return [...sums.values()].sort((a, b) => last(a.kind) - last(b.kind) || b.amount - a.amount || CATEGORIES.indexOf(a.kind) - CATEGORIES.indexOf(b.kind));
+  return [...sums.values()].filter((k) => k.amount > 0).sort((a, b) => last(a.kind) - last(b.kind) || b.amount - a.amount || CATEGORIES.indexOf(a.kind) - CATEGORIES.indexOf(b.kind));
 }
