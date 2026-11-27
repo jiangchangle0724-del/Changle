@@ -10,7 +10,7 @@
  */
 import { capDigits, cleanAmount, convert, CURRENCIES, CURRENCY_BY_CODE, DEFAULT_CODES, isCode, sizeClass } from "../src/tools/money";
 import { dayDiff, offsetMin, partsIn, PERMANENT_TIME, permanentOffset, zonedToUtc } from "../src/tools/tz";
-import { amountOf, COUNT, figureDigits, isKind, MASS, PACK_COUNT, PACK_MASS, PACK_UNITS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, UNITS, VOLUME, type Pack } from "../src/tools/units";
+import { amountOf, COUNT, figureDigits, isKind, keptPacks, MAX_PAST, readPast, remember, MASS, PACK_COUNT, PACK_MASS, PACK_UNITS, PACK_VOLUME, perBase, perBaseOf, plainFigure, rankPacks, UNITS, VOLUME, type Pack } from "../src/tools/units";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -130,6 +130,20 @@ eq([amountOf(""), amountOf("0"), amountOf("750"), amountOf("abc"), amountOf(unde
 ok(MASS[0].id === "g" && MASS[0].tiny && VOLUME[0].id === "ml" && VOLUME[0].tiny && MASS.filter((u) => u.tiny).length === 1, "grams and millilitres are chips for a pack's size, never boxes");
 eq(PACK_MASS.filter((u) => u.id === "g").length, 1, "a pack's size lists grams once");
 eq(PACK_MASS[0].id + PACK_VOLUME[0].id, "gml", "and first");
+
+// 2f. 最近比过的: comparisons kept after 清空
+const cmp = (at: number, price: string) => ({ at, kind: "volume" as const, cur: "CAD", packs: [g(price, "355", "ml", "12"), g("3.29", "2", "l")] });
+let past = remember([], cmp(1, "7.99"));
+past = remember(past, cmp(2, "8.49"));
+past = remember(past, cmp(3, "7.99"));
+eq(past.map((e) => e.at).join(), "3,2", "the same packs again move to the top instead of being kept twice");
+for (let i = 4; i < 12; i++) past = remember(past, cmp(i, String(i)));
+eq(past.length, MAX_PAST, "five at most");
+eq(past[0].at, 11, "newest first");
+eq(keptPacks([g("1", ""), g("", ""), g("", "2")]).length, 2, "a pack with nothing typed isn't kept");
+eq(readPast("nonsense").length + readPast(null).length, 0, "nothing kept reads as an empty list");
+const read = readPast([cmp(5, "1"), { at: 9, kind: "pieces", cur: "CAD", packs: [] }, { at: 7, kind: "mass", cur: "CAD", packs: [g("1", "1"), null] }, cmp(8, "2")]);
+eq(read.map((e) => e.at).join(), "8,5", "badly formed entries and single packs are dropped, newest first");
 
 // 3. the world clock
 const T = Date.UTC(2026, 6, 15, 12, 0); // 2026-07-15 12:00Z, summer

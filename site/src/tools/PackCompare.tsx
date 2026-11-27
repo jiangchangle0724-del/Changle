@@ -1,9 +1,10 @@
 import { Check, ChevronDown, Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { capDigits, cleanAmount } from "./money";
-import { BASE, figureDigits, MAX_PACKS, PACK_UNITS, rankPacks, type Kind, type Pack } from "./units";
+import { capDigits, cleanAmount, CURRENCY_BY_CODE, isCode, type Code } from "./money";
+import { BASE, figureDigits, keptPacks, MAX_PACKS, PACK_UNITS, rankPacks, readPast, remember, type Kind, type Pack, type Past } from "./units";
 
 const KEY = "changle.price.compare";
+const PAST_KEY = "changle.price.past";
 const TAGS = "ABCDEF";
 type State = { open: boolean; packs: Pack[] };
 const EMPTY: Pack = { price: "", qty: "", unit: "g", count: "" };
@@ -29,13 +30,23 @@ function load(): State {
  * answer per kilogram or litre. Ideas from open-source price comparers: up to six packs, + and −
  * (Quick Unit Price Comparison, PriceGrab), each pack's own unit price (Price Per Unit), the
  * saving named against the second cheapest with a check that isn't only color, and a reset that
- * can be undone (PriceGrab).
+ * can be undone (PriceGrab). A comparison that had an answer goes into 最近比过的 when it's
+ * cleared, the last five, and comes back with a tap, its kind and currency too (Better Deal).
  */
-export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string; lang: "zh" | "en" }) {
+export function PackCompare({ kind, cur, lang, onRestore }: { kind: Kind; cur: Code; lang: "zh" | "en"; onRestore: (kind: Kind, cur: Code) => void }) {
   const zh = lang === "zh";
+  const symbol = CURRENCY_BY_CODE[cur].symbol;
   const [state, setState] = useState<State>(load);
   // the packs as they were before 清空, until the next change
   const [undo, setUndo] = useState<Pack[] | null>(null);
+  const [past, setPast] = useState<Past[]>(() => {
+    try {
+      return readPast(JSON.parse(localStorage.getItem(PAST_KEY) ?? "[]"));
+    } catch {
+      return [];
+    }
+  });
+  const [showPast, setShowPast] = useState(false);
   useEffect(() => {
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
@@ -43,6 +54,13 @@ export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string
       /* fine */
     }
   }, [state]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAST_KEY, JSON.stringify(past));
+    } catch {
+      /* fine */
+    }
+  }, [past]);
 
   const units = PACK_UNITS[kind];
   // a unit saved under another kind falls back to grams, millilitres or items
@@ -59,6 +77,46 @@ export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string
   const filled = packs.some((p) => p.price || p.qty || p.count);
 
   const names = (ids: number[]) => ids.map((i) => TAGS[i]).join(zh ? "、" : " and ");
+  /** Keep the comparison on screen in 最近比过的, if it had an answer. */
+  const keep = () => {
+    if (verdict) setPast((list) => remember(list, { at: Date.now(), kind, cur, packs: keptPacks(packs) }));
+  };
+  const bringBack = (e: Past) => {
+    keep();
+    const packs = e.packs.slice(0, MAX_PACKS);
+    while (packs.length < 2) packs.push(EMPTY);
+    setUndo(null);
+    setState((s) => ({ ...s, open: true, packs }));
+    onRestore(e.kind, isCode(e.cur) ? e.cur : cur);
+  };
+  const when = (at: number) => {
+    const d = new Date(at);
+    const today = new Date().toDateString() === d.toDateString();
+    return new Intl.DateTimeFormat(zh ? "zh-CN" : "en-CA", today ? { hour: "2-digit", minute: "2-digit" } : { month: "short", day: "numeric" }).format(d);
+  };
+  /** One line for a kept comparison: who won and by how much, then the packs as they were typed. */
+  const pastLines = (e: Past) => {
+    const units = PACK_UNITS[e.kind];
+    const { per: pastPer, verdict: v } = rankPacks(e.packs, units);
+    const most = pastPer.filter((x) => x !== null).length === 2 ? "更" : "最";
+    const sym = isCode(e.cur) ? CURRENCY_BY_CODE[e.cur].symbol : "";
+    const head = !v
+      ? ""
+      : v.next === null
+        ? zh
+          ? "一样价"
+          : "Same price"
+        : zh
+          ? `${v.best.map((i) => TAGS[i]).join("、")} ${most}划算，便宜 ${v.pct}%`
+          : `${v.best.map((i) => TAGS[i]).join(" and ")} ${v.pct}% cheaper`;
+    const packsText = e.packs
+      .map((p, i) => {
+        const u = units.find((x) => x.id === p.unit) ?? units[0];
+        return `${TAGS[i]} ${sym}${p.price || "?"} ${p.qty || "?"} ${zh ? u.zh : u.en}${p.count && p.count !== "1" ? ` × ${p.count}` : ""}`;
+      })
+      .join(" · ");
+    return { head, packsText };
+  };
   const verdictText = () => {
     if (!verdict) {
       const eg = { mass: zh ? "100 克 × 6" : "100 g × 6", volume: zh ? "355 毫升 × 12" : "355 mL × 12", count: zh ? "12 个 × 2" : "12 items × 2" }[kind];
@@ -178,6 +236,7 @@ export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string
                   className="link-btn pack-reset"
                   onClick={() => {
                     const before = packs;
+                    keep();
                     setState((s) => ({ ...s, packs: before.map((p) => ({ ...EMPTY, unit: p.unit })) }));
                     setUndo(before);
                   }}
@@ -187,6 +246,38 @@ export function PackCompare({ kind, symbol, lang }: { kind: Kind; symbol: string
               )
             )}
           </div>
+          {past.length > 0 && (
+            <div className="pack-past">
+              <button type="button" className="link-btn pack-past-toggle" aria-expanded={showPast} aria-controls="pack-past-list" onClick={() => setShowPast((v) => !v)}>
+                {zh ? `最近比过的（${past.length}）` : `Recent comparisons (${past.length})`}
+                <ChevronDown size={16} className={showPast ? "is-open" : ""} aria-hidden="true" />
+              </button>
+              {showPast && (
+                <>
+                  <ul id="pack-past-list">
+                    {past.map((e) => {
+                      const { head, packsText } = pastLines(e);
+                      return (
+                        <li key={e.at}>
+                          <button type="button" onClick={() => bringBack(e)}>
+                            <span className="pack-past-head">
+                              <span>{head}</span>
+                              <span className="pack-past-when">{when(e.at)}</span>
+                            </span>
+                            <span className="pack-past-packs tabular">{packsText}</span>
+                            <span className="ui-visually-hidden">{zh ? "，点一下放回上面" : ", tap to bring it back"}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <button type="button" className="link-btn" onClick={() => setPast([])}>
+                    {zh ? "清除记录" : "Clear the list"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
