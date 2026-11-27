@@ -187,8 +187,10 @@ test("a list this code only half understands is trouble, never a shorter list", 
     Array.from({ length: 17 }, (_, i) => device({ id: newId(), here: i === 0 })),
   ])
     assert.deepEqual(await listing(good({ sessions })), server, JSON.stringify(sessions)?.slice(0, 80));
-  // (sixteen are taken: twice what the server keeps)
+  // (sixteen are taken: twice what the server keeps; and a label as long as 120 characters)
   assert.equal((await listing(good({ sessions: Array.from({ length: 16 }, (_, i) => device({ id: newId(), here: i === 0 })) }))).ok, true);
+  assert.equal((await listing(good({ sessions: [device({ label: "x".repeat(120) })] }))).ok, true);
+  assert.equal((await listing(good({ sessions: [device({ label: "" })] }))).ok, true);
   // the lines
   for (const events of [
     undefined,

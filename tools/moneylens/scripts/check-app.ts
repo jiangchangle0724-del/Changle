@@ -325,6 +325,10 @@ try {
   await phone.getByLabel("口令", { exact: true }).fill(WRONG);
   await phone.getByRole("button", { name: "打开", exact: true }).click();
   await phone.getByRole("alert").filter({ hasText: "口令不对。" }).waitFor();
+  // (it looks at the list too, from its locked screen: itself, and the first device)
+  await phone.getByRole("button", { name: "设备和记录" }).click();
+  await phone.locator("li.device").nth(1).waitFor();
+  assert.ok((await phone.locator("li.device").filter({ hasText: "这台设备" }).innerText()).includes("iPhone 上的 Safari"));
 
   const panel = (heading: string) => page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: heading, exact: true }) });
   const devices = page.locator("li.device");
@@ -386,11 +390,10 @@ try {
   // its wrong try is still shown, as that of a device that has since signed out
   assert.ok((await misses.first().innerText()).includes("一台已经退出的设备"));
   await screen(page, "devices-one-signed-out");
-  // and that device can ask nothing more: at its next press it is told that it is signed out
-  assert.equal((await standing(phone)).status, 401);
-  await phone.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
-  await phone.getByRole("button", { name: "打开", exact: true }).click();
+  // and that device can do nothing more: at its next press on its own list (it tries to sign the first device out) it is told that it is signed out, and the first device is not
+  await phone.locator("li.device").filter({ hasText: mine }).getByRole("button", { name: "让它退出" }).click();
   await title(phone, "把账单变成一本看得懂的账").waitFor();
+  assert.deepEqual([await phone.evaluate("history.state"), (await standing(phone)).status, (await standing(page)).status], [null, 401, 200]);
 
   // "Back", the page's own or the browser's, is the screen behind it as it was: the vault is still open, and was not asked for again.
   await page.getByRole("button", { name: "返回" }).click();
@@ -501,6 +504,11 @@ try {
   await timed.getByRole("button", { name: "设备和记录" }).click();
   const timedHere = timed.locator("li.device").filter({ hasText: "这台设备" });
   await timedHere.filter({ hasText: "保险库开着" }).waitFor();
+  // (the word that it locked is held up on its way: a list that did not wait for it would be told that the vault is still open)
+  await timed.route("**/api/vault/lock", async (route) => {
+    await new Promise((done) => setTimeout(done, 500));
+    await route.continue();
+  });
   await timed.clock.fastForward("15:01");
   await timedHere.filter({ hasText: "保险库锁着" }).waitFor();
   await timed.getByRole("button", { name: "返回" }).click();

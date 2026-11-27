@@ -41,14 +41,14 @@ function troubleOf(answer: { status: number } | null): Trouble {
 }
 
 function readDevices(sent: unknown): Device[] | null {
-  if (!Array.isArray(sent) || sent.length === 0 || sent.length > DEVICES_MOST) return null;
+  if (!Array.isArray(sent) || sent.length > DEVICES_MOST) return null;
   const devices: Device[] = [];
   for (const one of sent) {
     if (!isRecord(one) || !isId(one.id) || typeof one.label !== "string" || one.label.length > 120 || !isTime(one.made) || !isTime(one.seen)) return null;
     if (typeof one.here !== "boolean" || typeof one.unlocked !== "boolean") return null;
     devices.push({ id: one.id, label: one.label, made: one.made, seen: one.seen, here: one.here, unlocked: one.unlocked });
   }
-  // (the session that asks is in its own list, once; and no device is in it twice)
+  // (the session that asks is in its own list, once, so a list with nobody in it is none; and no device is in it twice)
   if (devices.filter((device) => device.here).length !== 1 || new Set(devices.map((device) => device.id)).size !== devices.length) return null;
   return devices;
 }
@@ -86,8 +86,9 @@ export function partsOf(label: string): { browser: string | null; system: string
   if (label === "Browser") return { browser: null, system: null };
   if (BROWSERS.includes(label)) return { browser: label, system: null };
   if (SYSTEMS.includes(label)) return { browser: null, system: label };
-  const [browser, system, ...more] = label.split(" on ");
-  return browser !== undefined && system !== undefined && more.length === 0 && BROWSERS.includes(browser) && SYSTEMS.includes(system) ? { browser, system } : null;
+  const words = label.split(" on ");
+  const [browser = "", system = ""] = words;
+  return words.length === 2 && BROWSERS.includes(browser) && SYSTEMS.includes(system) ? { browser, system } : null;
 }
 
 /** The wrong proofs among the lines, newest first: shown apart, above everything else. */
@@ -121,7 +122,7 @@ export async function endDevice(ask: Ask, id: string): Promise<"ok" | "gone" | T
 export async function endOthers(ask: Ask): Promise<{ ok: true; ended: number } | { ok: false; why: Trouble }> {
   const answer = await ask("sessions/end", { others: true });
   if (answer && answer.status === 200 && answer.json.ok === true && isTime(answer.json.ended)) return { ok: true, ended: answer.json.ended };
-  return { ok: false, why: answer && answer.status === 200 ? "server" : troubleOf(answer) };
+  return { ok: false, why: troubleOf(answer) };
 }
 
 /** What went wrong with a request, when it was not that this device is signed out. */
