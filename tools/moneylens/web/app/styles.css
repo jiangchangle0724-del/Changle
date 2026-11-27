@@ -1,0 +1,449 @@
+/*
+ * 心里有数 · MoneyLens: its own styles. Every color, type size, corner, shadow and timing comes from
+ * tokens.css (a copy of changle.ca's, bundled in front of this file); tests/design.test.ts keeps
+ * it that way. Night colors only. A tool's color is amber, so amber is the light in this room:
+ * the thing to press.
+ */
+
+/* ---------- the page ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* a double tap never zooms, two fingers still do (and main.tsx makes Safari look at it everywhere);
+     every element says it itself, since an iPhone starts afresh inside each scrolling box */
+  touch-action: manipulation;
+}
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-text);
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Nothing but a field can be selected, pressing and holding brings up no menu, and a double tap
+   never zooms (as on changle.ca); two fingers still zoom. */
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  -webkit-text-size-adjust: 100% !important;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+/* the lamp over the table */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: 46vh;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% -24%, color-mix(in oklab, var(--type-tool) 20%, transparent), transparent 72%);
+}
+#app {
+  --gel: var(--type-tool);
+  --on-gel: var(--color-on-accent);
+  position: relative;
+}
+h1,
+p {
+  margin: 0;
+  padding: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* a title takes the focus when its screen appears, for the keyboard and the screen reader: no ring for that */
+.title:focus {
+  outline: none;
+}
+noscript {
+  display: block;
+  padding: var(--space-8) var(--gutter);
+  color: var(--color-text-2);
+  text-align: center;
+}
+.copy-scratch {
+  position: fixed;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + var(--space-2)) var(--gutter) calc(var(--safe-bottom) + var(--space-12));
+}
+@media (max-width: 340px) {
+  .page {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+}
+.main {
+  animation: arrive var(--dur-enter) var(--ease-out);
+}
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+
+/* ---------- the bar at the top ---------- */
+.bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: var(--bar-h);
+}
+.bar-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  padding-right: var(--space-3);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.bar-brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.bar-lang {
+  justify-self: end;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* ---------- a screen: its title, what it says, what to do ---------- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  padding: var(--space-4) 0 var(--space-2);
+}
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+.lead {
+  max-width: 30em;
+  color: var(--color-text-2);
+  font-size: var(--text-lg);
+}
+.hint {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+/* what to know, or what went wrong: a sign and a line, never a color alone */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+.note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.note-warn {
+  box-shadow: inset 0 0 0 1px var(--color-warning);
+}
+.note-warn svg {
+  color: var(--color-warning);
+}
+.note-error {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+  font-weight: 600;
+}
+.note-error svg {
+  color: var(--color-danger);
+}
+.skeleton {
+  height: var(--tap-crowded);
+  border-radius: var(--r-field);
+  background: var(--color-sheet);
+  box-shadow: var(--shadow-flat);
+}
+.skeleton-short {
+  width: 60%;
+}
+
+.foot {
+  margin-top: var(--space-8);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- panels, fields, buttons ---------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--r-tile);
+  background: var(--color-sheet);
+  box-shadow: var(--shadow-flat);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field-label {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.field-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.field input,
+.field textarea,
+.copy-manual input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+/* a recovery code, typed: all of it in sight, on two lines of a phone */
+.field textarea {
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--leading-en);
+  resize: none;
+}
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+.field input:disabled,
+.field textarea:disabled {
+  color: var(--color-text-2);
+}
+.field-toggle {
+  flex-shrink: 0;
+  min-width: 64px;
+  min-height: 50px;
+  padding: 0 var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+/* a recovery code, typed or shown: in the type that tells 0 from O and 1 from l */
+.code-input,
+.code,
+.copy-manual input {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.04em;
+}
+.code {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+.code span {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.copy-manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+}
+/* "I have written it down": the whole line is the thing to press */
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+.check input {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: var(--gel);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* (what went wrong with a button of the row goes under the row, on a line of its own) */
+.row .note {
+  flex-basis: 100%;
+}
+.row .btn-quiet {
+  align-self: auto;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 50px;
+  padding: 0 22px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.965);
+}
+.btn:disabled {
+  cursor: not-allowed;
+}
+.btn svg {
+  flex-shrink: 0;
+}
+.btn-primary {
+  background: var(--gel);
+  box-shadow: var(--glow);
+  color: var(--on-gel);
+}
+/* a faded gel reads as mud on the dark room: a resting button goes grey instead */
+.btn-primary:disabled {
+  background: var(--color-raised);
+  box-shadow: none;
+  color: var(--color-text-3);
+}
+.btn-quiet {
+  align-self: flex-start;
+  background: var(--color-raised);
+  color: var(--color-text);
+}
+.btn-block {
+  width: 100%;
+}
+.btn-lg {
+  min-height: 60px;
+  font-size: var(--text-lg);
+}
+.link-btn {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-2);
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-btn:disabled {
+  color: var(--color-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main {
+    animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+}

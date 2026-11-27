@@ -9,9 +9,14 @@
  *
  * A request's way in:
  *
+ * - `GET /`, `GET /assets/...` and `GET /licences.txt` hand out the app (web/app, built into
+ *   dist/app): one page, its script, styles, fonts and icon, and the licences of the fonts and
+ *   the code in it. They hold nobody's data. With the gate shut, the page is two lines saying so
+ *   and nothing else is handed out.
  * - `GET /enter` starts a sign-in: a nonce in a cookie only this origin can set, and on to the
  *   main site, which asks the accounts service for a handoff code bound to that nonce and sends
- *   the browser back with it (ARCH-3).
+ *   the browser back with it (ARCH-3). Only from this origin's own page: a browser sent to
+ *   /enter from anywhere else is shown the page.
  * - Everything else is `POST /api/...`, and is refused unless its `Origin` is exactly the one
  *   this Worker is set to answer on (SEC-4; the expected origin is a setting, never read off the
  *   request), the gate is open (SEC-10), its body is of the stated kind and no longer than that
@@ -24,6 +29,12 @@
  *   (ISO-2): the request goes to that account's object, which checks the token. The body is
  *   handed on unread, as a stream: a Worker on the Free plan has ten milliseconds of processor
  *   time for a request (LIM-1), and a push can be eight megabytes.
+ * - What a stranger can make this server do is kept small before it is done (the review of
+ *   #814, finding 1). An account id that is not on the gate's list goes no further than the
+ *   Worker. And whatever would ask something of an object, the registry or the accounts service
+ *   is first counted by the address it came from, by Cloudflare's own rate limiter (`TRADES`
+ *   for the trading of codes, `ASKS` for everything else; `ratelimits` in wrangler.jsonc). With
+ *   the gate open and no limiter bound, nothing is answered.
  *
  * No answer may be kept by anything in between (`no-store`), framed by anyone, or read as
  * anything but what it says it is (SEC-1). No `Access-Control-*` header is ever sent.
@@ -35,12 +46,12 @@
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import { newId } from "../core/ids";
 import { LIMITS } from "../vault/protocol";
-import { ACTIONS, act, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
+import { ACTIONS, act, proofsIn, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
 import type { Db } from "./chunks";
 import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
-import { configOf, type Config, type Settings } from "./gate";
+import { configOf, listed, type Config, type Settings } from "./gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "./registry";
-import { fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
+import { addressKey, fromOurOrigin, isAccount, labelOf, noCookie, NONCE_COOKIE, nonceCookie, readNonce, readSession, SESSION_COOKIE, sessionCookie } from "./request";
 import { hashOf, newToken } from "./sessions";
 import { HEAD_MAX } from "./wire";
 
@@ -54,6 +65,31 @@ export interface Env extends Settings {
   VAULTS: DurableObjectNamespace<VaultDO>;
   REGISTRY: DurableObjectNamespace<Registry>;
   ACCOUNTS: Accounts;
+  /** The app's pages, as files (dist/app; `assets` in wrangler.jsonc). Every request comes to this Worker first, and it asks for a file here. */
+  ASSETS: Fetcher;
+  /** Cloudflare's rate limiter, twice (`ratelimits` in wrangler.jsonc): the trading of handoff codes, and every other request with a session's cookie. Counted by the address a request came from. */
+  TRADES: Limiter;
+  ASKS: Limiter;
+}
+
+/** What Cloudflare's rate limiter offers: one more for this key, and whether that is still within the limit. */
+type Limiter = { limit(options: { key: string }): Promise<{ success: boolean }> };
+const isLimiter = (x: unknown): x is Limiter => typeof x === "object" && x !== null && typeof (x as Limiter).limit === "function";
+
+/**
+ * One more request from this address: is it within the limit? Asked only when the request is about to cost something
+ * beyond itself. The count is Cloudflare's, kept per place and brought together in the background, so it is a lid
+ * on what one address can spend and not an exact number. A limiter that fails lets the request through: it guards
+ * what the server spends, and who is let in does not rest on it.
+ */
+async function within(limiter: Limiter, request: Request): Promise<boolean> {
+  try {
+    // (the address is Cloudflare's own word for where the request came from; a caller cannot set it. One machine's IPv6 addresses are one key: request.ts)
+    return (await limiter.limit({ key: addressKey(request.headers.get("CF-Connecting-IP")) })).success !== false;
+  } catch (e) {
+    console.error("moneylens: the limiter failed", e instanceof Error ? e.name : typeof e);
+    return true;
+  }
 }
 
 /** The objects as flows.ts reaches them: the registry (one for all), the accounts service, and each account's own. */
@@ -75,12 +111,12 @@ function doorsOf(env: Env): Doors {
 
 /** The longest body of a request that is not a push: a code, an id, a vault's name. */
 const SMALL = 4096;
-/** A push at its largest: its blobs and its head. */
-const PUSH_MAX = LIMITS.batchBytes + HEAD_MAX;
+/** The largest push: the frame's four bytes of length, its head, and a batch's worth of blobs (wire.ts). */
+const PUSH_MAX = 4 + HEAD_MAX + LIMITS.batchBytes;
 const JSON_TYPE = "application/json";
 const BYTES_TYPE = "application/octet-stream";
 
-/** On every answer (SEC-1). The policy is that of an answer with nothing to load: the app's pages will bring their own. */
+/** On every answer (SEC-1). The policy is that of an answer with nothing to load: the app's page has its own (`PAGE_POLICY`). */
 const HEADERS: Readonly<Record<string, string>> = {
   "Cache-Control": "no-store",
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -90,6 +126,16 @@ const HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
 };
+
+/**
+ * What the app's page may load and talk to (SEC-2): its own script, styles, fonts and pictures, from this origin, and
+ * this origin's /api. No script or style written into the page, nothing from anywhere else, no frames, no forms.
+ */
+const PAGE_POLICY = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+/** A file under /assets never changes under one name (scripts/build-app.mjs), so it may be kept for a year. It holds nobody's data. */
+const KEPT = "public, max-age=31536000, immutable";
+/** What the page loads: a file under /assets, in one folder at most, with a plain name and one ending. No other path is ever asked of where the files are kept. */
+const FILE = /^\/assets\/(?:[a-z0-9-]+\/)?[A-Za-z0-9-]+\.[a-z0-9]+$/;
 
 function reply(status: number, body: BodyInit | null, type: string | null, cookies: readonly string[] = [], more: Readonly<Record<string, string>> = {}): Response {
   const headers = new Headers({ ...HEADERS, ...more });
@@ -123,23 +169,27 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (!config) return refuse(503, "not-set-up");
   const path = new URL(request.url).pathname;
   if (path === "/enter") return enter(request, config);
-  if (!path.startsWith("/api/")) return refuse(404, "no-such-thing");
+  if (!path.startsWith("/api/")) return page(request, env, config, path);
   if (request.method !== "POST") return reply(405, JSON.stringify({ ok: false, why: "post-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "POST" });
   if (!fromOurOrigin(request.headers, config.origin)) return refuse(403, "origin");
   if (config.gate.mode === "closed") return refuse(403, "closed");
+  // (open, and nothing to count by: the server is not set up to be open)
+  if (!isLimiter(env.TRADES) || !isLimiter(env.ASKS)) return refuse(503, "not-set-up");
   const action = path.slice("/api/".length);
   if (action === "session") return trade(request, env, config);
   if (!ACTIONS.includes(action)) return refuse(404, "no-such-thing");
   const signedOut = [noCookie(SESSION_COOKIE)];
   const cookie = readSession(request.headers.get("Cookie"));
   if (!cookie) return refuse(401, "signed-out", signedOut);
-  // (with a list, an account that is not on it reaches no database at all)
-  if (config.gate.mode === "list" && !config.gate.accounts.has(cookie.account)) return refuse(403, "not-admitted", signedOut);
+  // (an account that is not on the gate's list reaches no database at all)
+  if (!listed(config.gate, cookie.account)) return refuse(403, "not-admitted", signedOut);
   const push = action === "sync/push";
   const wrong = unfit(request, push ? BYTES_TYPE : JSON_TYPE, push ? PUSH_MAX : SMALL);
   if (wrong) return wrong;
   const hash = await hashOf(cookie.token);
   if (!hash) return refuse(401, "signed-out", signedOut);
+  // (from here the request reaches an object: counted first)
+  if (!(await within(env.ASKS, request))) return refuse(429, "slow-down");
   // To that account's own database, and no other. The body goes on as it came, unread.
   const answer = await env.VAULTS.get(env.VAULTS.idFromName(cookie.account)).fetch(`https://vault.internal/${action}`, {
     method: "POST",
@@ -149,10 +199,29 @@ async function route(request: Request, env: Env): Promise<Response> {
   return reply(answer.status, answer.body, answer.headers.get("Content-Type"), answer.headers.get("x-ml-signed-out") ? signedOut : []);
 }
 
+/** The app's page at `/`, what it loads from under `/assets/`, and the licences of what is in it. Nothing else is a page. */
+async function page(request: Request, env: Env, config: Config, path: string): Promise<Response> {
+  const file = FILE.test(path);
+  if (path !== "/" && path !== "/licences.txt" && !file) return refuse(404, "no-such-thing");
+  if (request.method !== "GET" && request.method !== "HEAD") return reply(405, JSON.stringify({ ok: false, why: "get-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "GET, HEAD" });
+  // with the gate shut, nobody is handed the app: the page says so, and there is nothing else
+  if (config.gate.mode === "closed") return path === "/" ? reply(403, SHUT, "text/html; charset=utf-8") : refuse(404, "no-such-thing");
+  // (asked for by its path alone: nothing of the request goes with it, not its cookies and not its conditions)
+  const found = await env.ASSETS.fetch(new Request(`https://assets.invalid${path}`, { method: request.method }));
+  // (the file, whole, or nothing: a redirect, a part or "not changed" from there is not passed on, and neither is any header but the kind)
+  if (found.status !== 200) return refuse(404, "no-such-thing");
+  return reply(200, found.body, found.headers.get("Content-Type"), [], file ? { "Cache-Control": KEPT } : path === "/" ? { "Content-Security-Policy": PAGE_POLICY } : {});
+}
+
 /** Starts a sign-in: the nonce goes into a cookie here and, with the browser, to the main site. */
 function enter(request: Request, config: Config): Response {
   if (request.method !== "GET" && request.method !== "HEAD") return reply(405, JSON.stringify({ ok: false, why: "get-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "GET, HEAD" });
   if (config.gate.mode === "closed") return reply(403, SHUT, "text/html; charset=utf-8");
+  // A sign-in starts at a press on this origin's own page. Come to from anywhere else (another site, a link in a
+  // message, an address typed in), the browser is shown that page instead: nobody is signed in without having pressed
+  // anything (the review of the door, finding 6). A browser that does not say where a request came from is let on.
+  const from = request.headers.get("Sec-Fetch-Site");
+  if (from !== null && from !== "same-origin") return reply(302, null, null, [], { Location: `${config.origin}/` });
   const nonce = newToken();
   const cookie = nonceCookie(nonce);
   if (!cookie) return refuse(500, "unavailable");
@@ -175,6 +244,8 @@ async function trade(request: Request, env: Env, config: Config): Promise<Respon
     code = undefined;
   }
   if (typeof code !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(code)) return refuse(400, "bad-request", over);
+  // (from here the trade asks the registry and the accounts service: counted first. Nothing was traded, so the nonce stays)
+  if (!(await within(env.TRADES, request))) return refuse(429, "slow-down");
   // The token is made here and its hash goes on; the token itself goes to the browser, and only if the trade says ok.
   const token = newToken();
   const hash = await hashOf(token);
@@ -248,8 +319,13 @@ export class VaultDO extends DurableObject<Env> {
         if ("status" in first) answer = first;
         else {
           const body = new Uint8Array(await request.arrayBuffer());
+          const fits = body.length <= (action === "sync/push" ? PUSH_MAX : SMALL);
+          // (a proof the body carries is hashed here, since hashing waits: `act` is given the hash)
+          const proofs = fits ? await proofsIn(action, body) : [];
           // From here to the answer nothing waits: the session is checked again, and the thing is done.
-          answer = body.length > (action === "sync/push" ? PUSH_MAX : SMALL) ? { status: 413, json: { ok: false, why: "too-big" } } : act(db, { account, hash, action, body }, Date.now(), config);
+          if (!fits) answer = { status: 413, json: { ok: false, why: "too-big" } };
+          else if (!proofs) answer = { status: 400, json: { ok: false, why: "bad-request" } };
+          else answer = act(db, { account, hash, action, body, proofs }, Date.now(), config);
         }
       }
     } catch (e) {

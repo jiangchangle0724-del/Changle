@@ -5,6 +5,8 @@
  *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone (?c=: a link
  *   /tools/<tool>     a tool on its page                         of the game's own, 猜歌名's challenges)
  *                     (currency, clock, price)
+ *   /tools/finance    心里有数 · MoneyLens, which lives at money.changle.ca: the way in from there
+ *                     (?handoff=<nonce>, tools/Finance.tsx)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype;
  *                                                             /me/email-cancel#<link>: cancels a waiting 换邮箱)
@@ -30,6 +32,8 @@ export type Route =
   | { kind: "home"; tab: HomeTab; game?: GameId; open?: "settings" | "login" }
   | { kind: "game"; id: GameId; c?: string }
   | { kind: "tool"; id: ToolId }
+  /** 心里有数 · MoneyLens's page here (tools/Finance.tsx). `handoff`: the nonce money.changle.ca sent the browser with, to get a code for. */
+  | { kind: "finance"; handoff?: string }
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
   | { kind: "figure" }
@@ -70,6 +74,11 @@ export function parse(pathname: string, search = ""): Route {
   let m: RegExpExecArray | null;
   if (p === "/") return { kind: "home", tab: "party" };
   if (p === "/tools" || p === "/wish") return { kind: "home", tab: p.slice(1) as HomeTab };
+  if (p === "/tools/finance") {
+    const h = new URLSearchParams(search).get("handoff");
+    // (kept in the address while the page is up, so that it is still there after a sheet closes; only what could be a nonce is kept)
+    return h && /^[A-Za-z0-9_-]{20,64}$/.test(h) ? { kind: "finance", handoff: h } : { kind: "finance" };
+  }
   if ((m = /^\/tools\/([a-z]+)$/.exec(p)) && isToolId(m[1])) return { kind: "tool", id: m[1] };
   if (p === "/settings") return { kind: "home", tab: "party", open: "settings" };
   if (p === "/login") return { kind: "home", tab: "party", open: "login" };
@@ -123,6 +132,8 @@ export function pathOf(r: Route): string {
       return `/g/${GAME_BY_ID[r.id].slug}/play${r.c ? `?c=${r.c}` : ""}`;
     case "tool":
       return `/tools/${r.id}`;
+    case "finance":
+      return `/tools/finance${r.handoff ? `?handoff=${r.handoff}` : ""}`;
     case "room":
       return `/t/${r.code}`;
     case "me":
@@ -194,6 +205,8 @@ export function titleOf(r: Route, lang: Lang): string {
       return gameTitle(r.id);
     case "tool":
       return named(TOOLS[r.id].zh, TOOLS[r.id].en);
+    case "finance":
+      return named("心里有数", "MoneyLens");
     case "room":
       return named(`桌号 ${r.code}`, `Table ${r.code}`);
     case "tv":

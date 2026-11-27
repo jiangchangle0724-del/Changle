@@ -6,9 +6,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { newId } from "../src/core/ids";
-import { ACTIONS, act, isSetUp, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
+import { ACTIONS, act, isSetUp, proofsIn, sessionFor, SIGN_INS_PER_HOUR, signEveryoneOut, signIn, type Answer } from "../src/server/account";
 import { chunkTables, lastDay, pushChunks, startVault, type Db } from "../src/server/chunks";
-import { admits, configOf, gateOf, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
+import { admits, configOf, gateOf, listed, QUOTA_BOUNDS, type Config, type Settings } from "../src/server/gate";
 import { countAccounts, forgetAccount, noteAccount, registryTables, setStamp, stampOf } from "../src/server/registry";
 import { labelOf } from "../src/server/request";
 import { hashOf, newToken } from "../src/server/sessions";
@@ -20,7 +20,8 @@ const ORIGIN = "https://money.changle.test";
 const [A, B] = ["uaaaaaa1", "ubbbbbb2"];
 const T0 = Date.UTC(2026, 10, 25, 20, 0, 0);
 const MINUTE = 60_000;
-const config = (settings: Settings = {}): Config => configOf({ ORIGIN, GATE: "owner", ...settings })!;
+/** Open to the owner unless said otherwise, with both of these tests' accounts written down: which of them is the owner's is the accounts service's word at sign-in. */
+const config = (settings: Settings = {}): Config => configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: `${A},${B}`, ...settings })!;
 const tables = (db: Db & { raw: { prepare(sql: string): { all(): unknown[] } } }): number => db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all().length;
 const json = (text: string): Uint8Array => new TextEncoder().encode(text);
 const blob = (fill: number, length = 64): Uint8Array => new Uint8Array(length).fill(fill);
@@ -33,12 +34,27 @@ async function enter(db: Db, account: string, now: number, cfg: Config, owner = 
   return { token, hash, session, said: signIn(db, { account, session, hash, label: "Chrome on Windows", owner }, now, cfg.gate) };
 }
 const ask = (db: Db, account: string, hash: string, action: string, now: number, cfg: Config, body: Uint8Array = new Uint8Array(0)): Answer => act(db, { account, hash, action, body }, now, cfg);
+/** The same, for a request that carries proofs: they are hashed first, as the object does it (worker.ts), and a body whose proofs are no proofs goes no further. */
+async function asking(db: Db, account: string, hash: string, action: string, now: number, cfg: Config, body: Uint8Array): Promise<Answer> {
+  const proofs = await proofsIn(action, body);
+  return proofs ? act(db, { account, hash, action, body, proofs }, now, cfg) : { status: 400, json: { ok: false, why: "bad-request" } };
+}
+/** A vault's two ways in as a device hands them over. Nothing in them opens anything: the server does not look inside. */
+function waysFor(vault: string): { ways: { wrapper: { id: string; kind: string }; params: object; proof: string }[]; passphrase: { id: string; proof: string }; recovery: { id: string; proof: string } } {
+  const one = (kind: "passphrase" | "recovery") => ({ wrapper: { v: 1, id: newId(), vault, kind, salt: "c2FsdA", wrapped: "d3JhcHBlZA" }, params: { v: 1, kind, salt: "cHJvb2Y" }, proof: newToken() });
+  const [passphrase, recovery] = [one("passphrase"), one("recovery")];
+  return { ways: [passphrase, recovery], passphrase: { id: passphrase.wrapper.id, proof: passphrase.proof }, recovery: { id: recovery.wrapper.id, proof: recovery.proof } };
+}
+/** Unlocks a session with a way in's proof, as a second device does. */
+const unlocking = (db: Db, account: string, hash: string, now: number, cfg: Config, way: { id: string; proof: string }): Promise<Answer> => asking(db, account, hash, "vault/unlock", now, cfg, json(JSON.stringify(way)));
 const why = (answer: Answer): [number, unknown] => [answer.status, answer.json?.why];
 
 test("the gate: closed unless it is set open, and to whom", () => {
   assert.deepEqual(gateOf({}), { mode: "closed" });
   for (const GATE of ["closed", "open", "Owner", "OWNER", "", " owner", 1, true, null, ["owner"]]) assert.deepEqual(gateOf({ GATE }), { mode: "closed" });
-  assert.deepEqual(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A }), { mode: "owner" });
+  assert.deepEqual(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A }), { mode: "owner", accounts: new Set([A]) });
+  // (open to the owner with no id written down: nobody is on the list, so nobody is let in and no id reaches an object)
+  assert.deepEqual(gateOf({ GATE: "owner" }), { mode: "owner", accounts: new Set() });
   // a list: ids apart by commas, spaces or lines; what is not an account's id is left out; no list is an empty list
   assert.deepEqual(gateOf({ GATE: "list", ALLOWED_ACCOUNTS: ` ${A},${B}\n  ucccccc3 ,, not-an-id, U1234567, u12 ` }), { mode: "list", accounts: new Set([A, B, "ucccccc3"]) });
   assert.deepEqual(gateOf({ GATE: "list" }), { mode: "list", accounts: new Set() });
@@ -48,7 +64,12 @@ test("the gate: closed unless it is set open, and to whom", () => {
 
   // who is let in
   assert.equal(admits({ mode: "closed" }, A, true), false);
-  assert.deepEqual([admits({ mode: "owner" }, A, true), admits({ mode: "owner" }, A, false)], [true, false]);
+  // the owner: on the list, and the accounts service says so. Neither alone is enough.
+  const owner = gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: A });
+  assert.deepEqual([admits(owner, A, true), admits(owner, A, false), admits(owner, B, true), admits(owner, B, false)], [true, false, false, false]);
+  assert.deepEqual([admits(gateOf({ GATE: "owner" }), A, true), admits(gateOf({ GATE: "owner", ALLOWED_ACCOUNTS: "" }), A, true)], [false, false]);
+  // what the Worker asks before a request reaches an object: is the id on the list at all
+  assert.deepEqual([listed(owner, A), listed(owner, B), listed({ mode: "closed" }, A), listed(gateOf({ GATE: "list", ALLOWED_ACCOUNTS: B }), B), listed(gateOf({ GATE: "list" }), A)], [true, false, false, true, false]);
   const list = gateOf({ GATE: "list", ALLOWED_ACCOUNTS: A });
   // (with a list, the list is all that counts: the owner is on it or is not let in)
   assert.deepEqual([admits(list, A, false), admits(list, A, true), admits(list, B, true), admits(list, B, false)], [true, true, false, false]);
@@ -117,6 +138,9 @@ test("signing in: the gate is asked, and whoever is not let in leaves nothing be
   // open to the owner: the account the accounts service calls the owner's, and no other
   const db = sqlite();
   assert.equal((await enter(db, B, T0, config(), false)).said, "not-admitted");
+  assert.equal(tables(db), 0);
+  // and only when its id is the one written down: the owner's word alone does not open a database
+  for (const written of [B, "", undefined]) assert.equal((await enter(db, A, T0, config({ ALLOWED_ACCOUNTS: written }))).said, "not-admitted", String(written));
   assert.equal(tables(db), 0);
   const first = await enter(db, A, T0, config());
   assert.equal(first.said, "ok");
@@ -380,22 +404,33 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.equal(tables(empty), 0);
 });
 
-test("the events log keeps twelve months and five hundred lines", async () => {
+test("the events log keeps twelve months and five hundred lines, and as many wrong proofs beside them", async () => {
   const cfg = config();
   const db = sqlite();
   const DAY = 24 * 60 * MINUTE;
   await enter(db, A, T0, cfg);
-  const fill = (from: number, lines: number): void => {
-    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, 'sign-out', NULL)`);
-    for (let i = 1; i <= lines; i++) insert.run(from + i);
+  const fill = (from: number, lines: number, kind = "sign-out"): void => {
+    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, ?, NULL)`);
+    for (let i = 1; i <= lines; i++) insert.run(from + i, kind);
   };
   fill(T0, 700);
-  const count = (): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events`).all()[0] as { n: number }).n);
+  const count = (where = "1"): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
+  const oldest = (where: string): number => Number((db.raw.prepare(`SELECT MIN(at) AS at FROM events WHERE ${where}`).all()[0] as { at: number }).at);
   assert.equal(count(), 701);
   // the next sign-in keeps the newest five hundred
   await enter(db, A, T0 + DAY, cfg);
   assert.equal(count(), 500);
-  // and one more than twelve months later keeps nothing older than that
+  assert.equal(oldest("1"), T0 + 202);
+  // Wrong proofs are counted apart from everything else. Thirty of them, and then any number of other lines: the
+  // thirty are all still kept (the review of the door, finding 2). And of wrong proofs too, the newest five hundred.
+  fill(T0 + DAY, 30, "unlock-failed");
+  fill(T0 + DAY + 100, 700);
+  await enter(db, A, T0 + DAY + 1000, cfg);
+  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'"), oldest("kind != 'unlock-failed'")], [30, 500, T0 + DAY + 302]);
+  fill(T0 + DAY + 5000, 700, "unlock-failed");
+  await enter(db, A, T0 + DAY + 9000, cfg);
+  assert.deepEqual([count("kind = 'unlock-failed'"), oldest("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, T0 + DAY + 5201, 500]);
+  // and one more than twelve months later keeps nothing older than that, of either
   const later = await enter(db, A, T0 + 368 * DAY, cfg);
   assert.equal(count(), 1);
   // what is shown is the newest fifty
@@ -410,12 +445,14 @@ test("the vault and its chunks: started once, and synced through the frames", as
   const me = await enter(db, A, T0, cfg);
   const now = T0 + 1000;
   const [vault, other] = [newId(), newId()];
-  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
-  for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`]) assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);
-  assert.deepEqual(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault }))), { status: 200, json: { ok: true, vault } });
+  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
+  const made = waysFor(vault);
+  const start = (id: unknown, ways: unknown = made.ways): Promise<Answer> => asking(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: id, ways })));
+  for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`, JSON.stringify({ vault })]) assert.deepEqual(why(await asking(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);
+  assert.deepEqual(await start(vault), { status: 200, json: { ok: true, vault } });
   // the same vault again is the same answer; another is not taken (replacing a vault is a reset, and not done here)
-  assert.deepEqual(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault }))), { status: 200, json: { ok: true, vault } });
-  assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: other })))), [409, "another-vault"]);
+  assert.deepEqual(await start(vault), { status: 200, json: { ok: true, vault } });
+  assert.deepEqual(why(await start(other, waysFor(other).ways)), [409, "another-vault"]);
   assert.deepEqual(why(ask(db, A, me.hash, "vault/start", now, cfg, json("{}"))), [400, "bad-request"]);
   assert.equal(ask(db, A, me.hash, "vault", now, cfg).json!.vault, vault);
   // started once, noted once
@@ -447,11 +484,13 @@ test("the vault and its chunks: started once, and synced through the frames", as
   assert.deepEqual(more(now + 1), { ok: false, why: "quota-writes" });
   const yesterday = now - 24 * 60 * MINUTE;
   const back = await enter(db, A, yesterday, cfg);
+  assert.equal((await unlocking(db, A, back.hash, yesterday, cfg, made.passphrase)).status, 200);
   assert.deepEqual(unpackPushed(ask(db, A, back.hash, "sync/push", yesterday + 1, cfg, packPush(vault, [{ id: newId(), base: 0, blob: blob(98) }])).bytes!), { ok: false, why: "quota-writes" });
   assert.equal(lastDay(db), "2026-11-25");
   // the next day there is room again
   const tomorrow = now + 24 * 60 * MINUTE;
   const next = await enter(db, A, tomorrow, cfg);
+  assert.equal((await unlocking(db, A, next.hash, tomorrow, cfg, made.recovery)).status, 200);
   assert.equal((unpackPushed(ask(db, A, next.hash, "sync/push", tomorrow + 1, cfg, packPush(vault, [{ id: newId(), base: 0, blob: blob(97) }])).bytes!) as { ok: boolean }).ok, true);
   assert.equal(lastDay(db), "2026-11-26");
 });

@@ -3,9 +3,10 @@
  * on its database (ISO-1). The object itself (worker.ts) adapts the storage and nothing more, so
  * what is decided here is tested on Node's SQLite as chunks.ts and sessions.ts are.
  *
- * The database holds four things: whose it is and whether the owner signed in to it (one row),
- * the sessions (sessions.ts), the vault's sealed chunks (chunks.ts), and a log of security events
- * (SEC-17) with no contents: what happened, when, and in which session. A database nobody has
+ * The database holds five things: whose it is and whether the owner signed in to it (one row),
+ * the sessions (sessions.ts), the vault's sealed chunks (chunks.ts), the ways into the vault
+ * (ways.ts: the wrapped keys, and what a session has to show to be given one), and a log of
+ * security events (SEC-17) with no contents: what happened, when, and in which session. A database nobody has
  * signed in to has no tables at all, and a request that reaches one writes none (`act` answers
  * that nobody is signed in): an address someone made up costs a read and leaves nothing behind.
  *
@@ -18,25 +19,32 @@
  * `act` is every other request. It is one synchronous stretch: the session is checked and the
  * thing is done with nothing in between, so nothing done here was allowed by a session that had
  * ended by the time it was done (the review of #789, obligation 3). The caller hashes the
- * cookie's token first (`hashOf`) and reads the body first; neither is done here. The account
+ * cookie's token first (`hashOf`), reads the body first, and hashes the proofs the body carries
+ * (`proofsIn`); none of that is done in `act`, because all of it waits. The account
  * the request names is only compared with the one this database belongs to: it is an address,
  * and the token is what is checked (ISO-2).
  */
 import { chunkTables, lastDay, pullChunks, pushChunks, startVault, vaultHeld, type Db } from "./chunks";
 import { admits, type Config, type Gate } from "./gate";
 import { isAccount } from "./request";
-import { checkSession, endAllSessions, endSession, listSessions, openSession, sessionTables, type Session } from "./sessions";
+import { checkSession, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
+import { isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockMaker, wayTables } from "./ways";
 import { packPulled, packPushed, unpackPush } from "./wire";
 
 /** Sign-ins one account may make in an hour. Eight sessions are kept, so signing in over and over pushes other devices out. */
 export const SIGN_INS_PER_HOUR = 12;
 const HOUR = 3_600_000;
-/** Events are kept twelve months (SEC-17), and never more than this many. */
+/**
+ * Events are kept twelve months (SEC-17), and never more than this many of each of two sorts: wrong proofs, and
+ * everything else. The two are counted apart, so that no number of sign-ins, sign-outs or unlockings pushes a wrong
+ * proof out of what is kept (the review of the door, finding 2). What is shown is the newest lines of both together:
+ * a screen that shows the wrong proofs whatever came after them is the events screen's to add.
+ */
 const EVENTS_KEPT = 366 * 24 * HOUR;
 const EVENTS_MOST = 500;
 const EVENTS_SHOWN = 50;
 
-export type EventKind = "sign-in" | "sign-out" | "session-ended" | "sessions-ended" | "vault-started" | "email-changed";
+export type EventKind = "sign-in" | "sign-out" | "session-ended" | "sessions-ended" | "vault-started" | "email-changed" | "unlocked" | "unlock-failed";
 export type Event = { at: number; kind: EventKind; session: string | null };
 
 const isTime = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
@@ -51,6 +59,16 @@ function whose(db: Db): { id: string; owner: boolean } | null {
 
 function note(db: Db, kind: EventKind, session: string | null, now: number): void {
   db.sql.exec(`INSERT INTO events (at, kind, session) VALUES (?, ?, ?)`, now, kind, session);
+}
+
+/**
+ * Lets go of the lines that are too old, and of those past the most that are kept. Done wherever lines are written
+ * that nothing else counts: at each sign-in, and at each proof shown (a right proof can be shown any number of times).
+ */
+function tidyEvents(db: Db, now: number): void {
+  db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
+  db.sql.exec(`DELETE FROM events WHERE kind = 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+  db.sql.exec(`DELETE FROM events WHERE kind != 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind != 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -100,14 +118,14 @@ export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "n
         db.sql.exec(`CREATE TABLE events (n INTEGER PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL, session TEXT)`);
         sessionTables(db);
         chunkTables(db);
+        wayTables(db);
         db.sql.exec(`INSERT INTO account (one, id, owner) VALUES (1, ?, ?)`, made.account, made.owner ? 1 : 0);
       }
       if (!openSession(db, { id: made.session, hash: made.hash, label: made.label }, now)) throw REFUSED;
       // (whether it is the owner's is what the accounts service says now, not what it said last time)
       db.sql.exec(`UPDATE account SET owner = ? WHERE one = 1`, made.owner ? 1 : 0);
       note(db, "sign-in", made.session, now);
-      db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
-      db.sql.exec(`DELETE FROM events WHERE n <= (SELECT n FROM events ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+      tidyEvents(db, now);
     });
   } catch (error) {
     if (error === REFUSED) return "refused";
@@ -119,19 +137,25 @@ export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "n
 /** The account's email address changed, or its database was restored: everyone signs in again (ARCH-9). Nothing to do where nobody ever signed in. */
 export function signEveryoneOut(db: Db, now: number): void {
   if (!isSetUp(db)) return;
-  if (endAllSessions(db) > 0 && isTime(now)) note(db, "email-changed", null, now);
+  db.atomically(() => {
+    if (endAllSessions(db) > 0 && isTime(now)) note(db, "email-changed", null, now);
+    tidyUnlocked(db);
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
 // Every other request
 // ---------------------------------------------------------------------------------------------
 
-/** What a request asks, once the Worker has let it through: whose database it thinks this is, the hash of its token, and the body as it came. */
-export type Asked = { account: string; hash: string; action: string; body: Uint8Array };
+/**
+ * What a request asks, once the Worker has let it through: whose database it thinks this is, the hash of its token,
+ * the body as it came, and the hashes of the proofs in that body, in the body's order (`proofsIn`).
+ */
+export type Asked = { account: string; hash: string; action: string; body: Uint8Array; proofs?: readonly string[] };
 /** What is answered: a status with JSON, or with a frame (wire.ts). `signedOut`: the cookie is to be cleared. */
 export type Answer = { status: number; json?: Record<string, unknown>; bytes?: Uint8Array; signedOut?: boolean };
 
-export const ACTIONS: readonly string[] = ["session/end", "sessions", "sessions/end", "vault", "vault/start", "sync/pull", "sync/push", "events"];
+export const ACTIONS: readonly string[] = ["session/end", "sessions", "sessions/end", "vault", "vault/start", "vault/way", "vault/unlock", "vault/lock", "sync/pull", "sync/push", "events"];
 
 const no = (status: number, why: string, signedOut = false): Answer => ({ status, json: { ok: false, why }, ...(signedOut ? { signedOut } : {}) });
 
@@ -144,6 +168,19 @@ function said(body: Uint8Array): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The hashes of the proofs a request carries (vault/proof.ts), for the two requests that carry any: one for
+ * `vault/unlock`, one for each way in for `vault/start`. Null when a proof is missing or is not 43 characters of
+ * base64url. Done before `act`, because hashing waits; `act` goes by these and never sees a proof.
+ */
+export async function proofsIn(action: string, body: Uint8Array): Promise<readonly string[] | null> {
+  if (action !== "vault/unlock" && action !== "vault/start") return [];
+  const read = said(body);
+  const shown: unknown[] = action === "vault/unlock" ? [read?.proof] : Array.isArray(read?.ways) && read.ways.length <= 8 ? read.ways.map((way: unknown) => (way as { proof?: unknown } | null)?.proof) : [undefined];
+  const hashes = await Promise.all(shown.map((proof) => hashOf(proof)));
+  return hashes.every((hash): hash is string => hash !== null) ? hashes : null;
 }
 
 /** The server's day (UTC), and never an earlier one than the last day this vault was written on: a clock set back does not hand out a second day's writes. */
@@ -174,6 +211,7 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
   switch (asked.action) {
     case "session/end":
       endSession(db, session.id);
+      lock(db, session.id);
       note(db, "sign-out", session.id, now);
       return { status: 200, json: { ok: true }, signedOut: true };
     case "sessions":
@@ -183,29 +221,74 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       if (body?.others === true) {
         const ended = endAllSessions(db, session.id);
         if (ended) note(db, "sessions-ended", session.id, now);
+        tidyUnlocked(db);
         return { status: 200, json: { ok: true, ended } };
       }
       if (!body || !endSession(db, body.id)) return no(404, "no-session");
+      lock(db, body.id);
       note(db, "session-ended", session.id, now);
       return { status: 200, json: { ok: true, ended: 1 }, ...(body.id === session.id ? { signedOut: true } : {}) };
     }
     case "vault":
-      return { status: 200, json: { ok: true, vault: vaultHeld(db), limits: { vaultBytes: config.limits.vaultBytes, writesPerDay: config.limits.writesPerDay } } };
+      return { status: 200, json: { ok: true, vault: vaultHeld(db), unlocked: isUnlocked(db, session.id), ways: listWays(db), limits: { vaultBytes: config.limits.vaultBytes, writesPerDay: config.limits.writesPerDay } } };
     case "vault/start": {
       const body = said(asked.body);
-      if (!body || typeof body.vault !== "string") return no(400, "bad-request");
+      if (!body || typeof body.vault !== "string" || !Array.isArray(body.ways)) return no(400, "bad-request");
+      const vault = body.vault;
       const before = vaultHeld(db);
-      // (the same vault again is the same answer; another one is a reset, which is not done here: VAULT-5, VAULT-7)
-      if (!startVault(db, body.vault)) return before === null ? no(400, "bad-request") : no(409, "another-vault");
-      if (before === null) note(db, "vault-started", session.id, now);
-      return { status: 200, json: { ok: true, vault: body.vault } };
+      // The same vault again is the same answer, and nothing more: its ways in stay as they are, and the session that
+      // asks is not unlocked by asking. Another vault is a reset, which is not done here (VAULT-5, VAULT-7).
+      if (before !== null) return before === vault ? { status: 200, json: { ok: true, vault } } : no(409, "another-vault");
+      const ways = body.ways.map((way: unknown, i: number) => ({ wrapper: (way as { wrapper?: unknown } | null)?.wrapper, params: (way as { params?: unknown } | null)?.params, verifier: asked.proofs?.[i] }));
+      // the vault, its ways in, and the session that made it unlocked: all of it or none of it
+      try {
+        db.atomically(() => {
+          if (!startVault(db, vault) || !startWays(db, vault, ways, now)) throw REFUSED;
+          unlockMaker(db, session.id, now);
+          note(db, "vault-started", session.id, now);
+        });
+      } catch (error) {
+        if (error === REFUSED) return no(400, "bad-request");
+        throw error;
+      }
+      return { status: 200, json: { ok: true, vault } };
     }
+    case "vault/way": {
+      const body = said(asked.body);
+      const way = body ? paramsOf(db, body) : null;
+      return way ? { status: 200, json: { ok: true, ...way } } : no(404, "no-way");
+    }
+    case "vault/unlock": {
+      const body = said(asked.body);
+      if (!body) return no(400, "bad-request");
+      // counted, noted and answered in one piece: a wrong proof that was counted is in the log, and one that is in the log was counted
+      return db.atomically((): Answer => {
+        const tried = tryUnlock(db, body.id, asked.proofs?.[0], session.id, now);
+        if (tried.ok) {
+          note(db, "unlocked", session.id, now);
+          tidyEvents(db, now);
+          tidyUnlocked(db);
+          return { status: 200, json: { ok: true, wrapper: tried.wrapper } };
+        }
+        if (tried.why === "too-many") return { status: 429, json: { ok: false, why: "too-many", again: tried.again } };
+        if (tried.why === "no-way") return no(404, "no-way");
+        note(db, "unlock-failed", session.id, now);
+        tidyEvents(db, now);
+        return { status: 422, json: { ok: false, why: "wrong-secret", left: tried.left } };
+      });
+    }
+    case "vault/lock":
+      lock(db, session.id);
+      return { status: 200, json: { ok: true } };
     case "sync/pull": {
+      // (sync is for a session that has shown it can open the vault: no other reads anything, ciphertext included)
+      if (!isUnlocked(db, session.id)) return no(423, "locked");
       const body = said(asked.body);
       if (!body) return no(400, "bad-request");
       return { status: 200, bytes: packPulled(pullChunks(db, body.vault as string, body.since as number, config.limits)) };
     }
     case "sync/push": {
+      if (!isUnlocked(db, session.id)) return no(423, "locked");
       const push = unpackPush(asked.body);
       if (!push) return no(400, "bad-request");
       return { status: 200, bytes: packPushed(pushChunks(db, push.vault, push.writes, config.limits, today(db, now))) };

@@ -7,11 +7,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/server/tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
-    "build": "node scripts/build-check.mjs",
+    "build": "node scripts/build-check.mjs && node scripts/build-app.mjs",
     "test:page": "npm run build && tsx scripts/check-page.ts && tsx scripts/check-cache.ts",
-    "test:server": "tsx --test tests/platform/server.test.ts"
+    "test:server": "tsx --test tests/platform/server.test.ts",
+    "test:app": "tsx scripts/check-app.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@cloudflare/workers-types": "5.20261019.1",
     "@types/node": "22.20.5",
     "esbuild": "0.28.2",
@@ -21,6 +23,7 @@
     "wrangler": "4.151.2"
   },
   "dependencies": {
-    "pdfjs-dist": "6.5.438"
+    "pdfjs-dist": "6.5.438",
+    "preact": "10.29.8"
   }
 }

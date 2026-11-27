@@ -49,8 +49,10 @@ The logic stays in plain functions on a `Db`, tested on Node's SQLite as `chunks
 ## A request's way in
 
 1. `GET /enter`: with the gate open, sets the nonce cookie and sends the browser to
-   `https://changle.ca/tools/finance?handoff=<nonce>`. With the gate closed, a short page in both
-   languages and nothing else. No other GET exists until the app's pages do.
+   `https://changle.ca/tools/finance?handoff=<nonce>`. Only when the browser says the request
+   came from this origin's own page (`Sec-Fetch-Site: same-origin`, or no such header): from
+   anywhere else the browser is sent to `/` and nothing is begun (assessment 1.10, "Where a
+   sign-in starts"). With the gate closed, a short page in both languages and nothing else.
 2. Everything under `/api/` is POST, with the exact configured Origin (`fromOurOrigin`; the
    expected origin is a setting, `ORIGIN`, never taken from the request), a stated
    `Content-Type`, and a `Content-Length` under the route's cap. No `Access-Control-*` header is
@@ -77,14 +79,16 @@ Routes behind a session: `session/end`, `sessions`, `sessions/end` (`{ id }` or 
 
 ## The gate (SEC-10, T-23)
 
-A setting, `GATE`, with three values; anything else is read as the first.
+A setting, `GATE`, with three values; anything else is read as the first. Open either way,
+`ALLOWED_ACCOUNTS` lists the account ids that may be let in, and the Worker asks the list on
+every request before any object is reached: an id that is not on it goes no further, and
+taking an id off takes effect at once.
 
 - `closed` (what the repository says): no route answers anything but "not open".
-- `owner`: a sign-in is let in when the accounts service says the account is the owner's
-  (`master`). The object remembers that, and asks for it on every request.
-- `list`: a sign-in is let in when the account's id is in `ALLOWED_ACCOUNTS`. The Worker asks
-  the list on every request, before any object is reached; taking an id off the list takes
-  effect at once.
+- `owner`: a sign-in is let in when its account is on the list and the accounts service says
+  the account is the owner's (`master`). The object remembers that, and asks for it on every
+  request. The list is then the owner's one id, written down.
+- `list`: a sign-in is let in when the account's id is on the list.
 
 Opening the gate is Steve changing that setting, recorded with the date in the brief.
 
@@ -111,9 +115,13 @@ which is what the accounts chat's contract asks (`accounts-requests.md`).
 
 - A restored database can bring back sessions that had been ended. The restore runbook ends every
   session of the restored account (`accountChanged` does it).
-- Wrong-token traffic is not rate-limited in code: an object cannot refuse a request without
-  having been asked. The cost of each is small and written above. A rate-limiting rule on
-  `/api/*` is a Cloudflare setting, to be asked of Steve before Phase 3.
+- What costs something beyond the request itself is counted by the address it came from before
+  it is done, with Cloudflare's rate limiter: twenty trades of a code and three hundred other
+  requests a minute (`TRADES`, `ASKS`; `ratelimits` in `wrangler.jsonc`; assessment 1.8, "What a
+  stranger can make the server do"). An address is an IPv4 address or the first 64 bits of an
+  IPv6 one (`addressKey` in `request.ts`). With the gate open and no limiter bound, nothing is
+  answered. A rule in Cloudflare's dashboard that stops requests before they reach the Worker
+  is still to be set before Phase 3.
 
 ## Not in this slice
 

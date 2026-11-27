@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.14, 26 November 2026. It records the choices the requirements leave to this document
+Version 0.17, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -38,8 +38,15 @@ its latest copy's time), and one more way a field can come back is written into 
 0.12 adds sessions and what a request has to show (1.7). Version 0.13 adds the Worker and the
 Durable Objects around all of it: a request's way in, the gate, and sync as it travels (1.8).
 Version 0.14 follows the review of 1.8: a sign-in and a notice from the accounts service are put
-in order ("A sign-in and a notice at the same time"), and signing in is one transaction. None of
-it is published.
+in order ("A sign-in and a notice at the same time"), and signing in is one transaction. Version
+0.15 adds where the wrapped keys are kept and what a device has to show to be given one (1.9).
+Version 0.16 adds the app's pages as far as the door: what the browser is handed and what it
+keeps, the order a vault is made in, the three ways it locks, and the main site's page that
+sends a signed-in browser over (1.10). Version 0.17 follows the review of the door
+([`reviews/door.md`](reviews/door.md)): one machine's IPv6 addresses are counted as one (1.8), a
+sign-in starts only at a press on the app's own page (1.10), wrong proofs are kept apart in the
+events log (1.8), an unkept vault's key is dropped after fifteen quiet minutes (1.10), and four
+sentences that the code did not keep are corrected (1.8, 1.9, 1.10). None of it is published.
 
 ## 1. The vault
 
@@ -119,7 +126,7 @@ whenever the cheat sheet changes it and at each phase gate.
 - Made in the browser when the vault is set up, with the platform's generator.
 - In use, it is a key object that cannot be exported; sealing and opening refuse any other. It is
   never written to storage unwrapped, and it is gone when the tab closes, on lock and on sign-out
-  (the timers are the app's, not yet built).
+  (1.10 has the three ways the app locks).
 - Adding a way in or changing the passphrase needs the vault key in exportable form for a moment.
   That copy is unwrapped from an existing wrapper with its secret, which the user is asked for
   again even when the vault is open, and it is used only to make the new wrapper.
@@ -792,13 +799,16 @@ and in CI (`npm run test:server`), with a stand-in for the accounts service.
   now checks), is answered with "unavailable" and nothing is done.
 
 **The gate (SEC-10, T-23).** The setting `GATE`: `closed` (what the repository says), `owner`,
-or `list`; anything else reads as `closed`. With `owner`, a sign-in is let in when the accounts
-service says the account is the owner's, the object remembers what was said at the latest
-sign-in, and every request is asked for it. With `list`, a sign-in is let in when the account's
-id is in `ALLOWED_ACCOUNTS`, and the Worker asks the list on every request before any object is
-reached, so taking an id off the list takes effect at once; the owner is on the list or is not
-let in. A sign-in that is not let in writes nothing anywhere, the registry included. Opening
-the gate is the operator changing that setting.
+or `list`; anything else reads as `closed`. Open either way there is a list of account ids,
+`ALLOWED_ACCOUNTS`, and the Worker asks it on every request before any object is reached: an id
+that is not on it goes no further, and taking an id off the list takes effect at once. With
+`list`, being on the list is what lets an account in; the owner is on it or is not let in. With
+`owner`, the account has to be on the list and the accounts service has to say, at sign-in,
+that it is the owner's; the object remembers what was said at the latest sign-in, and every
+request is asked for it. (Until 0.16 the owner's gate had no list, and an id someone made up
+reached an object of its own: the review of this section, at its second look, finding 1.) A
+sign-in that is not let in writes nothing anywhere, the registry included. Opening the gate is
+the operator changing that setting.
 
 **A sign-in and a notice at the same time (`flows.ts`; the review of this section, finding
 1).** A sign-in goes to three places one after another: the accounts service (the code), the
@@ -824,8 +834,14 @@ was set before the sign-in first read it: then the accounts service had done its
 before the code was traded, and in that part it drops the waiting codes of an account it
 deletes and of an account whose other devices it signs out (`site/worker/hub.ts`,
 `endSessions`; `handoffCodes.ts`, `forgetHandoffs`), so a deleted account's code no longer
-trades, and a code that still trades after a change of address is one asked for after the
-change or by the one device the change left signed in. Or its stamp was set after that and
+trades. After a change of address a code can still trade when it was asked for after the
+change, or when the account had no other device signed in at that moment: with no session to
+end, the accounts service drops no code. That is nearly always the one device the change left
+signed in, a sign-in the notice was never meant to stop. The exception is a code asked for by a
+session that ran out in the minute before the change: it still trades, and opens a session the
+change should have ended. Closing that is the accounts service's (drop the account's waiting
+codes at every change of address), and is asked of its owner in the brief (the second look's
+finding 2). Or its stamp was set after that and
 before the object read it: the stamps differ. Or its stamp was set after the object read it:
 then its work on the object comes later still, either while the object waits for the registry's
 answer, and the count has moved, or after the session was written, and ends it.
@@ -848,15 +864,36 @@ a time, and on what the accounts service does before it tells MoneyLens, which i
 not this tool's: if it ever told the apps before dropping the codes, the first of the three
 cases would no longer hold.
 
-**What a wrong guess costs.** An address someone made up reaches an object only with the gate
-open to the owner (with a list, the Worker stops it). There it costs one request and one read:
-a database nobody signed in to has no tables, and none is made. A wrong token for a real account
-costs one request and at most eight short rows read, and writes nothing. A made-up code costs
-one read of the registry's stamp and one question to the accounts service. None of these is limited in
-this code, because an object cannot refuse a request without having been asked. A rule on
-`/api/*` in Cloudflare's own rate limiting is a setting, to be asked of the operator before
-Phase 3. Sign-ins are limited here: twelve an hour for one account (eight sessions are kept, so
-signing in over and over would push a person's other devices out).
+**What a stranger can make the server do (the second look's finding 1).** An account id someone
+made up reaches no object: it is not on the gate's list, and the Worker stops it there for the
+price of the request. What is left costs something beyond the request, and is counted before
+it is done, by the address the request came from, with Cloudflare's own rate limiter (two
+bindings, `ratelimits` in `wrangler.jsonc`): a wrong token for an account that is on the list
+(one request to that account's object and at most eight short rows read; nothing written) is
+one of three hundred requests a minute from that address, and a made-up code (one read of the
+registry's stamp and one question to the accounts service, the one object behind all of
+changle.ca's accounts) is one of twenty trades a minute. Past the limit the answer is "slow
+down" and nobody is asked. What costs nothing is not counted (no cookie, an id not on the list,
+a body of the wrong kind or length, a code that does not look like one). With the gate open and
+no limiter bound, nothing is answered at all: the server is not set up to be open.
+
+What an address is, for this count (`addressKey` in `request.ts`; the review of the door,
+finding 1). An IPv4 address, or the first 64 bits of an IPv6 one: a machine on IPv6 usually
+holds every address under those 64 bits and could give each request an address of its own, so
+all of them are one key. An IPv4 address written as an IPv6 one is that IPv4 address. A
+customer whose provider hands out more than that (a /56 is 256 such keys, a /48 is 65,536) has
+that many lids, and is among the "many addresses" below.
+
+What these limits are and are not. Cloudflare counts per place and brings the counts together
+in the background, so they are a lid on what one address can spend, not an exact number, and
+people behind one address share a lid. A limiter that fails lets the request through: it
+guards what the server spends, and who is let in does not rest on it. They do not stop a
+request from being a request: every one still counts toward the Free plan's daily number,
+which all of changle.ca shares (LIM-1), and many addresses each get their own lid. Stopping
+requests before they reach the Worker is a rule in Cloudflare's dashboard; it is still to be
+set, and still wanted before Phase 3. Sign-ins are also limited per account, as before: twelve
+an hour (eight sessions are kept, so signing in over and over would push a person's other
+devices out).
 
 **Sync as it travels (`wire.ts`).** Blobs are not put into JSON. A push's body and the answers
 to a push and a pull are a frame: four bytes of length, that many bytes of JSON naming each blob
@@ -875,11 +912,16 @@ day the writes are counted for is the object's own UTC day and never an earlier 
 last day it wrote on: a clock set back does not hand out a second day's writes.
 
 **The events log (SEC-17).** In the person's own database: what happened (a sign-in, a
-sign-out, a session ended from another device, a vault started, an email change), when, and in
-which session. No contents. Twelve months are kept and at most 500 lines; the person is shown
-the newest 50. Failed attempts are not logged there: they would let a stranger write to a
-person's database. Unlocks, exports, deletions and consent changes are not logged yet; they
-come with the screens that do them.
+sign-out, a session ended from another device, a vault started, the vault unlocked, a wrong
+proof shown for it, an email change), when, and in which session. No contents. Twelve months
+are kept, and at most 500 lines of wrong proofs and 500 of everything else. The two are counted
+apart, so that no number of sign-ins or unlockings pushes a wrong proof out of what is kept
+(the review of the door, finding 2). The log is tidied at each sign-in and at each proof shown,
+which are the only lines nothing else counts. The events call answers the newest 50 lines of
+both together, and no screen shows them yet (section 3). A sign-in that fails is not logged:
+that would let a stranger write to a person's database. A wrong proof is, because only a
+signed-in session can show one and 1.9 counts them. Exports, deletions and consent changes are
+not logged yet; they come with the screens that do them.
 
 **The other way in.** `Internal`, reachable only over a service binding from the accounts
 service: `accountGone(id)` sets a new stamp, empties the account's object (`deleteAll`) and
@@ -920,8 +962,9 @@ from inside its answer to the trade): the sign-in is turned away with nothing op
 changed address, for someone else's notice, for an account's first sign-in and for a deleted
 account, which is then off the registry. And a transaction inside a transaction is shown to do
 on the platform what signing in takes it to do: the outer one failing undoes the inner one's
-writes, and what was thrown comes out as the thing that was thrown. Fifteen checks in
-`worker.ts` were taken out in turn: each fails a test there.
+writes, and what was thrown comes out as the thing that was thrown. Fourteen checks in
+`worker.ts` were taken out in turn: each fails a test there. So does each of 68 on Node that
+hold the gate's list, the two limits, what an address is and where a sign-in starts.
 
 **Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
 design on the device's side for proving that a session has the vault unlocked. The weekly sweep
@@ -929,6 +972,267 @@ design on the device's side for proving that a session has the vault unlocked. T
 them the page that finishes a sign-in and the content security policy of pages that load
 something (SEC-2). The main site's page that asks for the code. The limits of the platform at
 their real sizes, and what a call is billed, which only a deploy can show.
+
+### 1.9 The ways in: where wrapped keys are kept, and proving a secret (VAULT-1, VAULT-7, threat 1)
+
+Until this version the wrappers of 1.1 were kept nowhere but on the device that made them. They
+are the "wrapped keys" VAULT-1 has the server store, so that a second device can open the vault.
+The question this section answers is who the server gives one to.
+
+**Not to everyone who is signed in.** A session takes the account's mailbox and nothing else
+(ARCH-6). If a session were enough to fetch the passphrase wrapper, whoever took over the
+mailbox could fetch it once and test passphrases against it on their own machine for as long as
+they liked: the floor of 1.4 would be all that stood in the way, and the threat model's "unlock
+attempts are rate-limited and logged" (threat 1) would limit nothing. So a wrapper is handed
+only to a session that first proves it knows that wrapper's secret, and every wrong proof is a
+guess the server counts.
+
+**A proof (`vault/proof.ts`).** 32 bytes made from the secret the way a wrapping key is made,
+and separately from it:
+
+- for a passphrase, PBKDF2-HMAC-SHA-256 over the normalized passphrase (1.4), with the same
+  count as a new wrapper's (600,000), and a salt of its own: the bytes of
+  `moneylens/v1/proof/passphrase/<vault id>`, a line feed, then 32 random bytes;
+- for the recovery code, HKDF-SHA-256 over its 20 bytes, with a 32-byte random salt and `info`
+  `moneylens/v1/proof/recovery/<vault id>`.
+
+The words that go into a wrapping key begin `moneylens/v1/passphrase/` and
+`moneylens/v1/recovery/` (1.1); a proof's say "proof" before that, and a vault's id cannot
+contain a slash, so no vault and no salt make the one into the other. A proof therefore says
+nothing about the wrapping key made from the same secret, or about the proof for another vault.
+
+The server keeps, for each way in: the wrapper as text, the proof's parameters (version, kind,
+the salt, the count), and the SHA-256 of the proof (`server/ways.ts`). It understands none of
+it. What it holds is worth to someone who reads its storage exactly what the wrapper alone was
+worth: something to test guesses against at the full price of each guess. The proof adds no
+cheaper test, because it costs what the wrapping key costs.
+
+The parameters come back from the server, so a device checks them as it checks a wrapper from
+storage (`isProofParams`): a count under the floor is refused. A server that asked for a
+cheaply made proof would be asking for a cheap way to test guesses.
+
+**Opening a vault on a device** (the requests, all behind a session, 1.8):
+
+1. `vault` says which vault there is, which ways in (their ids and kinds, nothing to open
+   anything with), and whether this session is unlocked.
+2. `vault/way` gives the parameters of one way in's proof. Nothing secret is in them.
+3. The device makes the proof from what the person typed and shows it: `vault/unlock`. The
+   object hashes it before anything else (`proofsIn`; hashing waits, and `act` does not), and
+   compares hashes, every character.
+4. Right: the wrapper is the answer, the session is marked unlocked, and the device opens the
+   wrapper as in 1.1. Wrong: no wrapper, the guess is counted, and the answer says how many
+   more may be wrong.
+
+A wrong passphrase and an altered wrapper are no longer one case: the server's "wrong" means
+the proof was wrong, and a wrapper that then does not open under the same secret was altered
+(or the proof's parameters were). The screens can say which.
+
+**Counting.** Wrong proofs are counted for the account, across its sessions and its ways in:
+ten in an hour, thirty in a day. Past either, every proof is turned away unlooked at, the right
+one included, with the time until one more may be shown. Looking at the right one past the
+count would be looking at all of them, and the count would count nothing. A right proof is not
+counted and can be shown as often as a device needs. Each wrong proof is a line in the events
+log (SEC-17), and so is each unlocking; what is turned away past the count writes nothing, so a
+stranger with a session cannot fill the log or the table. A clock that goes back does not hand
+guesses back: a try made under the later clock counts until the clock has passed it again, and
+a day more. Thirty a day is about eleven thousand guesses a year against the floor of 1.4.
+
+**What this costs the owner.** Someone who holds the mailbox can guess wrong on purpose, thirty
+times a day, and keep the owner from opening the vault for as long as they keep at it. They
+cannot read anything. Each of those tries is a line in the events log, counted apart from the
+other lines so that nothing pushes it out of what is kept (1.8). But the owner is not shown it
+yet: the app has no screen for the log or for the list of devices, and the events call answers
+the newest fifty lines of everything, which the same person can fill with sign-ins in an
+afternoon (the review of the door, finding 2). Until that screen is built, what the owner sees
+is the vault saying that too many tries were made; and only taking the mailbox back ends it.
+The same person could already sign the owner out and start the vault's erasing. A count per device, kept apart for devices that
+have opened the vault before, would spare the owner; it is not built (section 3).
+
+**Unlocked sessions.** A session that has shown a right proof is unlocked until it ends or
+says it has locked (`vault/lock`, sent when the device drops the key: the fifteen idle minutes
+of VAULT-3, or the person locking). The session that makes a vault is unlocked by making it.
+Sync, both calls, is for unlocked sessions only: a session that has not unlocked reads nothing,
+not even ciphertext (threat 1: "a session that has not unlocked can never read"). This is also
+what erasing a vault will go by, when that is built: an unlocked session may erase at once, any
+other only after the seven days.
+
+**Making a vault.** `vault/start` takes the vault's id and its two ways in, one by passphrase
+and one by recovery code, each with its parameters and its proof, and keeps all of it or none:
+the vault's row, the ways in, the maker's unlocking and the line in the log are one
+transaction. Asked again for the vault that is already there, it answers as before and does
+nothing: the ways in stay as they are and the session that asked is not unlocked, so a session
+cannot unlock itself, or swap the ways in for its own, by "starting" a vault whose id it was
+told. Another vault is refused; replacing one is a reset.
+
+**What the device must not do.** Keep a wrapper once the vault is locked, in storage or in
+memory: a wrapper on the device is what the count exists to keep away from guessing. So
+opening a vault needs the server each time. The device's cache (1.6) holds sealed chunks only,
+as before.
+
+**Not changed.** The format of wrappers and of sealed chunks, how a passphrase becomes a
+wrapping key, and `tests/golden.ts`. A proof has its own version number: changing how one is
+made would lock people out as surely as changing a wrapper would, so it is added to, never
+changed. Two proofs are written down in `tests/proof.test.ts`.
+
+**Tested.** The proof against Node's own PBKDF2 and HKDF, which share no code with WebCrypto's;
+that it differs from the wrapping key's bits for the same secret and the same random bytes;
+what parameters are refused. The server's rules on Node's SQLite (`tests/ways.test.ts`): what a
+vault may be started with, who is given parameters and who a wrapper, the counts to the
+millisecond at both edges, who is unlocked and what ends it, and that sync answers "locked" to
+everyone else. On the local runtime, a second and a third device open a real vault, by
+passphrase and by recovery code, with a wrong passphrase in between, and sync through it. Each
+of 75 checks in this code taken out in turn fails a test.
+
+**Not in this.** Changing the passphrase, a new recovery code, removing a way in, passkeys
+(VAULT-7's lifecycle: each is "show the proof again, then replace the way in"). The screens. A
+fingerprint of the ways in kept on the device, so that it can tell when they were replaced
+behind its back.
+
+### 1.10 The pages: what a browser is handed, and what it keeps (SEC-2, SEC-3, VAULT-3, ARCH-3, T-8, T-24)
+
+The app's first pages are the door: signing in, making a vault, opening it, locking, signing out
+(`tools/moneylens/web/app` for what a person sees, `src/app/door.ts` and `src/app/idle.ts` for
+what it does). Importing and everything after it come later.
+
+**What is handed out, and to whom.** The Worker hands out the app itself: one page at `/`, the
+files the page loads under `/assets/`, and `/licences.txt`. None of it holds anyone's data, so
+the gate decides only whether it is handed out at all: shut, `/` is the two lines that say so
+and nothing else is there. Who gets in is decided at sign-in, as before (1.8). Every request
+comes to the Worker first, these included. The file store behind it is asked for three kinds of
+path only (the page, the licences, a plainly named file under `/assets` in at most one folder),
+by the path alone (no cookie, no condition and no range of the request goes with it), and only
+a whole file is passed on: any other answer from the store is "not there", and of what the
+store says only the file and its kind go out. The headers are the Worker's own on everything.
+
+**The page's policy (SEC-2).** `default-src 'none'; script-src 'self'; style-src 'self';
+img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none';
+form-action 'none'`. It is stricter than SEC-2 asks (nothing is allowed that is not named, and
+no form may be sent anywhere: the forms are handled by the page's script). What follows for the
+code: no script and no style is written into the page, no element carries a style of its own,
+and the two fonts and the icon are the app's own files (`tests/design.test.ts` holds the
+screens to that). The script and the styles are named by what is in them and may be kept for a
+year; the page itself is never kept. Nothing else on this origin carries this policy: every
+other answer keeps the policy of an answer with nothing to load. The page asks nothing of any
+other origin (T-8); the one address outside it that the screens know is the link back to the
+main site's tools.
+
+**What is written to the screen (SEC-3).** Text, by a library that writes text as text. No
+screen builds markup from a string, and nothing a person or a server supplies is ever markup.
+
+**What the page keeps in the browser (VAULT-3, T-24).** In `localStorage`, the language
+(`moneylens.lang`) and nothing else. In IndexedDB, the cache of sealed chunks (1.6). The
+session is a cookie the page's script cannot read (1.7). Not kept anywhere, on disk or after
+locking in memory: the passphrase, the recovery code, a wrapper, the key. A wrapper is asked of
+the server, used once and dropped (1.9).
+
+**The handoff code.** It arrives in the address's fragment, which is sent to no server. The page
+takes it out of the address before it does anything else, reads it only when the fragment is
+exactly `#h=<code>`, and trades it once.
+
+**Making a vault: the order.** The passphrase is held to the floor of 1.4 on the device. The
+vault, its key and both ways in are made on the device. The recovery code is then shown, and
+nothing is kept on the server until the person has said it is written down: `vault/start` comes
+after that press. A page closed before it leaves nothing anywhere, and a vault can never exist
+whose recovery code was not shown. The key and the code wait in memory on that screen, so the
+fifteen minutes of "Locking" below run there too: after them both are dropped, and the person
+chooses the passphrase again. The note then says what the page did and no more. It does not
+say that nothing was stored: if `vault/start` had been sent and its answer never came (a
+machine that slept on it, a connection that broke), the server may hold that vault. The next
+vault the person makes is then answered "another", the screen says so, and the passphrase
+chosen the first time opens it. If the answer to `vault/start` is lost and the person presses
+again, the vault is kept once (1.9): the first request made it and counted the session that
+made it as unlocked, the second is answered the same and changes nothing, and the app goes on
+to the open vault. Another session that sends the same vault's id is answered the same too,
+and is not unlocked by asking.
+
+**Opening.** By passphrase or by recovery code. What is typed as a code but cannot be one (a
+character no code has, a symbol missing, a check that does not agree) is said so on the device
+and the server is not asked, so a slip of the pen does not spend one of the tries of 1.9. What
+the screen says when a vault does not open follows 1.3: "that's not the passphrase" only for
+the server's own "wrong proof"; a wrapper this version cannot read, or one that does not open
+with a secret the server accepted, is worded as a fault to report and never as a reason to
+start over. From three tries left, the screen says how many.
+
+**Locking (VAULT-3).** Three ways. The button. Fifteen minutes with nothing pressed. Leaving the
+page. For the fifteen minutes a timer alone is not enough: a machine that sleeps stops the
+timer and wakes with most of the time still to run. So the time since the last press is read
+from two clocks, the one on the wall and a steady one, and the longer counts; it is read when
+the timer fires, when the page is looked at again, and before a press is counted as one, so the
+press that wakes a page that should have locked locks it. On leaving, the key is dropped and
+the server is told by a request the browser is asked to send even as the page goes. That last
+part is best effort: where it does not arrive, the session stays counted as unlocked on the
+server until it ends by itself (thirty minutes without a request, 1.7). What an unlocked
+session can do without the key is 1.9's: pull sealed chunks and push; it cannot be given a
+wrapper without a proof. A page the browser kept and brings back comes back locked.
+
+**Signing out.** The screen says "signed out" only when the server has said the session is
+over for this browser: it ended it, there was none, or the account is no longer let in (an
+answer that takes the cookie away). When nothing comes back it says so, and that the person
+is still signed in. With the gate shut the answer is "closed" and the screen says signed out
+as well: nothing is answered for that session while the gate stays shut. Its cookie is not
+taken away, though, so a gate opened again within the session's thirty quiet minutes finds it
+a session still. Shutting the gate is not yet a way of signing everyone out (section 3).
+
+**Told to slow down.** When the limiter of 1.8 turns a request away, the screen says there
+were too many requests and to try again in a minute. It does not say the server is at fault,
+and nothing is lost: a vault being made is kept at the next press, with the same recovery code.
+
+**Where a sign-in starts.** At a press on the app's own page, which is a link to `/enter`. The
+server begins a sign-in there only when the browser says the request came from this origin
+(`Sec-Fetch-Site: same-origin`). Sent to `/enter` from anywhere else (another site, the main
+site, a link in a message, an address typed in), the browser is shown the app's page and
+nothing is begun. So no link and no page signs a person in without a press of theirs; before,
+such a link spent one of the account's twelve sign-ins an hour, and from the ninth pushed out
+the session seen longest ago (the review of the door, finding 6). A browser too old to say
+where a request came from is let on as before, and for it the limits of 1.8 are what holds.
+
+**The main site's page (ARCH-3).** `changle.ca/tools/finance?handoff=<nonce>`
+(`site/src/tools/Finance.tsx`, `financeDoor.ts`). It asks the accounts service for a code bound
+to the nonce, for whoever is signed in there, and sends the browser to
+`https://money.changle.ca/#h=<code>`. That address is written out in the code and never read
+from the page's own address, so a code can be taken nowhere else; the code rides in the
+fragment. Only what has the shape of a nonce is kept from the address, and what comes back is
+used only if it has the shape of a code. With nobody signed in, the main site's sign-in comes
+up and the page goes on after it. It goes on by itself, with no press: a link made by someone
+else brings a code that never leaves this browser, and that this browser cannot trade, because
+its nonce is not the one in this browser's cookie (1.8). What such a link can do is spend the
+account's allowance of codes (five a minute, a hundred a day), so that the person's own
+sign-ins are told to wait. A press before each code would stop that and cost every sign-in a
+press; it is not added, and this is the reason.
+
+**Both languages, and reachable (UX-4, UX-5).** Every word a person reads is in Chinese and in
+English, held to that by a test. Every screen goes through the accessibility checks the main
+site runs (WCAG 2.1 A and AA) in CI, at a phone's width.
+
+**Tested.** On Node: the idle count with clocks moved by hand (asleep, set back, a timer that
+fires early); the door's steps against the server's rules on Node's SQLite; the Worker's page
+function with a stand-in file store that answers with what the real one never does in a test (a
+redirect, a part, "not changed", headers of its own); the design rules. On the local runtime:
+the real files with their headers, and the gate shut. In a real browser against the local
+runtime (`scripts/check-app.ts`, in CI): the whole way in, from the main site's page (a
+stand-in) through a new vault, locking, a wrong passphrase, the recovery code, the fifteen
+minutes (with the vault open, and on the recovery code's screen before anything is kept),
+leaving the page, and signing out when the server can and cannot be told; that the address of
+`/enter` typed in begins nothing; that nothing
+was asked of any other origin; and that the passphrase, the recovery code and the words a
+wrapper has are nowhere in the browser's storage, open or locked. Each of 69 checks in this
+code taken out in turn fails a test, seven of them in the browser.
+
+**Limits.**
+
+- A script that ran in the page while the vault is open could use the key, though not take it
+  out. The policy above, no script from anywhere else and no markup from data are what stand
+  against that; there is no second line.
+- Copying the recovery code puts it on the device's clipboard, where other programs can read
+  it. The screen says to write it down; copying is the person's choice.
+- The request that tells the server of a lock on leaving may not arrive (above).
+- The app's script is whatever the server sends: someone who can change what
+  `money.changle.ca` serves can read a passphrase as it is typed. This is section 2's limit for
+  every browser app, and VAULT-6's wording does not claim otherwise.
+
+**Not in this.** The list of devices and ending one from the app (the server has it, 1.7).
+Changing the passphrase, a new recovery code, passkeys. Erasing a vault. Emptying this device's
+cache on signing out.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -979,8 +1283,9 @@ their real sizes, and what a call is billed, which only a deploy can show.
 
 - Passkeys: the PRF extension's salt, which browsers support it, and what a user without it is
   offered (ARCH-7). Not built.
-- Whether iOS applies smart punctuation and automatic capitals in a passphrase field once "show
-  passphrase" turns it into a text field. To be checked on a real phone when the screens exist.
+- Whether iOS applies smart punctuation and automatic capitals in a passphrase field once "show"
+  turns it into a text field. The field asks for none of it (no capitals, no correction, no
+  spelling), and the screens now exist (1.10); it is still to be checked on a real phone.
   The same goes for its turning two spaces into a full stop and a space: "tidal  marmot" would
   become "tidal. marmot", which the normalization cannot fold back, because a person can see
   those are different.
@@ -990,10 +1295,29 @@ their real sizes, and what a call is billed, which only a deploy can show.
   folded (1.4), but if a no-break space is put inside them as well, the two spellings still
   differ. Not checked on a device; nobody here had one set to French.
 - A passphrase in Chinese needs an input method, which a password field switches off, so the
-  field has to be a text field at least while such a passphrase is typed. How that is offered,
-  and what each input method then does to the punctuation keys, is for the screens.
-- Limiting unlock attempts: the check happens in the browser, so the limit has to be on fetching
-  wrappers, per session and per account (threat 1). Not built.
+  field has to be a text field at least while such a passphrase is typed. The screens offer
+  that as "show" beside the field (1.10). What each input method then does to the punctuation
+  keys is still to be checked on real phones.
+- Limiting unlock attempts: built on the server (1.9): a wrapper is handed only against a proof,
+  and wrong proofs are counted for the account. Still open: the count is one for the whole
+  account, so whoever holds the mailbox can lock the owner out by guessing wrong on purpose. A
+  second count for devices that have opened the vault before (a device secret kept in the
+  browser, its hash on the server) would keep such a device out of the stranger's count.
+- The screen for the events log and the list of devices. It owes: wrong proofs shown so that
+  no later line hides them (they are kept apart for that, 1.8), which sessions are unlocked, and
+  ending any of them. Until it exists the owner is not shown a wrong proof at all (1.9).
+- A right proof is counted against nothing. Whoever holds the passphrase can have a line
+  written at each request, three hundred a minute from one address. The lines kept stay within
+  their most (1.8), but each is a write, and writes count toward the plan's daily number that
+  all of changle.ca shares (LIM-1). To settle before anyone but the owner is let in: a count,
+  or no line for a session that is already unlocked.
+- What Cloudflare's logs keep of a request. The Worker's own lines carry no contents (OBS-1),
+  and the line Cloudflare writes for each request is switched off in `wrangler.jsonc`, because
+  it would carry the request's headers, the session's cookie among them. To look at once on
+  the first deployment: that nothing of a request is in the logs.
+- Shutting the gate ends no session and takes no cookie away (1.10, "Signing out"). When the
+  operator's way of stopping the service is built (ADM-5), it should end sessions as well, or
+  the answer "closed" should take the cookie.
 - The handoff, the allowlist, the Worker, the Durable Object and resetting a vault: sections to
   add with the server. Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
   quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").

@@ -103,6 +103,29 @@ knows of every database there is. In `VaultDO.signIn` nothing that waits may com
 `signInHere` has asked the registry; and a method that does a notice's work on an object counts
 it first (`this.noticed++`) and only then does the work (`tests/objects.test.ts`).
 
+`ways.ts` is the ways into a vault as the server keeps them: each wrapper, with what a device
+has to show to be given it. For whoever writes the screens, opening a vault is four requests
+(assessment 1.9):
+
+```ts
+const { vault, ways, unlocked } = await post("vault");                 // which vault, which ways in; nothing to open anything with
+const { id, params } = await post("vault/way", { kind: "passphrase" }); // the proof's parameters: check them (isProofParams)
+const proof = await proofOf(vault, params, { kind: "passphrase", passphrase });
+const answer = await post("vault/unlock", { id, proof });               // 200 { wrapper } | 422 wrong-secret { left } | 429 too-many { again }
+const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, vault);
+```
+
+- Making a vault: `createVault(passphrase)`, a `newProof` for each of its two wrappers with that
+  wrapper's secret, then `vault/start` with `{ vault, ways: [{ wrapper, params, proof }, …] }`.
+  The session that made it is unlocked.
+- 422 with `left` is a wrong passphrase: say how many tries are left when it is three or fewer.
+  429 with `again` (milliseconds) means wait; say until when. A wrapper that came back and does
+  not open is not a wrong passphrase: the stored ways in were changed (`unlock` says why).
+- Sync answers 423 until the session has unlocked: `HttpRemote.locked`. Ask for the passphrase.
+- When the vault locks (fifteen idle minutes, VAULT-3, or the person locks it): drop the key
+  and the wrapper from memory, and tell the server (`vault/lock`). Never keep a wrapper in
+  storage: a wrapper on the device is what the server's count keeps away from guessing.
+
 **Not published.** `wrangler.jsonc` is the Worker's settings, with the gate shut (`GATE`:
 `closed`, `owner` or `list`). Nothing is live until a Workers Build is connected to this folder
 in Cloudflare, which is Steve's to do, and the gate is his to open.
@@ -111,6 +134,45 @@ in Cloudflare, which is Steve's to do, and the gate is his to open.
 dev`) with a stand-in for the accounts service (`tests/accounts`), which is also the door the
 tests come in by. It is not part of `npm test`. The Worker's own files are type-checked against
 Cloudflare's types by `src/server/tsconfig.json` (`npm run typecheck` runs both).
+
+## The app's pages
+
+`web/app/` is the app a person sees at money.changle.ca, as far as it goes yet: the door
+(signing in, making a vault, opening it, locking, signing out). Preact, built by
+`scripts/build-app.mjs` into `dist/app`, which the Worker hands out (`src/server/worker.ts`,
+`page`; `assets` in `wrangler.jsonc`). What each step does is `src/app/door.ts`, plain functions
+over one way of asking the server, tested without a page; `src/app/idle.ts` is the fifteen
+minutes. Assessment 1.10 has the reasons.
+
+| File | What it does |
+| --- | --- |
+| `web/app/index.html`, `main.tsx` | The one page, and its start |
+| `web/app/ui/App.tsx` | The screens: signed out, a new vault, the recovery code, opening, the first room |
+| `web/app/ui/common.tsx` | The bar at the top, a field for a secret, the copy button, a note |
+| `web/app/i18n.ts` | Every word a person reads, in Chinese and English |
+| `web/app/styles.css`, `tokens.css`, `fonts/` | Its styles; changle.ca's tokens and fonts, copied (a test keeps `tokens.css` the same as the site's) |
+
+Rules for whoever adds a screen, each held by `tests/design.test.ts`:
+
+- The page's policy lets nothing written into the page run or style it. So: no `style=` on an
+  element, no markup made from a string, no script or style from anywhere but this origin.
+- Every word goes in `i18n.ts`, in both languages. No screen says anything of its own.
+- Colors, type sizes, corners, shadows and timings come from `tokens.css`.
+- The page keeps two things in the browser: the language (`localStorage`), and the cache of
+  sealed chunks. Anything more has to be written into the assessment first.
+- What may be said about the encryption is VAULT-6's wording and nothing stronger.
+
+`npm run test:app` builds the pages, starts the Worker on the local runtime over HTTPS, and goes
+the whole way in with the Chrome already on the machine (`scripts/check-app.ts`): the main
+site's page is the stand-in's, the browser is told that `money.changle.test` is this machine.
+`SHOTS=/tmp/shots npm run test:app` also saves a picture of each screen. To look at the pages
+by hand: `node scripts/build-app.mjs --watch` and, beside it, `npx wrangler dev -c
+tests/accounts/wrangler.jsonc -c wrangler.jsonc` with `GATE` set to `owner` in a copy of the
+settings.
+
+The main site's part of signing in is one page of the site, `site/src/tools/Finance.tsx`
+(changle.ca/tools/finance), with its plain half in `financeDoor.ts` and its tests in
+`site/tests/finance.test.ts`.
 
 ## The store: where records are kept
 
@@ -374,16 +436,22 @@ npm ci
 npm run typecheck
 npm test
 npm run test:page
+npm run test:server
+npm run test:app
 ```
 
 `npm run test:page` builds the statement check and opens it in the Chrome already on the machine,
 then tries the store's cache in that browser's own storage (`scripts/check-cache.ts`).
+`test:server` and `test:app` are described above; both start `wrangler dev`, and a run that is
+cut short can leave one behind (`pkill -f "wrangler dev"`; the next run says so if a port is
+taken).
 
-CI is `.github/workflows/moneylens.yml`: the same four, plus an audit of what ships.
+CI is `.github/workflows/moneylens.yml`: the same six, plus an audit of what ships.
 
 The random run of the store's tests (three devices on a bad network) runs eight times in CI.
 More: `MONEYLENS_SEEDS=500 npx tsx --test tests/sync.test.ts`. One of them again:
 `MONEYLENS_SEED=37 npx tsx --test tests/sync.test.ts`.
 
-What ships is small on purpose: PDF.js (`pdfjs-dist`, Apache 2.0) is the only package in the page.
-The others (`esbuild`, `playwright-core`, `tsx`, `typescript`) build and test.
+What ships is small on purpose: PDF.js (`pdfjs-dist`, Apache 2.0) in the statement check, and
+Preact (MIT) in the app's pages. The others (`esbuild`, `playwright-core`,
+`@axe-core/playwright`, `tsx`, `typescript`, `wrangler`) build and test.

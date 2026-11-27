@@ -55,6 +55,8 @@ const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default
 const SplitApp = lazy(() => import("./split/SplitApp").then((m) => ({ default: m.SplitApp })));
 // a tool on its page (/tools/currency, /tools/clock, /tools/price): it and the tools' styles load when it opens
 const ToolPage = lazy(() => loadTools().then((m) => ({ default: m.ToolPage })));
+// 心里有数 · MoneyLens's page here (/tools/finance): the way in to money.changle.ca. Loads when it opens
+const Finance = lazy(() => import("./tools/Finance").then((m) => ({ default: m.Finance })));
 
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
 function useSoloHistory(route: Route) {
@@ -182,6 +184,7 @@ function Shell() {
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "split") screen = <SplitApp id={route.id} onBack={back} />;
   else if (route.kind === "tool") screen = <ToolPage id={route.id} />;
+  else if (route.kind === "finance") screen = <Finance handoff={route.handoff} />;
   else if (route.kind === "game") {
     switch (route.id) {
       case "rogue":
@@ -256,7 +259,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? `${route.id}.${restarts}`
-          : route.kind === "me" || route.kind === "admin" || route.kind === "member" || route.kind === "figure" || route.kind === "emailCancel" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "member" || route.kind === "figure" || route.kind === "emailCancel" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest" || route.kind === "finance"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")

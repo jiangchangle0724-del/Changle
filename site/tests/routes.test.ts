@@ -71,6 +71,8 @@ const pages: Route[] = [
   { kind: "tool", id: "currency" },
   { kind: "tool", id: "clock" },
   { kind: "tool", id: "price" },
+  { kind: "finance" },
+  { kind: "finance", handoff: "n0nce_made-up_for-a-test-0123456789ABCDEFGH" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
 // a game's own link (猜歌名's challenges) keeps its ?c=, and only one that could be one
@@ -82,6 +84,15 @@ ok(same(at("/tools/currency/"), { kind: "tool", id: "currency" }), "/tools/curre
 ok(same(at("/tools/nope"), { kind: "home", tab: "party" }) && same(at("/tools/constructor"), { kind: "home", tab: "party" }), "/tools/<not a tool> is no page");
 ok(same(at("/tools"), { kind: "home", tab: "tools" }), "/tools is still the Tools tab");
 ok(titleOf({ kind: "tool", id: "price" }, "zh") === "单价换算 · 开席 Lazy Susan" && titleOf({ kind: "tool", id: "clock" }, "en") === "World clock · 开席 Lazy Susan", "a tool's page is titled with its name");
+
+// 心里有数's page here: the nonce it was opened with stays in the address (a sheet closing reads the address again), and only what could be a nonce is kept
+ok(same(at("/tools/finance/"), { kind: "finance" }) && pathOf(at("/tools/finance/")) === "/tools/finance", "/tools/finance is 心里有数's page");
+for (const bad of ["%3Cscript%3E", "short", "n".repeat(65), "has space in it and is long enough", "https://elsewhere.example/aaaaaaaaaaaaaaaa", ""])
+  ok(same(at(`/tools/finance?handoff=${bad}`), { kind: "finance" }) && pathOf(at(`/tools/finance?handoff=${bad}`)) === "/tools/finance", `a ?handoff= that can't be a nonce is dropped (${bad.slice(0, 12) || "empty"})`);
+ok(same(at(`/tools/finance?handoff=${"n".repeat(20)}`), { kind: "finance", handoff: "n".repeat(20) }) && same(at(`/tools/finance?handoff=${"n".repeat(64)}&to=https://elsewhere.example`), { kind: "finance", handoff: "n".repeat(64) }), "a nonce is 20 to 64 of the letters a nonce has, and nothing else in the address is kept");
+ok(pathOf(at(`/tools/finance?handoff=${"n".repeat(43)}&to=https://elsewhere.example`)) === `/tools/finance?handoff=${"n".repeat(43)}`, "the address is written back with the nonce alone");
+ok(titleOf({ kind: "finance" }, "zh") === "心里有数 · 开席 Lazy Susan" && titleOf({ kind: "finance", handoff: "n".repeat(43) }, "en") === "MoneyLens · 开席 Lazy Susan", "心里有数's page is titled with its name");
+ok(at("/tools/financeX").kind === "home" && at("/tools/finance/more").kind === "home", "an address near it is no page");
 
 // addresses written another way land on the site's own spelling
 ok(pathOf(at("/g/truth")) === "/g/truth-or-dare", "/g/truth (an old id) becomes /g/truth-or-dare");
