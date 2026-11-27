@@ -54,14 +54,16 @@ test("fifteen quiet minutes lock, once, and not a moment before", () => {
 });
 
 test("a press starts the count again", () => {
-  const { clock, pass } = fake();
+  const { clock, pass, waiting } = fake();
   let locks = 0;
   const watch = watchIdle(LIMIT, () => locks++, clock);
   for (let i = 0; i < 10; i++) {
     pass(LIMIT - 1000);
     watch.touch();
+    watch.touch();
   }
   assert.equal(locks, 0, "two and a half hours of pressing now and then");
+  assert.equal(waiting(), 1, "one timer, however many presses");
   pass(LIMIT - 1);
   assert.equal(locks, 0);
   pass(1);
@@ -88,10 +90,15 @@ test("a machine that slept past the limit locks at the first look", () => {
   assert.equal(locks, 0, "nothing ran while it slept");
   watch.look();
   assert.equal(locks, 1);
+  // (locked, it is done: nothing that comes after locks again)
+  watch.look();
+  watch.touch();
+  pass(2 * LIMIT);
+  assert.equal(locks, 1);
 });
 
 test("the press that wakes it locks it, and does not start the count afresh", () => {
-  const { clock, pass, sleep } = fake();
+  const { clock, pass, sleep, waiting } = fake();
   let locks = 0;
   const watch = watchIdle(LIMIT, () => locks++, clock);
   pass(60_000);
@@ -99,8 +106,10 @@ test("the press that wakes it locks it, and does not start the count afresh", ()
   watch.touch();
   assert.equal(locks, 1);
   watch.touch();
+  watch.look();
   pass(LIMIT);
   assert.equal(locks, 1);
+  assert.equal(waiting(), 0);
 });
 
 test("a machine that slept, and whose timer then fires, locks", () => {

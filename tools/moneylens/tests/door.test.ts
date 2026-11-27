@@ -318,6 +318,11 @@ test("asking over the network: a POST of JSON to this origin, and no answer is n
   assert.deepEqual([init.method, init.credentials, init.cache, init.redirect, init.body], ["POST", "same-origin", "no-store", "error", `{"kind":"passphrase"}`]);
   assert.deepEqual(init.headers, { "Content-Type": "application/json" });
   assert.equal(seen[0]!.init.body, "{}");
+  // a request made as the page goes away is one the browser is asked to send even so; no other is
+  assert.deepEqual(seen.map((one) => one.init.keepalive), [false, false]);
+  await ask("vault/lock", {}, true);
+  await ask("vault/lock", {}, false);
+  assert.deepEqual(seen.slice(2).map((one) => [one.url, one.init.body, one.init.keepalive]), [["/api/vault/lock", "{}", true], ["/api/vault/lock", "{}", false]]);
   // an answer that is not JSON, or is JSON and no object, is an answer with nothing in it
   for (const body of ["<html>", "[1,2]", "5", "null", ""]) assert.deepEqual(await askOver(async () => new Response(body, { status: 502 }))("vault"), { status: 502, json: {} });
   // a request that fails, and one that takes too long, are no answer

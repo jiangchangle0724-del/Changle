@@ -7,6 +7,10 @@
  * the last press is read from both clocks and the longer one counts; and it is read again whenever
  * the page is looked at again (`look`), and before a press is counted as one (`touch`): the press
  * that wakes a page that should have locked locks it, and does not start the count afresh.
+ *
+ * A press only notes the moment. The one timer is left as it is: when it wakes it finds that the
+ * limit has not passed, and waits for what is left. (Presses come by the hundred while a page is
+ * scrolled; none of them sets a timer.)
  */
 
 /** A moment by two clocks: the one on the wall (`Date.now()`, which goes on while the machine sleeps and can be set) and a steady one (`performance.now()`, which never goes back). */
@@ -60,7 +64,6 @@ export function watchIdle(limit: number, lock: () => void, clock: IdleClock): Id
         return lock();
       }
       last = clock.now();
-      arm();
     },
     look,
     stop: end,

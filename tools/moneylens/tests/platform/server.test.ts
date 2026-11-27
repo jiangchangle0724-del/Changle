@@ -644,6 +644,14 @@ test("the app's page: one page that may load its own files and talk to its own /
   assert.match(licences.type ?? "", /^text\/plain\b/);
   assert.match(text(licences.body), /SIL Open Font License[\s\S]*MIT License/);
 
+  // nothing of the request goes to where the files are kept: whatever a browser adds to its question, the answer is the whole file
+  for (const path of ["/", css]) {
+    const asked = await fetch(`${server.base}${path}`, { headers: { Range: "bytes=0-9", "If-None-Match": "*", "If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT", "Accept-Encoding": "identity" } });
+    assert.deepEqual([asked.status, new Uint8Array(await asked.arrayBuffer())], [200, new Uint8Array(readFileSync(`dist/app${path === "/" ? "/index.html" : path}`))], path);
+  }
+  // what is not the page or one of its files is not there, whatever is asked of it (the files are asked only for those)
+  for (const path of ["/index.html", "/nothing", "/assets"]) assert.deepEqual(await said(await send(server, path, "{}", new Map())), [404, "no-such-thing"], `POST ${path}`);
+
   // only to be read: anything else is turned away before the files are asked
   for (const path of ["/", css, "/licences.txt"]) {
     for (const method of ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"]) {
