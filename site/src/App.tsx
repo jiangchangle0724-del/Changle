@@ -175,7 +175,7 @@ function Shell() {
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => go({ kind: "home", tab: "party" }, true)} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
-  else if (route.kind === "member") screen = <MemberPage onBack={back} />;
+  else if (route.kind === "member") screen = <MemberPage onBack={back} paid={route.paid} />;
   else if (route.kind === "figure") screen = <FigurePage onBack={back} />;
   else if (route.kind === "emailCancel") screen = <EmailCancelPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;

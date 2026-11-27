@@ -5,6 +5,7 @@
  * live socket open while signed in, for chat and friend requests as they happen.
  */
 import { DurableObject } from "cloudflare:workers";
+import Stripe from "stripe";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
@@ -16,6 +17,7 @@ import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut"
 import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 import { grant, lifeLeft, listMembers, memberOf, memberSchema, revoke, standingOf, useTool } from "./membership";
+import { isPlan, modeOf, Pay, siteOf, stripeSchema } from "./stripe";
 import { isCounted, type Standing, type UseResult } from "../src/shared/member";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
@@ -39,6 +41,14 @@ export type HubEnv = {
   SPLIT?: { accountGone(account: string): Promise<unknown> };
   /** MoneyLens (tools/moneylens), its Internal entrypoint, once it's bound (after its first deploy): told the same, it deletes that account's records and keys */
   MONEY?: { accountGone(account: string): Promise<unknown>; accountChanged(account: string): Promise<unknown> };
+  /** Stripe's secret key (a secret in Cloudflare): sk_ or rk_, test or live. Without it nothing can be bought (worker/stripe.ts) */
+  STRIPE_SECRET_KEY?: string;
+  /** local runs only: the signing secret `stripe listen` prints (the deployed hub makes and keeps its own) */
+  STRIPE_WEBHOOK_SECRET?: string;
+  /** "on": Stripe adds tax at checkout (once registered for GST and PST; prices already include it) */
+  STRIPE_TAX?: string;
+  /** tests only: a stand-in for Stripe's client */
+  STRIPE_CLIENT?: unknown;
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -124,6 +134,16 @@ const masked = (email: string) => {
 const when = (at: number, lang: "zh" | "en") =>
   new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en-CA", { timeZone: "America/Vancouver", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
 const err = (status: number, error: string): Reply => ({ status, json: { error } });
+/** what went wrong with Stripe, in a word the back office can show (never the message, which can quote a key) */
+const stripeWhy = (e: unknown) => {
+  const t = (e as { type?: string } | null)?.type ?? "";
+  if (t === "StripeAuthenticationError") return "stripe-key";
+  if (t === "StripePermissionError") return "stripe-permission";
+  if (t === "StripeRateLimitError") return "stripe-busy";
+  if (t === "StripeConnectionError" || t === "StripeAPIError") return "stripe-down";
+  if (t === "StripeInvalidRequestError") return "stripe-request";
+  return "stripe";
+};
 
 export class Hub extends DurableObject<HubEnv> {
   private sql: SqlStorage;
@@ -214,6 +234,8 @@ export class Hub extends DurableObject<HubEnv> {
     sfSchema(q);
     // members and the free uses of the counted tools (worker/membership.ts, docs/membership.md)
     memberSchema(q);
+    // what was paid with Stripe, and what setting it up made there (worker/stripe.ts)
+    stripeSchema(q);
     // the owner's edits to the site's words: by language and the exact text they replace (src/shared/copy.ts)
     q(`CREATE TABLE IF NOT EXISTS copy (lang TEXT NOT NULL, orig TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lang, orig))`);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
@@ -372,7 +394,7 @@ export class Hub extends DurableObject<HubEnv> {
     if (sf) return sf;
 
     // ---- membership: what's for sale, open to anyone (the member page, src/member/) ----
-    if (path === "/member" && m === "GET") return ok({ lifeLeft: lifeLeft(this.sql) });
+    if (path === "/member" && m === "GET") return ok({ lifeLeft: lifeLeft(this.sql), pay: this.payOpen(me) });
 
     // ---- a code that takes this account to an app on its own domain (MoneyLens) ----
     if (path === "/handoff" && m === "POST") {
@@ -389,7 +411,9 @@ export class Hub extends DurableObject<HubEnv> {
     // ---- me ----
     if (path === "/me" && m === "GET") return ok({ user: this.selfView(me) });
     // your membership and the free uses left of each counted tool
-    if (path === "/me/member" && m === "GET") return ok({ standing: standingOf(this.sql, me.id, Date.now(), master), lifeLeft: lifeLeft(this.sql) });
+    if (path === "/me/member" && m === "GET") return ok({ ...this.memberView(me, master), lifeLeft: lifeLeft(this.sql) });
+    // ---- paying for a membership (worker/stripe.ts): Checkout, the billing page, back from paying ----
+    if (path.startsWith("/stripe/")) return this.stripeRoute(me, master, c, path, b);
     if (path === "/me" && m === "PUT") {
       const p = profileFields(b);
       if ("error" in p) return err(400, p.error);
@@ -595,6 +619,86 @@ export class Hub extends DurableObject<HubEnv> {
     }
 
     return err(404, "not-found");
+  }
+
+  /* ================= paying (worker/stripe.ts) ================= */
+
+  private stripeClient: { key: string; client: Stripe } | null = null;
+  /** Stripe, when a key is set (one client per key, kept while this hub runs) */
+  private payFor(): Pay | null {
+    const key = this.env.STRIPE_SECRET_KEY?.trim();
+    const mode = modeOf(key);
+    if (!key || !mode) return null;
+    if (this.stripeClient?.key !== key) {
+      const client = (this.env.STRIPE_CLIENT as Stripe | undefined) ?? new Stripe(key, { httpClient: Stripe.createFetchHttpClient(), maxNetworkRetries: 2, timeout: 20_000, appInfo: { name: "changle.ca", url: "https://changle.ca" } });
+      this.stripeClient = { key, client };
+    }
+    const owner = (this.env.MASTER_EMAIL ?? "").trim().toLowerCase();
+    return new Pay(this.sql, this.stripeClient.client, mode, {
+      tax: this.env.STRIPE_TAX === "on",
+      hookSecret: this.env.STRIPE_WEBHOOK_SECRET?.trim() || undefined,
+      alert: owner
+        ? (subject, text) => {
+            queueMail(this.sql, { to: owner, subject, text, html: `<p>${esc(text).replace(/\n/g, "<br>")}</p>` });
+            this.kickNotices();
+          }
+        : undefined,
+    });
+  }
+
+  /** whether this person may buy now: "live", "test" (a sandbox key: the owner and his admins only), or null */
+  private payOpen(me: U | null): "live" | "test" | null {
+    const pay = this.payFor();
+    if (!pay || !pay.open()) return null;
+    if (pay.mode === "test" && !(me && this.isAdmin(me))) return null;
+    return pay.mode;
+  }
+
+  /** your membership, free uses, and (when you pay with Stripe) your subscription */
+  private memberView(me: U, master: boolean) {
+    const pay = this.payFor();
+    const customer = !!pay && this.sql.exec(`SELECT 1 FROM stripe_customers WHERE uid = ? AND mode = ?`, me.id, pay.mode).toArray().length > 0;
+    return { standing: standingOf(this.sql, me.id, Date.now(), master), pay: this.payOpen(me), sub: pay?.subOf(me.id) ?? null, billing: customer };
+  }
+
+  private payAdmin() {
+    const pay = this.payFor();
+    return { key: !!this.env.STRIPE_SECRET_KEY?.trim(), status: pay?.status() ?? null };
+  }
+
+  private async stripeRoute(me: U, master: boolean, c: Call, path: string, b: Record<string, unknown>): Promise<Reply> {
+    const pay = this.payFor();
+    if (!pay || this.payOpen(me) === null) return err(503, "closed");
+    const lang = b.lang === "en" ? "en" : "zh";
+    const site = siteOf(b.site);
+    if (!this.allow(`pay:${me.id}`, 30, 600_000)) return err(429, "slow-down");
+    try {
+      if (path === "/stripe/checkout" && c.method === "POST") {
+        if (!isPlan(b.plan)) return err(400, "plan");
+        const r = await pay.checkout({ id: me.id, email: me.email, name: me.name }, b.plan, lang, site);
+        return "url" in r ? ok(r) : err(r.status ?? 400, r.error);
+      }
+      if (path === "/stripe/portal" && c.method === "POST") {
+        const r = await pay.portal(me.id, lang, site);
+        return "url" in r ? ok(r) : err(r.status ?? 400, r.error);
+      }
+      if (path === "/stripe/done" && c.method === "GET") {
+        const r = await pay.done(me.id, typeof b.id === "string" ? b.id : "");
+        if ("error" in r) return err(r.status ?? 400, r.error);
+        return ok({ ...r, ...this.memberView(this.userById(me.id) ?? me, master), lifeLeft: lifeLeft(this.sql) });
+      }
+    } catch (e) {
+      console.error("stripe", path, e);
+      return err(502, stripeWhy(e));
+    }
+    return err(404, "not-found");
+  }
+
+  /** Stripe's word for an event, from the webhook (worker/index.ts hands it over unread) */
+  async stripeWebhook(raw: string, sig: string): Promise<{ status: number; body: string }> {
+    const pay = this.payFor();
+    if (!pay) return { status: 503, body: "no key" };
+    return pay.webhook(raw, sig);
   }
 
   /* ================= accounts ================= */
@@ -1245,6 +1349,9 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
   }
 
   private deleteUser(id: string) {
+    // a subscription stops renewing at once (a lifetime place comes back)
+    const pay = this.payFor();
+    if (pay) this.ctx.waitUntil(pay.end(id));
     for (const s of [
       `DELETE FROM sessions WHERE user_id = ?`,
       `DELETE FROM devices WHERE user_id = ?`,
@@ -1258,6 +1365,7 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
       `UPDATE wishes SET user_id = NULL WHERE user_id = ?`,
       `DELETE FROM scenes WHERE user_id = ?`,
       `UPDATE sf_reports SET user_id = NULL WHERE user_id = ?`,
+      `DELETE FROM members WHERE uid = ?`,
       `DELETE FROM users WHERE id = ?`,
     ]) {
       const n = (s.match(/\?/g) ?? []).length;
@@ -1582,13 +1690,29 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
       const target = typeof b.uid === "string" ? this.userById(b.uid) : email ? this.userByEmail(email) : null;
       if (!target) return err(404, "no-account");
       if (b.end === true) {
+        await this.payFor()?.end(target.id);
         revoke(this.sql, target.id);
         return ok({ members: listMembers(this.sql, now), lifeLeft: lifeLeft(this.sql) });
       }
       const note = typeof b.note === "string" ? b.note.trim().slice(0, 120) : "";
       const r = grant(this.sql, target.id, b.life === true ? { life: true } : { months: Number(b.months) }, note, me.id, now);
       if ("error" in r) return err(400, r.error);
+      if (b.life === true) await this.payFor()?.stopRenewing(target.id);
       return ok({ members: listMembers(this.sql, now), lifeLeft: lifeLeft(this.sql) });
+    }
+
+    // ---- payments: what's set up in Stripe, and setting up what's missing (worker/stripe.ts) ----
+    if (path === "/admin/stripe" && m === "GET") return ok(this.payAdmin());
+    if (path === "/admin/stripe/setup" && m === "POST") {
+      const pay = this.payFor();
+      if (!pay) return err(400, this.env.STRIPE_SECRET_KEY ? "bad-key" : "no-key");
+      try {
+        await pay.setup();
+      } catch (e) {
+        console.error("stripe setup", e);
+        return err(502, stripeWhy(e));
+      }
+      return ok(this.payAdmin());
     }
 
     // ---- the site's words, as the owner changed them by long-pressing (src/shared/copy.ts) ----
