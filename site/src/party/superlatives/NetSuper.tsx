@@ -1,4 +1,4 @@
-import { Check, Shuffle, PenLine } from "lucide-react";
+import { Check, ImageDown, Shuffle, PenLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TimerArc } from "../../components/TimerArc";
 import { GAME_BY_ID } from "../../games/registry";
@@ -13,6 +13,9 @@ import type { SuperView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { flavorOf, mindReader } from "./flavor";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
+import { posterOf } from "./poster";
+import { AV_COLORS, colorFor } from "../../account/Avatar";
+import { PosterSheet } from "./PosterSheet";
 import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import { useSeatMemory } from "./seats";
 import "../../styles/party.css";
@@ -30,6 +33,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
   const { seat, name, gone } = useSeatMemory();
   const face = (id: string) => (size: number) => <SeatFace seat={seat(id)} size={size} />;
   const [writing, setWriting] = useState(false);
+  const [poster, setPoster] = useState(false);
   const [custom, setCustom] = useState("");
   useCue(v.phase === "vote", () => sfx.pop());
   const body = useRef<HTMLDivElement>(null);
@@ -222,6 +226,23 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                 const m = mindReader(v.hits, v.round);
                 return m && { names: m.ids.map((id) => (id === me ? (zh ? "你" : "You") : name(id))), hits: m.hits, of: m.of };
               })()}
+            />
+            <button type="button" className="btn btn-ghost btn-block" onClick={() => setPoster(true)}>
+              <ImageDown size={16} />
+              {zh ? "颁奖海报" : "The awards poster"}
+            </button>
+            <PosterSheet
+              open={poster}
+              onClose={() => setPoster(false)}
+              poster={() => {
+                const ids = [...players.map((s) => s.id), ...gone(Object.keys(v.awards).filter((id) => v.awards[id].length > 0))];
+                // (the faces' colors, as the seats wear them: an account's own, or the one its seat was dealt)
+                const colorOf = (id: string) => {
+                  const s = seat(id);
+                  return AV_COLORS[(s?.uid && s.ac !== undefined ? s.ac : colorFor(id)) % AV_COLORS.length];
+                };
+                return posterOf({ lang: zh ? "zh" : "en", people: ids.map((id) => ({ id, name: name(id), color: colorOf(id) })), awards: v.awards, hits: v.hits, round: v.round });
+              }}
             />
             {isHost && (
               <button type="button" className="btn btn-primary btn-lg btn-block" disabled={stampDue} onClick={() => g("more")}>
