@@ -5,8 +5,9 @@ import type { Bus } from "../../lib/audio/engine";
  * one set per language, played through the page's own sound like everything else. They are MiniMax
  * voices made once by `scripts/limbo_voices.py` and kept in `public/sounds/limbo/<lang>/<line>.mp3`;
  * this file only plays them. Not the browser's speech voice: on an iPhone that stops the page's
- * music and it may not come back (WebKit bugs 218815 and 273511, see dj/announce.ts). Without the
- * files (not generated yet, or offline) the coach keeps to its blips.
+ * music and it may not come back (WebKit bugs 218815 and 273511, see dj/announce.ts). A language
+ * with no recordings speaks English (Steve, 2026-11-26: 「英语提示就好」, so only English is recorded);
+ * without any files (offline, say) the coach keeps to its blips.
  */
 
 export type Line = "down" | "up" | "on" | "kept" | "left" | "right";
@@ -27,8 +28,13 @@ export const lineUrl = (lang: Lang, line: Line) => `/sounds/limbo/${lang}/${line
 type Clips = Partial<Record<Line, AudioBuffer>>;
 const loaded = new Map<string, Promise<Clips>>();
 
-/** The lines of one language, decoded once (a line that isn't there is left out). */
+/** The lines of this language, or English's when it has none recorded. */
 function clipsFor(b: Bus, lang: Lang): Promise<Clips> {
+  return recorded(b, lang).then((c) => (lang !== "en" && !Object.keys(c).length ? recorded(b, "en") : c));
+}
+
+/** The lines of one language, decoded once (a line that isn't there is left out). */
+function recorded(b: Bus, lang: Lang): Promise<Clips> {
   const key = `${lang}@${b.c.sampleRate}`;
   let p = loaded.get(key);
   if (!p) {

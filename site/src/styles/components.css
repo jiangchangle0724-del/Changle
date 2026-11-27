@@ -775,7 +775,8 @@
 }
 
 @media (min-width: 720px) {
-  .app {
+  /* (not a phone 林波舞 has turned back upright: `html[data-turned]`, party/limbo/portrait.ts) */
+  :where(html:not([data-turned])) .app {
     padding-top: 24px;
   }
 }

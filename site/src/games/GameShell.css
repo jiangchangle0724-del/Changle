@@ -96,8 +96,11 @@
 
 /* a phone on its side (see styles/landscape.css): the bar is shorter and says the name in one
    language, as the old one did, so a big picture on the left still starts 46px down; beside that
-   picture, tonight's people and the buttons keep to the right-hand column */
+   picture, tonight's people and the buttons keep to the right-hand column. Not while 林波舞 has
+   turned the page back upright (`html[data-turned]`, party/limbo/portrait.ts): the `:where()`
+   adds nothing to any selector's specificity */
 @media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  :where(html:not([data-turned])) {
   .game-screen > .ui-game-header {
     min-height: calc(var(--tap) + var(--safe-top));
     margin-bottom: calc(var(--space-1) / 2);
@@ -126,5 +129,6 @@
     padding-left: 0;
     /* only the right edge fades here (the buttons stop a gutter short of it, so they don't) */
     mask-image: linear-gradient(90deg, black calc(100% - var(--gutter)), transparent);
+  }
   }
 }

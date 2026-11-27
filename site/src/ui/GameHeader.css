@@ -81,13 +81,17 @@
   font-weight: 800;
 }
 @media (min-width: 720px) {
-  /* room on both sides for four buttons and the language (LangSwitch), so the title stays centred */
-  .ui-game-header {
-    grid-template-columns:
-      minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr) minmax(0, 2fr)
-      minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr);
-  }
-  .ui-game-header > .ui-button {
-    justify-self: start;
+  /* room on both sides for four buttons and the language (LangSwitch), so the title stays centred
+     (not on a phone 林波舞 has turned back upright, `html[data-turned]`, party/limbo/portrait.ts: the
+     browser says wide, the page is a phone's width; the `:where()` adds no specificity) */
+  :where(html:not([data-turned])) {
+    .ui-game-header {
+      grid-template-columns:
+        minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr) minmax(0, 2fr)
+        minmax(calc(var(--tap) * 5 + var(--space-3) + var(--space-1)), 1fr);
+    }
+    .ui-game-header > .ui-button {
+      justify-self: start;
+    }
   }
 }

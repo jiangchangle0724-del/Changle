@@ -36,18 +36,40 @@ function hips(t: number, s: number) {
   return { y: ANKLE + SHIN * Math.cos(s) + THIGH * Math.cos(t), z: SHIN * Math.sin(s) - THIGH * Math.sin(t) };
 }
 
-/** How the legs fold for a lean of `k` (0 upright, 1 flat): the knees go far forward, the shins tilt. */
+/** How the legs fold for a crouch of `k` (0 standing, 1 all the way down): the knees go far forward, the shins tilt. */
 const legsFor = (k: number) => ({ t: k * 80 * RAD, s: k * 50 * RAD });
 
+/** The top of the body above the hips at a lean of `a` radians: the head at a small lean, the chest and chin at a deep one. */
+const topAbove = (a: number) => (CHEST + HEAD_UP) * Math.cos(a) + 0.11 * Math.sin(a);
+
+/** The bar's height standing straight (the top of the head) and flat out (the body folded all the way down). */
+const BAR_TOP = hips(0, 0).y + topAbove(0);
+const BAR_BOTTOM = hips(legsFor(1).t, legsFor(1).s).y + topAbove(90 * RAD);
+
 /**
- * How high the bar sits for a lean of `deg` degrees: where the top of the body passes when leaning
- * that far (the head at a small lean, the chest and chin at a deep one). The poles' pegs sit here too.
+ * How high the bar sits for a lean of `deg` degrees; the poles' pegs sit here too. Not simply where the
+ * top of a body leaning that far would be: that hardly drops in the first thirty degrees (the cosine
+ * is flat there), so a moving bar swaying between 8° and 20° moved four centimetres and looked stuck
+ * while the gauge swung (Steve, 2026-11-26). The bar comes down a little faster than straight (the
+ * 1.25) from the head standing straight to the body folded flat, and the figure bends its knees to
+ * put the top of its body exactly there (`leaning`), as a real limbo dancer sinks under a bar.
  */
 export function barHeight(deg: number) {
   const k = Math.max(0, Math.min(1, deg / 90));
-  const { t, s } = legsFor(k);
-  const a = deg * RAD;
-  return hips(t, s).y + (CHEST + HEAD_UP) * Math.cos(a) + 0.11 * Math.sin(a);
+  return BAR_TOP - (BAR_TOP - BAR_BOTTOM) * Math.pow(k, 1.25);
+}
+
+/** How far the legs fold (`legsFor`'s k) to bring the hips down to `y`, feet planted: the hips fall with k, so halve the way in. */
+function crouchFor(y: number) {
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    const { t, s } = legsFor(mid);
+    if (hips(t, s).y > y) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 /** The joint angles and offsets of one pose (radians and metres). */
@@ -78,11 +100,12 @@ export function standing(): Joints {
   return { x: 0, z: 0, hipY: y, hipZ: z, pelvisX: 0, chestX: 0, chestZ: 0, neckX: 0, headY: 0, shoulderX: [0, 0], shoulderZ: [-6 * RAD, 6 * RAD], elbow: [-14 * RAD, -14 * RAD], thigh: [0, 0], knee: [0, 0], ankle: [0, 0], scale: 1 };
 }
 
-/** The limbo pose: leaning back `deg` degrees, tilted `side` degrees to the right (negative: left). */
+/** The limbo pose: leaning back `deg` degrees, tilted `side` degrees to the right (negative: left); the top of the body is at `barHeight(deg)`. */
 export function leaning(deg: number, side: number): Joints {
   const k = Math.max(0, Math.min(1, deg / 90));
   const a = deg * RAD;
-  const { t, s } = legsFor(k);
+  // the knees bend as far as it takes to bring the top of the body down to the bar
+  const { t, s } = legsFor(crouchFor(barHeight(deg) - topAbove(a)));
   const h = hips(t, s);
   const j = standing();
   j.hipY = h.y;
