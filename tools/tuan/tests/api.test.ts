@@ -1020,7 +1020,7 @@ describe("the pages", () => {
     expect(titleOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
     expect(cardOf(res.html)).toBe("本周大米团 · 周五到货 · 大米团（测试） · 跟一单 Count Me In");
     // home keeps its own name
-    expect(titleOf((await open("/tuan/")).html)).toBe("跟一单 · Count Me In");
+    expect(titleOf((await open("/tuan/")).html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
 
     // whatever a merchant types is text on the page, never markup
     const odd = await start({ title: `<script>alert(1)</script> "米" & 面` });
@@ -1038,7 +1038,7 @@ describe("the pages", () => {
     expect(said(plain.html)).toBe("五常大米 10kg、东北珍珠米 15lb、黄小米 2lb、土鸡蛋 30 枚、手切羊肉片");
     expect(pictureOf(plain.html)).toBeUndefined();
     // home keeps its own words
-    expect(said((await open("/tuan/")).html)).toMatch(/^团长开团，你跟一单/);
+    expect(said((await open("/tuan/")).html)).toMatch(/^大温哥华的私厨和团购/);
 
     // more than six goods: six and "…"; the first picture, wherever it is; a name as text
     const form = new FormData();
@@ -1063,7 +1063,7 @@ describe("the pages", () => {
       const res = await open(path);
       expect([path, res.status]).toEqual([path, 404]);
       expect(res.html).toContain('<div id="app"></div>');
-      expect(titleOf(res.html)).toBe("跟一单 · Count Me In");
+      expect(titleOf(res.html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
       expect(res.headers.get("cache-control")).toBe("no-store");
     }
     // once it's open, it has its page
@@ -1090,7 +1090,7 @@ describe("the pages", () => {
     expect(real.html).toBe(none.html);
     expect(real.html).not.toContain("本周大米团");
     expect(real.html).not.toContain(mine.code);
-    expect(titleOf(real.html)).toBe("跟一单 · Count Me In");
+    expect(titleOf(real.html)).toBe("跟一单 · 大温私厨和团购 · Count Me In");
     // a shop's page: its name in the title; none for a shop that isn't there
     const shopPage = await open(`/tuan/s/${at.slug}`);
     expect(shopPage.status).toBe(200);
