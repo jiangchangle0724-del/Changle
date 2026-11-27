@@ -226,45 +226,19 @@ button.rg-back:active {
   box-shadow: var(--shadow-flat);
 }
 
-/* the deck runs out: the pile comes back and the deck riffles (游戏编排, longer than a token) */
+/* the deck runs out: the pile comes back and the deck shuffles, each card flying out to a side and back, bottom first (游戏编排, longer than a token) */
 @media (prefers-reduced-motion: no-preference) {
-  .rg-deck.is-shuffling .rg-under:nth-child(odd),
+  .rg-deck.is-shuffling .rg-under,
   .rg-deck.is-shuffling .rg-back {
-    animation: rg-riffle-a 0.8s var(--ease-out) both;
-  }
-  .rg-deck.is-shuffling .rg-under:nth-child(even) {
-    animation: rg-riffle-b 0.8s var(--ease-out) both;
+    animation: rg-spray 0.58s cubic-bezier(0.3, 0.9, 0.3, 1) var(--sd, 0ms) both;
   }
 }
-@keyframes rg-riffle-a {
+@keyframes rg-spray {
   0% {
     transform: translate(0, 0) rotate(0);
   }
-  22% {
-    transform: translate(26px, -6px) rotate(7deg);
-  }
-  48% {
-    transform: translate(-22px, 2px) rotate(-5deg);
-  }
-  72% {
-    transform: translate(12px, -2px) rotate(3deg);
-  }
-  100% {
-    transform: translate(0, 0) rotate(0);
-  }
-}
-@keyframes rg-riffle-b {
-  0% {
-    transform: translate(0, 0) rotate(0);
-  }
-  22% {
-    transform: translate(-26px, 6px) rotate(-7deg);
-  }
-  48% {
-    transform: translate(22px, -2px) rotate(5deg);
-  }
-  72% {
-    transform: translate(-12px, 2px) rotate(-3deg);
+  42% {
+    transform: translate(var(--sx, 30px), var(--sy, 0)) rotate(var(--sr, 6deg));
   }
   100% {
     transform: translate(0, 0) rotate(0);

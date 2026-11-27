@@ -523,6 +523,20 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("11b-step-paid");
   await page.keyboard.press("Escape");
   await closed(page);
+  // 每个人 (2026-11-26): everyone's sums under the plan; a row opens that person's statement, whose last line is the row's
+  const everyone = page.locator(".split-people .split-row");
+  await page.getByRole("heading", { name: t("eachPerson"), exact: true }).evaluate((h) => h.scrollIntoView({ block: "start" }));
+  await shot("11b2-everyone");
+  const rowSays = ((await everyone.first().locator(".split-row-amount").innerText()) ?? "").replace(/\s+/g, " ").trim();
+  await everyone.first().click();
+  const statement = page.getByRole("dialog").locator(".split-statement");
+  await statement.waitFor();
+  await shot("11b3-statement");
+  const totalSays = ((await statement.locator(".is-total").innerText()) ?? "").replace(/\s+/g, " ").trim();
+  ok((await everyone.count()) >= 3 && rowSays.length > 0 && totalSays === rowSays, `${lang} ${width}x${height}: 每个人 has a row each, and a statement ends where its row stands (${rowSays})`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
   // the plan as a picture, for the group chat: as this browser has it (no share sheet: the picture is saved as a file)
   await button("sendPicture").click();
   const picture = page.getByRole("dialog").locator(".split-picture img");
@@ -3653,6 +3667,11 @@ async function viewing() {
   await pb.locator("#split-settle .split-row").first().click();
   await pb.getByRole("dialog").getByText(t("viewOnlyPaid")).waitFor();
   ok((await pb.getByRole("dialog").getByRole("button", { name: t("markPaid") }).count()) === 0, "a transfer on it can't be marked paid: it says someone in the ledger marks it");
+  await pb.keyboard.press("Escape");
+  await closed(pb);
+  await pb.locator(".split-people .split-row").first().click();
+  await pb.getByRole("dialog").locator(".split-statement .is-total").waitFor();
+  ok(true, "and everyone's statement opens on it too");
   await pb.keyboard.press("Escape");
   await closed(pb);
   await pb.getByRole("tab", { name: t("expenses") }).click();

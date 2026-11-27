@@ -7,4 +7,4 @@
 - 别动：tests/golden.ts（存下来的保险库，不能重新生成）；口令的折法和包装格式（改了老保险库打不开，要改只能加新版本）。口令底线两头都会错是故意的，数字在安全评估 1.4。
 - 下一步：Worker 和 Durable Object 的外壳，设计在 docs/moneylens/server-shell.md（兑换交接码、允许名单、把请求送到会话自己的那个库；账号对话的交接码已上线）→ 页面。PDF 读取器等 Steve 用第 3 版试真的那份，再照他别的账单的版式补。导入页面要按 CSV 读取器的四条约定做，存取按 README「The store」那一节和「A statement's way into the vault」做。应用层的规矩：记录 id 一律 `newId()`。给 Codex 送新提交：打成 bundle 放进它的 clone 文件夹，PR 它自己用 GitHub 连接开（见档案）。
 - 等 Steve：用第 3 版试读页面（下载后用 Chrome 或 Edge 直接打开）试那份 PDF（看对不对得上）和信用卡 CSV，再试银行账户的 PDF 月结单；把「摘要」和「编出来的版本」发回来，说是哪家银行、读得对不对；把 v1 和最早的功能说明放进 Project 文档；中文名先用「心里有数」。
-- 交出去的：账号对话的三件事都上线了（交接码和删号通知 #690，换邮箱 #704）；MoneyLens 第一次部署后他们要在主站加 MONEY 绑定。首页对话放全站 Privacy Policy 和 Terms。
+- 交出去的：账号对话的三件事都上线了（交接码和删号通知 #690，换邮箱 #704）；MoneyLens 第一次部署后他们要在主站加 MONEY 绑定。首页对话放全站 Privacy Policy 和 Terms。会员（Steve 11-26 定）：内测期间不计次；正式开放后导入一份账单之前问 `MEMBER.use(uid, "moneylens")`，见 docs/membership.md。

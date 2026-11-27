@@ -4,5 +4,6 @@
 - 决定：样稿是设计画布「随便 · 夜场改版样稿」；样式不写死值（tests/design.test.ts）；放题只认店自己说的；只有房主能带全桌退一步、换范围、换一批；回第 1 轮没改就不再搜 Google；换一批不重新搜，所以换上来的没有照片。
 - 2026-11-26 Metrotown 的点挪到 Metropolis 商场（#827）；查 bug 修了 7 个，加了随机乱点测试 tests/fuzz.test.ts（#828）；全桌都想去 + 换一批（#830）。
 - 待办：接约时间带来的参数（/eat/?from=when&date=…&time=…&occasion=…），开桌页预先填好，见 briefs/when.md「交给别的对话」。
-- 待办（要 Steve 定）：登录换邮箱验证码、和主站共用账号；Google Text Search 每天的上限；过敏表的几个问题；借鉴来的另外几条（实时排名、地图上拖点、两个人一对一、重连带回合号）；换一批要不要也拿照片（每批多花约一次搜索的钱）。
+- 待办（Steve 11-26 定了）：改成认主站账号，Google 登录留一个月过渡；然后开一桌之前问 `MEMBER.use(uid, "suibian")`，每个账号免费 3 次，见 docs/membership.md。
+- 待办（要 Steve 定）：Google Text Search 每天的上限；过敏表的几个问题；借鉴来的另外几条（实时排名、地图上拖点、两个人一对一、重连带回合号）；换一批要不要也拿照片（每批多花约一次搜索的钱）。
 - 详细历史在 docs/briefs/suibian.md。

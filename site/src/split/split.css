@@ -644,6 +644,18 @@
   font-size: var(--text-sm);
   font-weight: 400;
 }
+/* 每个人's statement: where the sums leave them, the last line, set apart */
+.split-summary > .is-total {
+  border-bottom: 0;
+}
+.split-summary > .is-total dt {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-summary > .is-total dd {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
 /* the tip and tax on a receipt, under its photos in the receipt's sheet */
 .split-extras {
   margin-top: var(--space-2);

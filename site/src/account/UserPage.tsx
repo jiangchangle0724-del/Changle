@@ -1,3 +1,4 @@
+import { MemberMark } from "./MemberMark";
 import { Check, MessageCircle, UserMinus, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { TopBar } from "../components/TopBar";
@@ -94,7 +95,10 @@ function Profile({ id, onBack }: { id: string; onBack: () => void }) {
       <header className="me-head">
         <Face user={u} />
         <div className="me-id">
-          <h1 className="me-name">{u.name}</h1>
+          <h1 className="me-name">
+            {u.name}
+            {u.member && <MemberMark lang={lang} />}
+          </h1>
           <p className="me-tags">
             <span className="tag">{u.city}</span>
             {gender && <span className="tag">{gender}</span>}

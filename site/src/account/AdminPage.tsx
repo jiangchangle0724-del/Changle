@@ -8,6 +8,7 @@ import { setLight } from "../lib/motion";
 import { useStore } from "../store";
 import { useAccount, type PublicUser } from "./AccountContext";
 import { AdminCopy } from "./AdminCopy";
+import { AdminMembers } from "./AdminMembers";
 import { AdminScenes } from "./AdminScenes";
 import { AdminCards } from "../party/straightface/AdminCards";
 import { Avatar, colorFor } from "./Avatar";
@@ -212,6 +213,7 @@ function BackOffice({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
+      <AdminMembers />
       <AdminScenes />
       <AdminCards />
       <AdminCopy />

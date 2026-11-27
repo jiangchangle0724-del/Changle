@@ -16,6 +16,7 @@ export { Hub };
 // the door other changle.ca Workers send mail through (a named entrypoint: service bindings only)
 export { Mail } from "./mail";
 export { Handoff } from "./handoff";
+export { Member } from "./member";
 
 export interface Env extends LyriaEnv {
   ROOMS: DurableObjectNamespace<Room>;

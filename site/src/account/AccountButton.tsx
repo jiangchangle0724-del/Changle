@@ -2,6 +2,7 @@ import { UserRound } from "lucide-react";
 import { useStore } from "../store";
 import { useAccount } from "./AccountContext";
 import { Avatar } from "./Avatar";
+import { MemberMark } from "./MemberMark";
 
 /** Top-right of the front door: your face (with what's waiting for you), or a way in. */
 export function AccountButton() {
@@ -20,6 +21,7 @@ export function AccountButton() {
   return (
     <a className="acct-btn acct-me" href="/me" aria-label={label}>
       <Avatar uid={me.id} name={me.name} av={me.av} ac={me.ac} size={36} frame={me.frame} />
+      {me.member && <MemberMark lang={lang} />}
       {waiting > 0 && <span className="badge acct-badge tabular">{waiting > 99 ? "99+" : waiting}</span>}
     </a>
   );
