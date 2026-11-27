@@ -626,6 +626,17 @@ big in the player's language and small in the other, and a stab that grows with 
 Getting tagged ends your run. Naming who made a call tells nobody anything new: everyone sees the
 score go up. The best row of the round is a title of its own (双杀 to 五杀), ahead of the others.
 
+**The voice** (Steve, 2026-11-26: "like League of Legends", in English on every screen). Each call is
+said by an announcer: an original English line spoken by the open Kokoro speech model (Apache 2.0,
+voice am_onyx, the deep one Steve picked, pitched down a semitone), compressed, doubled and echoed round a stadium, over a
+stinger made with it (a riser, a hit, a sub drop, a brass stab whose chord climbs with the tier, a choir
+and a crash at the top), the stinger ducking under the words. `tools/voice/make.py` makes them (the
+model is downloaded beside it, never committed); they ship as `art/voice/*.mp3` (twelve, about 370 KB:
+the eight calls, and Final Round, Qualified, Eliminated, Champion for the knockout), fetched once the
+sound is unlocked (`loadVoices`, `say`). The big screen says every call; a phone says the calls about
+it (its tags, or a tag on it), or every call when the room has no big screen. Until the files have
+loaded, the synthesised stab plays instead.
+
 ## The crowd leaves at the end
 
 As in the Steam original, the crowd thins out at the end of a round, so the last players standing
@@ -673,6 +684,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts`, `src/client/ui/shake.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the blows' bursts, the dizzy stars, the dust and the bangs' smoke; the camera's shake. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
+| `tools/voice/make.py` | The announcer's calls: Kokoro speech, made big, over a stinger, to `art/voice/*.mp3` (model files downloaded beside it, never committed). |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |
 | `src/client/i18n.ts` | Every word, in Chinese and English (`tests/strings.test.ts` checks both exist, no em dashes, no curly quotes). |
 
@@ -687,6 +699,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
 | `courtyard-dressing.glb` | 354 KB | The courtyard's 3D set: stage, pavilion, curtains, lanterns | The same script | ours |
+| `voice/*.mp3` | 26 to 33 KB each, 370 KB in all | The announcer's twelve English calls, each with its stinger | **AI-made**: spoken by the open Kokoro speech model (kokoro-v1.0, voice am_onyx), then pitched, echoed and given stingers synthesised by `tools/voice/make.py`; no recordings from any game | Kokoro is Apache 2.0; the calls are ours |
 | `market-dressing.glb` | 100 KB | The night market's 3D set: four stalls and their snacks, string lights, lanterns, tables | The same script (as the `bpy` module, which can't compress meshes: glTF-Transform's meshopt does, through npx) | ours |
 | `fonts/unbounded.woff2`, `fonts/figtree.woff2` | 30 KB, 23 KB | Unbounded and Figtree, Latin subsets | Google Fonts, via `games/been-there` | SIL Open Font License 1.1 |
 

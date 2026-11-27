@@ -50,6 +50,8 @@ type Kept = {
   turn: number;
   /** 牌谱: this deck's cards as they came, with names (older saves: it starts with the next card) */
   log?: LogLine[];
+  /** this deck's penalties by name, the powers' included (the recap when the deck runs out) */
+  tally?: Record<string, number>;
 };
 
 /** The cards, in the order a Deck keeps them by (its kept places point into this). */
@@ -81,6 +83,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [reshuffled, setReshuffled] = useState(saved?.reshuffled ?? false);
   // the 牌谱 (Steve, 11-26): each card of this deck as it came, who drew it, who it landed on; and what is left of each rank
   const [log, setLog] = useState<LogLine[]>(saved?.log ?? []);
+  const [tally, setTally] = useState<Record<string, number>>(saved?.tally ?? {});
   const [logOpen, setLogOpen] = useState(false);
   // (the kept places change exactly when the count does)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,6 +106,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     reshuffled,
     turn: ending ? (turn.index + 1) % Math.max(1, players.length) : turn.index,
     log,
+    tally,
   }, played);
 
   const rule = card ? RULE_BY_RANK[card.rank] : null;
@@ -141,9 +145,10 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setRemaining(deck.current.remaining);
     setCard(c);
     setPhase("revealed");
-    // a new line in the log (a fresh deck starts a fresh log)
+    // a new line in the log (a fresh deck starts a fresh log and a fresh tally)
     const by = turn.current?.name ?? "";
     setLog((l) => [...(r ? [] : l), { rank: c.rank, suit: c.suit, by, hit: [] }]);
+    if (r) setTally({});
     if (sound) {
       sfx.cardSlide();
       window.setTimeout(() => sfx.flip(), 180);
@@ -213,8 +218,14 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           : `Shout “buddy!” and ${buddy.name} drinks too`;
     setTurnStamp(endsTurn);
     if (endsTurn) setLeaveTo("pile");
-    // the card's own penalty goes on its line of the log (a power's lands during another card: it stays off)
+    // the card's own penalty goes on its line of the log (a power's lands during another card: it stays off); every one counts in the deck's tally
     if (endsTurn && call.kind !== "safe") setLog((l) => (l.length ? [...l.slice(0, -1), { ...l[l.length - 1], hit: [...l[l.length - 1].hit, ...call.who] }] : l));
+    if (call.kind !== "safe")
+      setTally((t) => {
+        const n = { ...t };
+        for (const w of call.who) n[w] = (n[w] ?? 0) + 1;
+        return n;
+      });
     penalty.show(line ? { ...call, note: call.note ? `${call.note} · ${line}` : line } : call, endsTurn ? endTurn : undefined);
     // the buddy's toast, once the stamp has landed
     if (line && sound) window.setTimeout(() => playPower("buddy", 0.9), 1400);
@@ -388,6 +399,10 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   // the pile: every card dealt from this deck but the one up on the table (none while it gathers back)
   const drawn = gathering ? 0 : Math.max(0, deck.current.total - remaining - (card ? 1 : 0));
+  // the deck has run out: the sheet opens by itself as this deck's recap, and can deal the next (it goes when the next deck is dealt)
+  const out = remaining === 0 && !card && phase === "idle" && !gathering && !shuffling;
+  useEffect(() => setLogOpen(out), [out]);
+  const recap = useMemo(() => (out ? players.map((p) => ({ name: p.name, n: tally[p.name] ?? 0 })) : null), [out, players, tally]);
 
   return (
     <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
@@ -400,7 +415,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       <div className="card-stage">
         <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "下滑抽牌" : "Swipe down"} shuffling={shuffling} leaveTo={leaveTo} onPile={() => setLogOpen(true)} />
       </div>
-      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} />
+      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} recap={recap} onShuffle={out ? draw : undefined} />
 
       <AnimatePresence mode="wait">
         {card && rule && words && phase === "revealed" && (

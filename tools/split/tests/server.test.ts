@@ -246,7 +246,7 @@ test("the owner's two: the lock, and a new key for the invitation", async () => 
 
 test("a 查看链接: its key reads the ledger, and nothing else", async () => {
   const { id, key } = await make();
-  await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e1")] });
+  await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e1"), { id: "pay-1", at: Date.now(), change: { do: "pay", member: "s", pay: "steve@example.com" } }] });
   const view = newKey();
   assert.deepEqual(await call("GET", `/ledgers/${id}`, view), { status: 403, data: { error: "key" } }, "before it is made, nothing");
   assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, key, undefined, { [VIEW_HEADER]: "short" }), { status: 400, data: { error: "bad" } }, "a key that isn't one");
@@ -255,6 +255,9 @@ test("a 查看链接: its key reads the ledger, and nothing else", async () => {
   assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, key, undefined, { [VIEW_HEADER]: view }), { status: 200, data: { ok: true } }, "made again: the same");
   const seen = await call<Snapshot>("GET", `/ledgers/${id}`, view);
   assert.ok(seen.status === 200 && seen.data.ledger.entries.length === 1 && seen.data.ledger.name === "周末", "its key reads the ledger as it stands");
+  assert.ok(seen.data.ledger.members.length > 1 && seen.data.ledger.members.every((m) => !("pay" in m)), "but nobody's 收款方式");
+  const own = await call<Snapshot>("GET", `/ledgers/${id}`, key);
+  assert.equal(own.data.ledger.members.find((m) => m.id === "s")?.pay, "steve@example.com", "which the ledger's own key reads");
   const refused = { status: 403, data: { error: "key" } };
   assert.deepEqual(
     [

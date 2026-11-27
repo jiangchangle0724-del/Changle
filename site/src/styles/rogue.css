@@ -366,6 +366,44 @@ button.rg-pile .rg-pile-count {
 .rg-log-who strong {
   color: var(--color-text);
 }
+/* the deck's recap on top of the same sheet when the deck has run out */
+.rg-recap-headline {
+  margin: 0 0 var(--space-1);
+  font: 800 var(--text-lg) / var(--leading-tight) var(--font-display);
+  overflow-wrap: anywhere;
+}
+.rg-recap-sub {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+  overflow-wrap: anywhere;
+}
+.rg-recap-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rg-recap-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.rg-recap-count {
+  flex: none;
+  color: var(--color-text-2);
+  font-weight: 700;
+}
+.rg-recap-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.rg-recap-actions > :last-child {
+  flex: 1;
+}
 
 /* the deck runs out: the pile comes back and the deck shuffles, each card flying out to a side and back, bottom first (游戏编排, longer than a token) */
 @media (prefers-reduced-motion: no-preference) {

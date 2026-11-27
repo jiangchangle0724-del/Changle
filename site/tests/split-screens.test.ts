@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, dayBefore, decimalsOf, localDay, money, signOf, typed } from "../src/split/format";
-import { asAmountText, press, type Key } from "../src/split/input";
+import { asAmountText, MAX_TERMS, press, totalOf, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
@@ -104,6 +104,36 @@ eq(keys("5", 2, "81.50"), "81.50", "an amount opened to change it, already at it
     }
   }
   ok(!bad, `4,000 runs of random keys never leave anything but an amount on the screen${bad ? ` (found ${bad})` : ""}`);
+}
+// the keypad's + (2026-11-26): amounts typed one after another come to their sum
+eq([keys("12.50+8.75", 2), totalOf(keys("12.50+8.75", 2), 2)], ["12.50+8.75", "21.25"], "12.50 + 8.75: typed as it reads, and comes to 21.25");
+eq([keys("12+8", 2), totalOf("12+8", 2), totalOf("12.5+0.5", 2), totalOf("12.5", 2)], ["12+8", "20", "13", "12.5"], "whole dollars come to whole dollars; with no + the text is itself");
+eq([keys("12+", 2), totalOf("12+", 2)], ["12+", "12"], "a + with nothing after it yet: what is before it");
+eq([keys("+", 2), keys("0+", 2), keys("0.+", 2), keys("12++", 2), keys("12.+", 2)], ["", "0", "0.", "12+", "12+"], "no + before an amount, after nothing but zero, or twice; a point left hanging comes off");
+eq([keys("12+5<", 2), keys("12+5<<", 2), keys("12+5<<<", 2)], ["12+", "12", "1"], "delete takes the last amount's digits, then the +, then the first amount's");
+eq([keys("12+.5", 2), totalOf("12+0.5", 2), keys("12+1.505", 2)], ["12+0.5", "12.50", "12+1.50"], "each amount by an amount's own rules: the point first reads 0., no third decimal");
+eq([keys("3000+500", 0), totalOf("3000+500", 0), keys("30.5+5", 0)], ["3000+500", "3500", "305+5"], "in yen: whole yen, and no point");
+eq([keys("99999999+1", 2), keys("99999998+1", 2), totalOf("99999998+1", 2)], ["99999999+", "99999998+1", "99999999"], "a sum never comes to more than an entry can be: the key that would take it past does nothing");
+eq([MAX_TERMS, keys("1+".repeat(25) + "1", 2).split("+").length, keys("1+".repeat(25) + "1", 2).endsWith("+1111111")], [20, 20, true], "at most 20 amounts in one sum: a + after the twentieth does nothing, and the digits go on into it");
+{
+  // whatever is pressed with the +, the screen holds amounts with a + between them, and they never come to more than the most
+  const all = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "back", "+"] as Key[];
+  let bad = "";
+  for (const decimals of [0, 2] as const) {
+    const r = rng(decimals + 11);
+    for (let run = 0; run < 2000 && !bad; run++) {
+      let text = "";
+      for (let i = 0; i < 40; i++) {
+        text = press(text, all[Math.floor(r() * 13)], decimals);
+        const terms = text.split("+");
+        const term = decimals ? /^(0|[1-9]\d{0,7})(\.\d{0,2})?$/ : /^(0|[1-9]\d{0,9})$/;
+        const shaped = text === "" || (terms.slice(0, -1).every((t) => term.test(t) && /[1-9]/.test(t) && !t.endsWith(".")) && (terms[terms.length - 1] === "" ? terms.length > 1 : term.test(terms[terms.length - 1])));
+        const sum = terms.reduce((a, t) => a + (t ? toMinor(t, decimals) ?? NaN : 0), 0);
+        if (!shaped || terms.length > MAX_TERMS || !(sum <= MAX_AMOUNT) || toMinor(totalOf(text, decimals) || "0", decimals) !== sum) bad = `${JSON.stringify(text)} with ${decimals} decimals`;
+      }
+    }
+  }
+  ok(!bad, `4,000 runs of random keys with the + leave amounts with a + between them, never past the most, and totalOf is what they come to${bad ? ` (found ${bad})` : ""}`);
 }
 eq(asAmountText("12.50", 2), "12.50", "a typed field takes an amount as it is");
 eq(asAmountText("12,5", 2), "12.5", "a comma is the point (a French keyboard's number pad)");
@@ -1436,6 +1466,21 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     }
   }
   ok(!bad, `200 random ledgers: nothing typed finds all, and each expense's own note and own amount find it${bad ? ` (${bad})` : ""}`);
+}
+
+// ---------- 23. 收款方式 in the record, and when it didn't stick ----------
+{
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const steps: Change[] = [{ do: "pay", member: "s", pay: "steve@example.com" }, { do: "pay", member: "s", pay: " " }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `p${i}`, at: 1000 + i, change, by: "w" } };
+  });
+  eq(historyOf(now, log, [], "s", "zh", 5000).map((l) => l.text), ["去掉了Steve的收款方式", "填了Steve的收款方式"], "the record says it was set, and taken off, and not what it said");
+  eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.text), ["Payment details removed: Steve", "Payment details set: Steve"], "in English");
+  eq(historyOf(now, log, [], "s", "zh", 5000).some((l) => l.action), false, "and offers nothing to change back");
+  eq([lostLine(start, { id: "x", at: 1, change: steps[0] }, "zh"), lostLine(start, { id: "x", at: 1, change: { do: "pay", member: "zz", pay: "x" } }, "en")], ["收款方式：Steve", "Another change"], "one that didn't stick: whose it was");
 }
 
 if (failed) {

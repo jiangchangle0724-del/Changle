@@ -19,7 +19,7 @@
  */
 import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
-import { addExpense, startLedger } from "../src/split/ops";
+import { addExpense, PAY_MAX, removeMember, renameMember, startLedger } from "../src/split/ops";
 import { asLedger } from "../src/split/shape";
 import { randomLedger, rng } from "./split/ledgers";
 
@@ -557,6 +557,28 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq([lines(served.ledger), served.took], [shop, ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
   eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], payment: 5 }] })?.entries, [], "a ledger with a number for what paid leaves that entry out");
+}
+
+// ---------- 收款方式: someone's way of being paid, set, changed, taken off ----------
+{
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }]);
+  const set = applyChange(start, { do: "pay", member: "s", pay: "  steve@example.com  " });
+  eq(set?.members[0], { id: "s", name: "Steve", pay: "steve@example.com" }, "set for someone, tidied");
+  eq([applyChange(set!, { do: "pay", member: "s", pay: "steve@example.com " }), applyChange(start, { do: "pay", member: "zz", pay: "x" }), applyChange(start, { do: "pay", member: "w", pay: "  " })], [null, null, null], "nothing changes: the same again, someone who isn't there, nothing to take off");
+  eq(applyChange(set!, { do: "pay", member: "s", pay: "604 555 0101" })?.members[0].pay, "604 555 0101", "changed: a phone number");
+  const off = applyChange(set!, { do: "pay", member: "s", pay: " " });
+  eq([off?.members[0], "pay" in (off?.members[0] ?? {})], [{ id: "s", name: "Steve" }, false], "nothing left once tidied: taken off, not left empty");
+  eq(applyChange(start, { do: "pay", member: "s", pay: "a".repeat(200) })?.members[0].pay?.length, PAY_MAX, `at most ${PAY_MAX} characters kept`);
+  eq([renameMember(set!, "s", "Steve J").members[0].pay, removeMember(set!, "s").members.map((m) => m.id)], ["steve@example.com", ["w", "m"]], "renamed, it stays with them; taken off the roster, it goes with them");
+  eq(balances(set!), balances(start), "it changes nobody's money");
+  // sent and taken by the server, and read back by a phone
+  const served = serve(start, [sent({ do: "pay", member: "s", pay: "steve@example.com" }), sent({ do: "pay", member: "s", pay: "steve@example.com" })]);
+  eq([served.ledger.members[0].pay, served.took], ["steve@example.com", ["new", "nothing"]], "the server takes it once; the same again is nothing");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.members[0], { id: "s", name: "Steve", pay: "steve@example.com" }, "and a phone reads it back");
+  eq(asLedger({ ...served.ledger, members: [{ id: "s", name: "Steve", pay: 5 }, ...served.ledger.members.slice(1)] })?.members[0], { id: "s", name: "Steve" }, "a 收款方式 that isn't words is let go, and the person kept");
+  const good = { id: "c-pay", at: 1, change: { do: "pay", member: "s", pay: "x@y.z" } };
+  eq(parseSent(good)?.change, { do: "pay", member: "s", pay: "x@y.z" }, "read off the network");
+  eq([parseSent({ ...good, change: { do: "pay", member: "s" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: 5 } }), parseSent({ ...good, change: { do: "pay", member: "s s", pay: "x" } }), parseSent({ ...good, change: { do: "pay", member: "s", pay: "x".repeat(401) } })], [null, null, null, null], "not without one, not a number, not a made-up member id, not past what is read at all");
 }
 
 if (failed) {
