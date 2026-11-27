@@ -190,8 +190,11 @@ describe("camera: a dance", () => {
 
   it("standing still, or another dance all along, is not dancing", () => {
     const still = dance({ still: true });
+    // (a shaky picture of someone standing still: its shake isn't dancing)
+    const shaky = dance({ still: true, noise: 0.025 });
     const wrong = dance({ wrong: { kind: "move", id: "squat-reach" } });
     assert.ok(still.moved <= 0.35, `still ${JSON.stringify(still)}`);
+    assert.ok(shaky.moved <= 0.35, `shaky ${JSON.stringify(shaky)}`);
     assert.ok(wrong.moved <= 0.45, `wrong ${JSON.stringify(wrong)}`);
   });
 
