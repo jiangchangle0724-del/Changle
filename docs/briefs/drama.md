@@ -127,7 +127,7 @@
 
 ## 现在
 
-- 11-26 台下喊一嗓子和当场识破（PR_NUMBER，`claude/drama-from-the-house`）：Steve 要「看看 GitHub 或者网上有没有类似的开源内容，借鉴他们的思路深度优化」。看了 Spyfall（tannerkrewson/spyfall 这一系的开源版、规则书）、Imposter（mattiasgeniar/imposter-game）、Fishbowl（avimoondra/fishbowl）、Jackbox（Quiplash 的观众投票、Talking Points 的「观众实时反应」）、即兴剧的游戏表（New Choice、Emotional Rollercoaster、Party Quirks）。共同的一点：好的聚会游戏不让台下干等。戏精一幕要演 5 分钟以上，观众手机上原来只有一句「好好看，等会儿投票」。借了两样，只在剧情模式（有坏人的那种，独角戏也算）、联机时有：
+- 11-26 台下喊一嗓子和当场识破（#871，`claude/drama-from-the-house`）：Steve 要「看看 GitHub 或者网上有没有类似的开源内容，借鉴他们的思路深度优化」。看了 Spyfall（tannerkrewson/spyfall 这一系的开源版、规则书）、Imposter（mattiasgeniar/imposter-game）、Fishbowl（avimoondra/fishbowl）、Jackbox（Quiplash 的观众投票、Talking Points 的「观众实时反应」）、即兴剧的游戏表（New Choice、Emotional Rollercoaster、Party Quirks）。共同的一点：好的聚会游戏不让台下干等。戏精一幕要演 5 分钟以上，观众手机上原来只有一句「好好看，等会儿投票」。借了两样，只在剧情模式（有坏人的那种，独角戏也算）、联机时有：
   - 台下喊一嗓子（即兴剧的 New Choice 和换情绪）：观众每人每一幕能喊两次，任何人喊过以后 8 秒内别人不能接着喊。「换个说法！」：刚说话的人把那句换个说法再来一遍；「换个情绪」：点一个演员和一种情绪（8 种，`data/drama.ts` 的 `MOODS`：哭着演、憋不住笑、突然暴怒、害羞到不行、吓坏了、深情款款、喝高了、慢动作），他头上挂 20 秒的情绪牌。大屏在台口上方贴一张「场记卡」写谁喊的（不挡演员，也不挡剧情反转），手机在台上的左上角（不挡钟）；被点到的演员手机震一下。只是好玩，不计分。
   - 当场识破（Spyfall 的中途指认，和它的「指认的人多拿 1 分」）：观众在演完之前可以锁定一次嫌疑人（独角戏是锁三个秘密里的一个），锁了不能改，投票时就是它；猜对了除了原来的 +1 再 +1，揭晓时写「火眼金睛：谁（开演几分几秒）」。大屏和演员手机只显示几个人锁定了，不显示锁的是谁。锁定的演员中途离桌，这个锁自动作废，投票时照常选。
   - 规矩说明（玩法里的两段）、计分那一句都加了。引擎测试加了一条（19 条）。本地 6 个人带大屏中英文各跑了一遍，看过截图。
