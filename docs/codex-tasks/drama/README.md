@@ -22,6 +22,9 @@ Always:
 | [drama-C6](C6-scenes-office.md) | The same for the 23 office scenes (done, #398) | the same |
 | [drama-C7](C7-scenes-show.md) | The same for the 22 show scenes (done, #400) | the same |
 | [drama-C8](C8-scenes-solo.md) | The same for the 8 monologues added on Nov 20 (done, #735) | the same |
+| [drama-C9](C9-scripts-all-ages.md) | 新手 scripts (a line to say and one to ask at each of the four steps) for the 23 easy all-ages scenes | `site/src/data/dramaScripts.ts` |
+| [drama-C10](C10-scripts-spicy.md) | The same for the 18 easy spicy scenes (after C9) | the same |
+| [drama-C11](C11-scripts-groups.md) | The same for the 24 community scenes (after C10) | the same |
 
 C2 to C7 need the game to ask for `scene-<id>` first; it does once the PR that brought these cards is
 merged. They all add names to `DRAWN_ART`, so send them one at a time: the next once the last is

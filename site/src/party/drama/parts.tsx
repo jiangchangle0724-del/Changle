@@ -5,7 +5,8 @@ import { GROUPS, KINDS, PK_DEMO, pkSeeUrl, pkStyle, SCENES, type DramaKind, type
 import { DRAWN_ART } from "../../data/dramaArt";
 import { CLASSIC_TIPS, CSET_NAME } from "../../data/dramaClassics";
 import { READ_KINDS, READ_PASS, READ_TIPS, readKind, RSET_NAME, type ReadKind } from "../../data/dramaReadings";
-import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide } from "../../data/dramaGuide";
+import { FIRST_TIME_TIPS, GENERIC_BEATS, roleGuide, sceneGuide, STARTER_TIP } from "../../data/dramaGuide";
+import type { RoleScript } from "../../data/dramaScripts";
 import type { T } from "../../i18n";
 import { confetti } from "../../lib/confetti";
 import { gsap, reduced } from "../../lib/anim";
@@ -223,7 +224,7 @@ export function Tags({ v }: { v: Pick<DramaView, "mode" | "level" | "diff" | "sc
       {group && <span className="dm-tag">{zh ? group.name.zh : group.name.en}</span>}
       <span className="dm-tag">{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</span>
       {/* a famous scene is as hard as the original makes it, a reading as its words */}
-      {!classic && v.mode !== "read" && <span className="dm-tag">{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</span>}
+      {v.mode === "show" && <span className="dm-tag">{diffName(v.diff, zh)}</span>}
     </div>
   );
 }
@@ -460,7 +461,7 @@ function Beats({ beats }: { beats: T[] }) {
 }
 
 /** For someone who has never acted: five things that make any scene (or famous scene) work, folded until asked for. */
-export function FirstTimeTips({ classic, read }: { classic?: boolean; read?: boolean }) {
+export function FirstTimeTips({ classic, read, starter }: { classic?: boolean; read?: boolean; starter?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   return (
@@ -479,7 +480,7 @@ export function FirstTimeTips({ classic, read }: { classic?: boolean; read?: boo
               : "Never acted before? Read these five"}
       </summary>
       <ol>
-        {(read ? READ_TIPS : classic ? CLASSIC_TIPS : FIRST_TIME_TIPS).map((x, i) => (
+        {(read ? READ_TIPS : classic ? CLASSIC_TIPS : starter ? [STARTER_TIP, ...FIRST_TIME_TIPS.slice(1)] : FIRST_TIME_TIPS).map((x, i) => (
           <li key={i}>{zh ? x.zh : x.en}</li>
         ))}
       </ol>
@@ -564,12 +565,13 @@ function StyleHelp({ st, line }: { st: PkStyle | undefined; line?: T | null }) {
  * videos of people doing that style. In a famous scene (`first`, its opening line, and `see`, the
  * original) there's nothing secret: the part, how to play it, the line, and a link to the original.
  */
-export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line, sceneId, first, see }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null; sceneId?: string | null; first?: T | null; see?: { set: "zh" | "en"; see: string } | null }) {
+export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, inShell, line, sceneId, first, see, book, script }: { role: T; brief: T; card: DramaCard; culprit: T | null; pk: boolean; onDone?: () => void; doneLabel?: string; inShell?: boolean; line?: T | null; sceneId?: string | null; first?: T | null; see?: { set: "zh" | "en"; see: string } | null; book?: ReactNode; script?: RoleScript }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const classic = !!first;
   const st = pk ? pkStyle(card.secret) : undefined;
-  const rg = pk || classic ? undefined : roleGuide(sceneId, role);
+  // 新手 with a script: the card's how-to-play and first line come from it (the rest is under the card)
+  const rg = pk || classic ? undefined : script ? { play: script.trait, first: { zh: `「${script.steps[0].say.zh}」`, en: `“${script.steps[0].say.en}”` } } : roleGuide(sceneId, role);
   const title = pk ? card.secret : role;
   const [flipped, setFlipped] = useState(false);
   const [backOk, setBackOk] = useState(true);
@@ -643,6 +645,8 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
         </a>
       )}
       {see && flipped && <SeeOriginal c={see} />}
+      {/* 新手: the lines, step by step, once the card is turned over */}
+      {book && flipped && book}
       {onDone && (
         <DramaAction inShell={inShell}>
           <button type="button" className="btn btn-primary btn-lg btn-block" disabled={!flipped} onClick={onDone}>
@@ -1160,6 +1164,18 @@ export function Reveal({ v, actors, me, face, nameOf }: { v: DramaView; actors: 
 
 export type Config = Pick<DramaView, "mode" | "level" | "diff" | "pen" | "total" | "cset" | "groups" | "rset" | "rkinds">;
 
+/** What each level means, under the picker. */
+export function diffNote(diff: DramaView["diff"], zh: boolean): string {
+  if (diff === "starter") return zh ? "新手：每个人都有台词本，照着念就能演，演的时候手机一步一步提示你。" : "Beginner: everyone gets a script to read from, and their phone prompts them step by step.";
+  if (diff === "easy") return zh ? "进阶：给剧情几步和怎么演的提示，台词用自己的话说。" : "Regular: the story's steps and tips on playing your part; the words are your own.";
+  return zh ? "高手：只给身份和秘密，全靠即兴，剧本也更难。" : "Expert: just a role and a secret, all improv, and harder scenes.";
+}
+
+/** A level's short name, for the tags on the playbill and the big screen. */
+export function diffName(diff: DramaView["diff"], zh: boolean): string {
+  return diff === "starter" ? (zh ? "新手" : "Beginner") : diff === "hard" ? (zh ? "高手" : "Expert") : zh ? "进阶" : "Regular";
+}
+
 /** The groups with scenes of their own, in the order the setup lists them. */
 const GROUPS_ON = GROUPS.filter((x) => SCENES.some((sc) => sc.group === x.key));
 
@@ -1210,13 +1226,15 @@ export function SetupPanel({ cfg, onChange, disabled }: { cfg: Config; onChange:
         { value: "all", label: zh ? "全年龄" : "All ages" },
         { value: "spicy", label: zh ? "微辣" : "Spicy" },
       ])}
-      {cfg.mode !== "classic" && cfg.mode !== "read" && (
+      {cfg.mode === "show" && (
         <>
-          <span className="field-label">{zh ? "难度" : "Difficulty"}</span>
+          <span className="field-label">{zh ? "难度" : "Level"}</span>
           {seg("diff", [
-            { value: "easy", label: zh ? "简单" : "Easy" },
-            { value: "hard", label: zh ? "困难" : "Hard" },
+            { value: "starter", label: zh ? "新手" : "Beginner" },
+            { value: "easy", label: zh ? "进阶" : "Regular" },
+            { value: "hard", label: zh ? "高手" : "Expert" },
           ])}
+          <p className="dm-diff-note">{diffNote(cfg.diff, zh)}</p>
         </>
       )}
       <span className="field-label">{zh ? "输了怎么罚" : "Losers"}</span>

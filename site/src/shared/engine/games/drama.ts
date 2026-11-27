@@ -1,5 +1,6 @@
 import { ANY_SECRETS, ANY_TWISTS, GROUPS, MOODS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaGroup, type DramaLevel, type DramaScene } from "../../../data/drama";
 import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dramaClassics";
+import { hasScript } from "../../../data/dramaScripts";
 import { READ_KINDS, READ_PASS, READINGS, readKind, type ReadKind, type ReadPiece, type ReadSet } from "../../../data/dramaReadings";
 import type { T } from "../../../i18n";
 import { cleanScene, hasText } from "../../dramaScene";
@@ -49,12 +50,19 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * guess, no changing it after the twist, and if it's right it scores one more. The big screen shows
  * how many have locked in, never whom.
  *
+ * Three levels (Steve on Nov 26: "看完之后根本不知道怎么去演，应当分三档"): 新手 (`starter`), where
+ * every actor gets lines to read for each step (`data/dramaScripts.ts`, the way a 剧本杀 character
+ * book or a murder-mystery party kit does it), so scenes with a script come first, then the easy
+ * ones; 进阶 (`easy`), the story and hints in your own words; 高手 (`hard`), a role and a secret.
+ *
  * Players can write scenes too: one written at the table is played next (its writer on stage, so
  * they never guess their own story); the host's phone also brings scenes from the public library
  * (written by players, approved by the site's owner), which mix in with the built-in ones.
  */
 
 type Mode = "show" | "pk" | "classic" | "read";
+/** the table's level: 新手, 进阶, 高手 (a scene itself is easy or hard) */
+type Diff = DramaView["diff"];
 type Pen = "drink" | "move" | "prank";
 type Want = "act" | "watch";
 type Vote = { guess: string | null; stars: Record<string, number> };
@@ -65,7 +73,7 @@ type S = {
   phase: DramaView["phase"];
   mode: Mode;
   level: DramaLevel;
-  diff: DramaDiff;
+  diff: Diff;
   pen: Pen;
   total: number;
   /** how many acts the host picked: three more at the curtain call add to `total`, not to this */
@@ -135,7 +143,9 @@ export const BRIEF_MS = 60_000;
  * scene: five, half a minute more for each actor past two. A reading: three (the longest piece
  * takes under two out loud).
  */
-const ACT_MS: Record<DramaDiff, number> = { easy: 300_000, hard: 360_000 };
+const ACT_MS: Record<Diff, number> = { starter: 300_000, easy: 300_000, hard: 360_000 };
+/** the scenes' difficulty a table's level leans on (新手 plays the easy ones, with lines) */
+const sceneDiff = (s: S): DramaDiff => (s.diff === "hard" ? "hard" : "easy");
 const PER_ACTOR_MS = 30_000;
 const PK_MS = 300_000;
 const CLASSIC_MS = 300_000;
@@ -190,8 +200,11 @@ function pickScene(s: S, lo: number, hi: number, api: Api): Option & { k: number
   };
   // the groups' scenes first, then everyone's
   const tiers = groups.length ? [level.filter((o) => !!o.s.group), level.filter((o) => !o.s.group)] : [level];
-  const same = (tier: Option[]) => tier.filter((o) => o.s.diff === s.diff && fits(o));
-  const other = (tier: Option[]) => tier.filter((o) => o.s.diff !== s.diff && fits(o));
+  // the table's level first: 新手 the scenes with lines to read, then the easy ones, then the rest
+  const want = sceneDiff(s);
+  const rank = (o: Option) => (s.diff === "starter" && !o.w && hasScript(o.s.id) ? 0 : o.s.diff === want ? 1 : 2);
+  const ranks = s.diff === "starter" ? [0, 1, 2] : [1, 2];
+  const at = (tier: Option[], r: number) => tier.filter((o) => rank(o) === r && fits(o));
   const fresh = (list: Option[]) => list.filter((o) => !s.used.includes(key(o)));
   const again = (list: Option[]) => {
     // all of them played: start them over
@@ -200,14 +213,16 @@ function pickScene(s: S, lo: number, hi: number, api: Api): Option & { k: number
   };
   let list: Option[] = [];
   for (const tier of tiers) {
-    list = fresh(same(tier));
-    if (!list.length) list = fresh(other(tier));
+    for (const r of ranks) {
+      list = fresh(at(tier, r));
+      if (list.length) break;
+    }
     if (list.length) break;
   }
   for (const tier of tiers) {
     if (list.length) break;
-    if (same(tier).length) list = again(same(tier));
-    else if (other(tier).length) list = again(other(tier));
+    const r = ranks.find((x) => at(tier, x).length);
+    if (r !== undefined) list = again(at(tier, r));
   }
   if (!list.length) {
     const pool = level.length ? level : all;
@@ -429,7 +444,7 @@ function newRound(s: S, api: Api) {
     s.roles = rolesFor(scene, pick.k, api);
     s.cast = api.shuffle(people.slice(0, s.roles.length));
     s.culprit = s.cast[api.int(s.cast.length)];
-    const tasks = api.shuffle(TASKS[s.diff].map((_, i) => i));
+    const tasks = api.shuffle(TASKS[sceneDiff(s)].map((_, i) => i));
     s.cast.forEach((pid, j) => (s.tasks[pid] = tasks[j % tasks.length]));
     if (isSolo(scene)) s.order = api.shuffle(scene.secrets!.map((_, i) => i));
     else {
@@ -505,7 +520,7 @@ function everyoneVoted(s: S, api: Api) {
 
 function penaltyText(s: S, api: Api): T | null {
   if (s.pen === "drink") return null;
-  const list = s.pen === "move" ? PENALTIES.move[s.diff] : s.level === "spicy" ? [...PENALTIES.prank.all, ...PENALTIES.prank.spicy] : PENALTIES.prank.all;
+  const list = s.pen === "move" ? PENALTIES.move[sceneDiff(s)] : s.level === "spicy" ? [...PENALTIES.prank.all, ...PENALTIES.prank.spicy] : PENALTIES.prank.all;
   return list[api.int(list.length)];
 }
 
@@ -516,7 +531,8 @@ function card(s: S, pid: string): DramaCard | null {
   if (s.mode === "classic" || s.mode === "read") return { secret: t("", ""), culprit: false, task: t("", "") };
   const scene = current(s);
   if (!scene) return null;
-  const task = TASKS[s.diff][s.tasks[pid] ?? 0];
+  // 新手 has lines to say and no secret task on top
+  const task = s.diff === "starter" ? t("", "") : TASKS[sceneDiff(s)][s.tasks[pid] ?? 0];
   // a monologue: the actor's real secret, and what to do about it
   if (isSolo(scene)) return { secret: scene.culpritCard, culprit: false, task };
   const role = scene.roles[s.roles[s.cast.indexOf(pid)]];
@@ -684,7 +700,8 @@ export const drama: GameDef<S> = {
       phase: "setup",
       mode: "show",
       level: "all",
-      diff: "easy",
+      // new tables start on 新手: lines to read
+      diff: "starter",
       pen: "drink",
       total: 5,
       plan: 5,
@@ -751,7 +768,7 @@ export const drama: GameDef<S> = {
         if (Array.isArray(g.rkinds)) s.rkinds = READ_KINDS.map((k) => k.key).filter((k) => (g.rkinds as unknown[]).includes(k));
         if (Array.isArray(g.groups)) s.groups = GROUPS.map((x) => x.key).filter((k) => (g.groups as unknown[]).includes(k));
         if (g.level === "all" || g.level === "spicy") s.level = g.level;
-        if (g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
+        if (g.diff === "starter" || g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
         if (g.pen === "drink" || g.pen === "move" || g.pen === "prank") s.pen = g.pen;
         const total = intIn(g.total, 1, 20);
         if (total !== null && g.total !== undefined) s.total = s.plan = total;

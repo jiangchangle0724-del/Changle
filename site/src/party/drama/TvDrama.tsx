@@ -14,9 +14,10 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { Backdrop, Cast, clockText, Curtain, eagleLine, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { Backdrop, Cast, clockText, Curtain, diffName, eagleLine, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
 import { useDramaMusic } from "./score";
 import { CallBanner, lockedText, moodTags, useLiveCalls } from "./calls";
+import { stepAt } from "./script";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
 import "../../styles/tv-drama.css";
@@ -238,7 +239,7 @@ function Setup({ v }: { v: DramaView }) {
             </li>
           )}
           <li>{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</li>
-          {v.mode !== "classic" && v.mode !== "read" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
+          {v.mode === "show" && <li>{diffName(v.diff, zh)}</li>}
           {v.mode === "show" && (v.groups ?? []).length > 0 && <li>{GROUPS.filter((x) => v.groups!.includes(x.key)).map((x) => (zh ? x.name.zh : x.name.en)).join(zh ? "、" : ", ")}</li>}
           <li>{zh ? `${v.total} 幕` : `${v.total} acts`}</li>
           <li>{v.pen === "drink" ? (pen.isCustom ? pen.text : zh ? "输了喝" : "Losers drink") : v.pen === "move" ? (zh ? "输了运动" : "Losers exercise") : zh ? "输了整蛊" : "Losers do a forfeit"}</li>
@@ -470,16 +471,6 @@ function Script({ v }: { v: DramaView }) {
       </p>
     </div>
   );
-}
-
-/**
- * Which step the story should be at, `f` of the way through the scene: a scene's four steps put the
- * third at the twist (half time); otherwise the steps share the time equally.
- */
-function stepAt(f: number, n: number, twist: boolean): number {
-  const x = Math.min(1, Math.max(0, f));
-  if (twist && n === 4) return x < 0.2 ? 0 : x < 0.5 ? 1 : x < 0.85 ? 2 : 3;
-  return Math.min(n - 1, Math.floor(x * n));
 }
 
 /**

@@ -746,7 +746,8 @@ export type DramaView = {
   /** a scene with a hidden culprit, a quick acting duel, a famous film or TV moment, or one person reading a piece aloud */
   mode: "show" | "pk" | "classic" | "read";
   level: "all" | "spicy";
-  diff: "easy" | "hard";
+  /** the table's level: 新手 (lines to read), 进阶 (hints, your own words), 高手 (a role and a secret) */
+  diff: "starter" | "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
   pen: "drink" | "move" | "prank";
   round: number;

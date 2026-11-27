@@ -17,6 +17,7 @@ import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { useDramaMusic } from "./score";
 import { loadLibrary, SceneWriter, TableScenes, writeFull, type Draft } from "./writer";
 import { readKind } from "../../data/dramaReadings";
+import { ScriptBook, scriptFor, TablePrompter } from "./script";
 import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, useStampDue, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
@@ -262,7 +263,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           {stage(false, false)}
           <Playbill v={v} credit={credit} />
           <Roster v={v} nameOf={nameOf} face={face} />
-          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} read={reading} />}
+          {v.mode !== "pk" && <FirstTimeTips classic={v.mode === "classic"} read={reading} starter={v.mode === "show" && v.diff === "starter"} />}
         </>
       );
     } else {
@@ -314,6 +315,11 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               sceneId={v.scene?.id}
               first={c.first ?? null}
               see={v.classic ?? null}
+              script={scriptFor(v, c.role)}
+              book={(() => {
+                const sc = scriptFor(v, c.role);
+                return sc && v.scene ? <ScriptBook sceneId={v.scene.id} script={sc} culprit={card.culprit} solo={!!v.options} /> : undefined;
+              })()}
               onDone={() => {
                 act(pid, "ready");
                 setStep({ k: "pass", i: step.i + 1 });
@@ -357,6 +363,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           </>,
         )}
         <TwistBanner twist={v.twist} />
+        <TablePrompter v={v} now={Date.now} />
         <Playbill v={v} credit={credit} />
         <p className="dm-wait-note">
           {v.mode === "show"

@@ -21,6 +21,7 @@ import { castSize as dramaCastSize, MAX_CAST as DRAMA_MAX_CAST, sceneSizes as dr
 import { FIRST_TIME_TIPS as DRAMA_TIPS, GENERIC_BEATS as DRAMA_GENERIC_BEATS, GUIDES as DRAMA_GUIDES, roleGuide as dramaRoleGuide } from "../src/data/dramaGuide";
 import { CLASSICS as DRAMA_CLASSICS, CLASSIC_TIPS as DRAMA_CLASSIC_TIPS, CSET_NAME as DRAMA_CSET_NAME } from "../src/data/dramaClassics";
 import { DRAWN_ART as DRAMA_DRAWN_ART } from "../src/data/dramaArt";
+import { INNOCENT as DRAMA_INNOCENT, SCRIPTS as DRAMA_SCRIPTS } from "../src/data/dramaScripts";
 import { READ_KINDS as DRAMA_READ_KINDS, READ_PASS as DRAMA_READ_PASS, READ_TIPS as DRAMA_READ_TIPS, READINGS as DRAMA_READINGS, RSET_NAME as DRAMA_RSET_NAME } from "../src/data/dramaReadings";
 import { CLASSIC_MOOD as DRAMA_CLASSIC_MOOD, MOODS as DRAMA_MOODS, READ_MOOD as DRAMA_READ_MOOD, SCENE_MOOD as DRAMA_SCENE_MOOD } from "../src/data/dramaMusic";
 import { actPiece as dramaActPiece, compose as dramaCompose, seedOf as dramaSeedOf, THEME as DRAMA_THEME } from "../src/party/drama/compose";
@@ -3584,6 +3585,62 @@ test("drama: from the audience: calls out mid-scene, twice each and not on top o
     t.act(bystander, { a: "leave" });
     ok(t.view<V>(watcher).myLock === null && t.view<V>("p0").phase === "act", "they walk out: the lock is let go, the scene plays on");
   }
+});
+
+test("drama: 新手 scripts: one per role, four steps each, both languages, short enough to read mid-scene, and never naming a role that may be off stage", () => {
+  const cjk = /[一-鿿]/;
+  const fine = (x: { zh: string; en: string }, most: number) => !!x.zh.trim() && !!x.en.trim() && cjk.test(x.zh) && !cjk.test(x.en) && [...x.zh].length <= most && x.en.length <= most * 3;
+  const ids = Object.keys(DRAMA_SCRIPTS);
+  ok(ids.length >= 10, `${ids.length} scenes have a 新手 script`);
+  ok(DRAMA_INNOCENT.length === 2 && DRAMA_INNOCENT.every((x) => fine(x, 60)), "and two things for everyone innocent, in both languages");
+  for (const id of ids) {
+    const sc = DRAMA_SCENES.find((x) => x.id === id);
+    const sp = DRAMA_SCRIPTS[id];
+    ok(!!sc, `${id}: a built-in scene`);
+    if (!sc) continue;
+    ok(sp.roles.length === sc.roles.length, `${id}: a script for each of its ${sc.roles.length} roles`);
+    const beats = DRAMA_GUIDES[id]?.beats.length ?? 0;
+    ok(sp.roles.every((r) => r.steps.length === 4 && beats === 4), `${id}: four steps, one for each beat of its guide`);
+    ok(sp.roles.every((r) => fine(r.trait, 50) && r.steps.every((st) => fine(st.say, 50) && fine(st.ask, 50))), `${id}: every line in Chinese and in English, short enough to read off a phone`);
+    ok(sp.culprit.length === 2 && sp.culprit.every((x) => fine(x, 60)), `${id}: two things for the culprit, in both languages`);
+    // the first `min` roles are always on stage; the rest only with more actors
+    const min = sc.min ?? sc.roles.length;
+    const maybe = sc.roles.slice(min).map((r) => r.name.zh);
+    const names = sp.roles.slice(0, min).flatMap((r) => [r.trait, ...r.steps.flatMap((st) => [st.say, st.ask])]).map((x) => x.zh);
+    ok(maybe.every((n) => names.every((line) => !line.includes(n))), `${id}: the roles always on stage never name one that may not be`);
+  }
+});
+
+test("drama: three levels: a new table starts on 新手 and plays the scenes with lines first, then the easy ones; 进阶 and 高手 as before", () => {
+  type V = V<"drama">;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  ok(t.view<V>("p0").diff === "starter", "a new table starts on 新手");
+  t.g("p0", "config", { total: 8 });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { scene: number | null; cast: string[] };
+  const seen: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const sc = DRAMA_SCENES[s.scene!];
+    seen.push(sc.id);
+    t.g("p0", "skip");
+  }
+  // four at the table: two act; three scenes for two have lines, then the easy ones fill in
+  const withLines = DRAMA_SCENES.filter((x) => x.id in DRAMA_SCRIPTS && x.roles.length === s.cast.length).length;
+  ok(withLines >= 2 && seen.slice(0, withLines).every((id) => id in DRAMA_SCRIPTS), `新手: the scenes with lines come first (${seen.join(", ")})`);
+  ok(seen.slice(withLines).every((id) => DRAMA_SCENES.find((x) => x.id === id)!.diff === "easy"), "then the easy ones");
+  t.g("p0", "config", { diff: "easy" });
+  ok(t.view<V>("p0").diff === "starter", "the level is set before the show, not in the middle of it");
+  const u = setup(4);
+  u.act("p0", { a: "start", game: "drama" });
+  u.g("p0", "config", { diff: "easy" });
+  ok(u.view<V>("p0").diff === "easy", "进阶");
+  u.g("p0", "config", { diff: "expert" });
+  ok(u.view<V>("p0").diff === "easy", "only the three levels");
+  u.g("p0", "config", { diff: "hard" });
+  u.g("p0", "start");
+  const us = u.eng.d.game!.s as { scene: number | null };
+  ok(DRAMA_SCENES[us.scene!].diff === "hard", "高手 plays the hard scenes");
 });
 
 test("drama: a scene written for every number of actors, at every table", () => {
