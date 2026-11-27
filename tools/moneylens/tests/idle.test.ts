@@ -71,12 +71,14 @@ test("a press starts the count again", () => {
 });
 
 test("looking is not pressing", () => {
-  const { clock, pass } = fake();
+  const { clock, pass, waiting } = fake();
   let locks = 0;
   const watch = watchIdle(LIMIT, () => locks++, clock);
   pass(LIMIT - 1000);
   watch.look();
+  watch.look();
   assert.equal(locks, 0);
+  assert.equal(waiting(), 1, "one timer, however often it is looked at");
   pass(1000);
   assert.equal(locks, 1, "the count went on from the last press");
 });
