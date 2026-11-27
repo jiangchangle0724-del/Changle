@@ -1,0 +1,140 @@
+{
+  "id": "fest-xmas",
+  "fest": "xmas",
+  "world": "snow",
+  "tier": 0,
+  "name": {
+    "zh": "圣诞星灯驿",
+    "en": "Christmas Starlight Stops"
+  },
+  "teaches": "lift",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 110,
+    "y": 620
+  },
+  "goal": {
+    "x": 2360,
+    "y": 80,
+    "w": 200,
+    "h": 260
+  },
+  "checkpoints": [
+    {
+      "x": 980,
+      "y": 516
+    },
+    {
+      "x": 2160,
+      "y": 356
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 372,
+      "y": 532
+    },
+    {
+      "x": 1774,
+      "y": 421
+    },
+    {
+      "x": 1324,
+      "y": 493
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 654,
+      "w": 350,
+      "h": 66,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 380,
+      "y": 614,
+      "w": 300,
+      "h": 106,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 950,
+      "y": 560,
+      "w": 360,
+      "h": 160,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1370,
+      "y": 520,
+      "w": 170,
+      "h": 200,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1540,
+      "y": 480,
+      "w": 230,
+      "h": 240,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1790,
+      "y": 440,
+      "w": 280,
+      "h": 280,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 2130,
+      "y": 400,
+      "w": 170,
+      "h": 320,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 2310,
+      "y": 340,
+      "w": 250,
+      "h": 380,
+      "material": "snow"
+    }
+  ],
+  "lifts": [
+    {
+      "from": {
+        "x": 620,
+        "y": 510
+      },
+      "to": {
+        "x": 1200,
+        "y": 410
+      },
+      "speed": 24,
+      "gap": 220,
+      "kind": "chair"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 4
+  },
+  "replay": "replays/fest-xmas.json"
+}
