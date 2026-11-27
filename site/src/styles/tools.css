@@ -616,3 +616,15 @@
     font-size: var(--text-md);
   }
 }
+
+/* 心里有数 · MoneyLens's page here (tools/Finance.tsx): the moment before the browser leaves for money.changle.ca */
+.finance-going {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-12) var(--gutter);
+  color: var(--color-text-2);
+  font-size: var(--text-lg);
+  text-align: center;
+}
