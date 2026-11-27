@@ -1,6 +1,6 @@
 import { Check, PenLine, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TITLES } from "../../data/superlatives";
+import { DEFAULT_PACKS, deckFor, PACKS, TITLES, type Pack } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import type { PenaltyCall } from "../../components/PenaltyStamp";
@@ -11,7 +11,7 @@ import { haptic, sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
 import { NameFace, PassCurtain } from "../common";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
-import { AwardCard, AwardReveal, Ceremony } from "./parts";
+import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import "../../styles/party.css";
 
 /** the drum roll plays out, then the winner's stamp; the trophies come out, then the table's toast */
@@ -20,7 +20,7 @@ const TOAST_MS = 3200;
 
 type Mode = "secret" | "point";
 type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
-type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
+type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; packs?: Pack[]; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
 
 /** One phone: pass it round for a secret ballot, or count fingers and tap the winner. */
 export function Superlatives({ onBack }: { onBack: () => void }) {
@@ -34,8 +34,10 @@ export function Superlatives({ onBack }: { onBack: () => void }) {
 function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, lang } = useStore();
   const zh = lang === "zh";
+  // the packs of titles in play (a game saved before the packs was dealt from every title, by place)
+  const [packs, setPacks] = useState<Pack[]>(saved ? (saved.packs ?? [...PACKS]) : DEFAULT_PACKS);
   const [firstDeck] = useState(() => {
-    const deck = new Deck<T>(TITLES);
+    const deck = new Deck<T>(deckFor(packs).map((i) => TITLES[i]));
     if (saved) deck.restore(saved.cards);
     return deck;
   });
@@ -63,7 +65,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
   // Hide private ballots again: a game picked up later starts that voter at the hand-over.
   const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i } : phase;
-  useKeepProgress<Kept>({ mode, total, round, title, written, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
+  useKeepProgress<Kept>({ mode, total, round, title, written, packs, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
 
   // each moment of the game starts at the top of the screen, and its first 350 ms belong to the moment before
   const moment = phase.k === "pass" || phase.k === "ballot" ? `${phase.k}:${phase.i}` : phase.k;
@@ -78,6 +80,13 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setPick(null);
     setPicked([]);
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
+  };
+
+  /** Other packs at the setup: a new deck from them, and a new first title on the card. */
+  const pickPacks = (next: Pack[]) => {
+    setPacks(next);
+    deck.current = new Deck<T>(deckFor(next).map((i) => TITLES[i]));
+    setTitle(deck.current.draw().card);
   };
 
   /** The next title from the deck (fingers already counted for the old one don't carry over). */
@@ -259,6 +268,8 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                   </button>
                 ))}
               </div>
+              <span className="field-label">{zh ? "题库" : "Title packs"}</span>
+              <PackChips picked={packs} onChange={pickPacks} />
             </div>
           </div>
         )}

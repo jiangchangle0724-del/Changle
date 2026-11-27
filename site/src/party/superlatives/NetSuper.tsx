@@ -8,10 +8,11 @@ import { SeatFace } from "../../online/People";
 import { useCue, useRoom } from "../../online/RoomContext";
 import { usePlayers, useWatching } from "../../online/players";
 import { HostButton, HostRow, Waiting } from "../../online/games/common";
+import { TOTALS } from "../../shared/engine/games/superlatives";
 import type { SuperView } from "../../shared/protocol";
 import { usePenaltyText, useStore } from "../../store";
 import { useFreshTapGuard, useTopOfMoment } from "./moment";
-import { AwardCard, AwardReveal, Ceremony } from "./parts";
+import { AwardCard, AwardReveal, Ceremony, PackChips } from "./parts";
 import { useSeatMemory } from "./seats";
 import "../../styles/party.css";
 import { Moment } from "../../components/Figure";
@@ -68,7 +69,35 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
   return (
     <NetFrame title={GAME_BY_ID.superlatives.name} rules={rules} onLeave={onLeave}>
       <div className="sup" ref={body}>
-        {v.phase !== "ceremony" && <AwardCard title={v.title} round={v.round} total={v.total} custom={v.custom} />}
+        {v.phase === "setup" && (
+          <>
+            <div className="panel setup-panel">
+              <span className="field-label">{zh ? "几个奖" : "How many awards"}</span>
+              {isHost ? (
+                <div className="seg" role="group">
+                  {TOTALS.map((n) => (
+                    <button key={n} type="button" aria-pressed={v.total === n} onClick={() => g("config", { total: n })}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="sup-pack-count">{zh ? `${v.total} 个奖` : `${v.total} awards`}</p>
+              )}
+              <span className="field-label">{zh ? "题库" : "Title packs"}</span>
+              <PackChips picked={v.packs} onChange={isHost ? (next) => g("config", { packs: next }) : undefined} />
+            </div>
+            {isHost ? (
+              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("start")}>
+                {zh ? "开始颁奖" : "Start the awards"}
+              </button>
+            ) : (
+              <Waiting>{zh ? "主人在选题库，马上开始" : "The host is picking the packs"}</Waiting>
+            )}
+          </>
+        )}
+
+        {v.phase !== "ceremony" && v.phase !== "setup" && <AwardCard title={v.title} round={v.round} total={v.total} custom={v.custom} />}
 
         {v.phase === "vote" && (
           <>
