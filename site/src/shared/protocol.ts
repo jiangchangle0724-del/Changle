@@ -158,6 +158,8 @@ export type RogueView = {
   stock?: number[];
   /** 牌谱: this deck's cards as they came, oldest first: who drew each, who its own penalty landed on */
   log?: { rank: Rank; suit: Suit; by: string; hit: string[] }[];
+  /** this deck's penalties by player, the powers' included (the recap when the deck runs out) */
+  tally?: Record<string, number>;
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;

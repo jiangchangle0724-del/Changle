@@ -6176,7 +6176,7 @@ test("rogue: the camera and the nose go once per card; the next card of theirs i
   ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
 });
 
-test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line; a new deck starts both over", () => {
+test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each card and who it landed on; the stock counts what is left of each rank; a power's penalty stays off the card's line but counts in the deck's tally; a new deck starts it all over", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "rogue" });
   const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
@@ -6191,6 +6191,7 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   t.g(d1, "draw");
   let line = rv().log![rv().log!.length - 1];
   ok(rv().log!.length === 1 && line.rank === "9" && line.suit === "spade" && line.by === d1 && line.hit.join() === d1, "the nine's line: drawn by d1, d1 drank");
+  ok(rv().tally![d1] === 1 && Object.keys(rv().tally!).length === 1, "and the deck's tally has d1 once");
   ok(rv().stock![at("9")] === nines - 1 && sum(rv().stock!) === 52, "one nine fewer to come (the card up is out of the stock)");
   t.g(d1, "next");
   // an ace: the pick lands on the line once it is made
@@ -6208,6 +6209,7 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   const before = t.pens().length;
   t.g(d2, "trouble", { target: victim });
   ok(t.pens().length === before + 1 && rv().log![1].hit.join() === target, "the power's penalty was given, but the card's line is the card's own");
+  ok(rv().tally![victim] === (victim === target ? 2 : 1) && rv().tally![target]! >= 1, "the tally counts the power's penalty too");
   t.g(d2, "next");
   // a seven's round: the one who slips is on the seven's line
   s.deck.push(6); // the seven of spades
@@ -6223,6 +6225,7 @@ test("rogue: 牌谱和剩牌 (Steve, 11-26): the deck's log says who drew each c
   const d4 = rv().turn;
   t.g(d4, "draw");
   ok(rv().reshuffled && rv().log!.length === 1 && rv().log![0].by === d4, "a new deck's log starts with its first card");
+  ok(Object.keys(rv().tally!).length <= 1 && Object.values(rv().tally!).every((n) => n === 1), "and a new tally (at most the first card's own penalty)");
   ok(sum(rv().stock!) === 51, "and the stock is a full deck less the card up");
 });
 
