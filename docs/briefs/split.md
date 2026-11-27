@@ -810,7 +810,7 @@
 - 2026-11-27 第七项第二步：几个人一起付的画面（PR #885）。合并前查过服务器 PR #884 的 Workers Builds 已经过了。`draft.ts`（`payers`，`payersOf`、`mostPaid`、`payersProblem`，`draftProblem` 也看它，存的时候总是说）；`AddExpense.tsx`（谁付的弹层的一个人、几个人，那一行写谁或哪里不对）；`lines.ts`（`namesOf`，那一行「你、阿甲一起付」，句首大写）；`search.ts`（每个付钱的人）；`core/ledger.ts`（`problem` 把 null 当成没有：草稿说一个人付时是 null）；9 句新话。
   - 测试：画面规则第 27 节（每人填的换成分、一样多时名单靠前的付、只有一个人不算；还差、多了、只有一个人、没金额先不说、别的货币；对不上时存不了；存的时候付得最多的是 `payer`；打开、存、切回一个人；那一行中英文和退款；搜索每个付钱的人），第 1 节两条草稿跟着多了一个字段。浏览器新的 `payers` 14 条（切到几个人原来的人先填整笔、只有一个人；还差 $6.00、多了 $4.00、正好；每一格够大；那一行写你、阿甲；账目写你、阿甲一起付；我该收 $38.00；再打开还在；对不上时那一行写还差、改好了按不了；切回一个人选阿乙能存；账目写阿乙付；改动记录；320 宽英文放得下）。别的浏览器检查都过（walk 中文 390、320 和英文 320，fits、behave、read、gate、friends、view、search、pay、kinds、refund）。
   - 故意改坏 16 处全红：付 0 的也算、一样多时取后面的、别的货币也行、一个人也行、不查加起来、草稿不等它、`payer` 不是付得最多的、存的时候不说、打开没带上、那一行不写名字、你不小写、搜不到第二个人、`problem` 碰到 null 出错、那一行不说哪里不对、切过去没有先填、还差和多了说反。
-- 2026-11-27 第八项第一步：小票逐项分，服务器读每一行（PR #这一个，画面下一个 PR）。`tools/split/src/server/read.ts`（`itemsRequest`、`itemsAnswer`、`readItems`、`fakeItems`；`readReceipt` 和它共用 `ask`、`saidIn`）；`worker.ts`（`POST …/files/<照片>/items`，和读小票一样的门：登录、钥匙、每天的次数、每月的预算）；`protocol.ts`、`README.md`。
+- 2026-11-27 第八项第一步：小票逐项分，服务器读每一行（PR #886，画面下一个 PR）。`tools/split/src/server/read.ts`（`itemsRequest`、`itemsAnswer`、`readItems`、`fakeItems`；`readReceipt` 和它共用 `ask`、`saidIn`）；`worker.ts`（`POST …/files/<照片>/items`，和读小票一样的门：登录、钥匙、每天的次数、每月的预算）；`protocol.ts`、`README.md`。
   - 测试：房间 32 条（+1：问了什么、答案格式、每一行怎么收、最多 40 行、不是小票、假的读小票）；服务器 22 条（读小票那条里加了：每一行和总数、没有、没登录、别的方法、预算用完也不读；后面的次数跟着改了）。
   - 故意改坏 9 处全红：不说折扣、没名字的也收、不限 40 行、不是小票也给、没有总数、假的读小票店名带上了、没有这个地址、不花预算、给的不是每一行。
 
