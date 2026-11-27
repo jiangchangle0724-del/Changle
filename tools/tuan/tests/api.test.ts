@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TAIL_HEADER, type ApiError, type Application, type HomePage, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
 import testShopAddress from "../migrations/0003_test_shop_address.sql";
+import listedFile from "../migrations/0006_listed.sql";
 import { DECLARATION } from "../src/engine/apply";
 import { JPEG_BASE64 } from "./photo";
 import { makeCode, SLUG_RE } from "../src/engine/ids";
@@ -570,6 +571,17 @@ describe("the tool's home", () => {
       await env.DB.prepare("UPDATE shops SET status = ? WHERE slug = ?").bind(status, at.slug).run();
       expect(await home()).toMatchObject({ offers: [], shops: [] });
     }
+  });
+
+  it("keeps the test shop off it (migrations/0006), whose group buy is for those given its link", async () => {
+    // the Worker applied the file to an empty table: here it meets the test shop at its made-up address
+    const at = await start();
+    await env.DB.prepare("UPDATE shops SET slug = 'damituan-test-0a1b2c3d' WHERE slug = ?").bind(at.slug).run();
+    await only("damituan-test-0a1b2c3d");
+    expect((await home()).offers.map((one) => one.id)).toEqual([at.id]);
+    for (const sql of statements(listedFile).filter((sql) => sql.startsWith("UPDATE"))) await env.DB.prepare(sql).run();
+    expect(await home()).toMatchObject({ offers: [], shops: [] });
+    expect(said(await get(`/offers/${at.id}`))).toBe("ok");
   });
 });
 

@@ -142,7 +142,8 @@ they agree after a crowd of orders, changes and cancellations at once.
 - **Anyone** sees home (`GET /tuan/api/home`): the group buys open now (40 at most, soonest to
   close first) at the live shops that are shown there, and those shops (60 at most, newest
   first). A shop is shown unless its own people untick it on its page (`shops.listed`,
-  `migrations/0006_listed.sql`); its links work either way. A card says only what the group
+  `migrations/0006_listed.sql`, which keeps the test shop of 2026-11-13 off it: its group buy is
+  for those given its link); its links work either way. A card says only what the group
   buy's own page already shows: the order count is left out where the list of who's in is off.
   The search and the kinds of shop work on the phone, over what came.
 - **A buyer** signs in to nothing. An order opens with its 6-character code and the last four
