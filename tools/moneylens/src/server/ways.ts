@@ -88,7 +88,7 @@ export function startWays(db: Db, vault: string, ways: unknown, now: number): bo
 /** The ways in there are, as any signed-in session may see them: which, of what kind, since when. Nothing to open anything with. */
 export function listWays(db: Db): { id: string; kind: string; made: number }[] {
   return db.sql
-    .exec(`SELECT id, kind, made FROM ways ORDER BY made, id`)
+    .exec(`SELECT id, kind, made FROM ways ORDER BY made, kind, id`)
     .toArray()
     .map((row) => ({ id: String(row.id), kind: String(row.kind), made: Number(row.made) }));
 }

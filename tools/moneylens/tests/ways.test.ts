@@ -92,12 +92,13 @@ test("a vault's ways in are kept as they came, one by passphrase and one by reco
   assert.equal(JSON.stringify(longest("recovery").wrapper).length, WRAPPER_MOST);
 
   assert.equal(startWays(db, vault, good, T0), true);
+  // (listed in an order that does not depend on their ids: by when they were made, then by kind)
   assert.deepEqual(
     listWays(db).map((w) => [w.kind, w.made]),
     [
       ["passphrase", T0],
       ["recovery", T0],
-    ].sort((a, b) => (listWays(db)[0]!.kind === a[0] ? -1 : 1)),
+    ],
   );
   assert.deepEqual(new Set(listWays(db).map((w) => w.id)), new Set(good.map((w) => (w.wrapper as { id: string }).id)));
   // a vault that has its ways in keeps them, whoever asks, and with whatever
