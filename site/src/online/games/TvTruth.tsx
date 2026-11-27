@@ -78,11 +78,15 @@ export default function TvTruth({ v, sound }: TvViewProps<TruthView>) {
   else
     side = (
       <div className="tvtd-side" key={`card-${v.chosen}-${v.kind}`}>
-        <p className={`tvtd-tag is-${v.kind}`}>{v.kind === "dare" ? <Bi t={{ zh: "大冒险", en: "Dare" }} /> : <Bi t={{ zh: "真心话", en: "Truth" }} />}</p>
-        <Cover kind={v.kind ?? "truth"} />
+        <p className={`tvtd-tag is-${v.kind === "dare" ? "dare" : "truth"}`}>
+          {v.kind === "dare" ? <Bi t={{ zh: "大冒险", en: "Dare" }} /> : v.kind === "secret" ? <Bi t={{ zh: "悄悄话", en: "Whisper" }} /> : <Bi t={{ zh: "真心话", en: "Truth" }} />}
+        </p>
+        <Cover kind={v.kind === "dare" ? "dare" : "truth"} />
         <p className="tvtd-line">
           <SeatFace seat={chosen} size={64} />
-          {tx(`${name(v.chosen)} 掀开盖子，念出来`, `${name(v.chosen)} lifts the lid and reads it out`)}
+          {v.kind === "secret"
+            ? tx(`${name(v.chosen)} 悄悄看题，再说出一个名字`, `${name(v.chosen)} reads it alone, then says one name`)
+            : tx(`${name(v.chosen)} 掀开盖子，念出来`, `${name(v.chosen)} lifts the lid and reads it out`)}
         </p>
         <p className="tvtd-note">{tx("不做就认罚", "Refuse it and take the penalty")}</p>
       </div>

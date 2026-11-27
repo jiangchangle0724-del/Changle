@@ -58,6 +58,7 @@ export function GameShell({
   status,
   roster,
   actions,
+  recap,
 }: {
   title: T;
   rules: ReactNode;
@@ -73,6 +74,8 @@ export function GameShell({
   roster?: { turn?: string; out?: string[] };
   /** the screen's one or two buttons, at the bottom by the thumb; the main one goes last (on the right) */
   actions?: ReactNode;
+  /** the game's own lines for the tally, under everyone's penalties (truth or dare: who the bottle picked most…) */
+  recap?: ReactNode;
 }) {
   const { ui, lang, setLang, sound, setSound, players } = useStore();
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -168,7 +171,7 @@ export function GameShell({
         </div>
         <div className="rules-text">{rules}</div>
       </Sheet>
-      <GameTally open={tallyOpen} dots={dots} gel={run?.gel} onKeep={() => setTallyOpen(false)} onAgain={again} onLeave={leave} />
+      <GameTally open={tallyOpen} dots={dots} gel={run?.gel} recap={recap} onKeep={() => setTallyOpen(false)} onAgain={again} onLeave={leave} />
       <PenaltyStamp call={penalty} onDone={onPenaltyDone} />
       <ScreenHints lang={lang} />
     </div>

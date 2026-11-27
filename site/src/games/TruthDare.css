@@ -66,7 +66,7 @@
     align-items: center;
     gap: var(--space-3) var(--space-4);
   }
-  .game-body > .truth-flow > .turn-line {
+  .game-body > .truth-flow > :is(.turn-line, .whisper-hint) {
     grid-column: 1 / -1;
   }
   .game-body > .truth-flow > .cloche-wrap {
@@ -134,4 +134,158 @@
 .own-empty {
   color: var(--color-text-2);
   font-size: var(--text-sm);
+}
+
+/* ---------- 悄悄话, 每人底线, 这局小结 (2026-11-26) ---------- */
+
+/* where the bottle landed: the quieter choices under the name */
+.choose-more {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+/* a whisper's tag, beside truth (cyan) and dare (red) */
+.kind-tag.secret {
+  background: var(--gel-periwinkle);
+  color: var(--color-on-accent);
+}
+.whisper-hint,
+.whisper-named,
+.whisper-ask {
+  margin: 0;
+  text-align: center;
+  line-height: var(--leading);
+}
+.whisper-hint {
+  color: var(--color-text-2);
+}
+.whisper-named,
+.whisper-ask {
+  font-weight: 700;
+  font-size: var(--text-md);
+}
+.whisper-names {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+}
+.whisper-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.whisper-chips .btn {
+  min-height: var(--tap-crowded);
+}
+/* the coin: in the air, then the side it landed on */
+.whisper-coin-wrap {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  perspective: 600px;
+}
+.whisper-coin {
+  display: grid;
+  place-items: center;
+  width: var(--space-12);
+  height: var(--space-12);
+  border-radius: var(--r-pill);
+  background: var(--gel-amber);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-flat);
+}
+.whisper-coin svg {
+  width: var(--text-xl);
+  height: var(--text-xl);
+}
+.is-open > .whisper-coin {
+  background: var(--color-success);
+}
+.is-hidden > .whisper-coin {
+  background: var(--gel-periwinkle);
+}
+.whisper-coin-says {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  line-height: var(--leading);
+}
+
+/* 每人底线: what each limit skips, then a row of switches for each person */
+.limits-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.limits-what {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.limits-what strong {
+  color: var(--color-text);
+}
+.limits-row {
+  display: grid;
+  gap: var(--space-2);
+}
+.limits-name {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.limits-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 这局小结: a title, then who */
+.truth-recap {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.truth-recap li {
+  display: grid;
+  gap: var(--space-1);
+}
+.truth-recap-title {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.truth-recap-who {
+  font-weight: 800;
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  overflow-wrap: anywhere;
+}
+.truth-recap-n {
+  color: var(--color-text-2);
+  font-weight: 700;
+}
+
+/* online: my limits and the recap, quiet, under the game */
+.truth-more {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.truth-more .btn {
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+}
+.truth-more svg {
+  width: var(--text-md);
+  height: var(--text-md);
+  flex: none;
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { usePenaltyText, useStore } from "../store";
 import { Button } from "../ui/Button";
 import { RosterChip } from "../ui/RosterChip";
@@ -12,6 +13,7 @@ export function GameTally({
   open,
   dots,
   gel,
+  recap,
   onKeep,
   onAgain,
   onLeave,
@@ -21,6 +23,8 @@ export function GameTally({
   dots: Record<string, number>;
   /** the game's own light, for the main button */
   gel?: string;
+  /** the game's own lines, under everyone's penalties */
+  recap?: ReactNode;
   onKeep: () => void;
   /** absent where the game can't be started over (a component preview) */
   onAgain?: () => void;
@@ -79,6 +83,7 @@ export function GameTally({
           ))}
         </ul>
       )}
+      {recap}
     </Sheet>
   );
 }

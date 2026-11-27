@@ -31,8 +31,8 @@ import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { deckFor, TITLES as SUPER_TITLES } from "../src/data/superlatives";
 import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
-import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
-import { SLIP_MAX } from "../src/shared/engine/games/truth";
+import { DARES, limitsOf, promptText, SECRETS, TRUTHS } from "../src/data/truthDare";
+import { FLIP_MS, SLIP_MAX } from "../src/shared/engine/games/truth";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -464,18 +464,22 @@ test("truth: spin, choose, pass", () => {
 test("truth: each heat deals only its own cards", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "truth" });
-  const decks = () => t.eng.d.game!.s as { tDeck: number[]; dDeck: number[] };
+  const decks = () => (t.eng.d.game!.s as { decks: Record<string, number[]> }).decks;
   const heats = (deck: number[], list: { heat: number }[]) => [...new Set(deck.map((i) => list[i].heat))].join();
   const count = (list: { heat: number }[], heat: number) => list.filter((p) => p.heat === heat).length;
-  ok(heats(decks().tDeck, TRUTHS) === "1" && heats(decks().dDeck, DARES) === "1", "mild: only mild cards");
-  ok(decks().tDeck.length === count(TRUTHS, 1) && decks().dDeck.length === count(DARES, 1), "mild: every mild card");
+  ok(heats(decks().truth1, TRUTHS) === "1" && heats(decks().dare1, DARES) === "1", "mild: only mild cards");
+  ok(decks().truth1.length === count(TRUTHS, 1) && decks().dare1.length === count(DARES, 1), "mild: every mild card");
   t.g("p0", "heat", { heat: 2 });
-  ok(heats(decks().tDeck, TRUTHS) === "2" && heats(decks().dDeck, DARES) === "2", "spicy: only spicy cards");
-  ok(decks().tDeck.length === count(TRUTHS, 2) && decks().dDeck.length === count(DARES, 2), "spicy: every spicy card");
-  for (const [name, list] of [["truths", TRUTHS], ["dares", DARES]] as const) {
+  ok(heats(decks().truth2, TRUTHS) === "2" && heats(decks().dare2, DARES) === "2", "spicy: only spicy cards");
+  ok(decks().truth2.length === count(TRUTHS, 2) && decks().dare2.length === count(DARES, 2), "spicy: every spicy card");
+  for (const [name, list, least] of [["truths", TRUTHS, 45], ["dares", DARES, 45], ["whispers", SECRETS, 30]] as const) {
     ok(new Set(list.map((p) => p.zh)).size === list.length && new Set(list.map((p) => p.en)).size === list.length, `no two ${name} alike`);
-    ok(count(list, 1) >= 45 && count(list, 2) >= 45, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
+    ok(count(list, 1) >= least && count(list, 2) >= least, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
   }
+  // a whisper is answered with someone at the table, and no truth asks the same thing
+  ok(SECRETS.every((p) => /谁/.test(p.zh) && /\b(who|whose)\b/i.test(p.en)), "every whisper asks who");
+  ok(!SECRETS.some((p) => /喝|酒|干杯/.test(p.zh)), "no whisper mentions drinking");
+  ok(!SECRETS.some((p) => TRUTHS.some((q) => q.zh === p.zh)), "no whisper is also a truth");
 });
 
 test("truth: the bottle keeps count, chance picks, one swap a game", () => {
@@ -551,6 +555,131 @@ test("truth: the table's own cards", () => {
   ok(t.view<TV>("p0").slips!.truth === 0 && t.view<TV>("p0").slips!.dare === 0, "the host empties it");
   const words = (t.eng.d.game!.s as { slips: { text: string }[] }).slips;
   ok(words.length === 0, "nothing left behind");
+  ({ seed, clock } = was);
+});
+
+test("truth: 悄悄话, a whisper answered with a name and a coin", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p1", "pick", { kind: "secret" });
+  let v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.kind === "secret" && !!v.prompt && /谁/.test(v.prompt.zh), `the one picked reads a whisper (${v.prompt?.zh})`);
+  const question = v.prompt!.zh;
+  ok(t.view<TV>("p2").prompt === null && !JSON.stringify(t.view<TV>("p2")).includes(question), "nobody else gets its words");
+  t.g("p1", "done");
+  ok(t.view<TV>("p1").phase === "card", "not done before naming anyone");
+  t.g("p2", "name", { who: "p3" });
+  ok(t.view<TV>("p1").named === null, "only the one picked names someone");
+  t.g("p1", "name", { who: "nobody" });
+  ok(t.view<TV>("p1").named === null, "a name has to be someone at the table");
+  t.g("p1", "name", { who: "p3" });
+  v = t.view<TV>("p2");
+  ok(v.named === "p3" && (v.coin === "open" || v.coin === "hidden") && v.flipAt === clock + FLIP_MS, `p3 named, the coin tossed (${v.coin})`);
+  t.g("p1", "pass");
+  ok(t.view<TV>("p1").phase === "card", "no passing once the name is out");
+  const coin = v.coin;
+  if (coin === "open") ok(t.view<TV>("p2").prompt?.zh === question, "heads: everyone gets the question");
+  else {
+    ok(t.view<TV>("p2").prompt === null, "tails: it stays with the one who read it");
+    t.g("p2", "peek");
+    ok(t.view<TV>("p2").coin === "hidden", "only the one named can pay to hear it");
+    t.g("p3", "peek");
+    ok(t.view<TV>("p3").coin === "hidden", "not before the coin has landed");
+    clock += FLIP_MS;
+    t.g("p3", "peek");
+    ok(t.view<TV>("p2").coin === "open" && t.view<TV>("p2").prompt?.zh === question && t.pens().some((p) => p.who.includes("p3")), "the one named pays, and everyone hears it");
+  }
+  t.g("p1", "done");
+  v = t.view<TV>("p0");
+  ok(v.phase === "spin" && v.spinner === "p1" && v.named === null && v.coin === null, "back to the bottle, the one picked spins");
+  ok(v.tally?.p1?.s === 1 && v.tally?.p3?.n === 1, `the tally keeps who answered a whisper and who was named (${JSON.stringify(v.tally)})`);
+  // the coin falls both ways over a night
+  const faces = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    t.act("p1", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p2", "pick", { kind: "secret" });
+    t.g("p2", "name", { who: "p0" });
+    faces.add(String(t.view<TV>("p0").coin));
+    t.g("p2", "done");
+    t.act("p2", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: "truth" });
+    t.g("p1", "done");
+  }
+  ok(faces.has("open") && faces.has("hidden"), `the coin lands both ways (${[...faces]})`);
+  ({ seed, clock } = was);
+});
+
+test("truth: each player's own limits, and the tally", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  t.g("p0", "heat", { heat: 2 });
+  t.g("p1", "limits", { list: ["touch", "phone", "love", "nonsense"] });
+  ok(JSON.stringify(t.view<TV>("p1").limits) === JSON.stringify(["touch", "phone", "love"]), "a player sets their own limits");
+  ok(JSON.stringify(t.view<TV>("p2").limits) === "[]", "and nobody else sees them");
+  // p1 never gets a dare that touches, uses the phone or asks about their love life
+  let spinner = "p0";
+  for (let i = 0; i < 30; i++) {
+    t.act(spinner, { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: i % 3 === 2 ? "secret" : i % 2 ? "truth" : "dare" });
+    const v = t.view<TV>("p1");
+    const hit = limitsOf(v.prompt!.zh, v.kind!).filter((l) => l !== "mild");
+    ok(hit.length === 0, `p1's ${v.kind} keeps to their limits: ${v.prompt!.zh} ${hit}`);
+    if (v.kind === "secret") t.g("p1", "name", { who: "p2" });
+    t.g("p1", "done");
+    spinner = "p1";
+    t.act("p1", { a: "spin", scope: "truth", index: 0, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p0", "pick", { kind: "dare" });
+    t.g("p0", i % 5 ? "done" : "pass");
+    spinner = "p0";
+  }
+  // mild only: mild cards at a spicy table
+  t.g("p1", "limits", { list: ["mild"] });
+  for (let i = 0; i < 12; i++) {
+    t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p1", "pick", { kind: i % 2 ? "truth" : "dare" });
+    const v = t.view<TV>("p1");
+    const list = v.kind === "truth" ? TRUTHS : DARES;
+    ok(list.find((p) => promptText(p, false).zh === v.prompt!.zh)?.heat === 1, `mild only: ${v.prompt!.zh}`);
+    t.g("p1", "done");
+    t.act("p1", { a: "spin", scope: "truth", index: 0, delta: 720, duration: 1 });
+    clock += 1200;
+    t.g("p0", "pick", { kind: "truth" });
+    t.g("p0", "done");
+  }
+  ok(t.view<TV>("p2").heat === 2, "the table is still spicy");
+  const tally = t.view<TV>("p2").tally!;
+  ok((tally.p1.t ?? 0) + (tally.p1.d ?? 0) + (tally.p1.s ?? 0) === 42 && (tally.p0.p ?? 0) === 6, `the tally counts every card and pass (${JSON.stringify(tally)})`);
+  ({ seed, clock } = was);
+});
+
+test("truth: a room from before whispers and limits plays on", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  const st = t.eng.d.game!.s as Record<string, unknown>;
+  const old = (st.decks as Record<string, number[]>).truth1;
+  st.tDeck = old;
+  st.dDeck = (st.decks as Record<string, number[]>).dare1;
+  for (const k of ["decks", "named", "coin", "flipAt", "limits", "tally"]) delete st[k];
+  const next = TRUTHS[old[old.length - 1]].zh;
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p1", "pick", { kind: "truth" });
+  const v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.prompt?.zh === next, `its decks carry on where they were (${v.prompt?.zh})`);
+  ok(!("tDeck" in st) && !!(st.decks as Record<string, number[]>).truth1, "and move to the new place");
   ({ seed, clock } = was);
 });
 
