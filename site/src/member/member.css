@@ -1,0 +1,175 @@
+/* changle.ca/member (MemberPage.tsx): amber, the tools' colour. One column on a phone; the
+   three plans side by side where there's room. */
+.member-page {
+  --gel: var(--gel-amber);
+}
+.member-hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 var(--space-6);
+  text-align: center;
+}
+.member-hero-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--night);
+}
+.member-hero h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+}
+.member-hero p {
+  max-width: 34em;
+  margin: 0;
+  color: var(--haze);
+  line-height: var(--leading);
+}
+
+.member-you {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 13%, var(--dusk-2));
+  box-shadow: var(--shadow-flat);
+  line-height: var(--leading);
+}
+.member-you:empty {
+  display: none;
+}
+.member-you p {
+  margin: 0;
+}
+
+.member-plans {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 720px) {
+  .member-plans {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.member-plan {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-panel);
+  background: var(--dusk);
+  box-shadow: var(--shadow-flat);
+}
+@media (min-width: 720px) {
+  .member-plan {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    align-content: start;
+  }
+}
+.member-plan-life {
+  box-shadow:
+    var(--shadow-flat),
+    inset 0 0 0 2px var(--gel);
+}
+.member-plan-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-small);
+  background: color-mix(in oklab, var(--gel) 22%, var(--dusk-2));
+  color: var(--gel);
+}
+.member-plan-text h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.member-plan-text p {
+  margin: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  /* a narrow card wraps the line at the comma, not mid-word */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.member-plan-price {
+  display: grid;
+  justify-items: end;
+  line-height: 1.1;
+}
+@media (min-width: 720px) {
+  .member-plan-price {
+    justify-items: start;
+  }
+}
+.member-plan-price strong {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--gel);
+}
+.member-plan-price span {
+  color: var(--haze);
+  font-size: var(--text-xs);
+}
+.member-plan-tag {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: var(--space-4);
+}
+
+.member-soon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-6);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+.member-more {
+  padding-bottom: var(--space-8);
+  line-height: var(--leading);
+}
+.member-more h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+.member-more p,
+.member-more ul {
+  margin: 0 0 var(--space-2);
+  color: var(--haze);
+}
+.member-more ul {
+  padding-left: var(--space-6);
+}
+.member-more li + li {
+  margin-top: var(--space-1);
+}
+.member-more strong {
+  color: var(--moon);
+}

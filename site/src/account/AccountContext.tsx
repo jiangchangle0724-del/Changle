@@ -1,3 +1,4 @@
+import type { Membership } from "../shared/member";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { API, SERVER } from "../config";
 import { api, sessionToken, setSessionToken, siteNotice } from "../lib/api";
@@ -5,10 +6,10 @@ import type { Choices } from "../shared/draw";
 
 export type Gender = "female" | "male" | "nonbinary" | "private";
 /** `figure`: their face is an AI-drawn anime figure (at /figure/:id), not a photo or a letter. */
-/** `frame`: a reward frame round their face ("gold": a game they wished for went live). */
-export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean; frame?: string };
+/** `frame`: a reward frame round their face ("gold": a game they wished for went live). `member`: a running membership (docs/membership.md). */
+export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean; frame?: string; member?: boolean };
 /** `hasFigure`: you have a drawn figure (kept while a photo shows); `choices`: what you picked for it. `master`: the site's owner. */
-export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean; perks?: string[]; /** a 换邮箱 waiting its three days: the new address and when */ emailPending?: { email: string; at: number } | null };
+export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean; perks?: string[]; /** a running membership, or null (src/shared/member.ts) */ member?: Membership | null; /** a 换邮箱 waiting its three days: the new address and when */ emailPending?: { email: string; at: number } | null };
 export type ChatMsg = { id: number; from: string; body: string; at: number; read: boolean };
 
 export type LiveEvent =
