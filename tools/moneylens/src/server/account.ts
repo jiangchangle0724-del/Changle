@@ -28,21 +28,26 @@ import { chunkTables, lastDay, pullChunks, pushChunks, startVault, vaultHeld, ty
 import { admits, type Config, type Gate } from "./gate";
 import { isAccount } from "./request";
 import { checkSession, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
-import { isUnlocked, listWays, lock, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockMaker, wayTables } from "./ways";
+import { isUnlocked, listWays, lock, openedSessions, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables, TRIES_PER_DAY } from "./ways";
 import { packPulled, packPushed, unpackPush } from "./wire";
 
 /** Sign-ins one account may make in an hour. Eight sessions are kept, so signing in over and over pushes other devices out. */
 export const SIGN_INS_PER_HOUR = 12;
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
 /**
  * Events are kept twelve months (SEC-17), and never more than this many of each of two sorts: wrong proofs, and
  * everything else. The two are counted apart, so that no number of sign-ins, sign-outs or unlockings pushes a wrong
- * proof out of what is kept (the review of the door, finding 2). What is shown is the newest lines of both together:
- * a screen that shows the wrong proofs whatever came after them is the events screen's to add.
+ * proof out of what is kept (the review of the door, finding 2).
+ *
+ * What is shown is the newest lines of both together, and with them the newest wrong proofs however many lines came
+ * after: as many as can be made in a day (ways.ts). Whoever holds the mailbox can sign in and out all afternoon, and
+ * the owner is still shown that the passphrase was guessed at, and how often in the last day.
  */
-const EVENTS_KEPT = 366 * 24 * HOUR;
+const EVENTS_KEPT = 366 * DAY;
 const EVENTS_MOST = 500;
 const EVENTS_SHOWN = 50;
+const WRONG_SHOWN = TRIES_PER_DAY;
 
 export type EventKind = "sign-in" | "sign-out" | "session-ended" | "sessions-ended" | "vault-started" | "email-changed" | "unlocked" | "unlock-failed";
 export type Event = { at: number; kind: EventKind; session: string | null };
@@ -214,8 +219,13 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       lock(db, session.id);
       note(db, "sign-out", session.id, now);
       return { status: 200, json: { ok: true }, signedOut: true };
-    case "sessions":
-      return { status: 200, json: { ok: true, sessions: listSessions(db, now).map((one) => ({ ...one, here: one.id === session.id })) } };
+    case "sessions": {
+      // What their owner is shown of each besides (the review of the door, obligations; of the devices' screen,
+      // finding 1). `unlocked`: it counts as holding the vault open, by its own word. `opened`: it has opened the
+      // vault since it signed in, which the server knows whatever the session says since.
+      const [open, opened] = [unlockedSessions(db), openedSessions(db)];
+      return { status: 200, json: { ok: true, sessions: listSessions(db, now).map((one) => ({ ...one, here: one.id === session.id, unlocked: open.has(one.id), opened: opened.has(one.id) })) } };
+    }
     case "sessions/end": {
       const body = said(asked.body);
       if (body?.others === true) {
@@ -298,10 +308,18 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
         status: 200,
         json: {
           ok: true,
+          // (the newest lines, and the newest wrong proofs wherever they stand among them: one list, newest first.
+          // `session` is the id of the session a line is about, for naming the device when it is still in the list.)
           events: db.sql
-            .exec(`SELECT at, kind, session FROM events ORDER BY n DESC LIMIT ?`, EVENTS_SHOWN)
+            .exec(
+              `SELECT at, kind, session FROM events WHERE n IN (SELECT n FROM (SELECT n FROM events ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT ?)) ORDER BY n DESC`,
+              EVENTS_SHOWN,
+              WRONG_SHOWN,
+            )
             .toArray()
-            .map((row) => ({ at: Number(row.at), kind: String(row.kind), here: row.session === session.id })),
+            .map((row) => ({ at: Number(row.at), kind: String(row.kind), here: row.session === session.id, session: typeof row.session === "string" ? row.session : null })),
+          // (how many wrong proofs in the last day, of those that are kept)
+          wrong: Number(db.sql.exec(`SELECT COUNT(*) AS n FROM events WHERE kind = 'unlock-failed' AND at > ?`, now - DAY).toArray()[0]?.n ?? 0),
         },
       };
     default:

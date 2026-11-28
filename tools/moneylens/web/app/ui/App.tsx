@@ -1,7 +1,9 @@
 // The app, as far as it goes yet: the door. Signing in, making a vault (a passphrase, then the
 // recovery code to keep), opening one, and a first room behind it that says the vault is open.
-// What each step does is src/app/door.ts; this file is what a person sees of it.
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+// What each step does is src/app/door.ts; this file is what a person sees of it. From every
+// screen a signed-in person has, one more can be laid over it: the devices and what has happened
+// (Devices.tsx).
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { askOver, codeIn, draft, enter, keep, leave, lock, open, standing, type Ask, type Draft, type Entered, type Opened } from "../../../src/app/door";
 import { browserClock, watchIdle } from "../../../src/app/idle";
 import type { OpenVault } from "../../../src/vault/crypto";
@@ -13,6 +15,7 @@ import { holdCache } from "../../../src/web/idbcache";
 import { HttpRemote } from "../../../src/web/remote";
 import { t, type Key } from "../i18n";
 import { CopyButton, IconLock, Note, SecretField, Title, TopBar, useLang } from "./common";
+import { Devices } from "./Devices";
 
 /** The vault locks itself after this long with nothing pressed (VAULT-3). */
 export const IDLE_MS = 15 * 60_000;
@@ -44,6 +47,10 @@ async function arrive(ask: Ask): Promise<View> {
   return stands.at === "no-vault" ? { at: "new" } : { at: "locked", vault: stands.vault };
 }
 
+/** The step of the browser's history that is the list of devices, and whether a step is that one. */
+const DEVICES = { moneylens: "devices" } as const;
+const isDevices = (state: unknown): boolean => typeof state === "object" && state !== null && (state as { moneylens?: unknown }).moneylens === DEVICES.moneylens;
+
 /** The one way this page asks the server anything. Made once: a new one at every drawing would start the page over each time. */
 const SERVER = askOver();
 
@@ -60,10 +67,23 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
    * The key is dropped here whatever the server says; the server is told so that it stops counting this session as
    * unlocked. `parting`: the page is going away, and the browser is asked to send that word even so.
    */
+  const locking = useRef<Promise<void>>(Promise.resolve());
   const lockUp = useCallback(
     (note?: Key, parting = false) => {
       setView((now) => (now.at === "open" ? { at: "locked", vault: now.vault.id, note } : now));
-      void lock(ask, parting);
+      locking.current = lock(ask, parting);
+    },
+    [ask],
+  );
+  /**
+   * How the list of devices asks: after a lock that is on its way has reached the server (or has failed to). Else a
+   * list read in the moment a vault locks itself could be told, by a server about to hear otherwise, that this device
+   * holds the vault open.
+   */
+  const askSettled = useCallback<Ask>(
+    async (action, body, parting) => {
+      await locking.current;
+      return ask(action, body, parting);
     },
     [ask],
   );
@@ -100,6 +120,40 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     };
   }, [held, lockUp]);
 
+  // The devices and what has happened: laid over the screen a signed-in person is on, which stays as it is behind it
+  // (an open vault stays open, and its fifteen minutes run on). The browser's own "back" closes it, as it closes a
+  // sheet on changle.ca: opening it is one step of the browser's history, and closing it is going back that step.
+  // Whether it is shown is whether the step the browser stands on is that step: so a page that is loaded again on it
+  // shows it again, and "back" never needs pressing twice.
+  const [listing, setListing] = useState(() => isDevices(history.state));
+  const signedIn = view.at === "new" || view.at === "locked" || view.at === "open";
+  const showDevices = useCallback(() => {
+    history.pushState(DEVICES, "");
+    setListing(true);
+  }, []);
+  const hideDevices = useCallback(() => {
+    // (when the browser does not stand on that step, there is nothing to go back from, and going back would leave the page)
+    if (isDevices(history.state)) history.back();
+    else setListing(false);
+  }, []);
+  useEffect(() => {
+    // (back from that step closes it, and forward to it again opens it again)
+    const moved = (event: PopStateEvent): void => setListing(isDevices(event.state));
+    window.addEventListener("popstate", moved);
+    return () => window.removeEventListener("popstate", moved);
+  }, []);
+
+  // The step is the list only while a signed-in person's screen is behind it. Come to from any other screen (signed
+  // out meanwhile; or the browser's "forward" on the recovery code's screen), the page goes back off it, as "back"
+  // would: no list is laid over a later screen that nobody asked for then, and the step is not left behind as one
+  // more "back" to press before the page is left. (A page that is still starting is no screen yet.) Done as the
+  // screen is drawn, not some time after it; once for each coming to the step, because `listing` is put out with it.
+  useLayoutEffect(() => {
+    if (!listing || signedIn || view.at === "starting") return;
+    setListing(false);
+    if (isDevices(history.state)) history.back();
+  }, [listing, signedIn, view.at]);
+
   const signedOut = (note?: Key): void => setView({ at: "signed-out", note });
   /** Ends the session on the server. Only when the server says it is over is this browser said to be signed out. */
   const signOut = useCallback(async (): Promise<boolean> => {
@@ -107,17 +161,20 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     if (over) setView({ at: "signed-out", note: "outLeft" });
     return over;
   }, [ask]);
+  const over = listing && signedIn;
   return (
     <div class="page">
       <TopBar />
-      <main class="main" key={view.at}>
-        {view.at === "starting" && <Starting />}
-        {view.at === "signed-out" && <SignedOut note={view.note} />}
-        {view.at === "trouble" && <Trouble why={view.why} again={start} />}
-        {view.at === "new" && <NewVault note={view.note} made={(made) => setView({ at: "code", draft: made })} signOut={signOut} />}
-        {view.at === "code" && <RecoveryCode ask={ask} draft={view.draft} done={() => setView((now) => (now.at === "code" && now.draft === view.draft ? { at: "open", vault: now.draft.vault } : now))} another={start} signedOut={() => signedOut()} />}
-        {view.at === "locked" && <Unlock ask={ask} vault={view.vault} note={view.note} opened={(vault) => setView({ at: "open", vault })} signedOut={() => signedOut()} signOut={signOut} />}
-        {view.at === "open" && <Home ask={ask} vault={view.vault} lock={() => lockUp()} locked={() => lockUp()} signedOut={() => signedOut()} signOut={signOut} />}
+      <main class="main" key={over ? "devices" : view.at}>
+        {/* (asked again when the screen behind it changes: a vault that locked itself meanwhile is not shown as open) */}
+        {over && <Devices key={view.at} ask={askSettled} vault={view.at !== "new"} back={hideDevices} signedOut={() => signedOut()} />}
+        {!over && view.at === "starting" && <Starting />}
+        {!over && view.at === "signed-out" && <SignedOut note={view.note} />}
+        {!over && view.at === "trouble" && <Trouble why={view.why} again={start} />}
+        {!over && view.at === "new" && <NewVault note={view.note} made={(made) => setView({ at: "code", draft: made })} signOut={signOut} devices={showDevices} />}
+        {!over && view.at === "code" && <RecoveryCode ask={ask} draft={view.draft} done={() => setView((now) => (now.at === "code" && now.draft === view.draft ? { at: "open", vault: now.draft.vault } : now))} another={start} signedOut={() => signedOut()} />}
+        {!over && view.at === "locked" && <Unlock ask={ask} vault={view.vault} note={view.note} opened={(vault) => setView({ at: "open", vault })} signedOut={() => signedOut()} signOut={signOut} devices={showDevices} />}
+        {!over && view.at === "open" && <Home ask={ask} vault={view.vault} lock={() => lockUp()} locked={() => lockUp()} signedOut={() => signedOut()} signOut={signOut} devices={showDevices} />}
       </main>
       <footer class="foot">
         <a href="/licences.txt">{t("licences")}</a>
@@ -198,7 +255,7 @@ function Trouble({ why, again }: { why: "offline" | "server" | "busy"; again: ()
   );
 }
 
-function NewVault({ note, made, signOut }: { note?: Key; made: (draft: Draft) => void; signOut: () => Promise<boolean> }) {
+function NewVault({ note, made, signOut, devices }: { note?: Key; made: (draft: Draft) => void; signOut: () => Promise<boolean>; devices: () => void }) {
   const [first, setFirst] = useState("");
   const [second, setSecond] = useState("");
   const [problem, setProblem] = useState<Key | null>(null);
@@ -232,7 +289,12 @@ function NewVault({ note, made, signOut }: { note?: Key; made: (draft: Draft) =>
       <button type="submit" class="btn btn-primary btn-lg btn-block" disabled={busy || !first || !second}>
         {t(busy ? "makingKey" : "next")}
       </button>
-      <SignOut signOut={signOut} quiet />
+      <div class="ways-out">
+        <button type="button" class="link-btn" onClick={devices} disabled={busy}>
+          {t("devices")}
+        </button>
+        <SignOut signOut={signOut} quiet />
+      </div>
     </form>
   );
 }
@@ -315,7 +377,7 @@ function sayOf(result: Exclude<Opened, { ok: true }>, byCode: boolean): { key: K
   }
 }
 
-function Unlock({ ask, vault, note, opened, signedOut, signOut }: { ask: Ask; vault: string; note?: Key; opened: (vault: OpenVault) => void; signedOut: () => void; signOut: () => Promise<boolean> }) {
+function Unlock({ ask, vault, note, opened, signedOut, signOut, devices }: { ask: Ask; vault: string; note?: Key; opened: (vault: OpenVault) => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void }) {
   const [byCode, setByCode] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -361,7 +423,12 @@ function Unlock({ ask, vault, note, opened, signedOut, signOut }: { ask: Ask; va
       <button type="button" class="link-btn" onClick={swap} disabled={busy}>
         {t(byCode ? "usePassphrase" : "useCode")}
       </button>
-      <SignOut signOut={signOut} quiet />
+      <div class="ways-out">
+        <button type="button" class="link-btn" onClick={devices} disabled={busy}>
+          {t("devices")}
+        </button>
+        <SignOut signOut={signOut} quiet />
+      </div>
     </form>
   );
 }
@@ -369,7 +436,7 @@ function Unlock({ ask, vault, note, opened, signedOut, signOut }: { ask: Ask; va
 type Room = { cache: "ok" | "taken" | "none"; records: number; sync: "syncing" | "done" | "offline" | { pending: number } | { why: string } };
 
 /** The first room behind the door: the vault is open, its records are read from this device's cache, and brought into line with the server once. */
-function Home({ ask, vault, lock: lockNow, locked, signedOut, signOut }: { ask: Ask; vault: OpenVault; lock: () => void; locked: () => void; signedOut: () => void; signOut: () => Promise<boolean> }) {
+function Home({ ask, vault, lock: lockNow, locked, signedOut, signOut, devices }: { ask: Ask; vault: OpenVault; lock: () => void; locked: () => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void }) {
   const [room, setRoom] = useState<Room | null>(null);
   const ends = useRef({ locked, signedOut });
   ends.current = { locked, signedOut };
@@ -435,6 +502,9 @@ function Home({ ask, vault, lock: lockNow, locked, signedOut, signOut }: { ask: 
         <button type="button" class="btn btn-quiet" onClick={lockNow}>
           <IconLock />
           {t("lockNow")}
+        </button>
+        <button type="button" class="btn btn-quiet" onClick={devices}>
+          {t("devices")}
         </button>
         <SignOut signOut={signOut} />
       </div>

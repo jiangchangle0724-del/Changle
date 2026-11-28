@@ -126,6 +126,21 @@ const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, 
 - When the vault locks (fifteen idle minutes, VAULT-3, or the person locks it): drop the key
   and the wrapper from memory, and tell the server (`vault/lock`). Never keep a wrapper in
   storage: a wrapper on the device is what the server's count keeps away from guessing.
+- `sessions` answers each signed-in device with `unlocked` and `opened`. `unlocked` is the
+  session's own word that it holds the vault open, and a session is a browser: any of its pages
+  can say it locked while another holds the key. `opened` is what the server knows: the
+  session has opened the vault since it signed in. A screen says "has opened" or "has not",
+  and never "locked", of a device (assessment 1.9). `events` answers the newest 50 lines and,
+  whatever came after them, the newest 30 wrong proofs, with `wrong`, their number in the last
+  day. Read both with `src/app/devices.ts`, which takes them whole or not at all.
+
+**A new table in a database that already exists.** An account's tables are made at its first
+sign-in (`signIn` in `account.ts`), and accounts exist. A table added after that is in none of
+their databases. So whatever reads or writes a new table makes sure of it first, with `CREATE
+TABLE IF NOT EXISTS` (`openedTable` in `ways.ts` is the pattern), and a test drops the table
+before each of the things that touch it (`tests/ways.test.ts`). A change to a table that exists
+(a column, a key) needs more than that, and has not been done yet: write the plan into the
+assessment first.
 
 **Published since 2026-11-27.** Cloudflare builds the Worker `moneylens` from `main` whenever
 something under `tools/moneylens` changes (Workers Builds: root directory `/tools/moneylens`, no
@@ -146,16 +161,19 @@ Cloudflare's types by `src/server/tsconfig.json` (`npm run typecheck` runs both)
 ## The app's pages
 
 `web/app/` is the app a person sees at money.changle.ca, as far as it goes yet: the door
-(signing in, making a vault, opening it, locking, signing out). Preact, built by
-`scripts/build-app.mjs` into `dist/app`, which the Worker hands out (`src/server/worker.ts`,
-`page`; `assets` in `wrangler.jsonc`). What each step does is `src/app/door.ts`, plain functions
-over one way of asking the server, tested without a page; `src/app/idle.ts` is the fifteen
-minutes. Assessment 1.10 has the reasons.
+(signing in, making a vault, opening it, locking, signing out), and the devices that are signed
+in with what has happened on the account. Preact, built by `scripts/build-app.mjs` into
+`dist/app`, which the Worker hands out (`src/server/worker.ts`, `page`; `assets` in
+`wrangler.jsonc`). What each step does is `src/app/door.ts`, plain functions over one way of
+asking the server, tested without a page; `src/app/idle.ts` is the fifteen minutes;
+`src/app/devices.ts` reads the list of devices and the events, and says what came of signing a
+device out. Assessment 1.10 has the reasons.
 
 | File | What it does |
 | --- | --- |
 | `web/app/index.html`, `main.tsx` | The one page, and its start |
 | `web/app/ui/App.tsx` | The screens: signed out, a new vault, the recovery code, opening, the first room |
+| `web/app/ui/Devices.tsx` | The devices that are signed in, wrong tries at the passphrase apart from everything else, and what has happened; signing another device out |
 | `web/app/ui/common.tsx` | The bar at the top, a field for a secret, the copy button, a note |
 | `web/app/i18n.ts` | Every word a person reads, in Chinese and English |
 | `web/app/styles.css`, `tokens.css`, `fonts/` | Its styles; changle.ca's tokens and fonts, copied (a test keeps `tokens.css` the same as the site's) |
@@ -170,10 +188,22 @@ Rules for whoever adds a screen, each held by `tests/design.test.ts`:
   sealed chunks. Anything more has to be written into the assessment first.
 - What may be said about the encryption is VAULT-6's wording and nothing stronger.
 
+Two more, held by the browser check:
+
+- A screen laid over another (the devices are the first) is one step of the browser's history
+  at the same address, shown exactly while the browser stands on that step: "back" closes it,
+  and a page loaded afresh on the step shows it again (`App.tsx`, `listing`). The screen behind
+  it stays as it was; an open vault stays open.
+- What the server sends for a screen is taken whole or shown as trouble, never as part of a
+  list (`src/app/devices.ts` says why).
+
 `npm run test:app` builds the pages, starts the Worker on the local runtime over HTTPS, and goes
 the whole way in with the Chrome already on the machine (`scripts/check-app.ts`): the main
 site's page is the stand-in's, the browser is told that `money.changle.test` is this machine.
-`SHOTS=/tmp/shots npm run test:app` also saves a picture of each screen. To look at the pages
+`SHOTS=/tmp/shots npm run test:app` also saves a picture of each screen. In that script, wait
+with `until`, never with the browser's own `waitForFunction`: it asks again from inside the
+page by making a script out of text, which the page's policy forbids, and it takes a promise
+for a yes. To look at the pages
 by hand: `node scripts/build-app.mjs --watch` and, beside it, `npx wrangler dev -c
 tests/accounts/wrangler.jsonc -c wrangler.jsonc` with `GATE` set to `owner` in a copy of the
 settings.

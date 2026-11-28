@@ -356,9 +356,9 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.deepEqual(listed.json, {
     ok: true,
     sessions: [
-      { id: three.session, made: T0 + 2000, seen: T0 + 2000, label: "Chrome on Windows", here: false },
-      { id: two.session, made: T0 + 1000, seen: T0 + 1000, label: "Chrome on Windows", here: true },
-      { id: one.session, made: T0, seen: T0, label: "Chrome on Windows", here: false },
+      { id: three.session, made: T0 + 2000, seen: T0 + 2000, label: "Chrome on Windows", here: false, unlocked: false, opened: false },
+      { id: two.session, made: T0 + 1000, seen: T0 + 1000, label: "Chrome on Windows", here: true, unlocked: false, opened: false },
+      { id: one.session, made: T0, seen: T0, label: "Chrome on Windows", here: false, unlocked: false, opened: false },
     ],
   });
   // one device signs another out
@@ -376,28 +376,30 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.deepEqual(ask(db, A, two.hash, "session/end", now, cfg), { status: 200, json: { ok: true }, signedOut: true });
   assert.deepEqual(why(ask(db, A, two.hash, "sessions", now, cfg)), [401, "signed-out"]);
 
-  // what happened, newest first, with nothing but the kind, the time, and whether it was this session
+  // what happened, newest first, with nothing but the kind, the time, the session that did it and whether that is this one
   const last = await enter(db, A, now + 1, cfg);
   assert.deepEqual(ask(db, A, last.hash, "events", now + 2, cfg).json, {
     ok: true,
     events: [
-      { at: now + 1, kind: "sign-in", here: true },
-      { at: now, kind: "sign-out", here: false },
-      { at: now, kind: "session-ended", here: false },
-      { at: now, kind: "sign-in", here: false },
-      { at: now, kind: "sessions-ended", here: false },
-      { at: now, kind: "session-ended", here: false },
-      { at: T0 + 2000, kind: "sign-in", here: false },
-      { at: T0 + 1000, kind: "sign-in", here: false },
-      { at: T0, kind: "sign-in", here: false },
+      { at: now + 1, kind: "sign-in", here: true, session: last.session },
+      { at: now, kind: "sign-out", here: false, session: two.session },
+      { at: now, kind: "session-ended", here: false, session: four.session },
+      { at: now, kind: "sign-in", here: false, session: four.session },
+      { at: now, kind: "sessions-ended", here: false, session: two.session },
+      { at: now, kind: "session-ended", here: false, session: two.session },
+      { at: T0 + 2000, kind: "sign-in", here: false, session: three.session },
+      { at: T0 + 1000, kind: "sign-in", here: false, session: two.session },
+      { at: T0, kind: "sign-in", here: false, session: one.session },
     ],
+    wrong: 0,
   });
   // the email address changed: everyone signs in again, and it is noted once
   signEveryoneOut(db, now + 3);
   signEveryoneOut(db, now + 4);
   assert.deepEqual(why(ask(db, A, last.hash, "sessions", now + 5, cfg)), [401, "signed-out"]);
   const again = await enter(db, A, now + 6, cfg);
-  assert.deepEqual((ask(db, A, again.hash, "events", now + 7, cfg).json!.events as { kind: string }[]).slice(0, 3).map((e) => e.kind), ["sign-in", "email-changed", "sign-in"]);
+  // (a line that is about no session says so)
+  assert.deepEqual((ask(db, A, again.hash, "events", now + 7, cfg).json!.events as { kind: string; session: string | null }[]).slice(0, 3).map((e) => [e.kind, e.session]), [["sign-in", again.session], ["email-changed", null], ["sign-in", last.session]]);
   // where nobody ever signed in, there is nothing to do and nothing is made
   const empty = sqlite();
   signEveryoneOut(empty, now);
@@ -437,6 +439,48 @@ test("the events log keeps twelve months and five hundred lines, and as many wro
   fill(T0 + 368 * DAY, 80);
   const shown = ask(db, A, later.hash, "events", T0 + 368 * DAY + 1, cfg).json!.events as { at: number }[];
   assert.deepEqual([shown.length, shown[0]!.at, shown[49]!.at], [50, T0 + 368 * DAY + 80, T0 + 368 * DAY + 31]);
+});
+
+test("the newest wrong proofs are shown whatever came after them, once each, with how many there were in the last day (the review of the door, finding 2)", async () => {
+  const cfg = config();
+  const db = sqlite();
+  const DAY = 24 * 60 * MINUTE;
+  const first = await enter(db, A, T0, cfg);
+  const fill = (from: number, lines: number, kind = "sign-out"): void => {
+    const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, ?, NULL)`);
+    for (let i = 1; i <= lines; i++) insert.run(from + i, kind);
+  };
+  type Shown = { events: { at: number; kind: string }[]; wrong: number };
+  const events = (hash: string, now: number): Shown => ask(db, A, hash, "events", now, cfg).json as Shown;
+  // nothing wrong yet
+  assert.deepEqual([events(first.hash, T0 + 1).events.length, events(first.hash, T0 + 1).wrong], [1, 0]);
+  // forty wrong proofs, then two hundred other lines: the newest fifty lines are all other lines, and after them come
+  // the thirty newest wrong proofs, newest first. The ten oldest wrong ones are not shown; all forty are counted.
+  fill(T0 + 1000, 40, "unlock-failed");
+  fill(T0 + 2000, 200);
+  const hidden = events(first.hash, T0 + 3000);
+  assert.equal(hidden.events.length, 80);
+  assert.deepEqual([...new Set(hidden.events.slice(0, 50).map((e) => e.kind))], ["sign-out"]);
+  assert.deepEqual([hidden.events[0]!.at, hidden.events[49]!.at], [T0 + 2200, T0 + 2151]);
+  assert.deepEqual([...new Set(hidden.events.slice(50).map((e) => e.kind))], ["unlock-failed"]);
+  assert.deepEqual(hidden.events.slice(50).map((e) => e.at), Array.from({ length: 30 }, (_, i) => T0 + 1040 - i));
+  assert.equal(hidden.wrong, 40);
+  // five more wrong proofs now: they are among the newest fifty, and no line is shown twice
+  fill(T0 + 4000, 5, "unlock-failed");
+  const mixed = events(first.hash, T0 + 5000);
+  assert.equal(mixed.events.length, 75);
+  assert.deepEqual(mixed.events.slice(0, 5).map((e) => [e.kind, e.at]), [5, 4, 3, 2, 1].map((i) => ["unlock-failed", T0 + 4000 + i]));
+  assert.equal(new Set(mixed.events.map((e) => `${e.kind} ${e.at}`)).size, 75);
+  assert.deepEqual(mixed.events.map((e) => e.at), [...mixed.events.map((e) => e.at)].sort((a, b) => b - a));
+  assert.equal(mixed.events.filter((e) => e.kind === "unlock-failed").length, 30);
+  assert.equal(mixed.wrong, 45);
+  // the count is of the last day, to the millisecond: a wrong proof a day old to the moment is not in it, one a moment newer is
+  const next = await enter(db, A, T0 + DAY + 1000, cfg);
+  assert.equal(events(next.hash, T0 + DAY + 1001).wrong, 44);
+  assert.equal(events(next.hash, T0 + DAY + 1002).wrong, 43);
+  assert.equal(events(next.hash, T0 + DAY + 4005).wrong, 0);
+  // and they are still shown when nothing wrong happened that day
+  assert.equal(events(next.hash, T0 + DAY + 4005).events.filter((e) => e.kind === "unlock-failed").length, 30);
 });
 
 test("the vault and its chunks: started once, and synced through the frames", async () => {

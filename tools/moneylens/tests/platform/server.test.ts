@@ -18,6 +18,8 @@ import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import http from "node:http";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
+import { deviceOf, endDevice, endOthers, listing, restOf, wrongOf, type Listing } from "../../src/app/devices";
+import type { Ask } from "../../src/app/door";
 import { base64url, newId } from "../../src/core/ids";
 import { HEAD_MAX, packPush, unpackPulled, unpackPushed } from "../../src/server/wire";
 import { createVault, unlock, type Secret, type Wrapper } from "../../src/vault/crypto";
@@ -411,6 +413,49 @@ test("a second device opens the vault: the parameters, its proof, the wrapper, t
     // the log has all of it, newest first, and no word of what was shown
     const events = ((await (await send(open, "/api/events", "{}", tablet.jar)).json()) as { events: { kind: string }[] }).events.map((e) => e.kind);
     assert.deepEqual(events, ["unlocked", "sign-in", "unlocked", "unlock-failed", "vault-started", "sign-in", "sign-in"]);
+
+    // What their owner is shown of all this, read the way the page reads it (src/app/devices.ts): three devices,
+    // each holding the vault open; and the wrong passphrase, apart from the rest and known to be the laptop's.
+    const askAs =
+      (jar: Jar): Ask =>
+      async (action, body = {}) => {
+        const answer = await send(open, `/api/${action}`, JSON.stringify(body), jar);
+        return { status: answer.status, json: (await answer.json().catch(() => ({}))) as Record<string, unknown> };
+      };
+    const shown = await listing(askAs(tablet.jar));
+    assert.ok(shown.ok);
+    assert.deepEqual(shown.devices.map((one) => [one.here, one.unlocked, one.opened]).sort(), [[false, true, true], [false, true, true], [true, true, true]]);
+    assert.equal(shown.wrong, 1);
+    const [missed] = wrongOf(shown.lines);
+    const laptopHere = (await listing(askAs(laptop.jar))) as Extract<Listing, { ok: true }>;
+    const laptopId = laptopHere.devices.find((one) => one.here)!.id;
+    assert.deepEqual([wrongOf(shown.lines).length, missed!.session, missed!.here], [1, laptopId, false]);
+    assert.deepEqual(deviceOf(missed!, shown.devices), { at: "listed", label: "Browser" });
+    assert.deepEqual(wrongOf(laptopHere.lines).map((one) => one.here), [true]);
+    // the laptop locks: it is signed in still, counts as holding nothing open, and is still said to have opened the vault
+    assert.equal((await send(open, "/api/vault/lock", "{}", laptop.jar)).status, 200);
+    const locked = (await listing(askAs(tablet.jar))) as Extract<Listing, { ok: true }>;
+    assert.deepEqual(Object.fromEntries(locked.devices.map((one) => [one.id, [one.unlocked, one.opened]]))[laptopId], [false, true]);
+    assert.deepEqual([locked.devices.filter((one) => one.unlocked).length, locked.devices.filter((one) => one.opened).length], [2, 3]);
+    // (a fourth device that only signs in has opened nothing)
+    const fourth = await signInAs(open, account);
+    const seenByFourth = (await listing(askAs(fourth.jar))) as Extract<Listing, { ok: true }>;
+    assert.deepEqual(seenByFourth.devices.filter((one) => one.here).map((one) => [one.unlocked, one.opened]), [[false, false]]);
+    assert.equal((await send(open, "/api/session/end", "{}", fourth.jar)).status, 200);
+    // the tablet signs the laptop out: it is in no list any more, its wrong try is still shown, and it can ask nothing
+    assert.equal(await endDevice(askAs(tablet.jar), laptopId), "ok");
+    assert.equal(await endDevice(askAs(tablet.jar), laptopId), "gone");
+    const after = (await listing(askAs(tablet.jar))) as Extract<Listing, { ok: true }>;
+    assert.deepEqual([after.devices.length, after.devices.some((one) => one.id === laptopId), after.wrong], [2, false, 1]);
+    assert.deepEqual(deviceOf(wrongOf(after.lines)[0]!, after.devices), { at: "gone" });
+    assert.deepEqual(await listing(askAs(new Map(laptop.jar))), { ok: false, why: "signed-out" });
+    // and all the others at once: the phone goes, the tablet stays
+    assert.deepEqual(await endOthers(askAs(tablet.jar)), { ok: true, ended: 1 });
+    assert.deepEqual(await endOthers(askAs(tablet.jar)), { ok: true, ended: 0 });
+    assert.deepEqual(await listing(askAs(new Map(phone.jar))), { ok: false, why: "signed-out" });
+    const alone = (await listing(askAs(tablet.jar))) as Extract<Listing, { ok: true }>;
+    assert.deepEqual(alone.devices.map((one) => [one.here, one.unlocked]), [[true, true]]);
+    assert.deepEqual(restOf(alone.lines).slice(0, 2).map((one) => [one.kind, one.here]), [["sessions-ended", true], ["session-ended", true]]);
   } finally {
     await open.stop();
     rmSync(open.kept, { recursive: true, force: true });
