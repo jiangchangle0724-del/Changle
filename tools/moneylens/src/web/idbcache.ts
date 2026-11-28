@@ -107,6 +107,25 @@ export async function openCache(name: string): Promise<Cache & { close(): void }
 export type Held = { cache: Cache; release(): void };
 
 /**
+ * Empties this device's copy when the account holds no vault (it was erased, here or elsewhere): what a vault left
+ * on a device goes with it, sealed or not. Not when another tab of this browser holds the copy, or the browser keeps
+ * nothing: then there is nothing to be done from here. True: a copy was there, and was emptied.
+ */
+export async function forgetCache(name = "moneylens"): Promise<boolean> {
+  const held = await holdCache(name);
+  if (typeof held !== "object") return false;
+  try {
+    if ((await held.cache.load()) === null) return false;
+    await held.cache.clear();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    held.release();
+  }
+}
+
+/**
  * Takes this device's cache for this page. "taken": another page of this browser has it (say so,
  * and let the person go to that page). "unavailable": this browser gives the page no storage it
  * can hold alone (a private window, storage switched off, a very old browser); the app can run

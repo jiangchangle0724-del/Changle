@@ -521,6 +521,21 @@ ul {
 .ways-out .note {
   flex-basis: 100%;
 }
+/* a button that deletes: the danger color, words in the night's (DESIGN.md: text on danger is night-colored) */
+.btn-danger {
+  background: var(--color-danger);
+  color: var(--night);
+}
+.btn-danger:disabled {
+  background: var(--color-raised);
+  color: var(--color-text-3);
+}
+/* an erasing asked for, and what can be done about it here */
+.erasing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 /* back to the screen behind this one */
 .link-btn.back {
   align-self: flex-start;

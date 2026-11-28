@@ -8,6 +8,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { newId } from "../src/core/ids";
 import { act, dueErase, proofsIn, signIn, type Answer } from "../src/server/account";
+import { eraseLater, eraseNow, erasing, keepVault, pendingOf } from "../src/app/erase";
+import type { Ask } from "../src/app/door";
 import { ERASE_DELAY, pendingErase } from "../src/server/erase";
 import { configOf } from "../src/server/gate";
 import { hashOf, newToken } from "../src/server/sessions";
@@ -272,4 +274,129 @@ test("what the owner is shown stays in sight: an erasing asked for, called off, 
   const fromHere = await device(db, now + 3);
   const theirs = (await fromHere.ask("events", now + 4)).json!.events as { kind: string; session: string | null }[];
   assert.deepEqual(theirs.filter((line) => line.kind === "unlocked").map((line) => line.session), [maker.session, other.session]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// As the app asks for it (src/app/erase.ts)
+// ---------------------------------------------------------------------------------------------
+
+/** A session's requests the way a browser makes them: JSON there and back. */
+const asking = (d: { ask: (action: string, at: number, body?: unknown) => Promise<Answer> }, clock: { now: number }): Ask => async (action, body = {}) => {
+  const answer = await d.ask(action, clock.now++, body);
+  return { status: answer.status, json: JSON.parse(JSON.stringify(answer.json ?? {})) as Record<string, unknown> };
+};
+const canned =
+  (answers: Record<string, { status: number; json?: Record<string, unknown> } | null>): Ask =>
+  async (action) => {
+    const answer = answers[action];
+    return answer === undefined ? { status: 404, json: { ok: false, why: "no-such-thing" } } : answer && { status: answer.status, json: answer.json ?? {} };
+  };
+
+test("the app's side, against the server's own code: asking, seeing, calling off, erasing", async () => {
+  const { maker, other, vault } = await withVault();
+  const clock = { now: T0 + 3 };
+  const [mine, theirs] = [asking(maker, clock), asking(other, clock)];
+  assert.deepEqual(await erasing(mine), { ok: true, vault, pending: null });
+  // the device that has not opened the vault asks; every device sees it, and which one asked
+  const at = clock.now;
+  const asked = await eraseLater(theirs, vault);
+  assert.ok(asked.ok);
+  assert.deepEqual(asked.pending, { asked: at, due: at + ERASE_DELAY, session: other.session, here: true });
+  assert.deepEqual(await erasing(mine), { ok: true, vault, pending: { ...asked.pending, here: false } });
+  assert.deepEqual(await eraseLater(mine, vault), { ok: true, pending: { ...asked.pending, here: false } });
+  assert.deepEqual(await eraseLater(mine, newId()), { ok: false, why: "another" });
+  // it cannot call it off; the device that has the vault open can, once
+  assert.equal(await keepVault(theirs), "locked");
+  assert.equal(await keepVault(mine), "ok");
+  assert.equal(await keepVault(mine), "none");
+  assert.deepEqual(await erasing(theirs), { ok: true, vault, pending: null });
+  // erasing at once: not from the device that has not opened it, not another vault, and then this one
+  assert.equal(await eraseNow(theirs, vault), "locked");
+  assert.equal(await eraseNow(mine, newId()), "another");
+  assert.equal(await eraseNow(mine, vault), "ok");
+  // gone: erasing it again is what was asked; asking for it later, there is nothing to ask about
+  assert.equal(await eraseNow(mine, vault), "locked");
+  assert.deepEqual(await eraseLater(theirs, vault), { ok: false, why: "gone" });
+  assert.deepEqual(await erasing(theirs), { ok: true, vault: null, pending: null });
+  assert.equal(await keepVault(mine), "locked");
+});
+
+test("the app's side, against answers that are not what they should be: each is trouble, never a date or a vault", async () => {
+  const V = newId();
+  const pending = { asked: T0, due: T0 + ERASE_DELAY, session: V, here: false };
+  const vaultSays = (json: Record<string, unknown>) => canned({ vault: { status: 200, json: { ok: true, ...json } } });
+  assert.deepEqual(await erasing(vaultSays({ vault: V, erasing: pending })), { ok: true, vault: V, pending });
+  assert.deepEqual(await erasing(vaultSays({ vault: V, erasing: { ...pending, session: null } })), { ok: true, vault: V, pending: { ...pending, session: null } });
+  for (const json of [
+    { vault: V },
+    { vault: "a vault", erasing: null },
+    { vault: 7, erasing: null },
+    { vault: undefined, erasing: null },
+    { vault: null, erasing: pending },
+    { vault: V, erasing: {} },
+    { vault: V, erasing: "soon" },
+    { vault: V, erasing: [] },
+    { vault: V, erasing: { ...pending, asked: undefined } },
+    { vault: V, erasing: { ...pending, due: "next week" } },
+    { vault: V, erasing: { ...pending, due: T0 - 1 } },
+    { vault: V, erasing: { ...pending, asked: -1 } },
+    { vault: V, erasing: { ...pending, due: 1.5 } },
+    { vault: V, erasing: { ...pending, here: "no" } },
+    { vault: V, erasing: { ...pending, session: "someone" } },
+    { vault: V, erasing: { ...pending, session: 7 } },
+    { vault: V, erasing: { ...pending, session: null, here: true } },
+  ])
+    assert.deepEqual(await erasing(vaultSays(json)), { ok: false, why: "server" }, JSON.stringify(json));
+  // (the same date the same day is one: asked for and due at once is still an erasing)
+  assert.deepEqual(pendingOf({ ...pending, due: T0 }), { ...pending, due: T0 });
+  for (const [answer, why] of [
+    [null, "offline"],
+    [{ status: 401, json: {} }, "signed-out"],
+    [{ status: 403, json: {} }, "signed-out"],
+    [{ status: 429, json: {} }, "busy"],
+    [{ status: 500, json: {} }, "server"],
+    [{ status: 200, json: { ok: false } }, "server"],
+  ] as const)
+    assert.deepEqual(await erasing(canned({ vault: answer })), { ok: false, why }, JSON.stringify(answer));
+
+  // erasing at once: only what says so is so
+  for (const [answer, said] of [
+    [{ status: 200, json: { ok: true } }, "ok"],
+    [{ status: 200, json: {} }, "server"],
+    [{ status: 404, json: { ok: false, why: "no-vault" } }, "gone"],
+    [{ status: 404, json: { ok: false, why: "no-such-thing" } }, "server"],
+    [{ status: 423, json: { ok: false, why: "locked" } }, "locked"],
+    [{ status: 409, json: { ok: false, why: "another-vault" } }, "another"],
+    [{ status: 401, json: {} }, "signed-out"],
+    [{ status: 429, json: {} }, "busy"],
+    [null, "offline"],
+  ] as const)
+    assert.equal(await eraseNow(canned({ "vault/erase": answer }), V), said, JSON.stringify(answer));
+  // asking for it later: the answer is the erasing, or it is not taken
+  for (const [answer, said] of [
+    [{ status: 200, json: { ok: true, erasing: pending } }, { ok: true, pending }],
+    [{ status: 200, json: { ok: true, erasing: null } }, { ok: false, why: "server" }],
+    [{ status: 200, json: { ok: true, erasing: { ...pending, due: "soon" } } }, { ok: false, why: "server" }],
+    [{ status: 200, json: { ok: true } }, { ok: false, why: "server" }],
+    [{ status: 200, json: { ok: false, erasing: pending } }, { ok: false, why: "server" }],
+    [{ status: 404, json: { ok: false, why: "no-vault" } }, { ok: false, why: "gone" }],
+    [{ status: 404, json: { ok: false, why: "no-such-thing" } }, { ok: false, why: "server" }],
+    [{ status: 409, json: {} }, { ok: false, why: "another" }],
+    [{ status: 403, json: {} }, { ok: false, why: "signed-out" }],
+    [{ status: 429, json: {} }, { ok: false, why: "busy" }],
+    [null, { ok: false, why: "offline" }],
+  ] as const)
+    assert.deepEqual(await eraseLater(canned({ "vault/erase-later": answer }), V), said, JSON.stringify(answer));
+  // calling it off
+  for (const [answer, said] of [
+    [{ status: 200, json: { ok: true } }, "ok"],
+    [{ status: 200, json: {} }, "server"],
+    [{ status: 404, json: { ok: false, why: "no-erase" } }, "none"],
+    [{ status: 404, json: { ok: false, why: "no-such-thing" } }, "server"],
+    [{ status: 423, json: {} }, "locked"],
+    [{ status: 401, json: {} }, "signed-out"],
+    [{ status: 500, json: {} }, "server"],
+    [null, "offline"],
+  ] as const)
+    assert.equal(await keepVault(canned({ "vault/erase-cancel": answer })), said, JSON.stringify(answer));
 });

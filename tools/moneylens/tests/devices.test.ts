@@ -53,11 +53,13 @@ const canned =
 const ID = [newId(), newId(), newId()] as const;
 const device = (more: Partial<Record<keyof Device, unknown>> = {}): Record<string, unknown> => ({ id: ID[0], label: "Chrome on Windows", made: T0, seen: T0 + 5, here: true, unlocked: false, opened: false, ...more });
 const line = (more: Partial<Record<keyof Line, unknown>> = {}): Record<string, unknown> => ({ at: T0, kind: "sign-in", here: true, session: ID[0], ...more });
-/** A server whose two answers are as they should be, but for what is named (named and undefined is "sent without it"). */
-const good = (over: { sessions?: unknown; events?: unknown; wrong?: unknown } = {}): Ask =>
+const VAULT = newId();
+/** A server whose three answers are as they should be, but for what is named (named and undefined is "sent without it"). */
+const good = (over: { sessions?: unknown; events?: unknown; wrong?: unknown; vault?: unknown; erasing?: unknown } = {}): Ask =>
   canned({
     sessions: { status: 200, json: { ok: true, sessions: "sessions" in over ? over.sessions : [device()] } },
     events: { status: 200, json: { ok: true, events: "events" in over ? over.events : [line()], wrong: "wrong" in over ? over.wrong : 0 } },
+    vault: { status: 200, json: { ok: true, vault: "vault" in over ? over.vault : VAULT, erasing: "erasing" in over ? over.erasing : null } },
   });
 
 test("against the server's own code: who is signed in, who holds the vault open, what happened, and a wrong try at the passphrase", async () => {
@@ -77,7 +79,8 @@ test("against the server's own code: who is signed in, who holds the vault open,
   assert.deepEqual(first.lines.map((one) => [one.kind, one.here, one.session]), [["sign-in", false, theirs.id], ["sign-in", true, mine.id]]);
   assert.equal(first.wrong, 0);
   // (both were asked for, with nothing in the asking, and nothing else was)
-  assert.deepEqual(asked.splice(0).sort(), [["events", {}], ["sessions", {}]]);
+  assert.deepEqual(asked.splice(0).sort(), [["events", {}], ["sessions", {}], ["vault", {}]]);
+  assert.deepEqual([first.vault, first.pending], [false, null]);
 
   // this device makes a vault: it holds it open, and the list says so
   const vault = newId();
@@ -137,9 +140,9 @@ test("against the server's own code: who is signed in, who holds the vault open,
 });
 
 test("no answer, not signed in, told to slow down, a server in trouble: each is said as what it is, whichever of the two requests it happened to", async () => {
-  const ok = { sessions: { status: 200, json: { ok: true, sessions: [device()] } }, events: { status: 200, json: { ok: true, events: [line()], wrong: 0 } } };
-  assert.deepEqual(await listing(canned(ok)), { ok: true, devices: [device()], lines: [line()], wrong: 0 });
-  for (const which of ["sessions", "events"] as const) {
+  const ok = { sessions: { status: 200, json: { ok: true, sessions: [device()] } }, events: { status: 200, json: { ok: true, events: [line()], wrong: 0 } }, vault: { status: 200, json: { ok: true, vault: VAULT, erasing: null } } };
+  assert.deepEqual(await listing(canned(ok)), { ok: true, devices: [device()], lines: [line()], wrong: 0, vault: true, pending: null });
+  for (const which of ["sessions", "events", "vault"] as const) {
     for (const [answer, why] of [
       [null, "offline"],
       [{ status: 401, json: { ok: false, why: "signed-out" } }, "signed-out"],
@@ -210,6 +213,8 @@ test("a list this code only half understands is trouble, never a shorter list", 
     devices: [device({ unlocked: true, opened: true }), device({ id: ID[1], here: false, opened: true }), device({ id: ID[2], here: false })],
     lines: [line()],
     wrong: 0,
+    vault: true,
+    pending: null,
   });
   // the lines
   for (const events of [
@@ -234,14 +239,34 @@ test("a list this code only half understands is trouble, never a shorter list", 
     assert.deepEqual(await listing(good({ events })), server, JSON.stringify(events)?.slice(0, 80));
   assert.equal((await listing(good({ events: Array.from({ length: 200 }, () => line()) }))).ok, true);
   // no lines at all is a list with nothing in it
-  assert.deepEqual(await listing(good({ events: [] })), { ok: true, devices: [device()], lines: [], wrong: 0 });
+  assert.deepEqual(await listing(good({ events: [] })), { ok: true, devices: [device()], lines: [], wrong: 0, vault: true, pending: null });
   // how many wrong tries there were
   for (const wrong of [undefined, null, "3", -1, 1.5, Number.NaN, true]) assert.deepEqual(await listing(good({ wrong })), server, String(wrong));
-  assert.deepEqual(await listing(good({ wrong: 30 })), { ok: true, devices: [device()], lines: [line()], wrong: 30 });
+  assert.deepEqual(await listing(good({ wrong: 30 })), { ok: true, devices: [device()], lines: [line()], wrong: 30, vault: true, pending: null });
+  // which vault, and its erasing: no vault, a vault, a vault being erased; and what is neither
+  const pending = { asked: T0, due: T0 + 7 * 24 * 3_600_000, session: ID[1], here: false };
+  assert.deepEqual(await listing(good({ vault: null })), { ok: true, devices: [device()], lines: [line()], wrong: 0, vault: false, pending: null });
+  assert.deepEqual(await listing(good({ erasing: pending })), { ok: true, devices: [device()], lines: [line()], wrong: 0, vault: true, pending });
+  assert.deepEqual(await listing(good({ erasing: { ...pending, session: null } })), { ok: true, devices: [device()], lines: [line()], wrong: 0, vault: true, pending: { ...pending, session: null } });
+  for (const [vault, erasing] of [
+    [undefined, null],
+    ["a vault", null],
+    [7, null],
+    [null, pending],
+    [VAULT, undefined],
+    [VAULT, {}],
+    [VAULT, { ...pending, due: T0 - 1 }],
+    [VAULT, { ...pending, asked: "today" }],
+    [VAULT, { ...pending, due: Number.MAX_SAFE_INTEGER + 2 }],
+    [VAULT, { ...pending, session: "someone" }],
+    [VAULT, { ...pending, session: null, here: true }],
+    [VAULT, { ...pending, here: undefined }],
+  ] as const)
+    assert.deepEqual(await listing(good({ vault, erasing })), server, JSON.stringify([vault, erasing]));
 });
 
 test("a line of a kind this version does not know is shown as something else, not dropped; and a line about no device says so", async () => {
-  const got = await listing(good({ sessions: [device(), device({ id: ID[1], here: false, label: "Firefox on Linux" })], events: [line({ kind: "vault-erased", here: false, session: ID[1] }), line({ kind: "email-changed", here: false, session: null }), line({ kind: "unlock-failed", here: false, session: ID[2] }), line()], wrong: 1 }));
+  const got = await listing(good({ sessions: [device(), device({ id: ID[1], here: false, label: "Firefox on Linux" })], events: [line({ kind: "passkey-added", here: false, session: ID[1] }), line({ kind: "email-changed", here: false, session: null }), line({ kind: "unlock-failed", here: false, session: ID[2] }), line()], wrong: 1 }));
   assert.ok(got.ok);
   assert.deepEqual(got.lines.map((one) => one.kind), ["other", "email-changed", "unlock-failed", "sign-in"]);
   assert.deepEqual(got.lines.map((one) => deviceOf(one, got.devices)), [{ at: "listed", label: "Firefox on Linux" }, { at: "none" }, { at: "gone" }, { at: "here" }]);
@@ -320,7 +345,7 @@ test("a device's label is taken apart into the words the server made it of, so t
 test("what is said after a device was asked to be signed out goes by the list read afterwards where the answer does not", () => {
   const other = (id: string): Device => ({ id, label: "Chrome on Windows", made: T0, seen: T0, here: false, unlocked: false, opened: false });
   /** The list as read afterwards: this device, and the others named. */
-  const list = (...others: string[]): Listing => ({ ok: true, devices: [{ id: ID[0], label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true, opened: true }, ...others.map(other)], lines: [], wrong: 0 });
+  const list = (...others: string[]): Listing => ({ ok: true, devices: [{ id: ID[0], label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true, opened: true }, ...others.map(other)], lines: [], wrong: 0, vault: true, pending: null });
   const unread: Listing = { ok: false, why: "offline" };
 
   // one device. The server said it is signed out (or was already): that is what is said, whatever was read afterwards.

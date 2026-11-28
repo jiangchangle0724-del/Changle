@@ -12,6 +12,7 @@
  */
 import { isId } from "../core/ids";
 import type { Ask } from "./door";
+import { pendingOf, type Pending } from "./erase";
 
 /**
  * A device that is signed in, as its owner sees it. `here`: the one asking. `unlocked`: the server counts it as
@@ -21,15 +22,16 @@ import type { Ask } from "./door";
 export type Device = { id: string; label: string; made: number; seen: number; here: boolean; unlocked: boolean; opened: boolean };
 
 /** The kinds of line the events log has (account.ts, `EventKind`). A kind this version does not know is "other": it is shown, not dropped. */
-export const KINDS = ["sign-in", "sign-out", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "unlock-failed"] as const;
+export const KINDS = ["sign-in", "sign-out", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "unlock-failed", "erase-asked", "erase-cancelled", "vault-erased"] as const;
 export type Kind = (typeof KINDS)[number] | "other";
 /** One line of what happened. `session`: the session it is about, when it is about one. */
 export type Line = { at: number; kind: Kind; here: boolean; session: string | null };
 
 export type Trouble = "signed-out" | "busy" | "offline" | "server";
-export type Listing = { ok: true; devices: Device[]; lines: Line[]; wrong: number } | { ok: false; why: Trouble };
+/** `vault`: the account holds one. `pending`: an erasing of it asked for (erase.ts). */
+export type Listing = { ok: true; devices: Device[]; lines: Line[]; wrong: number; vault: boolean; pending: Pending | null } | { ok: false; why: Trouble };
 
-/** More than the server ever sends of either (eight sessions; fifty lines and thirty wrong proofs). Past it, the answer is not one. */
+/** More than the server ever sends of either (eight sessions; fifty lines, thirty wrong proofs and ten of each of six kinds). Past it, the answer is not one. */
 const DEVICES_MOST = 16;
 const LINES_MOST = 200;
 
@@ -37,7 +39,7 @@ const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "obj
 const isTime = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
 
 /** Why an answer is not the one asked for. Not let in any more (401, 403) is "signed out": the screen behind this one says which. */
-function troubleOf(answer: { status: number } | null): Trouble {
+export function troubleOf(answer: { status: number } | null): Trouble {
   if (answer === null) return "offline";
   if (answer.status === 401 || answer.status === 403) return "signed-out";
   // (too many requests from this address in a minute: nothing is wrong with the server)
@@ -70,15 +72,17 @@ function readLines(sent: unknown): Line[] | null {
   return lines;
 }
 
-/** The devices and the lines, asked for together. Either both are what they should be, or it is trouble. */
+/** The devices, the lines, and the vault's erasing, asked for together. Either all are what they should be, or it is trouble. */
 export async function listing(ask: Ask): Promise<Listing> {
-  const [sessions, events] = await Promise.all([ask("sessions"), ask("events")]);
-  for (const answer of [sessions, events]) if (!answer || answer.status !== 200 || answer.json.ok !== true) return { ok: false, why: troubleOf(answer) };
+  const [sessions, events, vault] = await Promise.all([ask("sessions"), ask("events"), ask("vault")]);
+  for (const answer of [sessions, events, vault]) if (!answer || answer.status !== 200 || answer.json.ok !== true) return { ok: false, why: troubleOf(answer) };
   const devices = readDevices(sessions!.json.sessions);
   const lines = readLines(events!.json.events);
   const wrong = events!.json.wrong;
-  if (!devices || !lines || !isTime(wrong)) return { ok: false, why: "server" };
-  return { ok: true, devices, lines, wrong };
+  const held = vault!.json.vault;
+  const pending = pendingOf(vault!.json.erasing);
+  if (!devices || !lines || !isTime(wrong) || !(held === null || isId(held)) || pending === undefined || (held === null && pending !== null)) return { ok: false, why: "server" };
+  return { ok: true, devices, lines, wrong, vault: held !== null, pending };
 }
 
 /**
@@ -99,8 +103,10 @@ export function partsOf(label: string): { browser: string | null; system: string
 
 /** The wrong proofs among the lines, newest first: shown apart, above everything else. */
 export const wrongOf = (lines: readonly Line[]): Line[] => lines.filter((line) => line.kind === "unlock-failed");
+/** The vault opened by sessions other than this one: shown apart too (the review of the devices' screen, finding 3). */
+export const openedOf = (lines: readonly Line[]): Line[] => lines.filter((line) => line.kind === "unlocked" && !line.here);
 /** Everything else. */
-export const restOf = (lines: readonly Line[]): Line[] => lines.filter((line) => line.kind !== "unlock-failed");
+export const restOf = (lines: readonly Line[]): Line[] => lines.filter((line) => line.kind !== "unlock-failed" && !(line.kind === "unlocked" && !line.here));
 
 /**
  * Which device a line is about, as far as it can be said: this one, one that is still signed in (its label), one
