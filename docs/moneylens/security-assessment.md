@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.21, 27 November 2026. It records the choices the requirements leave to this document
+Version 0.22, 27 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -65,7 +65,12 @@ vault can sign out and be off the screen in a few hours (section 3, to settle be
 but the owner is let in). Version 0.21 adds erasing a vault (1.11): at once with it open, in
 seven days without it, called off with it open, and the screens for it. With it, the events log
 keeps each kind of line apart, and shows the lines a person must not miss whatever came after
-them, which settles the second look's finding 3 (1.8).
+them, which settles the second look's finding 3 (1.8). Version 0.22 follows that slice's review
+(the reviewer was the author's own model, which the review states first): whoever holds only the
+mailbox could keep the owner out by filling the count of wrong proofs until the vault was
+erased, so an erasing now waits for seven days in which nobody was kept out, and a right proof
+calls it off (1.11); a vault that is gone is said to be, before "locked"; and each line written
+tidies only its own kind (1.8).
 
 ## 1. The vault
 
@@ -937,9 +942,11 @@ proof shown for it, an email change, an erasing asked for, called off, or done: 
 in which session. No contents. Twelve months are kept, and at most 500 lines of each kind. Each
 kind is counted apart, so that no number of lines of one kind pushes a line of another out of
 what is kept: not sign-ins a wrong proof (the review of the door, finding 2), and not a right
-proof shown over and over the erasing of a vault. The log is tidied wherever lines are written
-that nothing else counts: at each sign-in, at each proof shown, and where a vault is made,
-erased, or asked to be. The events call answers the newest 50 lines of all kinds together and,
+proof shown over and over the erasing of a vault. Each line written lets go of the lines that
+are past twelve months, found through an index on their time, and of those of its own kind past
+the 500, found through an index on their kind: a line pushes out only lines of its own kind, and
+what it reads is about as many index entries as a kind keeps (the review of 1.11, finding 5b).
+The events call answers the newest 50 lines of all kinds together and,
 with them, however many lines came after, the newest of the kinds a person must not miss: wrong
 proofs, thirty, as many as can be made in a day (1.9); the vault opened by sessions other than
 the one asking, ten (the review of the devices' screen, finding 3); and ten each of the vault
@@ -950,8 +957,8 @@ about, which is one of the owner's own and signs nobody in, and the answer says 
 proofs there were in the last 24 hours. The lines are read through an index on their kind,
 each set by a query of its own (Cloudflare's SQLite takes few terms in one compound query), so
 that a kind's newest lines are read without reading the others': rows read count toward the
-plan's daily number (LIM-1). The index is newer than the databases made before it, and is made
-where it is needed, at the next tidying or reading. The list of sessions says of each whether it is unlocked, and whether it
+plan's daily number (LIM-1). The indexes are newer than the databases made before them, and are
+made where they are needed, at the next line written or read. The list of sessions says of each whether it is unlocked, and whether it
 has opened the vault since it signed in (1.9, "Unlocked, and having opened"). The screen that
 shows both is in 1.10. A sign-in that fails is not logged:
 that would let a stranger write to a person's database. A wrong proof is, because only a
@@ -1423,18 +1430,37 @@ vault first (the review of the door). Both name the vault they mean, and are ref
 another: a device erases the vault it has, never one made since.
 
 **The seven days.** The erasing asked for is kept in a row of its own (which vault, when asked,
-when due, by which session). Asking again, by any session, neither puts it off nor brings it on,
-and writes nothing. Every signed-in session is shown it: the vault's answer carries it, and
-each screen of a signed-in device says when it will be, when and from which device it was
-asked, and how to call it off. Calling it off (`vault/erase-cancel`) needs the vault open. That
-is a choice: whoever holds only the mailbox can then ask for an erasing but cannot keep a real
-reset from happening; whoever knows a way in can call it off, and could read the vault anyway.
-An erasing is done when it is due by the object's alarm, set when it is asked for and again
-each time the vault is read while it is asked for. Alarms run at least once and are retried,
-and are available to the Free plan's objects. Should one be lost, every request checks for an
-erasing that is due before it is answered and does it first: after the seven days nobody is
-shown that vault again, whether or not the alarm came. An erasing asked for a vault the
-database no longer holds is let go of and erases nothing.
+when due, by which session). Asking again, by any session, brings it no nearer and writes
+nothing. Every signed-in session is shown it: the vault's answer carries it, and each screen of a
+signed-in device says when it will be, when and from where it was asked, and how to call it off.
+It is called off by a right proof (`vault/unlock`, with a line of its own and an answer that says
+so), or with a press by a session that has the vault open already (`vault/erase-cancel`). Either
+way it takes a way in. That is a choice: whoever holds only the mailbox can then ask for an
+erasing but cannot keep a real reset from happening; whoever knows a way in could read the vault
+anyway, and could erase it at once.
+
+**Nobody kept out.** The seven days are seven days in which nothing was done to keep out whoever
+holds a way in (the review of this slice, finding 1). Whoever holds only the mailbox can do that
+much: fill the count of wrong proofs so that every proof is turned away, the right one too
+(1.9); fill the hour's twelve sign-ins; push sessions out with new ones; or sign them out. Each,
+while an erasing is asked for, puts it off until seven days after it ends. A wrong proof that
+fills the count: seven days after the count frees, which is known when it fills, since nothing
+is counted while it is full. The twelfth sign-in in an hour: likewise. A sign-in that pushes a
+session out, and a session that signs another out: seven days from then. An erasing asked for
+while proofs or sign-ins are being turned away starts its seven days when they are not. Nothing
+brings one nearer. So whoever keeps the holder of a way in out can put an erasing off for as long
+as they keep at it, and cannot bring about one that the holder could have stopped. The screens
+say what puts the seven days off; when proofs are being turned away, the screen that asks for
+the passphrase says that this time does not count, and what to do.
+
+**The alarm.** An erasing is done when it is due by the object's alarm, set when it is asked for,
+and set again when the vault is read if it is not set for that time already (put off since, or
+never set). Reading the vault does not set it otherwise: anyone signed in may read the vault,
+and setting an alarm writes (finding 5a). Alarms run at least once and are retried, and are
+available to the Free plan's objects; woken early, the object sets its alarm again. Should one be
+lost, every request checks for an erasing that is due before it is answered, and does it first:
+after the seven days nobody is shown that vault again, whether or not the alarm came. An erasing
+asked for a vault the database no longer holds is let go of and erases nothing.
 
 **What goes, and what stays.** Erasing lets go, in one transaction, of the vault's chunks and
 its row (chunks.ts), its ways in, the wrong tries counted against them, which sessions hold it
@@ -1448,41 +1474,67 @@ erasing any device may make a new vault, with ways in of its own (1.9).
 **On the devices.** The device that erases goes to the screen for a new vault, which says that
 the vault was erased. A device that comes to that screen (no vault on the server) empties its
 own copy of the vault that was (idbcache.ts): what was sealed with a key nobody can unwrap any
-more is not left lying. A device that had the vault open elsewhere is told at its next word
-with the server that it holds nothing open, asks where things stand, and is shown that there is
-no vault. Erasing at once needs a word typed (清空, ERASE), so that one press does not delete
-everything; starting over is a page that says plainly what losing both secrets means.
+more is not left lying. A device whose vault went elsewhere, or by its seven days, is told so at
+whatever it asks next: erasing at once and calling off name their vault and answer "gone" (or
+"another", when a vault was made since) before "locked" (finding 3); a sync is answered that
+it holds nothing open; and the screen that asks for the passphrase, told there is no way in,
+asks where things stand. Each then goes to the screen for a new vault, which says that the
+vault was erased, elsewhere or by its seven days. A right proof that calls an erasing off brings
+the person to the open vault with a note that says so, and how to erase it after all. Erasing at
+once needs a word typed (清空, ERASE), so that one press does not delete everything; starting
+over is a page that says plainly what losing both secrets means.
 
 **Tested.** On Node, against the server's own code: what goes and what stays, table by table;
 who may erase at once and who may not, and the vault named; the day's writes carried to a new
 vault and starting again the next day; asking, asking again, being shown it from every session,
 a millisecond before it is due and at the time, with a session's request and with the alarm and
-none; calling off, by whom; an erasing of a vault no longer held; damaged rows; the lines kept
-in sight after an afternoon of signing in and out; the index. And the app's side, against the
-server's code and against answers that are not what they should be. On the local runtime, the
-events call with its sets of lines. In the browser: starting over from the screen that asks for
-the passphrase, the notice on every screen, calling it off with the vault open, erasing at
-once only once the word is typed, this device's copy emptied, a new vault made after, and
-another device that had the vault open finding out, each device's copy emptied. The code's
-checks were taken out one at a time, in a copy of the tool: of 78 in the server's and the app's
-code, 76 failed a Node test at first; of 20 in the screens, 18 failed the browser check. The four
-that lived came from three gaps, now closed: an erasing row whose session is no text (a test of
-a damaged row), the list of devices knowing the three new kinds (a test against the server's
-code), and a new vault leaving nothing in the device's copy, so that emptying it could not be
-seen (the browser check now gives each device a copy to lose, the one that erased and the other).
+none; calling off, by whom, and by a right proof; each way of keeping someone out putting an
+erasing off, and none bringing one nearer; asked for while proofs or sign-ins are turned away;
+someone with only the mailbox guessing every five minutes for eight days while the owner shows
+the right code every three hours (he never gets past the count, the vault is not erased, and his
+next right proof once they stop calls the erasing off); an erasing of a vault no longer held;
+damaged rows; the lines kept in sight after an afternoon of signing in and out; what each line
+written reads, by its query plans. The object's alarm, run on Node with a stand-in for the
+platform's storage: set once, set again when put off, set again when woken early, and a refused
+one no failure. The app's side, against the server's code and against answers that are not what
+they should be. On the local runtime, the events call with its sets of lines. In the browser:
+starting over from the screen that asks for the passphrase, the notice on every screen, the
+screen turned away for too many tries, a device that had the vault open calling it off with a
+press, opening calling it off, a vault gone while a screen asked for it, erasing at once only
+once the word is typed, each device's copy emptied (with a sealed blob in it), a new vault made
+after, and another device that had the vault open finding out.
+
+The code's checks were taken out one at a time, in a copy of the tool. In the first round: of
+78 in the server's and the app's code, 76 failed a Node test at first; of 20 in the screens, 18
+failed the browser check; the four that lived came from three gaps, closed with tests (an
+erasing row whose session is no text; the list of devices knowing the three new kinds; a new
+vault leaving nothing in the device's copy, so that emptying it could not be seen). After the
+review: of 42 in what changed for it, 38 failed a Node test at first; three of the four that
+lived now do (a hold that would bring an erasing nearer; the app saying, never or always, that
+opening called one off), and the fourth changes nothing that can happen (the hour's count never
+holds more than ten tries); of 11 in the screens, all 11 failed the browser check.
 
 **Limits.**
 
 - The owner learns of an erasing asked for only by opening MoneyLens, on any device. Nothing
   is sent to the mailbox: MoneyLens sends no mail, and whoever asked for it may hold the
   mailbox. Someone who holds the mailbox can therefore have the vault of an owner who does not
-  open MoneyLens for seven days erased. They cannot read it. The operator can restore a
-  database from the platform's recovery history for up to 30 days (BAK-3), which is the way
-  back then (section 3).
-- The alarm cannot be run on the local runtime without waiting the seven days; what it calls
-  is tested on Node, and the object's three lines that set it and answer it are read.
-- Calling off needs the vault open. An owner who asked to start over and then finds the
-  recovery code opens the vault with it, and calls it off there.
+  open MoneyLens for seven days erased. They cannot read it. The operator may be able to
+  restore a database from the platform's recovery history for up to 30 days (BAK-3, to
+  confirm), which would be the way back then (section 3).
+- MoneyLens sees only what is done inside it. Whatever keeps the owner from reaching it at all,
+  such as the main site's own limits on sign-in codes and handoffs, the account's address
+  changed by whoever holds the mailbox, or the object kept too busy to answer from many
+  addresses at once, is not seen here, and the seven days run. To settle with
+  the mail sent when an erasing is asked for, before anyone but the owner is let in (section 3).
+- Whoever holds the mailbox can put an erasing off for as long as they keep someone out, a
+  reset included. The owner who has lost both secrets takes the mailbox back first (a new
+  address at changle.ca), then asks. Likewise a vault made by whoever took the mailbox first is
+  theirs to call off, since they hold its ways in, for as long as they can sign in.
+- The alarm cannot be run on the local runtime without waiting the seven days. On Node the
+  object's alarm, and the setting of it at each answer, are run with a stand-in for the
+  platform's storage; that the platform fires it, retries it and keeps it through a deploy, and
+  what setting it costs, only a deployment shows.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -1561,14 +1613,34 @@ seen (the browser check now gives each device a copy to lose, the one that erase
 - The list of devices names a browser from a few fixed words (1.8). A browser that says little
   of itself is "Browser", and one built on another's engine may be named as that other. The
   times beside it are what tell two such devices apart.
-- An erasing asked for is shown only in MoneyLens (1.11, limits). Whether the accounts service
+- An erasing asked for is shown only in MoneyLens (1.11, limits), and what keeps the owner
+  from reaching MoneyLens at all (the main site's limits on sign-in codes and handoffs, the
+  address changed) is not seen there, so the seven days run. Whether the accounts service
   should mail the account's address when one is asked for, and the operator's part in
-  restoring a vault erased that way, are to settle before anyone but the owner is let in.
+  restoring a vault erased that way (BAK-3 confirmed), are to settle before anyone but the
+  owner is let in. So is a review of the erasing path by another model or a person: the
+  review of 1.11 was by the author's own model.
+- The wrong-proof count belongs to the account (1.9): whoever holds the mailbox can fill it and
+  keep the owner out, which since 1.11 puts an erasing off and destroys nothing, but still keeps
+  the owner from his vault for as long as they keep at it. A count kept apart for devices that
+  have opened the vault before would end that. To settle with changing the passphrase, at the
+  latest (the review of 1.11).
+- Which other devices opened the vault (1.8, 1.10): the newest ten openings by any session but
+  the one asking are shown apart, and a session that has ended is not named. The owner's own
+  devices are "other sessions" too, so in ordinary use an intruder's opening leaves the ten in
+  days and the fifty in a week or two; and its kind's 500 lines are shared with the owner's own
+  openings, short of SEC-17's twelve months. To settle before anyone but the owner is let in:
+  keep the session's label with each line, show apart the openings of the last thirty days
+  within a bound, and keep openings for their twelve months within a bound of their own (the
+  review of 1.11, finding 4).
 - A right proof is counted against nothing. Whoever holds the passphrase can have a line
   written at each request, three hundred a minute from one address. The lines kept stay within
   their most (1.8), but each is a write, and writes count toward the plan's daily number that
-  all of changle.ca shares (LIM-1). To settle before anyone but the owner is let in: a count,
-  or no line for a session that is already unlocked.
+  all of changle.ca shares (LIM-1). So can whoever holds a way in by making a vault and erasing
+  it at once, over and over, or by asking for an erasing and calling it off: about a dozen rows
+  a round, which no quota counts (the review of 1.11, finding 5c). To settle before anyone but
+  the owner is let in: a count of what a session may write in a day besides chunks, or no line
+  for a session that is already unlocked, and vault starts counted per day.
 - What Cloudflare's logs keep of a request. The Worker's own lines carry no contents (OBS-1),
   and the line Cloudflare writes for each request is switched off in `wrangler.jsonc`, because
   it would carry the request's headers, the session's cookie among them. To look at once on
@@ -1576,8 +1648,8 @@ seen (the browser check now gives each device a copy to lose, the one that erase
 - Shutting the gate ends no session and takes no cookie away (1.10, "Signing out"). When the
   operator's way of stopping the service is built (ADM-5), it should end sessions as well, or
   the answer "closed" should take the cookie.
-- The handoff, the allowlist, the Worker, the Durable Object and resetting a vault: sections to
-  add with the server. Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
+- The handoff, the allowlist, the Worker and the Durable Object: sections to add with the
+  server (resetting a vault is 1.11). Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
   quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").
   The operator's way of changing the quotas (LIM-2) comes with the Durable Object.
 - The code that talks to the server over the network. On top of what the store does (1.6,

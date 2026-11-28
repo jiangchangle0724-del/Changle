@@ -134,11 +134,17 @@ const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, 
   whatever came after them, the newest 30 wrong proofs, with `wrong`, their number in the last
   day. Read both with `src/app/devices.ts`, which takes them whole or not at all.
 
-Erasing a vault (`vault/erase`, `vault/erase-later`, `vault/erase-cancel`; `src/server/erase.ts`,
-assessment 1.11): read it with `src/app/erase.ts`. Every request does an erasing that is due
-before it answers, and the object's alarm does it when nobody asks. Erasing goes table by table;
-anything a new table holds of a vault has to be added to `eraseVault` (or `forgetChunks`,
-`forgetWays`), or it outlives the vault.
+Erasing a vault (`vault/erase`, `vault/erase-later`, `vault/erase-cancel`, each naming its vault;
+`src/server/erase.ts`, assessment 1.11): read it with `src/app/erase.ts`. A right proof calls an
+erasing off too. Every request does an erasing that is due before it answers, and the object's
+alarm does it when nobody asks. Erasing goes table by table; anything a new table holds of a vault
+has to be added to `eraseVault` (or `forgetChunks`, `forgetWays`), or it outlives the vault. And
+anything new by which one session can keep another out (a count, a cap, a way to end a session)
+has to put an erasing off with `holdErase`, or someone holding only the mailbox can use it to
+have a vault erased that its owner could not save.
+
+The events log: every line is written by `note` (account.ts), which lets go of the lines too old
+and of its own kind's past the 500. A line written another way would hold its kind to nothing.
 
 **A new table in a database that already exists.** An account's tables are made at its first
 sign-in (`signIn` in `account.ts`), and accounts exist. A table added after that is in none of

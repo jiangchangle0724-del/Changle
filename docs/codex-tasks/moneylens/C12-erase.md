@@ -81,3 +81,71 @@ reviewed (APPROVE, or CHANGES with numbered findings), the independence limit st
 finding 3 of the devices' screen marked resolved or not, what you ran and could not, what only a
 deployment or a phone can show, and the obligations you would put on the next slices (the
 weekly sweep, changing the passphrase and a new recovery code, the import page).
+
+## Second look (after CHANGES at `9bffa8cc`)
+
+**When:** now. **Same reviewer, same limit:** the author is still Claude Opus 5.5; say so first again.
+**Files:** your `reviews/erase.md` (add a second-look section; keep the first as it is), your
+`tests/second-erase.test.ts`, `second-door.test.ts`, `second-devices.test.ts`. Nothing else.
+**Commands:** as before. Again, not `test:server`, `test:app` or `test:page`: the author ran them
+at the head of this look (19 platform tests; the browser check, 33 screens; the page checks).
+
+`git diff 13bed4e2 HEAD -- tools/moneylens docs/moneylens` is what changed since your review
+(`ce1b4a6a` is your record and tests as you wrote them).
+
+### What changed, finding by finding
+
+1. **Finding 1.** Your fix (a), widened. An erasing waits for seven days in which nobody was kept
+   out (`holdErase`, erase.ts; its header says why). It is put off by: a wrong proof that fills
+   the count (until seven days after the count frees, `held` from `tryUnlock`); the twelfth
+   sign-in in an hour (likewise); a sign-in that pushes a session out (`crowded`, sessions.ts);
+   a session that signs another out, by id or all at once. Asked for while proofs or sign-ins
+   are being turned away, it starts its seven days when they are not. Nothing brings one
+   nearer. And a right proof calls an erasing off, in the same transaction, with its own line,
+   and the answer says so (`erasing: "called-off"`). Not your fix (b): the count kept apart for
+   known devices is where you put it, on changing the passphrase.
+2. **Finding 2.** Since a right proof now calls an erasing off, "opening the vault calls it off"
+   is true; both languages now say it in the same words, and the open vault says so when it
+   happens (`erasingCalledOff`).
+3. **Finding 3.** `vault/erase` and `vault/erase-cancel` both name their vault now (calling off
+   took no body before) and answer "no-vault", then "another-vault", before "locked". The app:
+   `keepVault(ask, vault)` reads "gone" and "another"; the notice, the erase screen and the
+   reset screen start over; a sync answered 423 starts over too; the screen asking for the
+   passphrase, told there is no way in, asks where things stand. Each says the vault was erased
+   (`newGone`).
+4. **Finding 4.** Not changed: an open point in section 3, with your fix.
+5. **Finding 5.** (a) The alarm is set only when `getAlarm()` is not already that time
+   (worker.ts). (b) Every line is written by `note`, which lets go of the lines too old (through
+   a new index on `at`) and of its own kind's past 500; the tidy of all eleven kinds is gone.
+   The hour's sign-ins are read by time. (c) An open point in section 3, with the other writes
+   that nothing counts.
+6. **Finding 6.** "Another sign-in"; the recovery history's 30 days on the erase screen. VAULT-5's
+   export is still owed.
+7. **The browser check's copy.** One invented chunk beside the meta line on the phone, just
+   before erasing at once; both stores are checked emptied.
+
+### Look hardest at what I added
+
+The holds beyond the wrong-proof count are mine, and we are the same model. Is there any other
+way one session can keep another from showing a proof, from signing in, or from staying signed
+in, that puts nothing off? Can any hold be used to bring an erasing nearer, or to make a
+reset that should go through never go through (the section's limits say what I think it can)?
+And is calling off by a right proof right: can anything but a right proof of the vault held
+call it off; does the session that asked, opening later, call off its own reset (it does, and
+the screen says so)?
+
+### What changed under your tests
+
+- `second-erase.test.ts`: `vault/erase-cancel` needs `{ vault }` (your lines 106 and 207 get
+  400); `keepVault` takes the vault (your line 403, a type error); your stand-in for the
+  object's storage needs `getAlarm`. Your finding 1 test asks that the owner gets in: with fix
+  (a) the guesser who keeps the count full keeps the owner out, and the vault is kept instead;
+  my test of the same scenario says that, and that the owner's next right proof calls the
+  erasing off once they stop. Restate it for what should hold.
+- My `shell.test.ts` test of the events log is restated: lines put in by hand of another kind
+  are no longer let go of by a sign-in, only by a line of their own kind.
+
+### What to hand back
+
+The same as before, as a second look: a verdict for the head, each finding resolved or not,
+anything new, and what you ran.
