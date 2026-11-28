@@ -1,4 +1,6 @@
-VERDICT: APPROVE (two findings, neither blocks the merge; finding 1 must be fixed, or its words changed, before anyone but the owner is let in)
+VERDICT (second look, 636efca8): APPROVE (findings 1 and 2 resolved; one new finding, 3, which does not block the merge and is to be settled before anyone but the owner is let in)
+
+(First look, 8c4988d1: APPROVE with two findings.)
 
 # C11: the devices and what has happened (the screen on which an account's owner sees who is in it)
 
@@ -221,5 +223,120 @@ were written.
 - It writes text only.
 - It keeps nothing parsed in `localStorage`.
 - The idle lock covers it, and so does a lock from another tab (finding 1).
+
+## Second look: 636efca8
+
+Reviewed on 27 November 2026 by the same reviewer: Claude Opus 5.5, a separate agent, of the
+same family of models as the author, with the same limit on independence. I read
+`git diff 8c4988d1..636efca8`: the server, the page's reading, the screen, the words in both
+languages, and 1.9 ("Unlocked, and having opened"), 1.10 and their limits. My three files in
+`62f57830` are as I wrote them.
+
+**Verdict: APPROVE** for merging 636efca8.
+
+### Finding 1 (the screen says "vault locked" on the device's own word): resolved
+
+- "Locked" is said of no device now (`deviceLocked` is gone).
+- A device is either:
+  - "Vault open": the server's count. This overstates where a lock was lost, which is the safe
+    side.
+  - "Opened the vault, then said it had locked": both halves are true.
+  - "Has not opened the vault since this sign-in".
+- The server knows `opened`:
+  - It is noted inside the same `act` that hands out the wrapper (`tryUnlock`) or makes the vault
+    (`unlockMaker`), so there is no request between the key and the note.
+  - `lock` keeps it.
+  - It goes only when the session is gone.
+  - Nothing a session may do goes by it. Tested: one that opened and locked gets 423.
+- My finding 1 test is restated and plain. The browser with two tabs, after one tab locks, is
+  listed as `unlocked: false, opened: true`, and it stays `opened` after the other tab locks too.
+
+"Has not opened the vault since this sign-in" can be false in one case only: a session that opened
+and locked before the table existed. 1.9 admits this, and only the owner's sessions can be in it.
+I found no race:
+- The note is written in the same synchronous stretch as the unlocking.
+- The list reads both tables with nothing in between.
+- The tidying drops a note only for a session that is no longer in `sessions`. Ids are random and
+  never reused.
+
+The new table on a database that already exists:
+- `CREATE TABLE IF NOT EXISTS` is run before each read and write of it, inside the same
+  transaction where there is one.
+- Tested on a database whose table was dropped: the maker is listed as opened, through the
+  `UNION` with `unlocked`.
+- `deleteAll` (the account gone) takes it with everything else.
+
+Bound:
+- Notes are written only by unlocking, and every right proof tidies.
+- Sessions pushed out by a ninth sign-in, or signed out, keep their note until the next tidy.
+  Notes therefore never outnumber the live sessions by more than one. Tested over 20 devices
+  that open and leave.
+- The note tells no one anything new. The list was already readable by any session of the
+  account, and "Opened the vault" lines were already in the events.
+
+### Finding 2 ("no other device" over a list that shows one): resolved
+
+- `outcomeOf` says "none" only over a list with no other device. Over a list that shows one, it
+  says nothing after an answer that was done, or "not done" after one that was not.
+- My test is plain, with the other answers pinned:
+  - a failed "others" asking over a list that shows another device;
+  - a failed single asking over a list that still shows it (not done);
+  - a failed single asking over a list that no longer shows it (done).
+
+### The smaller notes
+
+- The advice is turned round, in both languages, and names the main site's page and not its
+  button.
+- `history.back()` in the layout effect: `listing` is put out first, so the effect runs once for
+  each arrival on the step and cannot go back twice. It goes back only when the step is the list's
+  own, and that step always has an entry of this page before it (it is made by `pushState` from
+  one). So it cannot go off the page.
+- A fresh load on the step when nobody is signed in waits for `starting` to end, then goes back
+  one step and shows the signed-out screen.
+- I could not run any of this in a browser here. The author's browser check covers these moves.
+
+### Finding 3: an intruder who opened the vault can take that off the screen in a few hours (does not block the merge; settle before anyone but the owner is let in)
+
+**Where:** `ways.ts`, `tidyUnlocked` (the `opened` note goes with the session); `account.ts`,
+`events` (the "unlocked" lines are among the newest 50 only, unlike wrong proofs);
+`Devices.tsx`, `openedHint` (shown only for a device still in the list).
+
+**What goes wrong.** The fact this screen most needs to keep is that a device the owner does not
+know opened the vault, because then the passphrase is known. It lasts only while that device's
+session does.
+- Someone who knows the passphrase opens the vault, signs out, and then signs in and out about
+  ten times an hour. Within about five hours nothing on the owner's screen says that another
+  device ever opened the vault: no device is marked opened, the hint is gone, and the
+  "Opened the vault" line has been pushed out of the 50.
+- The same happens sooner when the owner himself signs that device out. The hint disappears at
+  once, and only the event line is left, until it too is pushed out.
+- 1.9 says what an earlier session did "is in the events log, for as long as its lines are among
+  those shown (section 3)", but section 3 has no such point.
+
+**Test:** `finding 3: a device that opened the vault and then signed out stays shown as such after
+an afternoon of signing in and out` (todo).
+
+**Fix:** keep the newest "unlocked" lines of sessions other than the asking one shown apart, as
+the wrong proofs are, and say `openedHint` over those lines as well as over the listed devices.
+Or keep a small note per account of the last few sessions that opened, kept past their end.
+Then write the open point into section 3 as 1.9 says it is.
+
+It does not block the merge: until now the owner's account is the only one let in, and the screen
+is still truthful about every device it lists. It must be settled before anyone else is let in.
+
+### What was run at 636efca8
+
+In `tools/moneylens` of `/home/claude/review-c11b`:
+- `npx tsc --noEmit`: clean.
+- `npx tsc --noEmit -p src/server/tsconfig.json`: clean.
+- `node --import tsx --test tests/second-devices.test.ts`: 7 tests, 6 pass, 0 fail, 1 todo
+  (finding 3).
+- `npm test`: 538 tests, 537 pass, 0 fail, 0 skipped, 1 todo.
+
+`second-door.test.ts` needed no change.
+
+**Not run:** `npm run test:server`, `npm run test:app`, `npm run test:page`, the local runtime,
+and any browser, as the card asks. The author reports that all three pass at 191715ef; I did not
+see those runs. Nothing was committed and no network was used.
 
 No real account, statement, key or token is in this review or its tests. Every value is invented.

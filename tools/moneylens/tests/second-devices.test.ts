@@ -110,7 +110,7 @@ test("one account's screen shows nothing of another account's", async () => {
 // Findings (todo while each stands)
 // ---------------------------------------------------------------------------------------------
 
-test("finding 1: a second tab that locks does not make the list say 'vault locked' of a browser that still holds the vault open", { todo: "finding 1: 'unlocked' is kept per session (a browser), so one tab's lock or idle drop marks a browser locked while another tab holds the key" }, async () => {
+test("finding 1 (resolved at 636efca8): a second tab that locks leaves its browser listed as having opened the vault, which the server knows whatever the browser says", async () => {
   const s = server();
   const owner = await s.browser("Chrome on Mac");
   const made = await draft(PASSPHRASE);
@@ -127,13 +127,78 @@ test("finding 1: a second tab that locks does not make the list say 'vault locke
   // the first tab still holds the key in memory (`inOne.vault`), and the owner is told that browser's vault is locked
   const read = await listing(owner.ask);
   assert.ok(read.ok);
-  assert.equal(read.devices.find((d) => d.id === laptop.id)!.unlocked, true, "a browser that holds the vault open is listed as 'Vault locked'");
+  const listed = read.devices.find((d) => d.id === laptop.id)!;
+  // (its own word is that it locked; what the server knows is that it opened the vault, and that is what is listed)
+  assert.deepEqual([listed.unlocked, listed.opened], [false, true]);
+  // the same browser saying it locked again, or locking in every tab, does not take that away while it is signed in
+  await lock(one, false);
+  const again = await listing(owner.ask);
+  assert.ok(again.ok && again.devices.find((d) => d.id === laptop.id)!.opened);
 });
 
-test("finding 2: 'No other device is signed in' is not said above a list that shows another device", { todo: "finding 2: outcomeOf answers 'none' from ended: 0 without looking at the list read afterwards" }, () => {
+test("finding 2 (resolved at 636efca8): 'No other device is signed in' is not said above a list that shows another device", () => {
   // all the others were asked to sign out; there were none; by the time the list is read again, one has signed in
-  const here = { id: newId(), label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true };
-  const newcomer = { id: newId(), label: "Chrome on Windows", made: T0 + 1, seen: T0 + 1, here: false, unlocked: false };
+  const here = { id: newId(), label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true, opened: true };
+  const newcomer = { id: newId(), label: "Chrome on Windows", made: T0 + 1, seen: T0 + 1, here: false, unlocked: false, opened: false };
   const now: Listing = { ok: true, devices: [here, newcomer], lines: [], wrong: 0 };
-  assert.notDeepEqual(outcomeOf("others", { ended: 0 }, now), { said: "none" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, now), { said: "nothing" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, { ok: true, devices: [here], lines: [], wrong: 0 }), { said: "none" });
+  // (and a failed asking over a list that still shows the other device says it was not done)
+  assert.deepEqual(outcomeOf("others", "server", now), { said: "not-done", why: "server" });
+  assert.deepEqual(outcomeOf(newcomer.id, "offline", now), { said: "not-done", why: "offline" });
+  assert.deepEqual(outcomeOf(newcomer.id, "offline", { ok: true, devices: [here], lines: [], wrong: 0 }), { said: "one" });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Second look (636efca8)
+// ---------------------------------------------------------------------------------------------
+
+test("second look: the note of having opened is made on a database that was made before it, and is bounded by the sessions", async () => {
+  const s = server();
+  const owner = await s.browser();
+  const vault = newId();
+  const ways = [way(vault, "passphrase"), way(vault, "recovery")];
+  assert.equal((await owner.ask("vault/start", { vault, ways }))!.status, 200);
+  // a database from before the table: it is not there, and the maker is unlocked
+  s.db.raw.exec("DROP TABLE opened");
+  const first = await listing(owner.ask);
+  assert.ok(first.ok && first.devices[0]!.opened && first.devices[0]!.unlocked);
+  // twenty devices sign in, open the vault and are pushed out or sign out: what is noted never outgrows the sessions
+  for (let i = 0; i < 20; i++) {
+    s.later(6 * MINUTE);
+    const b = await s.browser("Edge on Windows");
+    assert.equal((await b.ask("vault/unlock", { id: ways[i % 2]!.wrapper.id, proof: ways[i % 2]!.proof }))!.status, 200);
+    if (i % 2) await b.ask("session/end", {});
+    await owner.ask("vault", {});
+  }
+  const noted = (s.db.raw.prepare("SELECT COUNT(*) AS n FROM opened").all()[0] as { n: number }).n;
+  const live = (s.db.raw.prepare("SELECT COUNT(*) AS n FROM sessions").all()[0] as { n: number }).n;
+  assert.ok(noted <= live + 1, `${noted} notes for ${live} sessions`);
+  // nothing a session may do goes by the note: one that opened and locked reads nothing
+  const b = await s.browser("Opera on Android");
+  await b.ask("vault/unlock", { id: ways[0]!.wrapper.id, proof: ways[0]!.proof });
+  await b.ask("vault/lock", {});
+  assert.equal((await b.ask("sync/pull", { vault, since: 0 }))!.status, 423);
+});
+
+test("finding 3: a device that opened the vault and then signed out stays shown as such after an afternoon of signing in and out", { todo: "finding 3: 'unlocked' lines are among the newest 50 only, and 'opened' goes with the session, so an intruder who opened the vault can hide that in a few hours" }, async () => {
+  const s = server();
+  const owner = await s.browser("Safari on iPhone");
+  const vault = newId();
+  const ways = [way(vault, "passphrase"), way(vault, "recovery")];
+  await owner.ask("vault/start", { vault, ways });
+  // someone who knows the passphrase opens the vault, signs out, then signs in and out under the dozen an hour
+  const intruder = await s.browser("Chrome on Windows");
+  assert.equal((await intruder.ask("vault/unlock", { id: ways[0]!.wrapper.id, proof: ways[0]!.proof }))!.status, 200);
+  await intruder.ask("session/end", {});
+  for (let i = 0; i < 55; i++) {
+    s.later(6 * MINUTE);
+    const b = await s.browser("Chrome on Windows");
+    await b.ask("session/end", {});
+    await owner.ask("vault", {});
+  }
+  const read = await listing(owner.ask);
+  assert.ok(read.ok);
+  const shown = read.devices.some((d) => !d.here && d.opened) || read.lines.some((l) => l.kind === "unlocked" && l.session === intruder.id);
+  assert.ok(shown, "nothing on the screen says that another device opened the vault");
 });
