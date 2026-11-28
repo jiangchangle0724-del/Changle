@@ -222,6 +222,12 @@ test("an erasing asked for a vault this database no longer holds is let go of, a
   // (the object turns the error into "unavailable", worker.ts), as for any part of a database that cannot be read
   db.raw.prepare(`INSERT INTO erasing (one, vault, asked, due, session) VALUES (1, ?, ?, ?, NULL)`).run(vault, T0 + 9, T0 + 8);
   assert.throws(() => pendingErase(db), /erasing row/);
+  // (a session that is no text: a number would be made text by the column, a blob is not)
+  db.raw.prepare(`UPDATE erasing SET due = ?, session = X'00'`).run(T0 + 10);
+  assert.throws(() => pendingErase(db), /erasing row/);
+  db.raw.prepare(`UPDATE erasing SET session = NULL`).run();
+  assert.deepEqual(pendingErase(db), { vault, asked: T0 + 9, due: T0 + 10, session: null });
+  db.raw.prepare(`UPDATE erasing SET due = ?`).run(T0 + 8);
   await assert.rejects(due.ask("sessions", T0 + 3 + ERASE_DELAY + 2), /erasing row/);
   assert.equal(left(db).vault, 1);
   // A vault whose own row cannot be read: what reads the vault fails as before, and nothing else does. The check for an

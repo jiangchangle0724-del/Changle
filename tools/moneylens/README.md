@@ -134,6 +134,12 @@ const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, 
   whatever came after them, the newest 30 wrong proofs, with `wrong`, their number in the last
   day. Read both with `src/app/devices.ts`, which takes them whole or not at all.
 
+Erasing a vault (`vault/erase`, `vault/erase-later`, `vault/erase-cancel`; `src/server/erase.ts`,
+assessment 1.11): read it with `src/app/erase.ts`. Every request does an erasing that is due
+before it answers, and the object's alarm does it when nobody asks. Erasing goes table by table;
+anything a new table holds of a vault has to be added to `eraseVault` (or `forgetChunks`,
+`forgetWays`), or it outlives the vault.
+
 **A new table in a database that already exists.** An account's tables are made at its first
 sign-in (`signIn` in `account.ts`), and accounts exist. A table added after that is in none of
 their databases. So whatever reads or writes a new table makes sure of it first, with `CREATE
@@ -161,19 +167,22 @@ Cloudflare's types by `src/server/tsconfig.json` (`npm run typecheck` runs both)
 ## The app's pages
 
 `web/app/` is the app a person sees at money.changle.ca, as far as it goes yet: the door
-(signing in, making a vault, opening it, locking, signing out), and the devices that are signed
-in with what has happened on the account. Preact, built by `scripts/build-app.mjs` into
+(signing in, making a vault, opening it, locking, signing out), the devices that are signed
+in with what has happened on the account, and erasing the vault (at once with it open, in seven
+days without it: `Erase.tsx`). Preact, built by `scripts/build-app.mjs` into
 `dist/app`, which the Worker hands out (`src/server/worker.ts`, `page`; `assets` in
 `wrangler.jsonc`). What each step does is `src/app/door.ts`, plain functions over one way of
 asking the server, tested without a page; `src/app/idle.ts` is the fifteen minutes;
 `src/app/devices.ts` reads the list of devices and the events, and says what came of signing a
-device out. Assessment 1.10 has the reasons.
+device out; `src/app/erase.ts` asks for an erasing, and reads it. Assessments 1.10 and 1.11 have
+the reasons.
 
 | File | What it does |
 | --- | --- |
 | `web/app/index.html`, `main.tsx` | The one page, and its start |
 | `web/app/ui/App.tsx` | The screens: signed out, a new vault, the recovery code, opening, the first room |
 | `web/app/ui/Devices.tsx` | The devices that are signed in, wrong tries at the passphrase apart from everything else, and what has happened; signing another device out |
+| `web/app/ui/Erase.tsx` | Erasing the vault at once (with it open), starting over (without it: erased in seven days), and the notice every signed-in screen shows meanwhile |
 | `web/app/ui/common.tsx` | The bar at the top, a field for a secret, the copy button, a note |
 | `web/app/i18n.ts` | Every word a person reads, in Chinese and English |
 | `web/app/styles.css`, `tokens.css`, `fonts/` | Its styles; changle.ca's tokens and fonts, copied (a test keeps `tokens.css` the same as the site's) |
@@ -190,7 +199,8 @@ Rules for whoever adds a screen, each held by `tests/design.test.ts`:
 
 Two more, held by the browser check:
 
-- A screen laid over another (the devices are the first) is one step of the browser's history
+- A screen laid over another (the devices, erasing, starting over: `LAID` in `App.tsx` says over
+  which screens each may lie) is one step of the browser's history
   at the same address, shown exactly while the browser stands on that step: "back" closes it,
   and a page loaded afresh on the step shows it again (`App.tsx`, `listing`). The screen behind
   it stays as it was; an open vault stays open.
