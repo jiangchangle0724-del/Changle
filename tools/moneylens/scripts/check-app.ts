@@ -616,6 +616,18 @@ try {
   assert.equal(await page.getByText(/^这个保险库会在 .+ 清空。/).count(), 0);
   assert.deepEqual(((await page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json())`)) as { erasing: unknown }).erasing, null);
 
+  // (a laptop has the vault open too: it is to find out that the vault is gone at its next word with the server)
+  const laptops = await browser.newContext({ locale: "zh-CN", viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
+  const laptop = await laptops.newPage();
+  watch(laptop);
+  await laptop.goto(`${ORIGIN}/`);
+  await laptop.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
+  await title(laptop, "打开你的账").waitFor();
+  await laptop.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await laptop.getByRole("button", { name: "打开", exact: true }).click();
+  await title(laptop, "保险库打开了").waitFor();
+  await laptop.getByText("已经和服务器对过。").waitFor();
+
   // ---- erased at once, with the vault open: only once the word is typed
   await page.getByRole("button", { name: "清空保险库" }).click();
   await title(page, "清空保险库").waitFor();
@@ -649,6 +661,14 @@ try {
   await page.getByRole("heading", { level: 2, name: "别的设备打开过保险库", exact: true }).waitFor();
   await screen(page, "devices-after-erase");
   await page.getByRole("button", { name: "返回" }).click();
+  // the laptop still shows its open vault; at its next word with the server (here, coming back to the vault from its
+  // list) it is told it holds nothing open, asks where things stand, and is shown that there is no vault
+  await title(laptop, "保险库打开了").waitFor();
+  await laptop.getByRole("button", { name: "设备和记录" }).click();
+  await title(laptop, "设备和记录").waitFor();
+  await laptop.getByRole("button", { name: "返回" }).click();
+  await title(laptop, "先定一个口令").waitFor();
+  await laptops.close();
   // a new vault, with the same passphrase as before, for what follows
   await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
   await page.getByLabel("再输一遍", { exact: true }).fill(PASSPHRASE);
@@ -700,8 +720,8 @@ try {
   // ---- nothing was asked of anyone but this origin, and of the main site for the one hop of each sign-in (T-8)
   const elsewhere = asked.filter((line) => !line.includes(` ${ORIGIN}/`) && !/^GET https:\/\/main\.changle\.test\/tools\/finance\?handoff=[A-Za-z0-9_-]{43}$/.test(line));
   assert.deepEqual(elsewhere, [], "the page asked somewhere else");
-  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), told to slow down (429), and the two requests cut off on purpose
-  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /status of 429 \(/, /net::ERR_FAILED/];
+  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), told to slow down (429), a vault no longer open (423), and the requests cut off on purpose
+  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /status of 429 \(/, /status of 423 \(/, /net::ERR_FAILED/];
   assert.deepEqual(errors.filter((line) => !expected.some((known) => known.test(line))), []);
   for (const known of expected) assert.ok(errors.some((line) => known.test(line)), `nothing matched ${known}`);
   console.log(`the app in the browser: ok (${shots || "no"} pictures)`);

@@ -8,7 +8,7 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KINDS, deviceOf, endDevice, endOthers, listing, outcomeOf, partsOf, restOf, wrongOf, type Device, type Line, type Listing } from "../src/app/devices";
+import { KINDS, deviceOf, endDevice, endOthers, listing, openedOf, outcomeOf, partsOf, restOf, wrongOf, type Device, type Line, type Listing } from "../src/app/devices";
 import type { Ask } from "../src/app/door";
 import { newId } from "../src/core/ids";
 import { act, proofsIn, signIn } from "../src/server/account";
@@ -385,4 +385,12 @@ test("what is said after a device was asked to be signed out goes by the list re
   }
   assert.deepEqual(outcomeOf(ID[1], { ended: 0 }, list(ID[1])), { said: "nothing" });
   assert.deepEqual(outcomeOf(ID[1], { ended: 0 }, list()), { said: "one" });
+});
+
+test("each line in its place: wrong tries, the vault opened by other devices, and the rest", () => {
+  const lines = [line({ kind: "unlock-failed", here: false, session: ID[1] }), line({ kind: "unlocked", here: false, session: ID[1] }), line({ kind: "unlocked", here: true }), line({ kind: "sign-in" }), line({ kind: "unlocked", here: false, session: null })] as unknown as Line[];
+  assert.deepEqual(wrongOf(lines).map((one) => one.kind), ["unlock-failed"]);
+  assert.deepEqual(openedOf(lines).map((one) => [one.kind, one.session]), [["unlocked", ID[1]], ["unlocked", null]]);
+  // (this device's own opening is one of the rest)
+  assert.deepEqual(restOf(lines).map((one) => [one.kind, one.here]), [["unlocked", true], ["sign-in", true]]);
 });
