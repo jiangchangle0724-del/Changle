@@ -204,6 +204,29 @@ by their account. Nothing goes by mail.
 - The phone that invited tells the friend itself, with a message in the site's chat (the friend
   finds the invitation at changle.ca/split). Nothing here sends one.
 
+### 催一下 by mail
+
+On 结清, a transfer still to come to you can be reminded of by mail, sent by the site (Steve,
+2026-11-27): from hello@changle.ca, through the rooms server's mail door (its `Mail` entrypoint,
+bound here as `MAIL`: `src/server/mail.ts`), with a reply going to the signed-in account's own
+email. The Resend key stays on the rooms server.
+
+- `POST …/ledgers/<id>/remind`, signed in, with the key, `{ "member": "<person's id>", "to":
+  "<email>", "lang": "zh" | "en" }`: 200 `{ "sent": true }`. The account has to have said who it
+  is in the ledger (its list, `me`; else 409 `me`), and that person has to owe it now (a step of
+  the settlement, not yet paid; else 409 `settled`). Everything the mail says is the server's own,
+  from the ledger (`site/src/split/remind.ts`, `mailOf`): who, which ledger, how much, the account's
+  person's 收款方式, who it is from, and the ledger's 查看链接 as its button (made here as the phones
+  make it, `site/src/split/viewKey.ts`). The address is passed to the door and kept nowhere (only a
+  fingerprint of it, for its day's count).
+- A day (UTC): each person in a ledger once (429 `again`); 10 from one account, 3 to one address
+  from anyone (429 `limit`); 20 for the whole site, the rooms server's allowance (429 `today`). A
+  reminder that didn't go out gives back what it took. An address the site doesn't mail is 400
+  `to`; the door not sending, 503 `mail`.
+- Locally the stand-in rooms server's `Mail` keeps what it is handed: `POST /test/mails` reads it
+  (and empties it), `POST /test/door` `{ "is": "full" | "down" | "open" }` says how it answers
+  (with `ALLOW_TEST_SETTINGS` only).
+
 ### Limits
 
 500 changes in one request; 20,000 changes sent to one ledger in its life; 2,000 entries in a
@@ -211,7 +234,8 @@ ledger and 30 people (the phone's own rules); 10 new ledgers a day from one netw
 one account; 300 ledgers on one account's list. Files: 10 MB each, 500 MB in all for one account,
 200 a day from one account, 2,000 in one ledger, 10 on one expense. Invitations to friends: 50 a
 day from one account; 30 waiting for one, each for 30 days. Receipts read: 30 a day for one
-account, and 2 dollars a month for the site.
+account, and 2 dollars a month for the site. Reminders by mail: each person in a ledger once a day,
+10 a day from one account, 3 to one address, 20 for the site.
 
 ## Running it
 

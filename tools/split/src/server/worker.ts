@@ -19,10 +19,14 @@
 // is charged what the ledgers keep. When a changle.ca account is deleted, the rooms server says so
 // through `Internal`, and its files go.
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
-import type { Ledger } from "../../../../site/src/split/core";
+import { settlement, type Ledger } from "../../../../site/src/split/core";
+import { money } from "../../../../site/src/split/format";
+import { isEmail, mailOf } from "../../../../site/src/split/remind";
+import { viewKeyOf, viewLink } from "../../../../site/src/split/viewKey";
 import { AccountRoom, INVITES_PER_DAY, STARTS_PER_DAY, type AccountFile, type AccountStore, type Invite, type Invited, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
 import { ID_RE, LedgerRoom, SETTLING_MS, type Count, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile, type Usage } from "../room/ledger";
 import { nextNight } from "../room/nightly";
+import { doorOf, type Sent as Mailed } from "./mail";
 import { fakeItems, fakeRead, monthOf, READ_BUDGET, READS_PER_DAY, readItems, readReceipt, type ItemsReply, type ReadReply } from "./read";
 import {
   ACCOUNT_RE,
@@ -45,6 +49,7 @@ import {
   type MyLedgers,
   type Push,
   type Pushed,
+  type Reminded,
   type Since,
   type Snapshot,
   type Stored,
@@ -59,6 +64,8 @@ export interface Env {
   ROOMS: Fetcher;
   /** receipt photos (stage three): the private bucket split-files, read and written only here */
   FILES: R2Bucket;
+  /** the rooms server's door for mail (site/worker/mail.ts), its `Mail` entrypoint: reminders by mail (src/server/mail.ts) */
+  MAIL?: Fetcher;
   /** local runs and tests only: "1" lifts the daily allowance of new ledgers per network (not per account) */
   ALLOW_TEST_SETTINGS?: string;
   /** with ALLOW_TEST_SETTINGS only: an account's room for files, in bytes, smaller than QUOTA, for the tests to fill */
@@ -76,6 +83,15 @@ export interface Env {
 const BASE = "/split/api";
 /** Ledgers one network may make in a day. (One account may start STARTS_PER_DAY, src/room/account.ts.) */
 const MAKES_PER_DAY = 10;
+/**
+ * 催一下 by mail, a day (UTC): how many one account sends, and how many one address gets from
+ * anyone here; each person in a ledger is reminded once. (The site sends 20 in all: the rooms
+ * server's allowance, site/worker/notice.ts.)
+ */
+const REMINDS_PER_DAY = 10;
+const REMINDS_TO_ONE = 3;
+/** Where the 查看链接 in a reminder leads. */
+const SITE = "https://changle.ca";
 /** The longest request read: 500 changes fit several times over. */
 const BODY_MAX = 400_000;
 /** How the Worker hands the Durable Object the fingerprint of a live connection's key. Set here only, never taken from a phone. */
@@ -293,7 +309,7 @@ export class Internal extends WorkerEntrypoint<Env> {
  * an account's; an account deleted, the way the rooms server does it (the stand-in, through its
  * binding to `Internal`: tests/rooms); and two things that go wrong only rarely, for the nightly
  * checks to put right: a file in the bucket no ledger lists, and an account charged for a file no
- * ledger keeps.
+ * ledger keeps. And the stand-in's mail door: what it sent, and how it answers.
  */
 async function testOnly(req: Request, env: Env, what: string | undefined): Promise<Response> {
   if (env.ALLOW_TEST_SETTINGS !== "1" || req.method !== "POST") return refuse("notfound", 404);
@@ -306,6 +322,9 @@ async function testOnly(req: Request, env: Env, what: string | undefined): Promi
   }
   if (what === "night" && typeof input.account === "string") return json({ used: await accountOf(env, input.account).check() });
   if (what === "account-gone") return env.ROOMS.fetch(new Request("https://rooms.split.invalid/api/me", { method: "DELETE", headers: { authorization: req.headers.get("authorization") ?? "" } }));
+  // (the stand-in's mail door: what it sent since last asked; and how it answers from now on, `is` "open", "full" or "down")
+  if (what === "mails") return env.ROOMS.fetch(new Request("https://rooms.split.invalid/test/mails"));
+  if (what === "door" && typeof input.is === "string") return env.ROOMS.fetch(new Request(`https://rooms.split.invalid/test/door?is=${encodeURIComponent(input.is)}`));
   if (what === "loose" && ledger && file) {
     await env.FILES.put(fileKey(ledger, file), new Uint8Array([0xff, 0xd8, 0xff, 0]), { httpMetadata: { contentType: "image/jpeg" } });
     return json({ ok: true });
@@ -353,6 +372,73 @@ async function invite(req: Request, env: Env, ctx: ExecutionContext, stub: Durab
   const from = { id: who.id, name: who.name, av: who.av, ...(who.ac === undefined ? {} : { ac: who.ac }) };
   const invited = await accountOf(env, to).invited({ ledger, key, name: got.ledger.name, from, ...(member ? { member } : {}), at: Date.now() });
   return json({ invite: invited } satisfies InviteSent, invited === "sent" ? 201 : 200);
+}
+
+/** One of the small Durable Objects that count a day's allowances, by name. */
+const gateOf = (env: Env, name: string) => env.GATES.get(env.GATES.idFromName(name));
+
+/**
+ * 催一下 by mail (Steve, 2026-11-27): the site sends a friendly reminder to someone who still owes the
+ * signed-in account's person in a ledger, through the rooms server's Mail door (src/server/mail.ts),
+ * from hello@changle.ca, with a reply going to the account's own email. The phone says whom (the
+ * person in the ledger) and at which address; everything the mail says is the server's own, from
+ * the ledger: who, which ledger, how much is still to come from them (its settlement), how to pay,
+ * and its 查看链接 (made here as the phones make it). The address goes to the door and is kept
+ * nowhere (only a fingerprint of it, for its day's count). Each person in a ledger is reminded once
+ * a day; an account sends REMINDS_PER_DAY, an address gets REMINDS_TO_ONE; a reminder that didn't
+ * go out gives back what it took.
+ */
+async function remind(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, key: string, keyHash: string | null): Promise<Response> {
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  const input = await body(req);
+  const member = typeof input?.member === "string" && MEMBER_RE.test(input.member) ? input.member : null;
+  const to = typeof input?.to === "string" && isEmail(input.to) ? input.to.trim().toLowerCase() : null;
+  const lang = input?.lang === "zh" || input?.lang === "en" ? input.lang : null;
+  if (!member || !to || !lang) return refuse("bad", 400);
+  const got = await stub.read(keyHash);
+  if (!got.ok) return failed(got);
+  const l = got.ledger;
+  // who the account is in this ledger, as its phones told it (src/room/account.ts, `me`)
+  const me = (await accountOf(env, who.id).list()).find((m) => m.id === ledger)?.me;
+  const from = l.members.find((m) => m.id === me);
+  if (!me || !from) return refuse("me", 409);
+  const owing = l.members.find((m) => m.id === member);
+  const step = owing && member !== me ? settlement(l).steps.find((s) => !s.paid && s.from === member && s.to === me) : undefined;
+  if (!owing || !step) return refuse("settled", 409);
+  const day = today();
+  const taken: string[] = [];
+  const giveBack = () => Promise.all(taken.map((name) => gateOf(env, name).give("remind", day)));
+  const gates: [string, number, "again" | "limit"][] = [
+    [`remind:${ledger}:${member}`, 1, "again"],
+    [`remind:u:${who.id}`, REMINDS_PER_DAY, "limit"],
+    [`remind:to:${await sha256(`split:${to}`)}`, REMINDS_TO_ONE, "limit"],
+  ];
+  for (const [name, most, why] of gates) {
+    if (!(await gateOf(env, name).take("remind", most, day))) {
+      await giveBack();
+      return refuse(why, 429);
+    }
+    taken.push(name);
+  }
+  const view = await viewKeyOf(key);
+  const shown = await stub.view(keyHash, await sha256(view));
+  const { subject, text } = mailOf({ who: owing.name, from: from.name, ledger: l.name, amount: money(step.amount, l.currency, lang), pay: from.pay }, lang);
+  let sent: Mailed;
+  try {
+    sent = env.MAIL
+      ? await doorOf(env.MAIL).send({ app: "split", to, by: who.id, subject, text, ...(shown.ok ? { link: viewLink(SITE, ledger, view) } : {}), lang })
+      : { status: "failed", why: "no-mail" };
+  } catch (e) {
+    console.error("split: a reminder didn't reach the mail door", e);
+    sent = { status: "failed", why: "down" };
+  }
+  if (sent.status === "sent") return json({ sent: true } satisfies Reminded);
+  await giveBack();
+  if (sent.status === "full") return refuse("today", 429);
+  console.error("split: a reminder didn't go out", sent.why);
+  return sent.why === "to" ? refuse("to", 400) : refuse("mail", 503);
 }
 
 /** The invitations waiting for the signed-in account; and one it says no to (or has used), which goes. */
@@ -546,6 +632,7 @@ export default {
       return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
     }
     if (parts.length === 3 && parts[2] === "invites" && req.method === "POST") return invite(req, env, ctx, stub, parts[1], key, keyHash);
+    if (parts.length === 3 && parts[2] === "remind" && req.method === "POST") return remind(req, env, ctx, stub, parts[1], key, keyHash);
     if (parts.length === 3 && parts[2] === "view" && req.method === "PUT") {
       const view = req.headers.get(VIEW_HEADER) ?? "";
       if (!KEY_RE.test(view)) return refuse("bad", 400);
@@ -926,6 +1013,13 @@ export class GateDO extends DurableObject<Env> {
     await this.ctx.storage.put(key, used + 1);
     await this.ctx.storage.setAlarm(Date.now() + 2 * 86_400_000);
     return true;
+  }
+
+  /** One taken today given back: what it was taken for didn't happen (a reminder that didn't go out). */
+  async give(kind: string, day: string): Promise<void> {
+    const key = `${kind}:${day}`;
+    const used = (await this.ctx.storage.get<number>(key)) ?? 0;
+    if (used > 0) await this.ctx.storage.put(key, used - 1);
   }
 
   async alarm(): Promise<void> {

@@ -5,7 +5,7 @@
  *   npx tsx tests/mail.test.ts
  */
 import assert from "node:assert/strict";
-import { cleanNotice, NOTICES_A_DAY, renderNotice, SUBJECT_MAX, TEXT_MAX, type Notice } from "../worker/notice";
+import { cleanNotice, NOTICES_A_DAY, renderNotice, SUBJECT_MAX, TEXT_MAX, TO_ANYONE, type Notice } from "../worker/notice";
 
 const good = { app: "tuan", to: "Leader@Example.com ", subject: "  新订单 · 大米团  ", text: "小明下了一单：\n牛腩 2 磅\n\n合计约 $36。", link: "https://changle.ca/tuan/o/ABCDEF", lang: "zh" } as const;
 
@@ -31,7 +31,29 @@ const good = { app: "tuan", to: "Leader@Example.com ", subject: "  新订单 · 
   assert.equal(n.subject, "a b c", "a subject is one line");
   assert.equal(n.text, "x\nyz", "control characters go, Windows line ends become plain ones");
 }
-assert.ok(NOTICES_A_DAY.tuan >= 1 && NOTICES_A_DAY.tuan <= 60, "跟一单's share leaves the sign-in codes at least 40 of Resend's 100 a day");
+assert.ok(NOTICES_A_DAY.tuan >= 1 && NOTICES_A_DAY.tuan <= 60, "跟一单's share is at most 60 a day");
+assert.equal(NOTICES_A_DAY.split, 20, "两清's reminders: 20 a day (Steve, 2026-11-27)");
+assert.ok(Object.values(NOTICES_A_DAY).reduce((a, b) => a + b, 0) <= 80, "all the apps together leave the sign-in codes at least 20 of Resend's 100 a day");
+
+// ---- 两清's reminders: to anyone, saying who asked ----
+const reminder = { app: "split", to: "Koto@Example.com", by: "uAbCdEf123456", subject: "生日的账", text: "Hi Koto，生日的账还有 $41.44 没转给我。", link: "https://changle.ca/split/abc#v=xyz", lang: "zh" } as const;
+{
+  assert.ok(TO_ANYONE.has("split") && !TO_ANYONE.has("tuan"), "两清 may mail anyone; 跟一单 only accounts here");
+  const n = cleanNotice(reminder);
+  assert.ok(typeof n !== "string", "a reminder that says who asked is let through");
+  assert.equal(n.by, "uAbCdEf123456", "and who asked goes on with it (the reply goes to them)");
+  assert.equal(n.to, "koto@example.com");
+  assert.equal(cleanNotice({ ...reminder, by: undefined }), "by", "a reminder that doesn't say who asked is turned away");
+  assert.equal(cleanNotice({ ...reminder, by: "" }), "by", "nor with nobody");
+  assert.equal(cleanNotice({ ...reminder, by: "u 1; DROP" }), "by", "nor with something that isn't an account");
+  assert.equal(cleanNotice({ ...reminder, by: 42 }), "by", "nor with a number");
+  const t = cleanNotice({ ...good, by: "uAbCdEf123456" });
+  assert.ok(typeof t !== "string" && !("by" in t), "跟一单 saying who asked changes nothing: its notices still go to accounts only");
+  const m = renderNotice(n as Notice);
+  assert.ok(m.html.includes("代「两清」发出") && m.text.endsWith("由 changle.ca 代「两清」发出。"), "the footer names 两清");
+  const e = renderNotice(cleanNotice({ ...reminder, lang: "en" }) as Notice);
+  assert.ok(e.text.endsWith("Sent by changle.ca for All Square."), "and in English, All Square");
+}
 
 // ---- what is turned away, and why ----
 const bad: [string, unknown, string][] = [

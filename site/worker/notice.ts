@@ -9,19 +9,30 @@
 /**
  * How many notices each app may send a day (UTC), all its recipients together. Resend's free plan
  * is 100 a day for everything, sign-in codes included: the codes keep what's left. An app not in
- * this list is turned away.
+ * this list is turned away. (两清's reminders: 20, Steve 2026-11-27.)
  */
-export const NOTICES_A_DAY: Record<string, number> = { tuan: 60 };
+export const NOTICES_A_DAY: Record<string, number> = { tuan: 60, split: 20 };
 
 /** How the footer names the app the notice is for. */
-const APP_NAMES: Record<string, { zh: string; en: string }> = { tuan: { zh: "跟一单", en: "Count Me In" } };
+const APP_NAMES: Record<string, { zh: string; en: string }> = { tuan: { zh: "跟一单", en: "Count Me In" }, split: { zh: "两清", en: "All Square" } };
+
+/**
+ * Apps whose notices may go to someone with no account here: 两清's reminders, to whoever still owes
+ * a friend (Steve, 2026-11-27). Such a notice names the account here that asked for it (`by`); that
+ * account has to be one in good standing, and a reply goes to its email.
+ */
+export const TO_ANYONE: ReadonlySet<string> = new Set(["split"]);
+/** An account's id here (hub.ts makes them "u" and twelve letters; kept loose). */
+const ACCOUNT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** What an app hands the door. */
 export type Notice = {
   /** which app is asking: one of NOTICES_A_DAY's keys */
   app: string;
-  /** the recipient: the sign-in email of a changle.ca account (nobody else gets mail from here) */
+  /** the recipient: the sign-in email of a changle.ca account (nobody else gets mail from here), or anyone's for an app in TO_ANYONE */
   to: string;
+  /** an app in TO_ANYONE only, which has to say it: the account here that asked for the notice (its id); a reply goes to its email */
+  by?: string;
   /** one line, up to 120 characters */
   subject: string;
   /** plain text, up to 2,000 characters; line breaks are kept, nothing is formatted */
@@ -33,7 +44,7 @@ export type Notice = {
 };
 
 /** Why a notice was turned away or didn't go out. */
-export type Why = "app" | "to" | "subject" | "text" | "link" | "lang" | "no-mail" | "mail" | "down";
+export type Why = "app" | "to" | "by" | "subject" | "text" | "link" | "lang" | "no-mail" | "mail" | "down";
 
 /**
  * The door's three answers: it went out; this app's allowance for today is used up (don't try
@@ -59,6 +70,9 @@ export function cleanNotice(raw: unknown, dev = false): Notice | Why {
   if (!(app in NOTICES_A_DAY)) return "app";
   const to = typeof r.to === "string" ? r.to.trim().toLowerCase() : "";
   if (!EMAIL_RE.test(to)) return "to";
+  // (who asked: said by an app that mails anyone, and only by one; another's `by` is passed by)
+  const by = TO_ANYONE.has(app) ? (typeof r.by === "string" && ACCOUNT_RE.test(r.by) ? r.by : null) : undefined;
+  if (by === null) return "by";
   const subject = typeof r.subject === "string" ? r.subject.replace(CONTROL_RE, "").replace(/\s+/g, " ").trim() : "";
   if (!subject || subject.length > SUBJECT_MAX) return "subject";
   const text = typeof r.text === "string" ? r.text.replace(CONTROL_RE, "").replace(/\r\n?/g, "\n").trim() : "";
@@ -70,7 +84,7 @@ export function cleanNotice(raw: unknown, dev = false): Notice | Why {
     if (typeof r.link !== "string" || r.link.length > LINK_MAX || !linkOk(r.link, dev)) return "link";
     link = r.link;
   }
-  return { app, to, subject, text, lang, ...(link ? { link } : {}) };
+  return { app, to, ...(by ? { by } : {}), subject, text, lang, ...(link ? { link } : {}) };
 }
 
 /** The link may only lead to changle.ca (or, in a local run, to a local site). */

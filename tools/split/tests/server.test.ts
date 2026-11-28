@@ -11,7 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, VIEW_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type ItemsReply, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
+import { viewKeyOf } from "../../../site/src/split/viewKey";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, VIEW_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type ItemsReply, type Push, type Pushed, type ReadReply, type Reminded, type Since, type Snapshot, type Stored } from "../src/room/protocol";
 import { SESSION, STRANGER } from "./accounts";
 
 const PORT = 8794;
@@ -720,4 +721,109 @@ test("the owner deletes a ledger: gone for everyone, and off the owner's list", 
   assert.deepEqual(await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...someone() }), { status: 404, data: { error: "gone" } }, "its id isn't made into another ledger");
   assert.ok(!(await mineOf(SESSION.steve)).some((m) => m.id === id), "it is off its owner's list");
   assert.deepEqual(await call("PUT", `/me/ledgers/${id}`, key, {}, as(SESSION.wang)), { status: 404, data: { error: "gone" } }, "and can't be kept again by anyone");
+});
+
+/** 催一下 by mail: a reminder asked for, and what the stand-in's mail door was handed since last asked. */
+const reminding = (id: string, key: string | null, body: unknown, headers: Record<string, string>) => call<Reminded>("POST", `/ledgers/${id}/remind`, key, body, headers);
+const mailsSent = async () => (await call<Record<string, unknown>[]>("POST", "/test/mails", null, {})).data;
+const doorIs = (is: "open" | "full" | "down") => call("POST", "/test/door", null, { is });
+/** A ledger that owes Steve ("s"): $30 he paid for three, so 小王 and 阿美 owe him $10 each; kept by an account of its own as Steve. */
+async function owing() {
+  const { id, key } = await make();
+  await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e1")] });
+  const [steve] = circle("Steve");
+  assert.equal((await call("PUT", `/me/ledgers/${id}`, key, { me: "s" }, steve.headers)).status, 200);
+  return { id, key, steve };
+}
+
+test("催一下 by mail: from the server's own words and numbers, to someone who owes the account's person, with the 查看链接", async () => {
+  await doorIs("open");
+  await mailsSent();
+  const { id, key, steve } = await owing();
+  assert.deepEqual(await reminding(id, key, { member: "w", to: " Wang@Example.com ", lang: "zh" }, steve.headers), { status: 200, data: { sent: true } });
+  const [mail, ...more] = await mailsSent();
+  assert.equal(more.length, 0);
+  const link = `https://changle.ca/split/${id}#v=${await viewKeyOf(key)}`;
+  assert.deepEqual(mail, {
+    app: "split",
+    to: "wang@example.com",
+    by: steve.id,
+    subject: "周末的账",
+    text: "Hi 小王，周末的账还有 $10.00 没转给我，方便的时候转一下就好，谢谢！\n\n这封邮件是 Steve 用 changle.ca 的两清发给你的，直接回复就能联系到 Steve。",
+    link,
+    lang: "zh",
+  });
+  assert.equal((await call<Snapshot>("GET", `/ledgers/${id}`, await viewKeyOf(key))).status, 200, "the 查看链接 in it opens the ledger, to look at");
+  // in English, with Steve's 收款方式
+  await call("POST", `/ledgers/${id}/changes`, key, { changes: [{ id: `pay-${randomUUID()}`, at: Date.now(), change: { do: "pay", member: "s", pay: "steve@example.com" } }] });
+  assert.equal((await reminding(id, key, { member: "m", to: "mei@example.com", lang: "en" }, steve.headers)).status, 200);
+  const [en] = await mailsSent();
+  assert.equal(en.subject, "周末: a friendly reminder");
+  assert.equal(en.text, "Hi 阿美, a friendly reminder about 周末: $10.00 still to send my way, whenever it suits you. Thanks!\nYou can send it to: steve@example.com\n\nSteve sent you this through All Square on changle.ca. Reply to this email to reach Steve.");
+  // once a day for each person in a ledger
+  assert.deepEqual(await reminding(id, key, { member: "w", to: "wang@example.com", lang: "zh" }, steve.headers), { status: 429, data: { error: "again" } }, "小王 again today: no");
+  assert.deepEqual(await mailsSent(), [], "(nothing went)");
+});
+
+test("催一下 by mail: who may, and about whom", async () => {
+  const { id, key, steve } = await owing();
+  const ask = { member: "w", to: "wang@example.com", lang: "zh" };
+  assert.deepEqual(await reminding(id, key, ask, {}), { status: 401, data: { error: "signin" } }, "signed in");
+  assert.deepEqual(await reminding(id, newKey(), ask, steve.headers), { status: 403, data: { error: "key" } }, "with the ledger's key");
+  assert.deepEqual(await reminding(id, await viewKeyOf(key), ask, steve.headers), { status: 403, data: { error: "key" } }, "its 查看链接's isn't enough");
+  for (const bad of [{ ...ask, member: undefined }, { ...ask, member: "w w" }, { ...ask, to: "wang" }, { ...ask, to: "wang@example" }, { ...ask, to: undefined }, { ...ask, lang: "fr" }]) assert.deepEqual(await reminding(id, key, bad, steve.headers), { status: 400, data: { error: "bad" } }, JSON.stringify(bad));
+  const [stranger] = circle("Stranger");
+  assert.deepEqual(await reminding(id, key, ask, stranger.headers), { status: 409, data: { error: "me" } }, "an account that hasn't said who it is in the ledger");
+  assert.deepEqual(await reminding(id, key, { ...ask, member: "s" }, steve.headers), { status: 409, data: { error: "settled" } }, "Steve owes himself nothing");
+  assert.deepEqual(await reminding(id, key, { ...ask, member: "nobody" }, steve.headers), { status: 409, data: { error: "settled" } }, "nor does someone not in it");
+  const [wang] = circle("Wang");
+  assert.equal((await call("PUT", `/me/ledgers/${id}`, key, { me: "w" }, wang.headers)).status, 200);
+  assert.deepEqual(await reminding(id, key, { ...ask, member: "m" }, wang.headers), { status: 409, data: { error: "settled" } }, "阿美 owes 小王 nothing: what she owes is Steve's to remind her of");
+  await call("POST", `/ledgers/${id}/changes`, key, { changes: [{ id: `t-${randomUUID()}`, at: Date.now(), change: { do: "transfer", transfer: { id: "paid-w", at: Date.now(), from: "w", to: "s", amount: 1000 } } }] });
+  assert.deepEqual(await reminding(id, key, ask, steve.headers), { status: 409, data: { error: "settled" } }, "小王 has paid: nothing to remind him of");
+  assert.deepEqual(await mailsSent(), [], "(none of those went)");
+  assert.deepEqual(await reminding(newId(), key, ask, steve.headers), { status: 404, data: { error: "gone" } }, "a ledger that isn't there");
+});
+
+test("催一下 by mail: the day's allowances, and what didn't go out gives back what it took", async () => {
+  await mailsSent();
+  const { id, key, steve } = await owing();
+  // (addresses of this test's own: an address's count is the day's, whichever test sent to it)
+  const tag = randomUUID().slice(0, 8);
+  const ask = { member: "w", to: `wang-${tag}@example.com`, lang: "zh" };
+  await doorIs("full");
+  assert.deepEqual(await reminding(id, key, ask, steve.headers), { status: 429, data: { error: "today" } }, "the site's reminders for today are used up");
+  await doorIs("down");
+  assert.deepEqual(await reminding(id, key, ask, steve.headers), { status: 503, data: { error: "mail" } }, "the mail didn't go out");
+  await doorIs("open");
+  assert.deepEqual(await reminding(id, key, { ...ask, to: "wang@refused.example" }, steve.headers), { status: 400, data: { error: "to" } }, "an address the site doesn't mail");
+  assert.equal((await reminding(id, key, ask, steve.headers)).status, 200, "none of those used 小王's one a day");
+  assert.equal((await mailsSent()).length, 1);
+  // an address gets three a day, from anyone
+  const [amy] = circle("Amy");
+  for (let i = 0; i < 2; i++) {
+    const other = await owing();
+    assert.equal((await reminding(other.id, other.key, ask, other.steve.headers)).status, 200, `小王's address, the ${i + 2}th today`);
+  }
+  const fourth = await owing();
+  assert.deepEqual(await reminding(fourth.id, fourth.key, ask, fourth.steve.headers), { status: 429, data: { error: "limit" } }, "a fourth to that address today: no");
+  assert.equal((await reminding(fourth.id, fourth.key, { ...ask, to: `wang2-${tag}@example.com` }, fourth.steve.headers)).status, 200, "and it didn't use up 小王's one a day in that ledger");
+  // an account sends ten a day
+  const many: { id: string; key: string }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const one = await make();
+    await call("POST", `/ledgers/${one.id}/changes`, one.key, { changes: [expense("e1")] });
+    assert.equal((await call("PUT", `/me/ledgers/${one.id}`, one.key, { me: "s" }, amy.headers)).status, 200);
+    many.push(one);
+  }
+  let sent = 0;
+  for (const one of many) {
+    for (const member of ["w", "m"]) {
+      const got = await reminding(one.id, one.key, { member, to: `a${sent}-${tag}@example.com`, lang: "zh" }, amy.headers);
+      assert.equal(got.status, sent < 10 ? 200 : 429, `the ${sent + 1}th from one account`);
+      if (sent >= 10) assert.deepEqual(got.data, { error: "limit" });
+      sent++;
+    }
+  }
+  assert.equal((await mailsSent()).length, 13, "three to 小王's address, one to another, and Amy's ten");
 });

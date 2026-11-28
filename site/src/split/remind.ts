@@ -96,6 +96,19 @@ export function reminderText(r: Reminder, lang: Lang): string {
 }
 
 /** The phone's Messages, to this number, with the reminder written ("?&body=": the way both iPhone and Android take it). */
+/**
+ * The reminder as the site mails it (Steve, 2026-11-27: 两清's server sends it, tools/split, from
+ * hello@changle.ca): the subject, then the reminder with a line saying who it is from and that a
+ * reply reaches them. The 查看链接 isn't in the text: the mail has it as its button. `from`: their
+ * name in the ledger, as the one reminded knows them.
+ */
+export function mailOf(r: Reminder & { from: string }, lang: Lang): { subject: string; text: string } {
+  return {
+    subject: say(lang, "remindSubject", { ledger: r.ledger }),
+    text: `${reminderText({ ...r, link: null }, lang)}\n\n${say(lang, "remindMailBy", { from: r.from })}`,
+  };
+}
+
 export const smsHref = (phone: string, text: string) => `sms:${dialOf(phone)}?&body=${encodeURIComponent(text)}`;
 
 /** The phone's Mail, to this address, with a subject and the reminder written. */

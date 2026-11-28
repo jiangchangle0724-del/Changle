@@ -925,6 +925,47 @@ function fakeStripe(live: boolean) {
   ok("换邮箱: a handoff code asked for just before the change can't be traded after it (one phone, nothing else to sign out)");
 }
 
+// ---- the Mail door: 两清's reminders go to anyone, from whoever asked (worker/notice.ts, TO_ANYONE) ----
+{
+  const { hub, s } = await hubOn({ DEV_MAIL_URL: "https://mail.example.test/send" });
+  const steve = await join(hub, "steve@example.test", "steve-phone-0001");
+  const was = globalThis.fetch;
+  const mails: Row[] = [];
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(url) !== "https://mail.example.test/send") return was(url, init);
+    mails.push(JSON.parse(String(init?.body)) as Row);
+    return new Response("{}");
+  }) as typeof fetch;
+  try {
+    const reminder = { app: "split", to: "Koto@Nowhere.example", by: steve.id, subject: "生日的账", text: "Hi Koto，生日的账还有 $41.44 没转给我。", link: "https://changle.ca/split/abc#v=xyz", lang: "zh" };
+    assert.deepEqual(await hub.notice(reminder), { status: "sent" });
+    assert.equal(mails.length, 1);
+    assert.deepEqual(mails[0].to, ["koto@nowhere.example"]);
+    assert.equal(mails[0].reply_to, "steve@example.test");
+    assert.ok(String(mails[0].text).includes("代「两清」发出"));
+    ok("两清's reminder: to an address with no account here, the reply going to the account that asked");
+    assert.deepEqual(await hub.notice({ ...reminder, by: "unobody000000" }), { status: "failed", why: "by" });
+    assert.deepEqual(await hub.notice({ ...reminder, by: undefined }), { status: "failed", why: "by" });
+    s.db.prepare("UPDATE users SET banned = 1 WHERE id = ?").run(steve.id);
+    assert.deepEqual(await hub.notice(reminder), { status: "failed", why: "by" });
+    s.db.prepare("UPDATE users SET banned = 0 WHERE id = ?").run(steve.id);
+    s.db.prepare("INSERT INTO bans (k, at) VALUES (?, ?)").run("e:koto@nowhere.example", Date.now());
+    assert.deepEqual(await hub.notice(reminder), { status: "failed", why: "to" });
+    s.db.prepare("DELETE FROM bans").run();
+    assert.equal(mails.length, 1);
+    ok("两清's reminder: not asked by an account, or by one shut out, or to an address shut out here: nothing goes");
+    assert.deepEqual(await hub.notice({ ...reminder, app: "tuan", by: undefined }), { status: "failed", why: "to" });
+    ok("跟一单's notices still go only to accounts here");
+    for (let i = 1; i < 20; i++) assert.deepEqual(await hub.notice(reminder), { status: "sent" });
+    assert.deepEqual(await hub.notice(reminder), { status: "full" });
+    assert.equal(mails.length, 20);
+    assert.ok(!mails.some((m) => m.reply_to === undefined));
+    ok("两清's reminders: 20 a day, then full");
+  } finally {
+    globalThis.fetch = was;
+  }
+}
+
 console.log(`\nall ${n} passed`);
 // (the first hub in "stopped mid-try" still has its never-answered send on a 30-second timer)
 process.exit(0);
