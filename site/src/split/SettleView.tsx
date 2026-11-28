@@ -7,7 +7,7 @@
  * leaves them, a row each that opens their statement (people.ts). At its foot, 总结: what the ledger
  * came to (summary.ts).
  */
-import { Check, Copy, ImageOff, Mail, MessageCircle, Scale } from "lucide-react";
+import { Check, CircleAlert, Copy, ImageOff, Mail, MessageCircle, Scale } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Lang } from "../i18n";
 import { sizeClass } from "../tools/money";
@@ -23,12 +23,13 @@ import { CATEGORY_WORD, dayLabel, nameFor, paysLine, personLine, personStands, s
 import { peopleOf, statementOf } from "./people";
 import { paidId, PAY_MAX, tidy } from "./ops";
 import { copyText, keepInSight, KindMark, SendLink, useKeyboardUp } from "./parts";
+import { remindNet } from "./net";
 import { contactOf, isEmail, isPhone, keepContact, mailHref, markReminded, remindedAt, reminderText, smsHref, type Contact } from "./remind";
 import { makeViewLink } from "./ViewLink";
 import { localDay } from "./format";
 import { isStale, type Made } from "./picture";
 import { record } from "./syncing";
-import { say, W } from "./words";
+import { say, W, type Word } from "./words";
 
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
@@ -42,6 +43,7 @@ export function SettleView({
   viewing,
   ledgerKey,
   onServer,
+  signedIn,
 }: {
   ledger: Ledger;
   me: string | undefined;
@@ -52,6 +54,8 @@ export function SettleView({
   /** the ledger's key, and whether the server has it: a reminder then carries the 查看链接 */
   ledgerKey?: string;
   onServer?: boolean;
+  /** a changle.ca account is signed in here: with the ledger on the server, the site sends a reminder's email */
+  signedIn?: boolean;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState<Line | null>(null);
@@ -82,6 +86,8 @@ export function SettleView({
     };
   }, [reminding, ledgerKey, onServer, ledger.id]);
   const [, setReminded] = useState(0);
+  // (each time a transfer is opened its reminder starts afresh: what came of an email sent before isn't said again)
+  const [opened, setOpened] = useState(0);
   // the keyboard up for a field on the transfer: 标成已转 steps aside meanwhile, so it doesn't sit
   // over the field on the little of the sheet the keyboard leaves (Steve, 2026-11-27), and the field
   // scrolls back into sight (parts.tsx: useKeyboardUp, keepInSight)
@@ -106,6 +112,7 @@ export function SettleView({
         className="split-row"
         onClick={() => {
           setCopied(null);
+          setOpened((n) => n + 1);
           setOpen(r);
         }}
       >
@@ -221,7 +228,18 @@ export function SettleView({
               {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
             </span>
             {/* 催一下: whoever owes this phone's owner, reminded by text or email from this phone (first: on this phone it is what this transfer is for) */}
-            {reminding && <Remind ledger={ledger} line={line} me={me} lang={lang} link={link} onSent={() => setReminded((n) => n + 1)} />}
+            {reminding && (
+              <Remind
+                key={opened}
+                ledger={ledger}
+                line={line}
+                me={me}
+                lang={lang}
+                link={link}
+                mailKey={signedIn && onServer ? ledgerKey : undefined}
+                onSent={() => setReminded((n) => n + 1)}
+              />
+            )}
             {/* 收款方式: how whoever is paid takes money (a 查看链接 never has it) */}
             {!viewing && receiver && !line.paid && (
               <PayFor ledger={ledger} member={receiver} me={me} lang={lang} mayChange={mayChange} />
@@ -243,12 +261,19 @@ function remindedWhen(ledger: string, member: string, lang: Lang): string {
   return ` · ${say(lang, "remindedOn", { when: lang === "en" ? when.charAt(0).toLowerCase() + when.slice(1) : when })}`;
 }
 
+/** What the server said no to a reminder by mail with (net.ts, remindNet), as the reminder says it; anything else didn't go out. */
+const MAIL_NO: Record<string, Word> = { again: "remindAgain", limit: "remindLimit", today: "remindToday", settled: "remindSettled", to: "remindTo" };
+
 /**
  * 催一下 (remind.ts): on a transfer still to come to this phone's owner, a friendly reminder to whoever
  * owes it: their phone and email (kept on this phone only, by name), the buttons to send it by text
- * or email from this phone or to copy it for any other app, and what it will say.
+ * from this phone, by email, or to copy it for any other app, and what it will say. With `mailKey`
+ * (signed in, the ledger on the server: its key), the site sends the email itself, from
+ * hello@changle.ca with the reply coming to this account's email (Steve, 2026-11-27); then what came
+ * of it is said under the buttons, and when it didn't go, the phone's own Mail is offered instead.
+ * Without, the email goes from the phone's own Mail.
  */
-function Remind({ ledger, line, me, lang, link, onSent }: { ledger: Ledger; line: Line; me: string | undefined; lang: Lang; link: string | null; onSent: () => void }) {
+function Remind({ ledger, line, me, lang, link, mailKey, onSent }: { ledger: Ledger; line: Line; me: string | undefined; lang: Lang; link: string | null; mailKey?: string; onSent: () => void }) {
   const debtor = ledger.members.find((m) => m.id === line.from);
   const name = debtor?.name ?? "";
   const [contact, setContact] = useState<Contact>(() => contactOf(name));
@@ -259,6 +284,8 @@ function Remind({ ledger, line, me, lang, link, onSent }: { ledger: Ledger; line
     const timer = window.setTimeout(() => setCopied(null), 2000);
     return () => window.clearTimeout(timer);
   }, [copied]);
+  // the site's email: on its way, gone to an address, or what the server said no with ("" for no answer)
+  const [mailed, setMailed] = useState<"busy" | { to: string } | { no: string } | null>(null);
   if (!debtor) return null;
   const pay = ledger.members.find((m) => m.id === me)?.pay;
   const text = reminderText({ who: name, ledger: ledger.name, amount: money(line.amount, ledger.currency, lang), pay, link }, lang);
@@ -266,11 +293,26 @@ function Remind({ ledger, line, me, lang, link, onSent }: { ledger: Ledger; line
     const next = { ...contact, ...to };
     setContact(next);
     keepContact(name, next);
+    // (another address: what came of the last one is said no more)
+    if (to.email !== undefined && mailed !== "busy") setMailed(null);
   };
   const sent = () => {
     markReminded(ledger.id, debtor.id, Date.now());
     onSent();
   };
+  const email = contact.email.trim();
+  const byPhone = mailHref(email, say(lang, "remindSubject", { ledger: ledger.name }), text);
+  const mail = async () => {
+    if (!mailKey || mailed === "busy") return;
+    setMailed("busy");
+    const got = await remindNet(ledger.id, mailKey, debtor.id, email, lang);
+    if (got.status === 200) {
+      sent();
+      setMailed({ to: email });
+    } else setMailed({ no: got.status ? (got.error ?? "") : "" });
+  };
+  const said = mailed === null || mailed === "busy" ? null : "to" in mailed ? say(lang, "remindSentTo", { to: mailed.to }) : say(lang, MAIL_NO[mailed.no] ?? "remindFailed", { who: name });
+  const failed = mailed !== null && mailed !== "busy" && "no" in mailed;
   return (
     <section className="split-remind" aria-labelledby="split-remind-head">
       <h3 className="split-subhead" id="split-remind-head">
@@ -294,12 +336,12 @@ function Remind({ ledger, line, me, lang, link, onSent }: { ledger: Ledger; line
             {say(lang, "remindSms")}
           </Button>
         )}
-        {isEmail(contact.email) ? (
-          <SendLink href={mailHref(contact.email, say(lang, "remindSubject", { ledger: ledger.name }), text)} icon={Mail} onSend={sent}>
+        {isEmail(email) && !mailKey ? (
+          <SendLink href={byPhone} icon={Mail} onSend={sent}>
             {say(lang, "remindMail")}
           </SendLink>
         ) : (
-          <Button tone="quiet" size="sm" icon={Mail} disabled>
+          <Button tone="quiet" size="sm" icon={Mail} disabled={!isEmail(email)} busy={mailed === "busy"} onClick={mail}>
             {say(lang, "remindMail")}
           </Button>
         )}
@@ -316,10 +358,22 @@ function Remind({ ledger, line, me, lang, link, onSent }: { ledger: Ledger; line
           {say(lang, copied === "done" ? "copied" : copied === "failed" ? "copyFailed" : "remindCopy")}
         </Button>
       </div>
-      {/* what it says, under the buttons that send it: Messages or Mail show it all again, to change before it goes */}
+      {/* what came of the site's email (read out as it comes; with nothing to say, there for that and out of the way) */}
+      <p className={said ? `split-note ${failed ? "is-off" : "is-good"}` : "ui-visually-hidden"} role="status">
+        {said && (failed ? <CircleAlert aria-hidden="true" /> : <Check aria-hidden="true" />)}
+        {said ?? ""}
+      </p>
+      {/* it didn't go: the phone's own Mail instead (unless there is nothing to remind them of) */}
+      {failed && mailed.no !== "settled" && isEmail(email) && (
+        <div className="split-remind-send">
+          <SendLink href={byPhone} icon={Mail} onSend={sent}>
+            {say(lang, "remindByPhone")}
+          </SendLink>
+        </div>
+      )}
       <p className="split-note">{say(lang, "remindWill")}</p>
       <p className="split-remind-text">{text}</p>
-      <p className="split-note">{say(lang, "remindNote")}</p>
+      <p className="split-note">{say(lang, mailKey ? "remindNoteSite" : "remindNote")}</p>
     </section>
   );
 }

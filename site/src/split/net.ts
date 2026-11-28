@@ -11,7 +11,7 @@
  * isn't the server.
  */
 import { KINDS } from "./photos";
-import { asDone, asInvitations, asInviteSent, asItemsReply, asMine, asPushed, asReadReply, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
+import { asDone, asInvitations, asInviteSent, asItemsReply, asMine, asPushed, asReadReply, asReminded, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
 import type { Net, Reply } from "./syncer";
 
 const API = "/split/api";
@@ -33,6 +33,8 @@ const KEY_CHANGED = 4403;
 const DELETED = 4404;
 /** How the server says no (ErrorCode and ApiError in its protocol.ts). */
 const REFUSALS = ["gone", "exists", "bad", "key", "full", "limit", "notfound", "owner", "locked", "signin"];
+/** How the server says no to a reminder by mail (its protocol.ts, ApiError). */
+const REMINDING = ["again", "today", "settled", "me", "to"];
 
 /**
  * Where the site keeps its sign-in on the phone (site/src/lib/api.ts, `TOKEN`: the same name, and a
@@ -200,7 +202,7 @@ async function fileAsk<T>(path: string, method: string, keys: Record<string, str
       return data === null ? { status: 0 } : { status: res.status, data };
     }
     const said: unknown = await res.json().catch(() => null);
-    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big", "friends", "off", "budget"].includes(said.error)) return { status: 0 };
+    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big", "friends", "off", "budget", ...REMINDING].includes(said.error)) return { status: 0 };
     return { status: res.status, error: said.error };
   } catch {
     return { status: 0 };
@@ -289,3 +291,12 @@ export const inviteNet = {
   waiting: () => fileAsk("/me/invites", "GET", signedIn(), read(asInvitations)),
   drop: (id: string) => fileAsk(`/me/invites/${id}`, "DELETE", signedIn(), read(asDone)),
 };
+
+/**
+ * 催一下 by mail: the site sends the reminder (signed in, with the key: tools/split, remind). Whom
+ * (the person in the ledger), the address, and the language; what came of it, or the error the
+ * server named ("again", "limit", "today", "settled", "me", "to", "signin"…). Everything the mail
+ * says, the server writes.
+ */
+export const remindNet = (id: string, key: string, member: string, to: string, lang: "zh" | "en") =>
+  fileAsk(`/ledgers/${id}/remind`, "POST", { ...signedIn(), [KEY_HEADER]: key }, read(asReminded), asJson({ member, to, lang }), "application/json");

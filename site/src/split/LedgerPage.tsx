@@ -236,7 +236,7 @@ export function LedgerPage({ id }: { id: string }) {
         </section>
       ) : (
         <section className="split-panel" id="split-settle" role="tabpanel" aria-labelledby="split-settle-tab">
-          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} made={saved.pictures?.[id]} ledgerKey={held.key} onServer={held.made && !held.next} />
+          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} made={saved.pictures?.[id]} ledgerKey={held.key} onServer={held.made && !held.next} signedIn={status === "in"} />
         </section>
       )}
       {/* with nothing recorded there is no plan to send: both views lead to the first expense (and a locked ledger takes none: the page has no button then) */}
