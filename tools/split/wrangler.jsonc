@@ -26,7 +26,12 @@
   // is, Worker to Worker, never over the public address (src/server/who.ts), as 跟一单 does.
   // Agreed with Steve on 2026-11-14. On this machine, `npm run dev` runs a stand-in for it
   // (tests/rooms), which knows the test sessions in tests/accounts.ts.
-  "services": [{ "binding": "ROOMS", "service": "changle-rooms" }],
+  // The rooms server's mail door too (its named entrypoint `Mail`, site/worker/mail.ts): 催一下 by
+  // mail goes through it, from hello@changle.ca (Steve, 2026-11-27). Its Resend key stays there.
+  "services": [
+    { "binding": "ROOMS", "service": "changle-rooms" },
+    { "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }
+  ],
   // Receipt photos (stage three): one private bucket, made in the dashboard on 2026-11-14 (location
   // automatic, which put it in Western North America; Standard storage; no public access). Only
   // this Worker reads and writes it; a photo has no address of its own. On this machine,

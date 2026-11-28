@@ -1266,19 +1266,30 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
    * A notice another Worker sends through the Mail door (worker/mail.ts, worker/notice.ts): to an
    * account here, within the app's allowance for the day, in the sign-in mail's frame. The answer is
    * one of three: sent, full (the day's allowance is used up), failed (and why).
+   * An app that may mail anyone (notice.ts, TO_ANYONE: 两清's reminders) names the account that asked
+   * instead: it has to be one in good standing, the reply goes to its email, and an address shut out
+   * here gets nothing.
    */
   async notice(raw: unknown): Promise<Sent> {
     const n = cleanNotice(raw, this.env.DEV_SHOW_CODES === "1");
     if (typeof n === "string") return { status: "failed", why: n };
-    const who = this.one(`SELECT id, banned FROM users WHERE email = ?`, n.to);
-    if (!who || Number(who.banned ?? 0) === 1) return { status: "failed", why: "to" };
+    let replyTo: string | undefined;
+    if (n.by) {
+      const asker = this.one(`SELECT email, banned FROM users WHERE id = ?`, n.by);
+      if (!asker || Number(asker.banned ?? 0) === 1) return { status: "failed", why: "by" };
+      if (this.isBanned(`e:${n.to}`)) return { status: "failed", why: "to" };
+      replyTo = String(asker.email);
+    } else {
+      const who = this.one(`SELECT id, banned FROM users WHERE email = ?`, n.to);
+      if (!who || Number(who.banned ?? 0) === 1) return { status: "failed", why: "to" };
+    }
     const day = new Date().toISOString().slice(0, 10);
     const used = Number(this.one(`SELECT n FROM mails WHERE k = ? AND day = ?`, n.app, day)?.n ?? 0);
     if (used >= NOTICES_A_DAY[n.app]) return { status: "full" };
     // counted before it goes out (two at once can't both take the last one), given back if it didn't
     this.sql.exec(`INSERT INTO mails (k, day, n) VALUES (?, ?, 1) ON CONFLICT(k) DO UPDATE SET n = CASE WHEN day = excluded.day THEN n + 1 ELSE 1 END, day = excluded.day`, n.app, day);
     try {
-      await this.deliver({ to: n.to, ...renderNotice(n) });
+      await this.deliver({ to: n.to, ...renderNotice(n), ...(replyTo ? { replyTo } : {}) });
     } catch (e) {
       console.error("notice", n.app, e);
       this.sql.exec(`UPDATE mails SET n = MAX(0, n - 1) WHERE k = ? AND day = ?`, n.app, day);

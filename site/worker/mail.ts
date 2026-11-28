@@ -6,9 +6,10 @@
  *
  *   "services": [{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }]
  *
- * The hub does the work (hub.ts, `notice`): the recipient has to be an account here, each app has
- * a day's allowance (notice.ts, NOTICES_A_DAY), and the mail goes out through the same code as the
- * sign-in codes. A caller that gets "full" shouldn't try again today; "failed" says why in `why`.
+ * The hub does the work (hub.ts, `notice`): the recipient has to be an account here (or, for an
+ * app that may mail anyone, the one who asked: notice.ts, TO_ANYONE), each app has a day's
+ * allowance (notice.ts, NOTICES_A_DAY), and the mail goes out through the same code as the sign-in
+ * codes. A caller that gets "full" shouldn't try again today; "failed" says why in `why`.
  */
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { Hub } from "./hub";

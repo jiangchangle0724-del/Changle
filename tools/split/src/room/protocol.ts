@@ -135,6 +135,10 @@ export type InviteBody = { to: string; member?: string };
 export type InviteSent = { invite: Invited };
 /** The invitations waiting for me, the newest first. */
 export type MyInvites = { invites: Invite[] };
+/** 催一下 by mail: whom to remind (the person in the ledger who owes me), at which address, and in which language. */
+export type RemindBody = { member: string; to: string; lang: "zh" | "en" };
+/** It went out. */
+export type Reminded = { sent: true };
 export type { Count, FileInfo, Invite, Invited, Items, ItemsReply, Mine, Read, ReadReply, Snapshot, Storage };
 
 /**
@@ -146,9 +150,13 @@ export type { Count, FileInfo, Invite, Invited, Items, ItemsReply, Mine, Read, R
  * nothing is read here (no key); "budget" (429), the month's money for reading is spent; "failed"
  * (502), Google couldn't read it. (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
  * 423: the ledger is locked, and the request had something new in it. "full" is 409 for my
- * ledgers too: an account keeps at most MAX_MINE.)
+ * ledgers too: an account keeps at most MAX_MINE.) A reminder by mail: "me" (409), the account
+ * hasn't said who it is in the ledger; "settled" (409), that person owes it nothing now; "again"
+ * (429), they were reminded today already; "limit" (429), the account's reminders today, or that
+ * address's, are used up; "today" (429), the site's are; "to" (400), the address is one the site
+ * doesn't mail; "mail" (503), it didn't go out.
  */
-export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" | "friends" | "off" | "budget" | "failed" };
+export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" | "friends" | "off" | "budget" | "failed" | "me" | "settled" | "again" | "today" | "to" | "mail" };
 
 /** What the live connection sends: the whole ledger, and the number of its last change. */
 export type Push = { t: "ledger"; seq: number; ledger: Ledger };

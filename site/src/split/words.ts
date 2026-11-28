@@ -332,6 +332,7 @@ export const W = {
   remindTextPay: { zh: "收款方式：{pay}", en: "You can send it to: {pay}" },
   remindTextLink: { zh: "账目在这里：{link}", en: "All the details: {link}" },
   remindSubject: { zh: "{ledger}的账", en: "{ledger}: a friendly reminder" },
+  remindMailBy: { zh: "这封邮件是 {from} 用 changle.ca 的两清发给你的，直接回复就能联系到 {from}。", en: "{from} sent you this through All Square on changle.ca. Reply to this email to reach {from}." },
   remindedOn: { zh: "{when} 提醒过", en: "reminded {when}" },
   // 退款 on the screens: turned on in 详情, said on the add screen, its row and its statement line
   refund: { zh: "退款", en: "Refund" },
