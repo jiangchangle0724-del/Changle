@@ -3,8 +3,8 @@
 // for the passphrase, a screen for someone who has lost both the passphrase and the recovery
 // code: it asks for the vault to be erased in seven days. And while an erasing is asked for, a
 // notice on the screens of every signed-in device, which says when and from where, and how to
-// call it off: with the vault open, a button; without it, by opening it. What each asks of the
-// server is src/app/erase.ts.
+// call it off: with the vault open, a button; without it, by opening it (a right proof calls it
+// off, src/server/erase.ts). What each asks of the server is src/app/erase.ts.
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Failed } from "../../../src/app/devices";
 import type { Ask } from "../../../src/app/door";
@@ -18,37 +18,41 @@ const NOT_DONE: Record<Failed, Key> = { offline: "endOffline", busy: "endBusy", 
 const sayPending = (pending: Pending): string => sentences(t("erasingDue", { due: dateText(pending.due) }), t("erasingAsked", { asked: dateText(pending.asked), who: t(pending.here ? "whoHere" : "whoOther") }));
 
 /**
- * The notice on a screen of a signed-in device while an erasing is asked for. `open`: this device has the vault open,
- * and can call it off here. Asked of the server when the screen comes up, so that every screen that shows it says
- * how things stand now. A question that is not answered shows nothing: the screen around it says what it can.
+ * The notice on a screen of a signed-in device while an erasing is asked for. `open`: this device has `vault` open,
+ * and can call it off here. Asked of the server when the screen comes up, and again whenever `stamp` changes (the
+ * screen asking for the passphrase, after each try: an erasing can be put off meanwhile), so that it says how things
+ * stand now. A question that is not answered shows nothing: the screen around it says what it can. `turnedAway`: every
+ * proof is being turned away just now, which the person is told puts the erasing off. `startOver`: the vault is gone,
+ * or another is there now, and the page asks again where things stand.
  */
-export function ErasingNotice({ ask, open, signedOut }: { ask: Ask; open: boolean; signedOut: () => void }) {
+export function ErasingNotice({ ask, vault, open, signedOut, startOver, stamp = 0, turnedAway = false }: { ask: Ask; vault: string; open: boolean; signedOut: () => void; startOver: () => void; stamp?: number; turnedAway?: boolean }) {
   useLang();
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<{ tone: "done" | "error"; key: Key } | null>(null);
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
-  const ends = useRef(signedOut);
-  ends.current = signedOut;
+  const ends = useRef({ signedOut, startOver });
+  ends.current = { signedOut, startOver };
 
   useEffect(() => {
     void (async () => {
       const got = await erasing(ask);
       if (!alive.current) return;
       if (got.ok) setPending(got.pending);
-      else if (got.why === "signed-out") ends.current();
+      else if (got.why === "signed-out") ends.current.signedOut();
     })();
-  }, [ask]);
+  }, [ask, stamp]);
 
   const keep = async (): Promise<void> => {
     if (busy) return;
     setBusy(true);
     setSaid(null);
-    const done = await keepVault(ask);
+    const done = await keepVault(ask, vault);
     if (!alive.current) return;
     setBusy(false);
-    if (done === "signed-out") return ends.current();
+    if (done === "signed-out") return ends.current.signedOut();
+    if (done === "gone" || done === "another") return ends.current.startOver();
     // ("none": called off already, from another device, or done; either way it is not asked for any more)
     if (done === "ok" || done === "none") {
       setPending(null);
@@ -68,6 +72,7 @@ export function ErasingNotice({ ask, open, signedOut }: { ask: Ask; open: boolea
       ) : (
         <p class="hint">{t(pending.here ? "erasingOpenHint" : "erasingIfNotYou")}</p>
       )}
+      {!open && turnedAway && <Note tone="warn">{t("erasingHeld")}</Note>}
       {said && <Note tone={said.tone}>{t(said.key)}</Note>}
     </div>
   );
@@ -177,7 +182,7 @@ export function ResetVault({ ask, vault, back, elsewhere, signedOut }: { ask: As
       </button>
       <Title>{t("resetTitle")}</Title>
       <p class="lead">{t("resetLead")}</p>
-      <p class="hint">{t("resetHow")}</p>
+      <p class="hint">{sentences(t("resetHow"), t("erasingHolds"))}</p>
       {pending ? (
         <Note tone="warn">{sayPending(pending)}</Note>
       ) : (

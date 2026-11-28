@@ -90,7 +90,7 @@ test("erased at once by a session that has the vault open: the vault and all tha
     assert.deepEqual([seen.vault, seen.unlocked, seen.ways, seen.erasing], [null, false, [], null]);
     assert.deepEqual(said(await d.ask("sync/pull", T0 + 12, { vault, since: 0 })), [423, "locked"]);
   }
-  assert.deepEqual(said(await maker.ask("vault/erase", T0 + 13, { vault })), [423, "locked"]);
+  assert.deepEqual(said(await maker.ask("vault/erase", T0 + 13, { vault })), [404, "no-vault"]);
   // and a new vault can be made, by any device, with ways in of its own
   const again = newId();
   assert.equal((await other.ask("vault/start", T0 + 14, { vault: again, ways: [way(again, "passphrase"), way(again, "recovery")] })).status, 200);
@@ -149,13 +149,13 @@ test("asked for by any session, erased seven days later: shown to every session 
   assert.deepEqual(asked2.json!.erasing, { asked: T0 + 4, due: T0 + 4 + ERASE_DELAY, session: other.session, here: false });
   assert.equal(count(db, "events"), events + 1);
   assert.deepEqual(lines(db).at(-1), ["sign-in", tomorrow.session]);
-  // A device opens the vault ten minutes before it is due. A millisecond before, nothing is erased: it can still read.
+  // A device signs in ten minutes before it is due, and does not open the vault (that would call the erasing off). A
+  // millisecond before, nothing is erased: it is shown the vault, and the erasing.
   const reader = await later(db, T0 + 4 + ERASE_DELAY - 10 * MINUTE);
-  assert.equal((await reader.ask("vault/unlock", T0 + 4 + ERASE_DELAY - 10 * MINUTE + 1, { id: ways[0].wrapper.id, proof: ways[0].proof })).status, 200);
-  assert.equal((await reader.ask("sync/pull", T0 + 3 + ERASE_DELAY, { vault, since: 0 })).status, 200);
+  const before = await reader.ask("vault", T0 + 3 + ERASE_DELAY);
+  assert.deepEqual([before.json!.vault, (before.json!.erasing as { due: number }).due], [vault, T0 + 4 + ERASE_DELAY]);
   assert.equal(left(db).vault, 1);
-  // When it is due, the next request of any session, whatever it asks, finds the vault erased, in no session's name: the
-  // one that reads is answered that it holds nothing open, and is shown no vault.
+  // When it is due, the next request of any session, whatever it asks, finds the vault erased, in no session's name.
   assert.deepEqual(said(await reader.ask("sync/pull", T0 + 4 + ERASE_DELAY, { vault, since: 0 })), [423, "locked"]);
   assert.deepEqual(left(db), { chunks: 0, vault: 0, ways: 0, tries: 0, unlocked: 0, opened: 0 });
   assert.deepEqual(lines(db).at(-1), ["vault-erased", null]);
@@ -164,21 +164,36 @@ test("asked for by any session, erased seven days later: shown to every session 
   assert.deepEqual([after.json!.vault, after.json!.erasing, after.wake], [null, null, undefined]);
 });
 
-test("called off by a session that has the vault open, and by no other", async () => {
+test("called off by a session that has the vault open, or by a right proof, and by no other", async () => {
   const { db, maker, other, vault, ways } = await withVault();
-  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 3)), [404, "no-erase"]);
+  // of the vault named, like the other two
+  for (const body of [undefined, {}, { vault: "no" }]) assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 3, body)), [400, "bad-request"], JSON.stringify(body));
+  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 3, { vault })), [404, "no-erase"]);
   assert.equal((await other.ask("vault/erase-later", T0 + 4, { vault })).status, 200);
+  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 4, { vault: newId() })), [409, "another-vault"]);
   // the session that asked, which has not opened the vault, cannot call it off: whoever holds only the mailbox cannot keep a reset from happening
-  assert.deepEqual(said(await other.ask("vault/erase-cancel", T0 + 5)), [423, "locked"]);
+  assert.deepEqual(said(await other.ask("vault/erase-cancel", T0 + 5, { vault })), [423, "locked"]);
+  // nor can a wrong proof
+  assert.equal((await other.ask("vault/unlock", T0 + 5, { id: ways[0].wrapper.id, proof: newToken() })).status, 422);
+  assert.notEqual(pendingErase(db), null);
   // a session that has opened it and locked it again cannot either, until it opens it again
   assert.equal((await maker.ask("vault/lock", T0 + 6)).status, 200);
-  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 7)), [423, "locked"]);
-  assert.equal((await maker.ask("vault/unlock", T0 + 8, { id: ways[0].wrapper.id, proof: ways[0].proof })).status, 200);
-  assert.deepEqual((await maker.ask("vault/erase-cancel", T0 + 9)).json, { ok: true });
+  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 7, { vault })), [423, "locked"]);
+  // ...and a right proof calls it off by itself, with its line in that session's name, and says so
+  const shown = await maker.ask("vault/unlock", T0 + 8, { id: ways[0].wrapper.id, proof: ways[0].proof });
+  assert.deepEqual([shown.status, shown.json!.erasing], [200, "called-off"]);
+  assert.deepEqual(lines(db).slice(-2), [["unlocked", maker.session], ["erase-cancelled", maker.session]]);
+  assert.equal(pendingErase(db), null);
+  // a right proof with nothing asked for says nothing of it
+  const plain = await maker.ask("vault/unlock", T0 + 8, { id: ways[1].wrapper.id, proof: ways[1].proof });
+  assert.deepEqual([plain.status, "erasing" in plain.json!], [200, false]);
+  // asked again; a session that has the vault open calls it off with the button, once
+  assert.equal((await other.ask("vault/erase-later", T0 + 9, { vault })).status, 200);
+  assert.deepEqual((await maker.ask("vault/erase-cancel", T0 + 9, { vault })).json, { ok: true });
   assert.deepEqual(lines(db).at(-1), ["erase-cancelled", maker.session]);
   const seen = await other.ask("vault", T0 + 10);
   assert.deepEqual([seen.json!.erasing, seen.wake], [null, undefined]);
-  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 11)), [404, "no-erase"]);
+  assert.deepEqual(said(await maker.ask("vault/erase-cancel", T0 + 11, { vault })), [404, "no-erase"]);
   // the alarm still wakes the object at the old time, and finds nothing to do
   assert.equal(dueErase(db, T0 + 4 + ERASE_DELAY), null);
   assert.equal(left(db).vault, 1);
@@ -186,10 +201,147 @@ test("called off by a session that has the vault open, and by no other", async (
   const tomorrow = await later(db, T0 + DAY);
   const again = await tomorrow.ask("vault/erase-later", T0 + DAY + 1, { vault });
   assert.equal((again.json!.erasing as { due: number }).due, T0 + DAY + 1 + ERASE_DELAY);
-  // a session that erases at once takes the erasing asked for with it
-  assert.equal((await tomorrow.ask("vault/unlock", T0 + DAY + 2, { id: ways[1].wrapper.id, proof: ways[1].proof })).status, 200);
-  assert.equal((await tomorrow.ask("vault/erase", T0 + DAY + 3, { vault })).status, 200);
+  // a session that erases at once takes the erasing asked for with it (one that had the vault open before it was asked)
+  const opener = await later(db, T0 + DAY + 1);
+  assert.equal((await opener.ask("vault/unlock", T0 + DAY + 1, { id: ways[1].wrapper.id, proof: ways[1].proof })).json!.erasing, "called-off");
+  assert.equal((await tomorrow.ask("vault/erase-later", T0 + DAY + 2, { vault })).status, 200);
+  assert.notEqual(pendingErase(db), null);
+  assert.equal((await opener.ask("vault/erase", T0 + DAY + 3, { vault })).status, 200);
   assert.equal(pendingErase(db), null);
+});
+
+test("an erasing waits for seven days in which nobody was kept out: proofs turned away, sign-ins refused, sessions pushed out or signed out by another (the review of this slice, finding 1)", async () => {
+  const { db, maker, other, vault, ways } = await withVault();
+  const due = (): number => pendingErase(db)!.due;
+  const asked = T0 + 3;
+  assert.equal((await other.ask("vault/erase-later", asked, { vault })).status, 200);
+  assert.equal(due(), asked + ERASE_DELAY);
+  // Nine wrong proofs fill nothing. The tenth in the hour fills the count, and every proof is turned away until the
+  // first of the ten is an hour old: the erasing waits until seven days after that.
+  const wrong = (d: typeof other, at: number) => d.ask("vault/unlock", at, { id: ways[0].wrapper.id, proof: newToken() });
+  for (let i = 1; i <= 9; i++) assert.equal((await wrong(other, T0 + MINUTE + i)).status, 422);
+  assert.equal(due(), asked + ERASE_DELAY);
+  assert.equal((await wrong(other, T0 + MINUTE + 10)).status, 422);
+  assert.equal(due(), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
+  // meanwhile the right proof is turned away too, nothing more is counted, and the erasing stays where it is
+  assert.equal((await maker.ask("vault/unlock", T0 + MINUTE + 20, { id: ways[0].wrapper.id, proof: ways[0].proof })).status, 429);
+  assert.equal(due(), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
+  // the alarm at the old time finds nothing due, and says when to wake
+  assert.equal(dueErase(db, asked + ERASE_DELAY), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
+  assert.equal(count(db, "vault"), 1);
+
+  // Three hours on, the sessions of then have ended (thirty minutes without a word). Eight sign-ins push nobody out; a
+  // ninth pushes the oldest out, and the erasing waits until seven days after that.
+  const t1 = T0 + 3 * HOUR;
+  const signedIn = [];
+  for (let i = 0; i < 8; i++) signedIn.push(await later(db, t1 + i));
+  assert.equal(due(), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
+  await later(db, t1 + 8);
+  assert.equal(due(), t1 + 8 + ERASE_DELAY);
+
+  // Two hours on: eleven sign-ins, each signed out again by itself, fill nothing. The twelfth in the hour fills the count,
+  // and every sign-in is refused until the first of the twelve is an hour old: the erasing waits until seven days after.
+  const t2 = T0 + 5 * HOUR;
+  for (let i = 0; i < 11; i++) {
+    const d = await later(db, t2 + i);
+    assert.equal((await d.ask("session/end", t2 + i)).status, 200);
+  }
+  assert.equal(due(), t1 + 8 + ERASE_DELAY);
+  const twelfth = await later(db, t2 + 11);
+  assert.equal(due(), t2 + HOUR + ERASE_DELAY);
+  const refused = signIn(db, { account: A, session: newId(), hash: (await hashOf(newToken()))!, label: "Chrome on Windows", owner: false }, t2 + 12, cfg.gate);
+  assert.equal(refused, "too-many");
+  assert.equal(due(), t2 + HOUR + ERASE_DELAY);
+
+  // Three hours on: a session signing another out, by its id or all of them at once, is someone kept out; signing
+  // itself out is not.
+  const t3 = T0 + 8 * HOUR;
+  const [a, b, c] = [await later(db, t3), await later(db, t3 + 1), await later(db, t3 + 2)];
+  assert.equal((await a.ask("sessions/end", t3 + 3, { id: b.session })).status, 200);
+  assert.equal(due(), t3 + 3 + ERASE_DELAY);
+  assert.equal((await a.ask("sessions/end", t3 + 4, { others: true })).json!.ended, 1);
+  assert.equal(due(), t3 + 4 + ERASE_DELAY);
+  const own = (await later(db, t3 + 5));
+  assert.equal((await own.ask("sessions/end", t3 + 6, { id: own.session })).status, 200);
+  assert.equal((await a.ask("session/end", t3 + 7)).status, 200);
+  assert.equal((await a.ask("sessions/end", t3 + 8, { others: true })).status, 401);
+  assert.equal(due(), t3 + 4 + ERASE_DELAY);
+  void [signedIn, twelfth, c];
+
+  // seven days in which nobody was kept out, and it is erased, in no session's name
+  assert.equal(dueErase(db, t3 + 4 + ERASE_DELAY - 1), t3 + 4 + ERASE_DELAY);
+  assert.equal(dueErase(db, t3 + 4 + ERASE_DELAY), null);
+  assert.equal(count(db, "vault"), 0);
+  assert.deepEqual(lines(db).at(-1), ["vault-erased", null]);
+});
+
+test("asked for while proofs or sign-ins are being turned away, an erasing waits for seven days after they are not; it is never brought on", async () => {
+  const { db, other, vault, ways } = await withVault();
+  for (let i = 1; i <= 10; i++) assert.equal((await other.ask("vault/unlock", T0 + 2 + i, { id: ways[0].wrapper.id, proof: newToken() })).status, 422);
+  // the first of the ten was at T0 + 3: proofs are turned away until it is an hour old
+  const asked = await other.ask("vault/erase-later", T0 + 20, { vault });
+  assert.equal((asked.json!.erasing as { due: number }).due, T0 + 3 + HOUR + ERASE_DELAY);
+  assert.equal(asked.wake, T0 + 3 + HOUR + ERASE_DELAY);
+  // a hold that would bring it on does nothing
+  assert.equal(pendingErase(db)!.due, T0 + 3 + HOUR + ERASE_DELAY);
+  assert.equal((await other.ask("vault/erase-cancel", T0 + 21, { vault })).status, 423);
+
+  // and sign-ins: twelve in the hour, then asked for from one of them
+  const fresh = sqlite();
+  const first = await device(fresh, T0);
+  const vault2 = newId();
+  assert.equal((await first.ask("vault/start", T0 + 1, { vault: vault2, ways: [way(vault2, "passphrase"), way(vault2, "recovery")] })).status, 200);
+  for (let i = 1; i < 11; i++) assert.equal((await (await device(fresh, T0 + i)).ask("session/end", T0 + i)).status, 200);
+  const last = await device(fresh, T0 + 11);
+  const asked2 = await last.ask("vault/erase-later", T0 + 12, { vault: vault2 });
+  assert.equal((asked2.json!.erasing as { due: number }).due, T0 + HOUR + ERASE_DELAY);
+  // nothing asked for: nothing put off, and nothing written
+  const empty = sqlite();
+  const lone = await device(empty, T0);
+  const events = count(empty, "events");
+  assert.equal((await lone.ask("sessions/end", T0 + 1, { others: true })).json!.ended, 0);
+  assert.equal(count(empty, "events"), events);
+});
+
+test("whoever holds only the mailbox, keeping the count full for eight days, keeps the vault from being erased; once they stop, a right proof calls the erasing off", async () => {
+  const db = sqlite();
+  const owner = await device(db, T0);
+  const vault = newId();
+  const ways = [way(vault, "passphrase"), way(vault, "recovery")] as const;
+  assert.equal((await owner.ask("vault/start", T0 + 1, { vault, ways })).status, 200);
+  assert.equal((await owner.ask("vault/lock", T0 + 2)).status, 200);
+  let attacker = await device(db, T0 + 3);
+  assert.equal((await attacker.ask("vault/erase-later", T0 + 4, { vault })).status, 200);
+  // every five minutes they guess, signing in again when their session has ended; every three hours the owner shows the right code
+  const STEP = 5 * MINUTE;
+  let ownerIn = false;
+  for (let at = T0 + STEP; at < T0 + 8 * DAY; at += STEP) {
+    let tried = await attacker.ask("vault/unlock", at, { id: ways[0].wrapper.id, proof: newToken() });
+    if (tried.status === 401) {
+      attacker = await device(db, at);
+      tried = await attacker.ask("vault/unlock", at, { id: ways[0].wrapper.id, proof: newToken() });
+    }
+    assert.ok(tried.status === 422 || tried.status === 429, String(tried.status));
+    if ((at - T0) % (3 * HOUR) === 0) {
+      const own = await device(db, at + 1);
+      const shown = await own.ask("vault/unlock", at + 1, { id: ways[1].wrapper.id, proof: ways[1].proof });
+      if (shown.status === 200) ownerIn = true;
+    }
+  }
+  // the owner never got past the count, and the vault is there after eight days, with the erasing still to come
+  assert.equal(ownerIn, false);
+  assert.equal(count(db, "vault"), 1);
+  assert.ok(pendingErase(db)!.due > T0 + 8 * DAY);
+  // they stop; within a day the count frees, and the owner's next right proof calls the erasing off
+  let calledOff = false;
+  for (let at = T0 + 8 * DAY; !calledOff && at < T0 + 10 * DAY; at += 3 * HOUR) {
+    const own = await device(db, at);
+    const shown = await own.ask("vault/unlock", at, { id: ways[1].wrapper.id, proof: ways[1].proof });
+    if (shown.status === 200) calledOff = shown.json!.erasing === "called-off";
+  }
+  assert.ok(calledOff);
+  assert.equal(pendingErase(db), null);
+  assert.equal(count(db, "vault"), 1);
 });
 
 test("the alarm: erases what is due without a session, says when to wake again, and does nothing where nothing is", async () => {
@@ -246,7 +398,7 @@ test("what the owner is shown stays in sight: an erasing asked for, called off, 
   assert.equal((await other.ask("vault/unlock", T0 + 3, { id: ways[0].wrapper.id, proof: ways[0].proof })).status, 200);
   assert.equal((await other.ask("vault/lock", T0 + 4)).status, 200);
   assert.equal((await other.ask("vault/erase-later", T0 + 5, { vault })).status, 200);
-  assert.equal((await maker.ask("vault/erase-cancel", T0 + 6)).status, 200);
+  assert.equal((await maker.ask("vault/erase-cancel", T0 + 6, { vault })).status, 200);
   assert.equal((await maker.ask("vault/erase", T0 + 7, { vault })).status, 200);
   assert.equal((await other.ask("session/end", T0 + 8)).status, 200);
   // a new vault, which the maker opens again itself after locking it
@@ -312,20 +464,24 @@ test("the app's side, against the server's own code: asking, seeing, calling off
   assert.deepEqual(await erasing(mine), { ok: true, vault, pending: { ...asked.pending, here: false } });
   assert.deepEqual(await eraseLater(mine, vault), { ok: true, pending: { ...asked.pending, here: false } });
   assert.deepEqual(await eraseLater(mine, newId()), { ok: false, why: "another" });
-  // it cannot call it off; the device that has the vault open can, once
-  assert.equal(await keepVault(theirs), "locked");
-  assert.equal(await keepVault(mine), "ok");
-  assert.equal(await keepVault(mine), "none");
+  // it cannot call it off; the device that has the vault open can, once, and only of the vault it has open
+  assert.equal(await keepVault(theirs, vault), "locked");
+  assert.equal(await keepVault(mine, newId()), "another");
+  assert.equal(await keepVault(mine, vault), "ok");
+  assert.equal(await keepVault(mine, vault), "none");
   assert.deepEqual(await erasing(theirs), { ok: true, vault, pending: null });
   // erasing at once: not from the device that has not opened it, not another vault, and then this one
   assert.equal(await eraseNow(theirs, vault), "locked");
   assert.equal(await eraseNow(mine, newId()), "another");
   assert.equal(await eraseNow(mine, vault), "ok");
-  // gone: erasing it again is what was asked; asking for it later, there is nothing to ask about
-  assert.equal(await eraseNow(mine, vault), "locked");
+  // gone, and said to be gone whoever asks (the review of this slice, finding 3): erasing it again is what was
+  // asked; asking for it later or calling it off, there is nothing to ask about
+  assert.equal(await eraseNow(mine, vault), "gone");
+  assert.equal(await eraseNow(theirs, vault), "gone");
   assert.deepEqual(await eraseLater(theirs, vault), { ok: false, why: "gone" });
   assert.deepEqual(await erasing(theirs), { ok: true, vault: null, pending: null });
-  assert.equal(await keepVault(mine), "locked");
+  assert.equal(await keepVault(mine, vault), "gone");
+  assert.equal(await keepVault(theirs, vault), "gone");
   // the list of devices reads each of the new lines as what it is, and says there is no vault
   const read = await listing(mine);
   assert.ok(read.ok);
@@ -404,27 +560,34 @@ test("the app's side, against answers that are not what they should be: each is 
     [{ status: 200, json: { ok: true } }, "ok"],
     [{ status: 200, json: {} }, "server"],
     [{ status: 404, json: { ok: false, why: "no-erase" } }, "none"],
+    [{ status: 404, json: { ok: false, why: "no-vault" } }, "gone"],
     [{ status: 404, json: { ok: false, why: "no-such-thing" } }, "server"],
+    [{ status: 409, json: { ok: false, why: "another-vault" } }, "another"],
     [{ status: 423, json: {} }, "locked"],
     [{ status: 401, json: {} }, "signed-out"],
     [{ status: 500, json: {} }, "server"],
     [null, "offline"],
   ] as const)
-    assert.equal(await keepVault(canned({ "vault/erase-cancel": answer })), said, JSON.stringify(answer));
+    assert.equal(await keepVault(canned({ "vault/erase-cancel": answer }), newId()), said, JSON.stringify(answer));
 });
 
-test("the events are read by kind through an index, made where it is needed on a database made before it", async () => {
+test("the events are read by kind, and let go of by time, through indexes made where they are needed on a database made before them", async () => {
   const { db, maker } = await withVault();
-  const indexed = (): boolean => (db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'events_by_kind'`).all() as unknown[]).length === 1;
+  const indexed = (): boolean => (db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name IN ('events_by_kind', 'events_by_at')`).all() as unknown[]).length === 2;
   assert.ok(indexed());
-  // a database as the code before this left it: the events answer, and the next sign-in, make it
-  db.raw.exec(`DROP INDEX events_by_kind`);
+  // a database as the code before this left it: the events answer, and the next sign-in, make them
+  db.raw.exec(`DROP INDEX events_by_kind; DROP INDEX events_by_at`);
   assert.equal((await maker.ask("events", T0 + 3)).status, 200);
   assert.ok(indexed());
-  db.raw.exec(`DROP INDEX events_by_kind`);
+  db.raw.exec(`DROP INDEX events_by_kind; DROP INDEX events_by_at`);
   await device(db, T0 + 4);
   assert.ok(indexed());
-  // and the queries for a kind's newest lines go through it
-  const plan = (db.raw.prepare(`EXPLAIN QUERY PLAN SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 10`).all("unlocked") as { detail: string }[]).map((row) => row.detail).join(" ");
-  assert.match(plan, /events_by_kind/);
+  // and what each line written does goes through them: no statement reads the whole log (the review of this slice, finding 5b)
+  const plan = (sql: string, ...args: (string | number)[]): string => (db.raw.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...args) as { detail: string }[]).map((row) => row.detail).join(" | ");
+  assert.match(plan(`SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 10`, "unlocked"), /events_by_kind/);
+  assert.match(plan(`DELETE FROM events WHERE at < ?`, T0), /events_by_at/);
+  const capped = plan(`DELETE FROM events WHERE kind = ? AND n <= (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 1 OFFSET ?)`, "sign-in", "sign-in", 500);
+  assert.match(capped, /events_by_kind/);
+  assert.doesNotMatch(capped, /SCAN events(?! USING)/);
+  assert.match(plan(`SELECT at FROM events WHERE +kind = 'sign-in' AND at > ? ORDER BY at DESC LIMIT ?`, T0, 12), /USING INDEX events_by_at/);
 });

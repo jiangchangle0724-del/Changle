@@ -527,7 +527,7 @@ test("the functions themselves: who is unlocked, and what is no session or no ti
   assert.equal((db.raw.prepare(`SELECT COUNT(*) AS n FROM tries`).all()[0] as { n: number }).n, 6);
   // one character off is wrong
   const off = verifier.slice(0, -1) + (verifier.endsWith("A") ? "B" : "A");
-  assert.deepEqual(tryUnlock(db, id, off, d.session, T0 + 3), { ok: false, why: "wrong-secret", left: 3 });
+  assert.deepEqual(tryUnlock(db, id, off, d.session, T0 + 3), { ok: false, why: "wrong-secret", left: 3, held: 0 });
   // what is no session, or no time, is an error and not an answer
   for (const session of ["", "short", 5 as unknown as string]) assert.throws(() => tryUnlock(db, id, verifier, session, T0), /unlock/);
   for (const when of [-1, 1.5, NaN]) assert.throws(() => tryUnlock(db, id, verifier, d.session, when), /unlock/);

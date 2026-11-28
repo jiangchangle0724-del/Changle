@@ -334,10 +334,12 @@ export class VaultDO extends DurableObject<Env> {
           else answer = act(db, { account, hash, action, body, proofs }, Date.now(), config);
           // An erasing asked for wakes this object when it is due (erase.ts). An alarm that could not be set is not the
           // request's failure: the erasing is kept, every request checks for one that is due, and the next time the
-          // vault is read its alarm is set again.
+          // vault is read its alarm is set again. Set only when it is not set for that time already: reading the vault
+          // is open to every signed-in session, and setting an alarm writes (the review of this slice, finding 5a). An
+          // erasing put off since leaves the alarm early; woken early, the object sets it again (`alarm`).
           if (answer.wake !== undefined) {
             try {
-              await this.ctx.storage.setAlarm(answer.wake);
+              if ((await this.ctx.storage.getAlarm()) !== answer.wake) await this.ctx.storage.setAlarm(answer.wake);
             } catch (e) {
               console.error("moneylens: alarm not set", e instanceof Error ? e.name : typeof e);
             }

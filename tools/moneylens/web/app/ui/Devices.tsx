@@ -189,7 +189,7 @@ export function Devices({ ask, back, signedOut }: { ask: Ask; back: () => void; 
             {t("erasingTitle")}
           </h2>
           <Note tone="warn">{sentences(t("erasingDue", { due: dateText(state.pending.due) }), t("erasingAsked", { asked: dateText(state.pending.asked), who: askedBy(state.pending, state.devices) }))}</Note>
-          <p class="hint">{t(state.pending.here ? "erasingOpenHint" : "erasingIfNotYou")}</p>
+          <p class="hint">{sentences(t(state.pending.here ? "erasingOpenHint" : "erasingIfNotYou"), t("erasingHolds"))}</p>
         </section>
       )}
 

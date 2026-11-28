@@ -29,7 +29,7 @@ type View =
   | { at: "new"; note?: Key }
   | { at: "code"; draft: Draft }
   | { at: "locked"; vault: string; note?: Key }
-  | { at: "open"; vault: OpenVault };
+  | { at: "open"; vault: OpenVault; note?: Key };
 
 const WEAK: Record<Weak, Key> = { "too-short": "weakTooShort", "too-long": "weakTooLong", pattern: "weakPattern", common: "weakCommon", "few-words": "weakFewWords" };
 const ENTERED: Partial<Record<Entered, Key>> = { code: "outCode", "not-admitted": "outNotAdmitted", closed: "outClosed", "too-many": "outTooMany", "slow-down": "busy", "try-again": "outTryAgain" };
@@ -71,6 +71,11 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
     void arrive(ask).then(setView);
   }, [ask]);
   useEffect(start, [start]);
+  /** Asks again where things stand, for a screen whose vault the server says is gone or not the one held now: a vault gone is said to be. */
+  const startOver = useCallback(() => {
+    setView({ at: "starting" });
+    void arrive(ask).then((next) => setView(next.at === "new" ? { at: "new", note: "newGone" } : next));
+  }, [ask]);
 
   /**
    * The key is dropped here whatever the server says; the server is told so that it stops counting this session as
@@ -181,16 +186,16 @@ export function App({ ask = SERVER }: { ask?: Ask }) {
       <main class="main" key={over ? "devices" : view.at}>
         {/* (asked again when the screen behind it changes: a vault that locked itself meanwhile is not shown as open) */}
         {over === "devices" && <Devices key={view.at} ask={askSettled} back={unlay} signedOut={() => signedOut()} />}
-        {over === "erase" && view.at === "open" && <EraseNow ask={ask} vault={view.vault.id} back={unlay} erased={() => setView({ at: "new", note: "newErased" })} elsewhere={start} signedOut={() => signedOut()} />}
-        {over === "reset" && view.at === "locked" && <ResetVault ask={ask} vault={view.vault} back={unlay} elsewhere={start} signedOut={() => signedOut()} />}
+        {over === "erase" && view.at === "open" && <EraseNow ask={ask} vault={view.vault.id} back={unlay} erased={() => setView({ at: "new", note: "newErased" })} elsewhere={startOver} signedOut={() => signedOut()} />}
+        {over === "reset" && view.at === "locked" && <ResetVault ask={ask} vault={view.vault} back={unlay} elsewhere={startOver} signedOut={() => signedOut()} />}
         {!over && view.at === "starting" && <Starting />}
         {!over && view.at === "signed-out" && <SignedOut note={view.note} />}
         {!over && view.at === "trouble" && <Trouble why={view.why} again={start} />}
         {!over && view.at === "new" && <NewVault note={view.note} made={(made) => setView({ at: "code", draft: made })} signOut={signOut} devices={() => lay("devices")} />}
         {!over && view.at === "code" && <RecoveryCode ask={ask} draft={view.draft} done={() => setView((now) => (now.at === "code" && now.draft === view.draft ? { at: "open", vault: now.draft.vault } : now))} another={start} signedOut={() => signedOut()} />}
-        {!over && view.at === "locked" && <Unlock ask={ask} vault={view.vault} note={view.note} opened={(vault) => setView({ at: "open", vault })} signedOut={() => signedOut()} signOut={signOut} devices={() => lay("devices")} reset={() => lay("reset")} />}
+        {!over && view.at === "locked" && <Unlock ask={ask} vault={view.vault} note={view.note} opened={(vault, calledOff) => setView({ at: "open", vault, ...(calledOff ? { note: "erasingCalledOff" as const } : {}) })} gone={startOver} signedOut={() => signedOut()} signOut={signOut} devices={() => lay("devices")} reset={() => lay("reset")} />}
         {/* (the server no longer counts this device as having the vault open: locked from another tab, or erased elsewhere; where things stand is asked again) */}
-        {!over && view.at === "open" && <Home ask={ask} vault={view.vault} lock={() => lockUp()} locked={() => (lockUp(), start())} signedOut={() => signedOut()} signOut={signOut} devices={() => lay("devices")} erase={() => lay("erase")} />}
+        {!over && view.at === "open" && <Home ask={ask} vault={view.vault} note={view.note} lock={() => lockUp()} locked={() => (lockUp(), startOver())} gone={startOver} signedOut={() => signedOut()} signOut={signOut} devices={() => lay("devices")} erase={() => lay("erase")} />}
       </main>
       <footer class="foot">
         <a href="/licences.txt">{t("licences")}</a>
@@ -393,11 +398,13 @@ function sayOf(result: Exclude<Opened, { ok: true }>, byCode: boolean): { key: K
   }
 }
 
-function Unlock({ ask, vault, note, opened, signedOut, signOut, devices, reset }: { ask: Ask; vault: string; note?: Key; opened: (vault: OpenVault) => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void; reset: () => void }) {
+function Unlock({ ask, vault, note, opened, gone, signedOut, signOut, devices, reset }: { ask: Ask; vault: string; note?: Key; opened: (vault: OpenVault, calledOff: boolean) => void; gone: () => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void; reset: () => void }) {
   const [byCode, setByCode] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<ReturnType<typeof sayOf> | null>(null);
+  /** Tries so far, for the notice of an erasing to be asked again (it can be put off meanwhile); and whether the last was turned away. */
+  const [tries, setTries] = useState({ n: 0, turnedAway: false });
   const submit = async (event: Event): Promise<void> => {
     event.preventDefault();
     if (busy || !typed) return;
@@ -409,9 +416,15 @@ function Unlock({ ask, vault, note, opened, signedOut, signOut, devices, reset }
     setBusy(true);
     setProblem(null);
     const result = await open(ask, vault, byCode ? { kind: "recovery", code: typed } : { kind: "passphrase", passphrase: typed });
-    setBusy(false);
-    if (result.ok) return opened(result.vault);
+    if (result.ok) return opened(result.vault, result.calledOff === true);
     if (result.why === "signed-out") return signedOut();
+    // (no way in of that kind: the vault may be gone, erased elsewhere or by its seven days; then that is what is said)
+    if (result.why === "no-way") {
+      const now = await standing(ask);
+      if (now.at === "no-vault" || (now.at === "vault" && now.vault !== vault)) return gone();
+    }
+    setBusy(false);
+    setTries((was) => ({ n: was.n + 1, turnedAway: result.why === "too-many" }));
     setProblem(sayOf(result, byCode));
   };
   const swap = (): void => {
@@ -423,7 +436,7 @@ function Unlock({ ask, vault, note, opened, signedOut, signOut, devices, reset }
     <form class="hero" onSubmit={submit} noValidate>
       <Title>{t("openTitle")}</Title>
       <p class="lead">{t(byCode ? "openLeadCode" : "openLead")}</p>
-      <ErasingNotice ask={ask} open={false} signedOut={signedOut} />
+      <ErasingNotice ask={ask} vault={vault} open={false} signedOut={signedOut} startOver={gone} stamp={tries.n} turnedAway={tries.turnedAway} />
       {note && !problem && <Note>{t(note)}</Note>}
       <div class="panel">
         <SecretField key={byCode ? "code" : "passphrase"} id="secret" label={byCode ? "codeLabel" : "passphrase"} value={typed} onInput={setTyped} autoComplete={byCode ? "off" : "current-password"} plain={byCode} invalid={problem !== null} focus disabled={busy} />
@@ -456,7 +469,7 @@ function Unlock({ ask, vault, note, opened, signedOut, signOut, devices, reset }
 type Room = { cache: "ok" | "taken" | "none"; records: number; sync: "syncing" | "done" | "offline" | { pending: number } | { why: string } };
 
 /** The first room behind the door: the vault is open, its records are read from this device's cache, and brought into line with the server once. */
-function Home({ ask, vault, lock: lockNow, locked, signedOut, signOut, devices, erase }: { ask: Ask; vault: OpenVault; lock: () => void; locked: () => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void; erase: () => void }) {
+function Home({ ask, vault, note, lock: lockNow, locked, gone, signedOut, signOut, devices, erase }: { ask: Ask; vault: OpenVault; note?: Key; lock: () => void; locked: () => void; gone: () => void; signedOut: () => void; signOut: () => Promise<boolean>; devices: () => void; erase: () => void }) {
   const [room, setRoom] = useState<Room | null>(null);
   const ends = useRef({ locked, signedOut });
   ends.current = { locked, signedOut };
@@ -502,7 +515,8 @@ function Home({ ask, vault, lock: lockNow, locked, signedOut, signOut, devices, 
     <section class="hero" aria-busy={room === null || sync === "syncing"}>
       <Title>{t("homeTitle")}</Title>
       <p class="lead">{room && room.records > 0 ? t("homeRecords", { n: room.records }) : t("homeEmpty")}</p>
-      <ErasingNotice ask={ask} open signedOut={signedOut} />
+      {note && <Note tone="done">{t(note)}</Note>}
+      <ErasingNotice ask={ask} vault={vault.id} open signedOut={signedOut} startOver={gone} />
       {sync === undefined || sync === "syncing" ? (
         <p class="hint" role="status">
           {t("working")}

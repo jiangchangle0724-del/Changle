@@ -127,14 +127,43 @@ export function paramsOf(db: Db, ask: { id?: unknown; kind?: unknown }): { id: s
   return { id: String(row.id), kind: String(row.kind), params: JSON.parse(row.params) as unknown };
 }
 
-export type Unlock = { ok: true; wrapper: unknown } | { ok: false; why: "no-way" | "wrong-secret"; left?: number } | { ok: false; why: "too-many"; again: number };
+export type Unlock =
+  | { ok: true; wrapper: unknown }
+  | { ok: false; why: "no-way" }
+  | { ok: false; why: "wrong-secret"; left: number; held: number }
+  | { ok: false; why: "too-many"; again: number };
+
+/**
+ * How long from `now` every proof is turned away unlooked at, given the times of the wrong tries of the last day: 0
+ * when one may be shown now. Past the count, nothing is looked at, so nothing is added to it, and the wait cannot
+ * grow while it runs.
+ */
+function waitOf(tries: number[], now: number): number {
+  const newest = [...tries].sort((a, b) => b - a);
+  const hour = newest.filter((at) => at > now - HOUR);
+  const waits = [hour.length >= TRIES_PER_HOUR ? hour[TRIES_PER_HOUR - 1]! + HOUR - now : 0, newest.length >= TRIES_PER_DAY ? newest[TRIES_PER_DAY - 1]! + DAY - now : 0];
+  return Math.max(0, ...waits);
+}
+
+/** Until when every proof is turned away, from what is stored and without writing: null when one may be shown now. */
+export function turnedAwayUntil(db: Db, now: number): number | null {
+  if (!isTime(now)) throw new Error("turned away");
+  const tries = db.sql
+    .exec(`SELECT at FROM tries WHERE at > ?`, now - DAY)
+    .toArray()
+    .map((row) => Number(row.at));
+  const wait = waitOf(tries, now);
+  return wait > 0 ? now + wait : null;
+}
 
 /**
  * A session shows a proof for one way in. `verifier` is the hash of what it showed.
  *
  * Right: the session is unlocked, and the wrapper is the answer. Wrong: counted, with how many more may be wrong
- * this hour and today (`left`). Past the count: turned away unlooked at, with how long until one more may be shown
- * (`again`, milliseconds). A way in that is not there is not a guess, and is not counted.
+ * this hour and today (`left`), and how long from now every proof is turned away because of it (`held`, 0 when the
+ * count is not full: an erasing asked for waits for that, erase.ts). Past the count: turned away unlooked at, with how
+ * long until one more may be shown (`again`, milliseconds). A way in that is not there is not a guess, and is not
+ * counted.
  */
 export function tryUnlock(db: Db, id: unknown, verifier: unknown, session: string, now: number): Unlock {
   if (!isTime(now) || !isId(session)) throw new Error("unlock");
@@ -147,13 +176,11 @@ export function tryUnlock(db: Db, id: unknown, verifier: unknown, session: strin
     .toArray()
     .map((row) => Number(row.at));
   const hour = tries.filter((at) => at > now - HOUR);
-  if (hour.length >= TRIES_PER_HOUR || tries.length >= TRIES_PER_DAY) {
-    const waits = [hour.length >= TRIES_PER_HOUR ? hour[TRIES_PER_HOUR - 1]! + HOUR - now : 0, tries.length >= TRIES_PER_DAY ? tries[TRIES_PER_DAY - 1]! + DAY - now : 0];
-    return { ok: false, why: "too-many", again: Math.max(1, ...waits) };
-  }
+  const wait = waitOf(tries, now);
+  if (wait > 0) return { ok: false, why: "too-many", again: Math.max(1, wait) };
   if (!isHash(verifier) || !same(way.verifier, verifier)) {
     db.sql.exec(`INSERT INTO tries (at) VALUES (?)`, now);
-    return { ok: false, why: "wrong-secret", left: Math.min(TRIES_PER_HOUR - hour.length, TRIES_PER_DAY - tries.length) - 1 };
+    return { ok: false, why: "wrong-secret", left: Math.min(TRIES_PER_HOUR - hour.length, TRIES_PER_DAY - tries.length) - 1, held: waitOf([now, ...tries], now) };
   }
   db.sql.exec(`INSERT INTO unlocked (session, at) VALUES (?, ?) ON CONFLICT (session) DO UPDATE SET at = excluded.at`, session, now);
   noteOpened(db, session, now);

@@ -58,11 +58,17 @@ export async function eraseLater(ask: Ask, vault: string): Promise<{ ok: true; p
   return { ok: false, why: troubleOf(answer) };
 }
 
-/** Calls off the erasing asked for. "none": none was (any more). "locked": this session does not have the vault open. */
-export async function keepVault(ask: Ask): Promise<"ok" | "none" | "locked" | Trouble> {
-  const answer = await ask("vault/erase-cancel");
+/**
+ * Calls off the erasing asked for, of the vault this device has open. "none": none was (any more). "gone": there is no
+ * vault any more, and "another": the account holds another one now (either way the page starts over). "locked": this
+ * session does not have the vault open.
+ */
+export async function keepVault(ask: Ask, vault: string): Promise<"ok" | "none" | "gone" | "another" | "locked" | Trouble> {
+  const answer = await ask("vault/erase-cancel", { vault });
   if (answer?.status === 200 && answer.json.ok === true) return "ok";
   if (answer?.status === 404 && answer.json.why === "no-erase") return "none";
+  if (answer?.status === 404 && answer.json.why === "no-vault") return "gone";
+  if (answer?.status === 409) return "another";
   if (answer?.status === 423) return "locked";
   return troubleOf(answer);
 }

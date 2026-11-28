@@ -27,11 +27,11 @@
  */
 import { isId } from "../core/ids";
 import { chunkTables, lastDay, pullChunks, pushChunks, startVault, vaultHeld, type Db } from "./chunks";
-import { askErase, cancelErase, carrySpent, eraseVault, pendingErase, settleErase, type Erasing } from "./erase";
+import { askErase, cancelErase, carrySpent, eraseVault, holdErase, pendingErase, settleErase, type Erasing } from "./erase";
 import { admits, type Config, type Gate } from "./gate";
 import { isAccount } from "./request";
-import { checkSession, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
-import { isUnlocked, listWays, lock, openedSessions, paramsOf, startWays, tidyUnlocked, tryUnlock, unlockedSessions, unlockMaker, wayTables, TRIES_PER_DAY } from "./ways";
+import { checkSession, crowded, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
+import { isUnlocked, listWays, lock, openedSessions, paramsOf, startWays, tidyUnlocked, tryUnlock, turnedAwayUntil, unlockedSessions, unlockMaker, wayTables, TRIES_PER_DAY } from "./ways";
 import { packPulled, packPushed, unpackPush } from "./wire";
 
 /** Sign-ins one account may make in an hour. Eight sessions are kept, so signing in over and over pushes other devices out. */
@@ -72,27 +72,28 @@ function whose(db: Db): { id: string; owner: boolean } | null {
   return row && typeof row.id === "string" ? { id: row.id, owner: row.owner === 1 } : null;
 }
 
+/**
+ * Writes a line, and lets go of the lines that are too old and of those past the most that are kept of the line's kind:
+ * a line of one kind pushes out only lines of its own (above). Every line is written here, so every kind is held to its
+ * number. What each write reads is about as many index entries as a kind keeps (rows read count toward the plan's
+ * daily number, LIM-1; the review of this slice, finding 5b): the lines too old are found by their time, and the kind's
+ * oldest past its number by kind. A line of a kind this code does not know is kept for its twelve months, like any other.
+ */
 function note(db: Db, kind: EventKind, session: string | null, now: number): void {
   db.sql.exec(`INSERT INTO events (at, kind, session) VALUES (?, ?, ?)`, now, kind, session);
-}
-
-/**
- * Lets go of the lines that are too old, and of those past the most that are kept of their kind. Done wherever lines
- * are written: at each sign-in, at each proof shown (a right proof can be shown any number of times), and where a vault
- * is erased or asked to be. A line of a kind this code does not know is kept for its twelve months, like any other.
- */
-function tidyEvents(db: Db, now: number): void {
   eventIndex(db);
   db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
-  for (const kind of EVENT_KINDS) db.sql.exec(`DELETE FROM events WHERE kind = ? AND n <= (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 1 OFFSET ?)`, kind, kind, EVENTS_MOST);
+  db.sql.exec(`DELETE FROM events WHERE kind = ? AND n <= (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 1 OFFSET ?)`, kind, kind, EVENTS_MOST);
 }
 
 /**
- * The lines of each kind by number, so that a kind's newest lines are read without reading the others' (rows read count
- * toward the plan's daily number, LIM-1). The table is older than the index, so it is made where it is needed.
+ * The lines of each kind by number, so that a kind's newest lines are read without reading the others', and all lines by
+ * their time, so that those too old are found without reading the rest (rows read count toward the plan's daily
+ * number, LIM-1). The table is older than the indexes, so they are made where they are needed.
  */
 function eventIndex(db: Db): void {
   db.sql.exec(`CREATE INDEX IF NOT EXISTS events_by_kind ON events (kind, n)`);
+  db.sql.exec(`CREATE INDEX IF NOT EXISTS events_by_at ON events (at)`);
 }
 
 /**
@@ -129,7 +130,6 @@ export function dueErase(db: Db, now: number): number | null {
     if ("due" in settled) return settled.due;
     if (settled.did === "erased") {
       note(db, "vault-erased", null, now);
-      tidyEvents(db, now);
     }
     return null;
   });
@@ -165,6 +165,16 @@ const REFUSED = Symbol("refused");
  * or the database fails under it, leaves every session that was there, and no session nobody was given the token of
  * (the review of #814, finding 2).
  */
+/** Until when sign-ins are refused because the hour's count is full, or null when one may be made now. Reads; never writes. */
+function signInsFullUntil(db: Db, now: number): number | null {
+  const recent = db.sql
+    // (by time, not by kind: the last hour's lines are few, the kind's are up to five hundred)
+    .exec(`SELECT at FROM events WHERE +kind = 'sign-in' AND at > ? ORDER BY at DESC LIMIT ?`, now - HOUR, SIGN_INS_PER_HOUR)
+    .toArray()
+    .map((row) => Number(row.at));
+  return recent.length >= SIGN_INS_PER_HOUR ? recent[SIGN_INS_PER_HOUR - 1]! + HOUR : null;
+}
+
 export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "not-admitted" | "too-many" | "refused" {
   if (!made || !isAccount(made.account) || typeof made.owner !== "boolean" || !isTime(now)) return "refused";
   if (!admits(gate, made.account, made.owner)) return "not-admitted";
@@ -172,8 +182,7 @@ export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "n
   if (!first) {
     const held = whose(db);
     if (!held || held.id !== made.account) return "refused";
-    const recent = Number(db.sql.exec(`SELECT COUNT(*) AS n FROM events WHERE kind = 'sign-in' AND at > ?`, now - HOUR).toArray()[0]?.n ?? 0);
-    if (recent >= SIGN_INS_PER_HOUR) return "too-many";
+    if (signInsFullUntil(db, now) !== null) return "too-many";
   }
   try {
     db.atomically(() => {
@@ -185,11 +194,15 @@ export function signIn(db: Db, made: SignIn, now: number, gate: Gate): "ok" | "n
         wayTables(db);
         db.sql.exec(`INSERT INTO account (one, id, owner) VALUES (1, ?, ?)`, made.account, made.owner ? 1 : 0);
       }
+      // (a session pushed out to make room is someone kept out: an erasing asked for waits, erase.ts)
+      if (!first && crowded(db, now)) holdErase(db, now);
       if (!openSession(db, { id: made.session, hash: made.hash, label: made.label }, now)) throw REFUSED;
       // (whether it is the owner's is what the accounts service says now, not what it said last time)
       db.sql.exec(`UPDATE account SET owner = ? WHERE one = 1`, made.owner ? 1 : 0);
       note(db, "sign-in", made.session, now);
-      tidyEvents(db, now);
+      // (and so is everyone kept from signing in while the count is full: until it frees, nothing is added to it)
+      const full = signInsFullUntil(db, now);
+      if (full !== null) holdErase(db, full);
     });
   } catch (error) {
     if (error === REFUSED) return "refused";
@@ -292,15 +305,28 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
     }
     case "sessions/end": {
       const body = said(asked.body);
+      // (a session signed out by another is someone kept out: an erasing asked for waits, erase.ts)
       if (body?.others === true) {
-        const ended = endAllSessions(db, session.id);
-        if (ended) note(db, "sessions-ended", session.id, now);
-        tidyUnlocked(db);
+        const ended = db.atomically(() => {
+          const ended = endAllSessions(db, session.id);
+          if (ended) {
+            note(db, "sessions-ended", session.id, now);
+            holdErase(db, now);
+          }
+          tidyUnlocked(db);
+          return ended;
+        });
         return { status: 200, json: { ok: true, ended } };
       }
-      if (!body || !endSession(db, body.id)) return no(404, "no-session");
-      lock(db, body.id);
-      note(db, "session-ended", session.id, now);
+      if (!body) return no(404, "no-session");
+      const ended = db.atomically(() => {
+        if (!endSession(db, body.id)) return false;
+        lock(db, body.id as string);
+        note(db, "session-ended", session.id, now);
+        if (body.id !== session.id) holdErase(db, now);
+        return true;
+      });
+      if (!ended) return no(404, "no-session");
       return { status: 200, json: { ok: true, ended: 1 }, ...(body.id === session.id ? { signedOut: true } : {}) };
     }
     case "vault": {
@@ -329,7 +355,6 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
           carrySpent(db);
           unlockMaker(db, session.id, now);
           note(db, "vault-started", session.id, now);
-          tidyEvents(db, now);
         });
       } catch (error) {
         if (error === REFUSED) return no(400, "bad-request");
@@ -350,14 +375,17 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
         const tried = tryUnlock(db, body.id, asked.proofs?.[0], session.id, now);
         if (tried.ok) {
           note(db, "unlocked", session.id, now);
-          tidyEvents(db, now);
           tidyUnlocked(db);
-          return { status: 200, json: { ok: true, wrapper: tried.wrapper } };
+          // (whoever shows a way in calls off an erasing asked for: they could erase the vault at once, and could read it; erase.ts)
+          const kept = cancelErase(db);
+          if (kept) note(db, "erase-cancelled", session.id, now);
+          return { status: 200, json: { ok: true, wrapper: tried.wrapper, ...(kept ? { erasing: "called-off" } : {}) } };
         }
         if (tried.why === "too-many") return { status: 429, json: { ok: false, why: "too-many", again: tried.again } };
         if (tried.why === "no-way") return no(404, "no-way");
         note(db, "unlock-failed", session.id, now);
-        tidyEvents(db, now);
+        // (a wrong proof that fills the count keeps everyone out until it frees: an erasing asked for waits, erase.ts)
+        if (tried.held > 0) holdErase(db, now + tried.held);
         return { status: 422, json: { ok: false, why: "wrong-secret", left: tried.left } };
       });
     }
@@ -369,14 +397,15 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       // it has open, never one made since.
       const body = said(asked.body);
       if (!body || !isId(body.vault)) return no(400, "bad-request");
-      if (!isUnlocked(db, session.id)) return no(423, "locked");
+      // (a vault that is gone is said to be, before anything is asked of the session: every signed-in session can see
+      // whether there is one; the review of this slice, finding 3)
       const held = vaultHeld(db);
       if (held === null) return no(404, "no-vault");
       if (held !== body.vault) return no(409, "another-vault");
+      if (!isUnlocked(db, session.id)) return no(423, "locked");
       db.atomically(() => {
         eraseVault(db);
         note(db, "vault-erased", session.id, now);
-        tidyEvents(db, now);
       });
       return { status: 200, json: { ok: true } };
     }
@@ -387,22 +416,28 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       const held = vaultHeld(db);
       if (held === null) return no(404, "no-vault");
       if (held !== body.vault) return no(409, "another-vault");
-      const erasing = db.atomically(() => {
+      const erasing = db.atomically((): Erasing => {
         const made = askErase(db, held, session.id, now);
-        if (made.made) {
-          note(db, "erase-asked", session.id, now);
-          tidyEvents(db, now);
-        }
-        return made.erasing;
+        if (!made.made) return made.erasing;
+        note(db, "erase-asked", session.id, now);
+        // (asked while proofs or sign-ins are being turned away: the seven days start once they are not, erase.ts)
+        const out = Math.max(turnedAwayUntil(db, now) ?? 0, signInsFullUntil(db, now) ?? 0);
+        if (out > now) holdErase(db, out);
+        return pendingErase(db) ?? made.erasing;
       });
       return { status: 200, json: { ok: true, erasing: shownErase(erasing, session.id) }, wake: erasing.due };
     }
     case "vault/erase-cancel": {
+      // (of the vault named, like the other two: a device calls off the erasing of the vault it has open)
+      const body = said(asked.body);
+      if (!body || !isId(body.vault)) return no(400, "bad-request");
+      const held = vaultHeld(db);
+      if (held === null) return no(404, "no-vault");
+      if (held !== body.vault) return no(409, "another-vault");
       if (!isUnlocked(db, session.id)) return no(423, "locked");
       const cancelled = db.atomically(() => {
         if (!cancelErase(db)) return false;
         note(db, "erase-cancelled", session.id, now);
-        tidyEvents(db, now);
         return true;
       });
       return cancelled ? { status: 200, json: { ok: true } } : no(404, "no-erase");

@@ -6,9 +6,17 @@
  * to be erased after seven days. That is the way back for someone who has lost both the
  * passphrase and the recovery code, and for an owner whose mailbox someone else used to make a
  * vault first. In those seven days every signed-in device is shown that the vault will be erased,
- * when, and from which device it was asked; and a session with the vault open can call it off.
- * Calling off needs the vault open so that whoever holds the mailbox alone cannot keep a real
- * reset from happening; whoever knows a way in can call it off, and could read the vault anyway.
+ * when, and from which device it was asked; and a right proof calls it off, as does a session
+ * that has the vault open. Calling off needs a way in so that whoever holds the mailbox alone
+ * cannot keep a real reset from happening; whoever knows a way in could read the vault anyway.
+ *
+ * The seven days are seven days in which nothing was done to keep out whoever holds a way in.
+ * Whoever holds only the mailbox can do that much: fill the count of wrong proofs, so that every
+ * proof is turned away (ways.ts); fill the count of sign-ins, push sessions out with new ones, or
+ * sign them out (account.ts, sessions.ts). Each of those, while an erasing is asked for, puts it
+ * off until seven days after the last of it (`holdErase`; the review of this slice, finding 1).
+ * So someone who keeps the holder of a way in out can put an erasing off for as long as they
+ * keep at it, and can never bring one about that the holder could not have stopped.
  *
  * What erasing lets go of is the vault and everything that goes with it: its chunks and its row
  * (chunks.ts), its ways in, the wrong tries counted against them, and which sessions hold it open
@@ -58,6 +66,18 @@ export function askErase(db: Db, vault: string, session: string, now: number): {
   const erasing: Erasing = { vault, asked: now, due: now + ERASE_DELAY, session };
   db.sql.exec(`INSERT INTO erasing (one, vault, asked, due, session) VALUES (1, ?, ?, ?, ?)`, vault, now, erasing.due, session);
   return { erasing, made: true };
+}
+
+/**
+ * Puts off the erasing asked for, if there is one, until seven days after `until`: someone was kept from showing a
+ * proof or from staying signed in until then (above). Never brings one on. True: it was put off.
+ */
+export function holdErase(db: Db, until: number): boolean {
+  if (!isTime(until)) throw new Error("hold");
+  const erasing = pendingErase(db);
+  if (erasing === null || until + ERASE_DELAY <= erasing.due) return false;
+  db.sql.exec(`UPDATE erasing SET due = ?`, until + ERASE_DELAY);
+  return true;
 }
 
 /** Calls off the erasing that was asked for. False: none was. */
