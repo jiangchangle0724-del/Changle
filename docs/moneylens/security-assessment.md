@@ -59,7 +59,10 @@ guessing is written as it now is (1.9). The review of that screen
 ([`reviews/devices.md`](reviews/devices.md)) found that "vault locked" was said of a device
 on that device's word alone, and "no other device" over a list that could show one: the first
 is why the server now notes which sessions have opened the vault, and the screen says that
-and never "locked".
+and never "locked". Its second look approved that, and found that what a device did is shown
+only while its session lasts and its line is among the newest fifty: a device that opened the
+vault can sign out and be off the screen in a few hours (section 3, to settle before anyone
+but the owner is let in).
 
 ## 1. The vault
 
@@ -1468,6 +1471,17 @@ Emptying this device's cache on signing out.
 - The list of devices names a browser from a few fixed words (1.8). A browser that says little
   of itself is "Browser", and one built on another's engine may be named as that other. The
   times beside it are what tell two such devices apart.
+- What the owner is shown of a device that opened the vault, once that device's session has
+  ended (the review of the devices' screen, finding 3). That a session opened the vault is
+  noted only while the session lasts (1.9, "Unlocked, and having opened"), and its line
+  "opened the vault" is among the newest fifty lines only; unlike wrong proofs, nothing keeps
+  it in sight. So someone who knows the passphrase can open the vault, sign out, and sign in
+  and out until that line is pushed out, which takes a few hours at the twelve sign-ins an
+  hour of 1.8. When the owner signs such a device out, its mark goes at once and only the line
+  is left. To settle before anyone but the owner is let in: keep the newest lines of other
+  sessions opening the vault shown apart, as wrong proofs are, and say over them what the
+  screen says over a listed device that has opened it; or keep a short note per account of the
+  last sessions that opened the vault, past their end.
 - A right proof is counted against nothing. Whoever holds the passphrase can have a line
   written at each request, three hundred a minute from one address. The lines kept stay within
   their most (1.8), but each is a write, and writes count toward the plan's daily number that
