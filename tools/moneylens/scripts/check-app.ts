@@ -5,7 +5,8 @@
  * a wrong passphrase, opens with the right one, opens with the recovery code after the page was
  * loaded afresh, is locked after fifteen quiet minutes and when the page is left, and signs out.
  * It looks at the devices that are signed in and at what has happened, sees a second device and
- * its wrong try at the passphrase, and signs that device out.
+ * its wrong try at the passphrase, and signs that device out. It asks for the vault to be erased
+ * in seven days and calls that off, erases it at once, and makes a new one.
  * On the way it is checked that the page asks nothing of anyone but this origin (T-8), that
  * nothing it was told is left in the browser's storage (T-24), that it says what it says in both
  * languages, and that every screen passes the accessibility checks the main site runs (UX-5).
@@ -73,6 +74,31 @@ const STORED = `(async () => {
   return { databases, entries, keys, local, session, cookies: document.cookie, text: texts.join("\\n") };
 })()`;
 type Stored = { databases: string[]; entries: number; keys: string[]; local: Record<string, string>; session: Record<string, string>; cookies: string; text: string };
+/**
+ * Puts in this device's copy of the vault the line that says whose copy it is, as a device that has used its vault
+ * keeps (src/web/idbcache.ts): a new vault has nothing else to keep yet, and without it there is nothing to empty.
+ */
+const keepCopy = (vault: string): string => `new Promise((done, failed) => {
+  const open = indexedDB.open("moneylens");
+  open.onerror = () => failed(open.error);
+  open.onsuccess = () => {
+    const tx = open.result.transaction("meta", "readwrite");
+    tx.objectStore("meta").put({ vault: ${JSON.stringify(vault)}, cursor: 0 }, "vault");
+    tx.oncomplete = () => (open.result.close(), done(true));
+    tx.onerror = () => failed(tx.error);
+  };
+})`;
+/** And one sealed blob beside it, as the copy of a vault with records has (invented bytes, that nothing could open). */
+const keepChunk = `new Promise((done, failed) => {
+  const open = indexedDB.open("moneylens");
+  open.onerror = () => failed(open.error);
+  open.onsuccess = () => {
+    const tx = open.result.transaction("chunks", "readwrite");
+    tx.objectStore("chunks").put({ id: "cinventedinvent", version: 1, base: new Uint8Array(64).map((_, i) => i) });
+    tx.oncomplete = () => (open.result.close(), done(true));
+    tx.onerror = () => failed(tx.error);
+  };
+})`;
 
 try {
   const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
@@ -89,7 +115,7 @@ try {
   /** How many times the page asked the server for `action` so far. */
   const times = (action: string): number => asked.filter((line) => line === `POST ${ORIGIN}/api/${action}`).length;
   /** What the server says of this browser's session, asked from the page as the page asks. */
-  const standing = (page: Page): Promise<{ status: number; vault?: string | null; unlocked?: boolean }> =>
+  const standing = (page: Page): Promise<{ status: number; vault?: string | null; unlocked?: boolean; erasing?: unknown }> =>
     page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then(async (r) => ({ status: r.status, ...(await r.json()) }))`) as Promise<{ status: number; vault?: string | null; unlocked?: boolean }>;
   /**
    * Waits until the page says so, asking from here again and again. (The browser's own waiting asks from inside the
@@ -468,7 +494,10 @@ try {
   await page.getByRole("button", { name: "让其他设备全部退出" }).click();
   await page.getByText("已经让其他设备退出，一共 1 台。").waitFor();
   assert.equal(await devices.count(), 1);
-  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 0);
+  // that it opened the vault is still said, now of a device that has signed out since (the review of the devices' screen, finding 3)
+  const openedPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: "别的设备打开过保险库", exact: true }) });
+  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 1);
+  assert.match(await openedPanel.locator("li").first().innerText(), /打开了保险库[\s\S]*一台已经退出的设备/);
   assert.equal((await standing(phone)).status, 401);
   await phones.close();
   await page.getByRole("button", { name: "返回" }).click();
@@ -574,6 +603,193 @@ try {
   await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();
   await timed.close();
 
+  // (a laptop has the vault open throughout: it is to be told of an erasing asked for, can call it off with a press,
+  // and is to find out that the vault is gone at its next word with the server)
+  const laptops = await browser.newContext({ locale: "zh-CN", viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
+  const laptop = await laptops.newPage();
+  watch(laptop);
+  await laptop.goto(`${ORIGIN}/`);
+  await laptop.getByRole("link", { name: "用 changle.ca 账号登录" }).click();
+  await title(laptop, "打开你的账").waitFor();
+  await laptop.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await laptop.getByRole("button", { name: "打开", exact: true }).click();
+  await title(laptop, "保险库打开了").waitFor();
+  await laptop.getByText("已经和服务器对过。").waitFor();
+
+  // ---- a vault gone while the screen asks for it (erased elsewhere, or by its seven days): there is no way in, and the
+  // page asks again where things stand and says so (the answers made here; then the page is loaded afresh)
+  await title(page, "打开你的账").waitFor();
+  const { status: _status, ...real } = await standing(page);
+  void _status;
+  const goneAnswer = JSON.stringify({ ...real, vault: null, unlocked: false, ways: [], erasing: null });
+  await page.route("**/api/vault/way", (route) => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ ok: false, why: "no-way" }) }));
+  await page.route("**/api/vault", (route) => route.fulfill({ status: 200, contentType: "application/json", body: goneAnswer }));
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await title(page, "先定一个口令").waitFor();
+  await page.getByText("这个保险库已经清空了：在别的设备上，或者要求的 7 天到了。现在可以建一个新的。").waitFor();
+  await page.unroute("**/api/vault/way");
+  await page.unroute("**/api/vault");
+  await page.reload();
+
+  // ---- starting over, from the screen that asks for the passphrase: the vault is to be erased in seven days
+  await title(page, "打开你的账").waitFor();
+  await page.getByRole("button", { name: "口令和恢复码都忘了？" }).click();
+  await title(page, "清空重来").waitFor();
+  assert.equal(await page.evaluate("history.state?.moneylens"), "reset");
+  await page.getByText("口令和恢复码都没了的话，谁也找不回这个保险库里的东西，网站的经营者也不行。只能清空它，建一个新的，把账单重新导入。").waitFor();
+  // (and what puts the seven days off: someone kept out)
+  await page.getByText(/7 天都会重新算。$/).waitFor();
+  await screen(page, "reset");
+  await page.getByRole("button", { name: "7 天后清空这个保险库" }).click();
+  await page.getByText(/^这个保险库会在 .+ 清空。是这台设备在 .+ 要求的。$/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "7 天后清空这个保险库" }).count(), 0);
+  const erasingAsked = (await page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json())`)) as { erasing: { asked: number; due: number; here: boolean } | null };
+  assert.ok(erasingAsked.erasing && erasingAsked.erasing.here && erasingAsked.erasing.due - erasingAsked.erasing.asked === 7 * 24 * 3_600_000, JSON.stringify(erasingAsked.erasing));
+  await screen(page, "reset-asked");
+  // back on the screen that asks for the passphrase, and on the list of devices, it is said: when, from where, and how to call it off
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "打开你的账").waitFor();
+  await page.getByText(/^这个保险库会在 .+ 清空。/).waitFor();
+  await page.getByText("用口令或恢复码打开保险库，清空就取消了。").waitFor();
+  await screen(page, "locked-erasing");
+  // turned away for too many wrong tries (an answer made here: nothing is counted on the server), it is said that the
+  // erasing waits meanwhile, and what to do
+  let turnedAway = 0;
+  const readsBefore = times("vault");
+  await page.route("**/api/vault/unlock", (route) => (turnedAway++, route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ ok: false, why: "too-many", again: 3_600_000 }) })));
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await page.getByText(/^试错的次数满了的这段时间，谁来都打不开保险库/).waitFor();
+  await page.unroute("**/api/vault/unlock");
+  assert.equal(turnedAway, 1);
+  // (and the notice asked the server again where the erasing stands: a try can put it off)
+  for (let i = 0; i < 50 && times("vault") === readsBefore; i++) await page.waitForTimeout(100);
+  assert.ok(times("vault") > readsBefore, "the notice was not asked again after a try");
+  await screen(page, "locked-erasing-turned-away");
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  const erasingPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: "保险库要被清空了", exact: true }) });
+  assert.match(await erasingPanel.innerText(), /是这台设备在 .+ 要求的。/);
+  assert.match(await erasingPanel.innerText(), /7 天都会重新算。/);
+  assert.deepEqual((await page.locator("section.panel h2").allInnerTexts())[0], "保险库要被清空了");
+  await page.locator("li .list-main").filter({ hasText: "要求 7 天后清空保险库" }).first().waitFor();
+  await screen(page, "devices-erasing");
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "打开你的账").waitFor();
+
+  // the laptop, which had the vault open before it was asked, is told at its next screen, and calls it off with one press
+  await laptop.getByRole("button", { name: "设备和记录" }).click();
+  await title(laptop, "设备和记录").waitFor();
+  await laptop.getByRole("button", { name: "返回" }).click();
+  await title(laptop, "保险库打开了").waitFor();
+  await laptop.getByText(/^这个保险库会在 .+ 清空。是另一次登录在 .+ 要求的。$/).waitFor();
+  await screen(laptop, "open-erasing");
+  await laptop.getByRole("button", { name: "不清空了" }).click();
+  await laptop.getByText("好，不清空了。").waitFor();
+  assert.equal(await laptop.getByText(/^这个保险库会在 .+ 清空。/).count(), 0);
+  assert.equal((await standing(laptop)).erasing, null);
+
+  // asked for again, and then the vault opened with the passphrase: that calls it off, and the open vault says so
+  await page.getByRole("button", { name: "口令和恢复码都忘了？" }).click();
+  await page.getByRole("button", { name: "7 天后清空这个保险库" }).click();
+  await page.getByText(/^这个保险库会在 .+ 清空。是这台设备在 .+ 要求的。$/).waitFor();
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "打开你的账").waitFor();
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText("有人要求过清空这个保险库。你打开了它，清空就取消了。还想清空的话，用下面的「清空保险库」。").waitFor();
+  assert.equal(await page.getByText(/^这个保险库会在 .+ 清空。/).count(), 0);
+  assert.equal((await standing(page)).erasing, null);
+  await screen(page, "open-called-off");
+  // asked for once more (here straight from the page), the open vault is told at its next screen; and should the vault
+  // be gone when "don't erase it" is pressed (an answer made here), the page asks again where things stand
+  const openId = (await standing(page)).vault as string;
+  assert.equal(await page.evaluate(`fetch("/api/vault/erase-later", { method: "POST", headers: { "Content-Type": "application/json" }, body: ${JSON.stringify(JSON.stringify({ vault: openId }))} }).then((r) => r.status)`), 200);
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText(/^这个保险库会在 .+ 清空。是这台设备在 .+ 要求的。$/).waitFor();
+  await page.route("**/api/vault/erase-cancel", (route) => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ ok: false, why: "no-vault" }) }));
+  await page.getByRole("button", { name: "不清空了" }).click();
+  await title(page, "打开你的账").waitFor();
+  await page.unroute("**/api/vault/erase-cancel");
+  // (it was not gone: opened again, which calls the erasing off)
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText("有人要求过清空这个保险库。你打开了它，清空就取消了。还想清空的话，用下面的「清空保险库」。").waitFor();
+  assert.equal((await standing(page)).erasing, null);
+  // each device keeps a copy of the vault (here the line saying whose it is): erased, the vault takes it with it, on
+  // the device that erased it and on the other
+  const vaultNow = (await standing(page)).vault;
+  assert.equal(typeof vaultNow, "string");
+  for (const device of [page, laptop]) {
+    await device.evaluate(keepCopy(vaultNow as string));
+    assert.equal(((await device.evaluate(STORED)) as Stored).entries, 1);
+  }
+
+  // ---- erased at once, with the vault open: only once the word is typed
+  await page.getByRole("button", { name: "清空保险库" }).click();
+  await title(page, "清空保险库").waitFor();
+  assert.equal(await page.evaluate("history.state?.moneylens"), "erase");
+  const eraseNow = page.getByRole("button", { name: "现在清空" });
+  const word = page.getByLabel("输入「清空」确认", { exact: true });
+  assert.ok(await eraseNow.isDisabled());
+  await word.fill("清");
+  assert.ok(await eraseNow.isDisabled());
+  await word.fill(" 清空 ");
+  assert.ok(await eraseNow.isEnabled());
+  await screen(page, "erase");
+  // back is back to the vault, open as it was: nothing was erased
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+  assert.equal((await standing(page)).unlocked, true);
+  assert.equal(((await page.evaluate(STORED)) as Stored).entries, 1, "this device kept its copy while the vault was open");
+  // (with a sealed blob in it, as a vault with records has: both stores are to be emptied, not only the line)
+  await page.evaluate(keepChunk);
+  assert.equal(((await page.evaluate(STORED)) as Stored).entries, 2);
+  await page.getByRole("button", { name: "清空保险库" }).click();
+  await page.getByLabel("输入「清空」确认", { exact: true }).fill("清空");
+  await page.getByRole("button", { name: "现在清空" }).click();
+  // the screen for a new vault, which says what happened; the step that was the erasing is gone back off
+  await title(page, "先定一个口令").waitFor();
+  await page.getByText("保险库清空了。现在可以建一个新的。").waitFor();
+  await until(page, "history.state === null", "the page went back off the step that was the erasing");
+  assert.deepEqual((await standing(page)).vault, null);
+  // and this device's copy of the vault is emptied: nothing of it is left in the browser
+  await until(page, `${STORED}.then((stored) => stored.entries === 0)`, "this device's copy of the erased vault was emptied");
+  await screen(page, "new-after-erase");
+  // the list says so, and that another device once opened the vault that is gone
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await page.locator("li .list-main").filter({ hasText: "清空了保险库" }).first().waitFor();
+  await page.getByRole("heading", { level: 2, name: "别的设备打开过保险库", exact: true }).waitFor();
+  await screen(page, "devices-after-erase");
+  await page.getByRole("button", { name: "返回" }).click();
+  // the laptop still shows its open vault; at its next word with the server (here, coming back to the vault from its
+  // list) it is told it holds nothing open, asks where things stand, and is shown that there is no vault
+  await title(laptop, "保险库打开了").waitFor();
+  await laptop.getByRole("button", { name: "设备和记录" }).click();
+  await title(laptop, "设备和记录").waitFor();
+  await laptop.getByRole("button", { name: "返回" }).click();
+  await title(laptop, "先定一个口令").waitFor();
+  await laptop.getByText("这个保险库已经清空了：在别的设备上，或者要求的 7 天到了。现在可以建一个新的。").waitFor();
+  await until(laptop, `${STORED}.then((stored) => stored.entries === 0)`, "the laptop's copy of the erased vault was emptied");
+  await laptops.close();
+  // a new vault, with the same passphrase as before, for what follows
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByLabel("再输一遍", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await title(page, "把恢复码抄下来").waitFor();
+  await page.getByLabel("我已经把恢复码抄下来，放在安全的地方了").check();
+  await page.getByRole("button", { name: "建好保险库" }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText("已经和服务器对过。").waitFor();
+  await page.getByRole("button", { name: "锁上" }).click();
+  await title(page, "打开你的账").waitFor();
+
   // ---- English, all the way in
   await page.getByRole("button", { name: "English" }).click();
   await title(page, "Open your records").waitFor();
@@ -613,8 +829,8 @@ try {
   // ---- nothing was asked of anyone but this origin, and of the main site for the one hop of each sign-in (T-8)
   const elsewhere = asked.filter((line) => !line.includes(` ${ORIGIN}/`) && !/^GET https:\/\/main\.changle\.test\/tools\/finance\?handoff=[A-Za-z0-9_-]{43}$/.test(line));
   assert.deepEqual(elsewhere, [], "the page asked somewhere else");
-  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), told to slow down (429), and the two requests cut off on purpose
-  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /status of 429 \(/, /net::ERR_FAILED/];
+  // and nothing went wrong on the page but the answers it was meant to get: signed out (401), a wrong passphrase (422), not invited (403), told to slow down (429), a vault no longer open (423), a vault gone (404, the answers made here), and the requests cut off on purpose
+  const expected = [/status of 401 \(/, /status of 422 \(/, /status of 403 \(/, /status of 429 \(/, /status of 423 \(/, /status of 404 \(/, /net::ERR_FAILED/];
   assert.deepEqual(errors.filter((line) => !expected.some((known) => known.test(line))), []);
   for (const known of expected) assert.ok(errors.some((line) => known.test(line)), `nothing matched ${known}`);
   console.log(`the app in the browser: ok (${shots || "no"} pictures)`);

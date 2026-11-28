@@ -153,6 +153,8 @@ test("a vault is made on the device, kept by the server with its two ways in, an
   // the right one, typed with other spacing: the same passphrase
   const opened = await open(laptop, vault, { kind: "passphrase", passphrase: `  ${PASSPHRASE.replace(/ /g, "  ")}` });
   assert.ok(opened.ok && opened.vault.id === vault);
+  // (nothing was asked to be erased, and nothing is said of it)
+  assert.equal("calledOff" in opened, false);
   assert.deepEqual(await openJson(opened.vault, chunk, sealed), { value: { note: "kept on the phone" } });
   // the key that comes out cannot be exported, as on the device that made it (VAULT-3)
   assert.equal(opened.vault.key.extractable, false);
@@ -165,8 +167,11 @@ test("a vault is made on the device, kept by the server with its two ways in, an
   assert.deepEqual(await open(tablet, vault, { kind: "recovery", code: made.draft.recoveryCode.slice(0, -1) }), { ok: false, why: "no-secret" });
   assert.deepEqual(s.asked.slice(before.length), ["vault/way"]);
   assert.equal(s.tries(), 1);
+  // the tablet asks for the vault to be erased in seven days, then finds the code: opening calls that off, and says so
+  assert.equal((await tablet("vault/erase-later", { vault }))?.status, 200);
   const byCode = await open(tablet, vault, { kind: "recovery", code: made.draft.recoveryCode.toLowerCase() });
-  assert.ok(byCode.ok);
+  assert.ok(byCode.ok && byCode.calledOff === true);
+  assert.equal((await tablet("vault"))?.json.erasing, null);
   assert.deepEqual(await openJson(byCode.vault, chunk, sealed), { value: { note: "kept on the phone" } });
   // a passkey is not a way in yet
   assert.deepEqual(await open(tablet, vault, { kind: "passkey", prf: new Uint8Array(32) }), { ok: false, why: "no-way" });

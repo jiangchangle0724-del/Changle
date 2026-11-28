@@ -140,13 +140,13 @@ test("finding 2 (resolved at 636efca8): 'No other device is signed in' is not sa
   // all the others were asked to sign out; there were none; by the time the list is read again, one has signed in
   const here = { id: newId(), label: "Safari on iPhone", made: T0, seen: T0, here: true, unlocked: true, opened: true };
   const newcomer = { id: newId(), label: "Chrome on Windows", made: T0 + 1, seen: T0 + 1, here: false, unlocked: false, opened: false };
-  const now: Listing = { ok: true, devices: [here, newcomer], lines: [], wrong: 0 };
+  const now: Listing = { ok: true, devices: [here, newcomer], lines: [], wrong: 0, vault: true, pending: null };
   assert.deepEqual(outcomeOf("others", { ended: 0 }, now), { said: "nothing" });
-  assert.deepEqual(outcomeOf("others", { ended: 0 }, { ok: true, devices: [here], lines: [], wrong: 0 }), { said: "none" });
+  assert.deepEqual(outcomeOf("others", { ended: 0 }, { ok: true, devices: [here], lines: [], wrong: 0, vault: true, pending: null }), { said: "none" });
   // (and a failed asking over a list that still shows the other device says it was not done)
   assert.deepEqual(outcomeOf("others", "server", now), { said: "not-done", why: "server" });
   assert.deepEqual(outcomeOf(newcomer.id, "offline", now), { said: "not-done", why: "offline" });
-  assert.deepEqual(outcomeOf(newcomer.id, "offline", { ok: true, devices: [here], lines: [], wrong: 0 }), { said: "one" });
+  assert.deepEqual(outcomeOf(newcomer.id, "offline", { ok: true, devices: [here], lines: [], wrong: 0, vault: true, pending: null }), { said: "one" });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ test("second look: the note of having opened is made on a database that was made
   assert.equal((await b.ask("sync/pull", { vault, since: 0 }))!.status, 423);
 });
 
-test("finding 3: a device that opened the vault and then signed out stays shown as such after an afternoon of signing in and out", { todo: "finding 3: 'unlocked' lines are among the newest 50 only, and 'opened' goes with the session, so an intruder who opened the vault can hide that in a few hours" }, async () => {
+test("finding 3 (resolved at C12, 9bffa8cc): a device that opened the vault and then signed out stays shown as such after an afternoon of signing in and out", async () => {
   const s = server();
   const owner = await s.browser("Safari on iPhone");
   const vault = newId();

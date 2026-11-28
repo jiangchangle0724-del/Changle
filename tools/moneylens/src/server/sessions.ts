@@ -100,6 +100,11 @@ function same(a: string, b: string): boolean {
 
 const shown = ({ id, made, seen, label }: Row): Session => ({ id, made, seen, label });
 
+/** Would a sign-in now end a session that is still on, to make room (`openSession`)? An erasing waits for that (erase.ts). */
+export function crowded(db: Db, now: number): boolean {
+  return rows(db).filter((row) => on(row, now)).length >= MOST;
+}
+
 /**
  * Signs a device in: a session for the token whose hash this is. The caller made the token (`newToken`) and puts it
  * in the cookie. False, and nothing is written, when what was given is not an id, a hash, a label and a time, or when

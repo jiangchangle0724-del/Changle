@@ -5,10 +5,11 @@
 // is reachable from every screen a signed-in person has (with a vault or without, open or locked),
 // and wrong tries at the passphrase stand on it apart from everything else, at the top.
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { deviceOf, endDevice, endOthers, listing, outcomeOf, partsOf, restOf, wrongOf, type Device, type Failed, type Kind, type Line, type Listing, type Trouble } from "../../../src/app/devices";
+import { deviceOf, endDevice, endOthers, listing, openedOf, outcomeOf, partsOf, restOf, wrongOf, type Device, type Failed, type Kind, type Line, type Listing, type Trouble } from "../../../src/app/devices";
 import type { Ask } from "../../../src/app/door";
-import { getLang, t, type Key } from "../i18n";
-import { IconBack, Note, Title, useLang } from "./common";
+import type { Pending } from "../../../src/app/erase";
+import { t, type Key } from "../i18n";
+import { IconBack, Note, Title, dateText, sentences, useLang } from "./common";
 
 const HAPPENED: Record<Kind, Key> = {
   "sign-in": "evSignIn",
@@ -19,17 +20,18 @@ const HAPPENED: Record<Kind, Key> = {
   "email-changed": "evEmailChanged",
   unlocked: "evUnlocked",
   "unlock-failed": "evUnlockFailed",
+  "erase-asked": "evEraseAsked",
+  "erase-cancelled": "evEraseCancelled",
+  "vault-erased": "evVaultErased",
   other: "evOther",
 };
 /** The list could not be read; and: what was asked for was not done. */
 const UNREAD: Record<Failed, Key> = { offline: "listOffline", busy: "busy", server: "listServer" };
 const NOT_DONE: Record<Failed, Key> = { offline: "endOffline", busy: "endBusy", server: "endServer" };
 
-/** A moment, in the page's language and this device's own time: the day and the time, and the year when it is not this one. */
+/** A moment, said as a time too, for whoever does not read it off the screen. */
 function When({ at }: { at: number }) {
-  const date = new Date(at);
-  const words = new Intl.DateTimeFormat(getLang() === "zh" ? "zh-CN" : "en-CA", { ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }), month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-  return <time dateTime={date.toISOString()}>{words}</time>;
+  return <time dateTime={new Date(at).toISOString()}>{dateText(at)}</time>;
 }
 
 /** A device's name in the page's language. The server sends a few fixed words ("Chrome on Windows"); anything else is shown as it came, as text. */
@@ -53,7 +55,8 @@ function Lines({ lines, devices }: { lines: readonly Line[]; devices: readonly D
         const on = where(line, devices);
         return (
           <li key={at} class="list-item">
-            <span class="list-main">{t(HAPPENED[line.kind])}</span>
+            {/* (a vault erased in no session's name was erased by its seven days) */}
+            <span class="list-main">{t(line.kind === "vault-erased" && line.session === null ? "evVaultErasedLater" : HAPPENED[line.kind])}</span>
             <span class="list-sub facts">
               <When at={line.at} />
               {on && <span>{on}</span>}
@@ -65,8 +68,14 @@ function Lines({ lines, devices }: { lines: readonly Line[]; devices: readonly D
   );
 }
 
-/** `vault`: whether the account has one. Without one, no device is said to hold it open or locked. */
-export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: boolean; back: () => void; signedOut: () => void }) {
+/** Who asked for an erasing, in words: this device, one still signed in (its name), or one that has signed out since. */
+function askedBy(pending: Pending, devices: readonly Device[]): string {
+  if (pending.here) return t("whoHere");
+  const found = devices.find((device) => device.id === pending.session);
+  return found ? named(found.label) : pending.session === null ? t("whoOther") : t("onGone");
+}
+
+export function Devices({ ask, back, signedOut }: { ask: Ask; back: () => void; signedOut: () => void }) {
   useLang();
   const [state, setState] = useState<Listing | null>(null);
   /** What is being done: the id of the device being signed out, or "others". */
@@ -164,12 +173,25 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
     );
 
   const wrong = wrongOf(state.lines);
+  const opened = openedOf(state.lines);
   const rest = restOf(state.lines);
   const others = state.devices.filter((device) => !device.here).length;
+  // (without a vault, no device is said to hold one open or to have opened it)
+  const vault = state.vault;
   return (
     <section class="hero">
       {top}
       <p class="lead">{t("devicesLead")}</p>
+
+      {state.pending && (
+        <section class="panel" aria-labelledby="erasing-title">
+          <h2 class="sub" id="erasing-title">
+            {t("erasingTitle")}
+          </h2>
+          <Note tone="warn">{sentences(t("erasingDue", { due: dateText(state.pending.due) }), t("erasingAsked", { asked: dateText(state.pending.asked), who: askedBy(state.pending, state.devices) }))}</Note>
+          <p class="hint">{sentences(t(state.pending.here ? "erasingOpenHint" : "erasingIfNotYou"), t("erasingHolds"))}</p>
+        </section>
+      )}
 
       {(state.wrong > 0 || wrong.length > 0) && (
         <section class="panel" aria-labelledby="wrong-title">
@@ -180,6 +202,17 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
           {state.wrong > 0 ? <Note tone="warn">{t("wrongToday", { n: state.wrong })}</Note> : <Note>{t("wrongNone")}</Note>}
           <p class="hint">{t("wrongAdvice")}</p>
           <Lines lines={wrong} devices={state.devices} />
+        </section>
+      )}
+
+      {/* (said where another device has opened the vault, listed or signed out since: whether it is the person's own is theirs to know) */}
+      {(opened.length > 0 || (vault && state.devices.some((device) => !device.here && device.opened))) && (
+        <section class="panel" aria-labelledby="opened-title">
+          <h2 class="sub" id="opened-title">
+            {t("otherOpenedTitle")}
+          </h2>
+          <p class="hint">{t("openedHint")}</p>
+          {opened.length > 0 && <Lines lines={opened} devices={state.devices} />}
         </section>
       )}
 
@@ -222,8 +255,6 @@ export function Devices({ ask, vault, back, signedOut }: { ask: Ask; vault: bool
             {t(doing === "others" ? "signingOut" : "othersEnd")}
           </button>
         )}
-        {/* (said where another device has opened the vault: whether that device is the person's own is theirs to know) */}
-        {vault && state.devices.some((device) => !device.here && device.opened) && <p class="hint">{t("openedHint")}</p>}
       </section>
 
       <section class="panel" aria-labelledby="events-title">

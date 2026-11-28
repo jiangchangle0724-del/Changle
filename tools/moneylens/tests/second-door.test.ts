@@ -492,7 +492,7 @@ test("second look: /enter begins a sign-in only from this origin's own page, or 
   }
 });
 
-test("second look: the events log keeps wrong proofs and everything else apart, 500 of each, and neither pushes the other out", async () => {
+test("second look, restated at C12: each kind of line keeps its own 500, and no kind pushes another out", async () => {
   const db = sqlite();
   const cfg = configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: OWNER })!;
   let now = Date.UTC(2026, 10, 27, 9, 0, 0);
@@ -517,16 +517,16 @@ test("second look: the events log keeps wrong proofs and everything else apart, 
     const s = await session();
     assert.equal((await ask(s, "vault/unlock", { id: ways[0]!.wrapper.id, proof: newToken() })).status, 422);
   }
-  // (the 521 sign-ins are the other sort: held to their own 500, the vault's start among the oldest that went)
+  // (C12: the 521 sign-ins are held to their own 500, and the vault's start, a kind of its own, stays)
   assert.equal(count("kind = 'unlock-failed'"), 500);
-  assert.equal(count("kind != 'unlock-failed'"), 500);
+  assert.equal(count("kind = 'sign-in'"), 500);
+  assert.equal(count("kind = 'vault-started'"), 1);
   const oldestWrong = Number((db.raw.prepare(`SELECT MIN(n) AS n FROM events WHERE kind = 'unlock-failed'`).all()[0] as { n: number }).n);
-  // then 600 right proofs: the other sort stays at 500, and not one wrong proof goes
+  // then 600 right proofs: their kind is held to 500, and not one wrong proof, sign-in or the vault's start goes
   const opener = await session();
   for (let i = 0; i < 600; i++) assert.equal((await ask(opener, "vault/unlock", { id: ways[0]!.wrapper.id, proof: ways[0]!.proof })).status, 200);
   assert.equal(Number((db.raw.prepare(`SELECT MIN(n) AS n FROM events WHERE kind = 'unlock-failed'`).all()[0] as { n: number }).n), oldestWrong);
-  assert.equal(count("kind != 'unlock-failed'"), 500);
-  assert.equal(count("kind = 'unlock-failed'"), 500);
+  assert.deepEqual([count("kind = 'unlocked'"), count("kind = 'unlock-failed'"), count("kind = 'sign-in'"), count("kind = 'vault-started'")], [500, 500, 500, 1]);
   // and the twelve months still hold for both
   now += 367 * 24 * 60 * minute;
   await session();

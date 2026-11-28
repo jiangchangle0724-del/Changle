@@ -406,7 +406,7 @@ test("sessions: the list, signing out here, there and everywhere else", async ()
   assert.equal(tables(empty), 0);
 });
 
-test("the events log keeps twelve months and five hundred lines, and as many wrong proofs beside them", async () => {
+test("the events log keeps twelve months and five hundred lines of each kind: a line pushes out only lines of its own kind", async () => {
   const cfg = config();
   const db = sqlite();
   const DAY = 24 * 60 * MINUTE;
@@ -415,24 +415,28 @@ test("the events log keeps twelve months and five hundred lines, and as many wro
     const insert = db.raw.prepare(`INSERT INTO events (at, kind, session) VALUES (?, ?, NULL)`);
     for (let i = 1; i <= lines; i++) insert.run(from + i, kind);
   };
-  fill(T0, 700);
   const count = (where = "1"): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
   const oldest = (where: string): number => Number((db.raw.prepare(`SELECT MIN(at) AS at FROM events WHERE ${where}`).all()[0] as { at: number }).at);
-  assert.equal(count(), 701);
-  // the next sign-in keeps the newest five hundred
-  await enter(db, A, T0 + DAY, cfg);
-  assert.equal(count(), 500);
-  assert.equal(oldest("1"), T0 + 202);
-  // Wrong proofs are counted apart from everything else. Thirty of them, and then any number of other lines: the
-  // thirty are all still kept (the review of the door, finding 2). And of wrong proofs too, the newest five hundred.
-  fill(T0 + DAY, 30, "unlock-failed");
-  fill(T0 + DAY + 100, 700);
-  await enter(db, A, T0 + DAY + 1000, cfg);
-  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'"), oldest("kind != 'unlock-failed'")], [30, 500, T0 + DAY + 302]);
-  fill(T0 + DAY + 5000, 700, "unlock-failed");
-  await enter(db, A, T0 + DAY + 9000, cfg);
-  assert.deepEqual([count("kind = 'unlock-failed'"), oldest("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, T0 + DAY + 5201, 500]);
-  // and one more than twelve months later keeps nothing older than that, of either
+  // seven hundred sign-outs and thirty wrong proofs: a sign-in is a line of another kind, and lets go of none of them
+  fill(T0, 700);
+  fill(T0 + 1000, 30, "unlock-failed");
+  const one = await enter(db, A, T0 + DAY, cfg);
+  assert.deepEqual([count("kind = 'sign-out'"), count("kind = 'unlock-failed'"), count("kind = 'sign-in'")], [700, 30, 2]);
+  // a sign-out is of that kind: the newest five hundred of it are kept, its own among them, and the thirty wrong proofs
+  // stay (the review of the door, finding 2)
+  assert.equal(ask(db, A, one.hash, "session/end", T0 + DAY + 1, cfg).status, 200);
+  assert.deepEqual([count("kind = 'sign-out'"), oldest("kind = 'sign-out'"), count("kind = 'unlock-failed'")], [500, T0 + 202, 30]);
+  // seven hundred sign-ins, and a line of a kind this code does not know: the next sign-in keeps five hundred sign-ins
+  // and lets go of nothing else; the unknown kind keeps its twelve months
+  fill(T0 + DAY + 10, 700, "sign-in");
+  fill(T0 + DAY + 1000, 600, "from-a-later-version");
+  // (two hours later: seven hundred sign-ins within the hour would be too many for this one to be let in)
+  await enter(db, A, T0 + DAY + 120 * MINUTE, cfg);
+  assert.deepEqual(
+    [count("kind = 'sign-in'"), oldest("kind = 'sign-in'"), count("kind = 'sign-out'"), count("kind = 'unlock-failed'"), count("kind = 'from-a-later-version'")],
+    [500, T0 + DAY + 212, 500, 30, 600],
+  );
+  // and one more than twelve months later keeps nothing older than that, of any kind
   const later = await enter(db, A, T0 + 368 * DAY, cfg);
   assert.equal(count(), 1);
   // what is shown is the newest fifty
@@ -489,7 +493,7 @@ test("the vault and its chunks: started once, and synced through the frames", as
   const me = await enter(db, A, T0, cfg);
   const now = T0 + 1000;
   const [vault, other] = [newId(), newId()];
-  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
+  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], erasing: null, limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
   const made = waysFor(vault);
   const start = (id: unknown, ways: unknown = made.ways): Promise<Answer> => asking(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: id, ways })));
   for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`, JSON.stringify({ vault })]) assert.deepEqual(why(await asking(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);

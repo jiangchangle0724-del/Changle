@@ -77,6 +77,15 @@ export function Title({ children }: { children: ComponentChildren }) {
   );
 }
 
+/** A moment, in the page's language and this device's own time: the day and the time, and the year when it is not this one. */
+export function dateText(at: number): string {
+  const date = new Date(at);
+  return new Intl.DateTimeFormat(getLang() === "zh" ? "zh-CN" : "en-CA", { ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }), month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
+/** Sentences one after another, as the page's language writes them: in Chinese with nothing between, in English with a space. */
+export const sentences = (...said: string[]): string => said.join(getLang() === "zh" ? "" : " ");
+
 /** What went wrong, what was done, or what to know, in a line with a sign. Read out when it appears. */
 export function Note({ tone = "plain", children }: { tone?: "plain" | "done" | "warn" | "error"; children: ComponentChildren }) {
   return (

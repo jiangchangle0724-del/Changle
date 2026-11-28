@@ -154,7 +154,8 @@ export async function keep(ask: Ask, made: Draft): Promise<"ok" | "another" | "s
 // ---------------------------------------------------------------------------------------------
 
 /**
- * How opening went.
+ * How opening went. Opened, `calledOff`: an erasing was asked for, and showing the proof called it off (the server
+ * does that, erase.ts); the person is to be told.
  *
  * - "wrong-secret": the server says the proof was wrong, so the passphrase or the code was. `left`: how many more
  *   may be wrong before a wait.
@@ -168,7 +169,7 @@ export async function keep(ask: Ask, made: Draft): Promise<"ok" | "another" | "s
  * - "busy": too many requests from this address in a minute. Nothing was tried; in a minute it can be.
  */
 export type Opened =
-  | { ok: true; vault: OpenVault }
+  | { ok: true; vault: OpenVault; calledOff?: true }
   | { ok: false; why: "wrong-secret"; left: number | null }
   | { ok: false; why: "too-many"; again: number }
   | { ok: false; why: "no-secret" | "no-way" | "unsupported" | "changed" | "busy" | "signed-out" | "offline" | "server" };
@@ -200,7 +201,7 @@ export async function open(ask: Ask, vault: string, secret: Secret): Promise<Ope
   if (!isWrapper(wrapper)) return { ok: false, why: "unsupported" };
   if (wrapper.kind !== secret.kind) return { ok: false, why: "changed" };
   const opened = await unlock(wrapper, secret, vault);
-  if (opened.ok) return opened;
+  if (opened.ok) return shown.json.erasing === "called-off" ? { ...opened, calledOff: true } : opened;
   return { ok: false, why: opened.why === "unsupported" ? "unsupported" : "changed" };
 }
 

@@ -46,7 +46,7 @@
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import { newId } from "../core/ids";
 import { LIMITS } from "../vault/protocol";
-import { ACTIONS, act, proofsIn, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
+import { ACTIONS, act, dueErase, proofsIn, sessionFor, signEveryoneOut, signIn, type Answer, type SignIn } from "./account";
 import type { Db } from "./chunks";
 import { accountChanged, accountGone, signInHere, tradeCode, type Doors, type Entered } from "./flows";
 import { configOf, listed, type Config, type Settings } from "./gate";
@@ -304,6 +304,12 @@ export class VaultDO extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
   }
 
+  /** The alarm an erasing set (erase.ts): the vault is erased when it is due, and the alarm is set again when it is not yet. */
+  async alarm(): Promise<void> {
+    const due = dueErase(dbOf(this.ctx.storage), Date.now());
+    if (due !== null) await this.ctx.storage.setAlarm(due);
+  }
+
   /** Every request that comes with a session. */
   async fetch(request: Request): Promise<Response> {
     let answer: Answer;
@@ -326,6 +332,18 @@ export class VaultDO extends DurableObject<Env> {
           if (!fits) answer = { status: 413, json: { ok: false, why: "too-big" } };
           else if (!proofs) answer = { status: 400, json: { ok: false, why: "bad-request" } };
           else answer = act(db, { account, hash, action, body, proofs }, Date.now(), config);
+          // An erasing asked for wakes this object when it is due (erase.ts). An alarm that could not be set is not the
+          // request's failure: the erasing is kept, every request checks for one that is due, and the next time the
+          // vault is read its alarm is set again. Set only when it is not set for that time already: reading the vault
+          // is open to every signed-in session, and setting an alarm writes (the review of this slice, finding 5a). An
+          // erasing put off since leaves the alarm early; woken early, the object sets it again (`alarm`).
+          if (answer.wake !== undefined) {
+            try {
+              if ((await this.ctx.storage.getAlarm()) !== answer.wake) await this.ctx.storage.setAlarm(answer.wake);
+            } catch (e) {
+              console.error("moneylens: alarm not set", e instanceof Error ? e.name : typeof e);
+            }
+          }
         }
       }
     } catch (e) {

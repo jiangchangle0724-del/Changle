@@ -143,7 +143,7 @@ test("a proof's parameters are for any session that asks; the wrapper is for the
   const fresh = newId();
   for (const ways of [[], [way(fresh, "passphrase")], [way(fresh, "passphrase"), way(newId(), "recovery")], [way(fresh, "passphrase"), { ...way(fresh, "recovery"), proof: "short" }]]) {
     assert.deepEqual(why(await ask(blank, first.hash, "vault/start", T0, { vault: fresh, ways })), [400, "bad-request"], JSON.stringify(ways));
-    assert.deepEqual((await ask(blank, first.hash, "vault", T0)).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: cfg.limits.vaultBytes, writesPerDay: cfg.limits.writesPerDay } });
+    assert.deepEqual((await ask(blank, first.hash, "vault", T0)).json, { ok: true, vault: null, unlocked: false, ways: [], erasing: null, limits: { vaultBytes: cfg.limits.vaultBytes, writesPerDay: cfg.limits.writesPerDay } });
     assert.deepEqual(await kinds(blank, first.hash, T0), ["sign-in"]);
   }
   assert.equal((await ask(blank, first.hash, "vault/start", T0, { vault: fresh, ways: pair(fresh) })).status, 200);
@@ -341,14 +341,14 @@ test("showing proofs does not grow the events log without end, and right proofs 
   // three wrong proofs, and then the right one six hundred times from the one session (a right proof is not counted, and each is a line)
   for (let i = 0; i < 3; i++) assert.equal(await unlock(T0 + 1 + i, newToken()), 422);
   for (let i = 0; i < 600; i++) assert.equal(await unlock(T0 + 10 + i, byPassphrase.proof), 200);
-  // five hundred lines of everything else are kept, the newest; the three wrong proofs are all still there
-  assert.deepEqual([count("kind = 'unlocked'"), count("kind != 'unlock-failed'"), count("kind = 'unlock-failed'")], [500, 500, 3]);
+  // five hundred lines of that kind are kept, the newest; the lines of other kinds and the three wrong proofs are all still there
+  assert.deepEqual([count("kind = 'unlocked'"), count("kind != 'unlock-failed'"), count("kind = 'unlock-failed'")], [500, 502, 3]);
   assert.deepEqual((await kinds(db, maker.hash, T0 + 700)).slice(0, 2), ["unlocked", "unlocked"]);
   // of wrong proofs too no more than five hundred are kept, and a wrong proof is where that is seen to
   fill(T0 + 1000, 520, "unlock-failed");
   assert.equal(count("kind = 'unlock-failed'"), 523);
   assert.equal(await unlock(T0 + 2000, newToken()), 422);
-  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, 500]);
+  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, 502]);
   // and a line older than twelve months goes at the next proof shown, right or wrong
   for (const [n, proof, status] of [[1, byPassphrase.proof, 200], [2, newToken(), 422]] as const) {
     fill(T0 - 367 * DAY, 4, n === 1 ? "sign-out" : "unlock-failed");
@@ -403,7 +403,16 @@ test("the list of devices says which of them hold the vault open, and a wrong pr
   const shown = (await ask(db, owner.hash, "events", now + 6 * MINUTE + 1)).json as { events: { kind: string; at: number; session: string | null; here: boolean }[]; wrong: number };
   assert.deepEqual(shown.events.slice(0, 50).filter((line) => line.kind === "unlock-failed"), []);
   assert.deepEqual(shown.events.filter((line) => line.kind === "unlock-failed"), [{ at: T0 + 5, kind: "unlock-failed", here: false, session: other.session }]);
-  assert.equal(shown.events.length, 51);
+  // beyond the newest fifty: the wrong proof, and the other kinds shown apart (the vault made, and opened by two sessions other than the one asking)
+  assert.deepEqual(
+    shown.events.slice(50).map((line) => [line.kind, line.session]),
+    [
+      ["unlocked", late.session],
+      ["unlocked", other.session],
+      ["unlock-failed", other.session],
+      ["vault-started", maker.session],
+    ],
+  );
   assert.equal(shown.wrong, 1);
   // a day and a moment after it was made it is still shown, and no longer counted
   const later = await device(db, T0 + DAY + 6);
@@ -518,7 +527,7 @@ test("the functions themselves: who is unlocked, and what is no session or no ti
   assert.equal((db.raw.prepare(`SELECT COUNT(*) AS n FROM tries`).all()[0] as { n: number }).n, 6);
   // one character off is wrong
   const off = verifier.slice(0, -1) + (verifier.endsWith("A") ? "B" : "A");
-  assert.deepEqual(tryUnlock(db, id, off, d.session, T0 + 3), { ok: false, why: "wrong-secret", left: 3 });
+  assert.deepEqual(tryUnlock(db, id, off, d.session, T0 + 3), { ok: false, why: "wrong-secret", left: 3, held: 0 });
   // what is no session, or no time, is an error and not an answer
   for (const session of ["", "short", 5 as unknown as string]) assert.throws(() => tryUnlock(db, id, verifier, session, T0), /unlock/);
   for (const when of [-1, 1.5, NaN]) assert.throws(() => tryUnlock(db, id, verifier, d.session, when), /unlock/);
