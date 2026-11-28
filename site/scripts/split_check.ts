@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers", "items"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers", "items", "remind"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -4261,6 +4261,88 @@ async function itemizing() {
   await a.close();
 }
 
+// ---------- remind: 催一下 ----------
+/**
+ * 催一下 (2026-11-27): on a transfer still to come to you, a friendly reminder: what it says (your
+ * 收款方式 and the 查看链接 in it), their phone and email kept on this phone, a text or an email
+ * that opens with it, copied, and when it was sent on the row.
+ */
+async function reminding() {
+  if (!local) {
+    console.log("remind: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const a = await phone(390, 664, "zh");
+  await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const pa = await open(a, true);
+  await start(pa, "生日", ["阿甲", "阿乙"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  await spend(pa, "90");
+  const synced = () => pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  await synced();
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const row = pa.locator(".split-rows:not(.split-people) .split-row", { hasText: "阿甲" });
+  await row.click();
+  const sheet = pa.getByRole("dialog");
+  const remind = sheet.locator(".split-remind");
+  await remind.waitFor();
+  // your 收款方式 first, so the reminder says it
+  await sheet.getByPlaceholder(t("payHint")).fill("steve@gmail.com");
+  await sheet.getByRole("button", { name: t("paySave"), exact: true }).click();
+  await sheet.locator(".split-pay-line strong").waitFor();
+  const words = sheet.locator(".split-remind-text");
+  await pa.waitForFunction(() => document.querySelector("dialog[open] .split-remind-text")?.textContent?.includes("#v="), undefined, { timeout: 15_000 });
+  const text = await words.innerText();
+  const lines = text.split("\n");
+  ok(
+    (await remind.locator("h3").innerText()) === say("zh", "remindTitle", { who: "阿甲" }) && lines[0] === say("zh", "remindText", { who: "阿甲", ledger: "生日", amount: "$30.00" }) && lines[1] === say("zh", "remindTextPay", { pay: "steve@gmail.com" }) && /^账目在这里：http:\/\/127\.0\.0\.1:\d+\/split\/[A-Za-z0-9_-]+#v=[A-Za-z0-9_-]+$/.test(lines[2] ?? ""),
+    `提醒 阿甲: what it says, with your 收款方式 and the 查看链接 (${lines.join(" / ")})`,
+  );
+  const sms = remind.getByRole("link", { name: t("remindSms") });
+  const mail = remind.getByRole("link", { name: t("remindMail") });
+  ok((await sms.count()) === 0 && (await mail.count()) === 0 && (await remind.getByRole("button", { name: t("remindSms") }).isDisabled()) && (await remind.getByRole("button", { name: t("remindMail") }).isDisabled()), "no phone or email yet: 发短信 and 发邮件 can't be pressed");
+  await remind.getByPlaceholder(t("remindPhoneHint")).fill("604 555 0123");
+  const smsHref = (await sms.getAttribute("href")) ?? "";
+  ok(smsHref.startsWith("sms:6045550123?&body=") && decodeURIComponent(smsHref.split("&body=")[1]) === text, "a phone typed: 发短信 opens Messages to 6045550123 with the reminder written");
+  await remind.getByPlaceholder(t("remindEmailHint")).fill("jia@gmail");
+  ok((await mail.count()) === 0, "an email that isn't one yet: 发邮件 still can't be pressed");
+  await remind.getByPlaceholder(t("remindEmailHint")).fill("jia@gmail.com");
+  const mailHref = (await mail.getAttribute("href")) ?? "";
+  ok(mailHref.startsWith("mailto:jia@gmail.com?subject=") && decodeURIComponent(/subject=([^&]*)/.exec(mailHref)?.[1] ?? "") === say("zh", "remindSubject", { ledger: "生日" }) && decodeURIComponent(/body=([^&]*)/.exec(mailHref)?.[1] ?? "") === text, "and 发邮件 opens Mail to jia@gmail.com, with a subject and the reminder");
+  const tall = await remind.locator(".split-remind-send > *").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  ok(tall.length === 3 && tall.every((h) => h >= 48), `the three ways to send it, each a crowded target's height (${tall.map(Math.round).join(", ")})`);
+  await pa.screenshot({ path: join(out, "remind-zh-390x664.png"), fullPage: false });
+  await remind.getByRole("button", { name: t("remindCopy") }).click();
+  ok((await pa.evaluate(() => navigator.clipboard.readText())) === text, "复制这段话: the reminder, for WeChat or anything else");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok(/提醒过$/.test(await row.locator(".split-row-text > span").innerText()) && (await row.innerText()).includes(`${t("notPaid")} · 今天`), "its row: 还没转 · 今天 … 提醒过");
+  // opened again: the phone and email are still here (kept on this phone, by name)
+  await row.click();
+  await remind.waitFor();
+  ok((await remind.getByPlaceholder(t("remindPhoneHint")).inputValue()) === "604 555 0123" && (await remind.getByPlaceholder(t("remindEmailHint")).inputValue()) === "jia@gmail.com", "opened again: 阿甲's phone and email are kept");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  const other = pa.locator(".split-rows:not(.split-people) .split-row", { hasText: "阿乙" });
+  ok(!/提醒过/.test(await other.innerText()), "阿乙, not reminded: nothing said");
+  // in English, on the narrowest phone
+  await pa.setViewportSize({ width: 320, height: 568 });
+  await pa.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("lazysusan.settings.v1") ?? "{}");
+    localStorage.setItem("lazysusan.settings.v1", JSON.stringify({ ...kept, lang: "en" }));
+  });
+  await pa.reload();
+  await pa.getByRole("tab", { name: say("en", "settle") }).click();
+  await row.click();
+  await remind.waitFor();
+  ok((await remind.getByPlaceholder(say("en", "remindPhoneHint")).inputValue()) === "604 555 0123" && (await remind.getByPlaceholder(say("en", "remindEmailHint")).inputValue()) === "jia@gmail.com", "after the page is opened again: still kept, on this phone");
+  await remind.scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "remind-en-320x568.png") });
+  const fits = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll("dialog[open] .split-remind *")].every((e) => e.getBoundingClientRect().right <= window.innerWidth + 0.5));
+  ok(fits && (await remind.locator("h3").innerText()) === say("en", "remindTitle", { who: "阿甲" }), "in English on a 320 phone: the reminder, the fields and the three buttons fit");
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -4278,6 +4360,7 @@ if (what === "all" || what === "kinds") await kinding();
 if (what === "all" || what === "refund") await refunding();
 if (what === "all" || what === "payers") await paying2();
 if (what === "all" || what === "items") await itemizing();
+if (what === "all" || what === "remind") await reminding();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);
