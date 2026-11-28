@@ -22,7 +22,7 @@ import { whenText } from "./history";
 import { CATEGORY_WORD, dayLabel, nameFor, paysLine, personLine, personStands, spentOn, summaryLines } from "./lines";
 import { peopleOf, statementOf } from "./people";
 import { paidId, PAY_MAX, tidy } from "./ops";
-import { copyText, KindMark, SendLink } from "./parts";
+import { copyText, keepInSight, KindMark, SendLink, useKeyboardUp } from "./parts";
 import { contactOf, isEmail, isPhone, keepContact, mailHref, markReminded, remindedAt, reminderText, smsHref, type Contact } from "./remind";
 import { makeViewLink } from "./ViewLink";
 import { localDay } from "./format";
@@ -82,6 +82,10 @@ export function SettleView({
     };
   }, [reminding, ledgerKey, onServer, ledger.id]);
   const [, setReminded] = useState(0);
+  // the keyboard up for a field on the transfer: 标成已转 steps aside meanwhile, so it doesn't sit
+  // over the field on the little of the sheet the keyboard leaves (Steve, 2026-11-27), and the field
+  // scrolls back into sight (parts.tsx: useKeyboardUp, keepInSight)
+  const keyboard = useKeyboardUp(!!open);
   // the stamp lands only when the last transfer is marked while this page is open; a ledger opened
   // already square just shows it
   const wasClear = useRef(plan.clear);
@@ -163,6 +167,7 @@ export function SettleView({
         title={line ? paysLine(ledger, line.from, line.to, me, lang) : ""}
         footer={
           // (a locked ledger keeps its transfers as they are, and a 查看链接 can't mark one: the amount can still be copied)
+          !keyboard &&
           line &&
           ledger.locked === undefined &&
           !viewing &&
@@ -197,7 +202,7 @@ export function SettleView({
         }
       >
         {line && (
-          <div className="split-step">
+          <div className="split-step" onFocus={(e) => e.target instanceof HTMLInputElement && keepInSight(e.target)}>
             <p className={`split-figure ${sizeClass(money(line.amount, ledger.currency, lang))}`}>{money(line.amount, ledger.currency, lang)}</p>
             <Button
               tone="quiet"
