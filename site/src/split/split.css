@@ -890,6 +890,10 @@
   padding: var(--space-2) 0 0;
   text-align: center;
 }
+/* a field scrolled back into sight above the keyboard keeps this much room round it (parts.tsx, keepInSight) */
+.split-step :is(.split-field, .split-pay) {
+  scroll-margin-block: var(--space-3);
+}
 /* two even lines, not a line and one word left over */
 .split-step .split-note {
   margin: 0;

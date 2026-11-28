@@ -64,7 +64,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers", "items", "remind"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read", "view", "search", "pay", "kinds", "refund", "payers", "items", "remind", "keyboard"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -4343,6 +4343,88 @@ async function reminding() {
   await a.close();
 }
 
+/**
+ * The keyboard over a transfer's fields, as an iPhone has it (Steve, 2026-11-27: the phone number
+ * typed out of sight, under 标成已转). The page is told it is an iPhone, so the sheet stands on what
+ * the keyboard leaves of the screen (ui/screenAnchor). The keyboard is played as Safari's is: the
+ * screen the page is shown in (the visual viewport) made shorter, the page itself not.
+ */
+async function keyboarding() {
+  if (!local) {
+    console.log("keyboard: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 664 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: "zh-CN",
+    reducedMotion: "reduce",
+    serviceWorkers: "block",
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
+  });
+  await rooms(ctx);
+  const pa = await open(ctx, true);
+  await start(pa, "生日", ["阿甲", "阿乙"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  await spend(pa, "90");
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  await pa.locator(".split-rows:not(.split-people) .split-row", { hasText: "阿甲" }).click();
+  const sheet = pa.getByRole("dialog");
+  const phoneField = sheet.getByPlaceholder(t("remindPhoneHint"));
+  await phoneField.waitFor();
+  const mark = sheet.getByRole("button", { name: t("markPaid") });
+  // (up: the keyboard's height; 0: put away)
+  const keyboard = (up: number) =>
+    pa.evaluate((up) => {
+      const vv = window.visualViewport!;
+      if (up) {
+        const full = document.documentElement.clientHeight;
+        Object.defineProperty(vv, "height", { configurable: true, value: full - up });
+      } else delete (vv as unknown as Record<string, unknown>).height;
+      vv.dispatchEvent(new Event("resize"));
+    }, up);
+  const inSight = () =>
+    pa.evaluate(() => {
+      const label = document.activeElement!.closest("label, form")!.getBoundingClientRect();
+      const list = document.querySelector("dialog[open] .ui-sheet-body")!.getBoundingClientRect();
+      const vv = window.visualViewport!;
+      const to = Math.min(list.bottom, vv.offsetTop + vv.height);
+      return { ok: label.top >= list.top - 0.5 && label.bottom <= to + 0.5, at: `${Math.round(label.top)}–${Math.round(label.bottom)} in ${Math.round(list.top)}–${Math.round(to)}` };
+    });
+  ok(await mark.isVisible(), "a transfer opened: 标成已转 at its foot");
+  await phoneField.focus();
+  ok(await mark.isVisible(), "a field tapped with no keyboard (a computer): 标成已转 stays");
+  await keyboard(336);
+  await pa.waitForTimeout(700);
+  const phone = await inSight();
+  ok((await mark.count()) === 0 && (await sheet.locator(".ui-sheet-footer").count()) === 0, "the keyboard up for the phone: 标成已转 steps aside, so nothing sits over the field");
+  ok(phone.ok, `and the phone field and its name are in sight above the keyboard (${phone.at})`);
+  await pa.screenshot({ path: join(out, "remind-keyboard-zh-390x664.png"), clip: { x: 0, y: 0, width: 390, height: 664 - 336 } });
+  // on to the email with the keyboard still up: still aside, and the email field brought into sight in turn
+  await sheet.getByPlaceholder(t("remindEmailHint")).focus();
+  await pa.waitForTimeout(700);
+  const mail = await inSight();
+  ok((await mark.count()) === 0 && mail.ok, `from the phone to the email: 标成已转 still aside, the email field in sight (${mail.at})`);
+  // your 收款方式, saved with the keyboard up: the press lands, nothing having moved under it
+  const pay = sheet.getByPlaceholder(t("payHint"));
+  await pay.focus();
+  await pa.waitForTimeout(700);
+  const payAt = await inSight();
+  ok(payAt.ok, `the 收款方式 field too, further down (${payAt.at})`);
+  await pay.fill("steve@gmail.com");
+  await sheet.getByRole("button", { name: t("paySave"), exact: true }).click();
+  await sheet.locator(".split-pay-line strong").waitFor();
+  ok((await mark.count()) === 0, "保存 pressed with the keyboard up: saved, and 标成已转 waits for the keyboard to go");
+  // the keyboard put away: 标成已转 is back
+  await pa.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await keyboard(0);
+  await mark.waitFor();
+  ok(await mark.isVisible(), "the keyboard put away: 标成已转 is back");
+  await ctx.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -4361,6 +4443,7 @@ if (what === "all" || what === "refund") await refunding();
 if (what === "all" || what === "payers") await paying2();
 if (what === "all" || what === "items") await itemizing();
 if (what === "all" || what === "remind") await reminding();
+if (what === "all" || what === "remind" || what === "keyboard") await keyboarding();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

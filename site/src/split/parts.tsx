@@ -164,6 +164,70 @@ export function KindMark({ kind }: { kind: Category }) {
  * A link that looks like a small quiet Button (ui/Button.tsx): sms: or mailto:, so the phone's own
  * Messages or Mail opens with what it says. A link, not a button, since that is how a phone takes it.
  */
+/**
+ * A field in an open sheet, kept in sight as the phone's keyboard comes up. On an iPhone the sheet
+ * then stands on the keyboard and grows shorter (ui/screenAnchor), which can leave the field just
+ * tapped out of sight in the sheet's own scroll (Steve, 2026-11-27: the phone number on a transfer).
+ * Once the screen has settled (its last resize, or a moment without one), the sheet's list scrolls
+ * just far enough to show the field with what it is called (its label, or its form); nothing else
+ * moves. The room kept round it is its `scroll-margin` (split.css).
+ */
+export function keepInSight(field: HTMLElement) {
+  const vv = window.visualViewport;
+  const show = () => {
+    const list = field.closest<HTMLElement>(".ui-sheet-body");
+    if (!list || document.activeElement !== field) return;
+    const what = field.closest<HTMLElement>("label, form") ?? field;
+    const r = what.getBoundingClientRect();
+    const box = list.getBoundingClientRect();
+    const gap = parseFloat(getComputedStyle(what).scrollMarginTop) || 0;
+    // (the screen ends at the keyboard: a sheet that doesn't stand on it goes on behind it)
+    const bottom = Math.min(box.bottom, vv ? vv.offsetTop + vv.height : window.innerHeight);
+    const above = r.top - gap - box.top;
+    const by = above < 0 ? above : r.bottom + gap > bottom ? Math.min(r.bottom + gap - bottom, above) : 0;
+    if (by) list.scrollBy({ top: by, behavior: reduced() ? "auto" : "smooth" });
+  };
+  let timer = window.setTimeout(show, 450);
+  const soon = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(show, 120);
+  };
+  // (a keyboard is up within a second or so; the field let go of, there is nothing to keep in sight)
+  const stop = () => {
+    vv?.removeEventListener("resize", soon);
+    field.removeEventListener("blur", stop);
+  };
+  vv?.addEventListener("resize", soon);
+  field.addEventListener("blur", stop);
+  window.setTimeout(stop, 1500);
+}
+
+/** A keyboard takes at least this much of the screen (a phone's is about half of it). */
+const KEYBOARD_MIN = 150;
+
+/**
+ * Whether the phone's keyboard is up, while `on` (a sheet with fields is open): the screen it leaves
+ * the page is much shorter than the page's own (the visual viewport against the layout viewport,
+ * which a keyboard doesn't change, and as they are with two fingers zoomed in too). On a computer
+ * there is none, so never. It goes down after whatever tap put it away is over, so what changes
+ * with it doesn't move under a finger.
+ */
+export function useKeyboardUp(on: boolean): boolean {
+  const [up, setUp] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!on || !vv) {
+      setUp(false);
+      return;
+    }
+    const check = () => setUp(document.documentElement.clientHeight - vv.height * vv.scale > KEYBOARD_MIN);
+    check();
+    vv.addEventListener("resize", check);
+    return () => vv.removeEventListener("resize", check);
+  }, [on]);
+  return up;
+}
+
 export function SendLink({ href, icon: Icon, children, onSend }: { href: string; icon: LucideIcon; children: ReactNode; onSend?: () => void }) {
   return (
     <a className="ui-button ui-button-quiet ui-button-sm split-send-link" href={href} onClick={onSend}>
