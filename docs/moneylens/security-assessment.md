@@ -1357,9 +1357,12 @@ languages; that device signed out when the server can and cannot be told, and wh
 at its own next press; the same device back, opening the vault and then locking, and what the
 list says of it each time; all the others signed out; a list that cannot be read; back, forward
 and a fresh load on the step; "forward" on the recovery code's screen; and the fifteen minutes
-running out under the list, with the word that it locked held up on its way. Each of 116
-checks in the server's two answers and the page's reading of them taken out in turn fails a
-test on Node, and each of 24 in the screens fails the check in the browser. The browser checks
+running out under the list, with the word that it locked held up on its way. Each of 141
+checks in the server's two answers, its note of having opened the vault and the page's reading
+of them taken out in turn fails a test on Node, and each of 30 in the screens fails the check
+in the browser. The earlier such runs over the files this changes (`account.ts`, `ways.ts`,
+`App.tsx`: 184 checks, seven of them in the browser) were run again with it, and each still
+fails a test. The browser checks
 wait by asking from outside the page until a thing is so: the browser's own waiting asks from
 inside it by making a script out of text, which the page's policy forbids, and takes a promise
 for a yes, so that two checks ("the server is told that it locked") had asked once and taken
