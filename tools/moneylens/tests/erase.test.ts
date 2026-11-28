@@ -227,6 +227,10 @@ test("an erasing waits for seven days in which nobody was kept out: proofs turne
   // meanwhile the right proof is turned away too, nothing more is counted, and the erasing stays where it is
   assert.equal((await maker.ask("vault/unlock", T0 + MINUTE + 20, { id: ways[0].wrapper.id, proof: ways[0].proof })).status, 429);
   assert.equal(due(), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
+  // and something that keeps someone out for less long than that brings it no nearer
+  const quick = await later(db, T0 + MINUTE + 30);
+  assert.equal((await quick.ask("sessions/end", T0 + MINUTE + 31, { id: other.session })).status, 200);
+  assert.equal(due(), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
   // the alarm at the old time finds nothing due, and says when to wake
   assert.equal(dueErase(db, asked + ERASE_DELAY), T0 + MINUTE + 1 + HOUR + ERASE_DELAY);
   assert.equal(count(db, "vault"), 1);
