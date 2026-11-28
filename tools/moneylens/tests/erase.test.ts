@@ -16,6 +16,7 @@ import { configOf } from "../src/server/gate";
 import { hashOf, newToken } from "../src/server/sessions";
 import { packPush, unpackPushed } from "../src/server/wire";
 import { sqlite } from "./sqlremote";
+import { workerModule } from "./workermod";
 
 const A = "uaaaaaa1";
 const T0 = Date.UTC(2026, 10, 27, 23, 0, 0);
@@ -590,4 +591,62 @@ test("the events are read by kind, and let go of by time, through indexes made w
   assert.match(capped, /events_by_kind/);
   assert.doesNotMatch(capped, /SCAN events(?! USING)/);
   assert.match(plan(`SELECT at FROM events WHERE +kind = 'sign-in' AND at > ? ORDER BY at DESC LIMIT ?`, T0, 12), /USING INDEX events_by_at/);
+});
+
+test("the object's alarm is set once for an erasing, not at every read of the vault; put off, it is set again at the next read; and a refused alarm fails nothing (the review of this slice, finding 5a)", async () => {
+  type VaultObject = { fetch(request: Request): Promise<Response>; alarm(): Promise<void> };
+  const { VaultDO } = (await workerModule()) as { VaultDO: new (ctx: unknown, env: object) => VaultObject };
+  const db = sqlite();
+  let alarm: number | null = null;
+  let refuse = false;
+  const set: number[] = [];
+  const storage = {
+    sql: db.sql,
+    transactionSync: <T>(work: () => T): T => db.atomically(work),
+    deleteAll: async () => undefined,
+    getAlarm: async () => alarm,
+    setAlarm: async (at: number) => {
+      if (refuse) throw new Error("alarm refused");
+      set.push(at);
+      alarm = at;
+    },
+  };
+  const object = new VaultDO({ storage }, { ORIGIN: "https://money.changle.test", GATE: "list", ALLOWED_ACCOUNTS: A });
+  const enter = async (): Promise<string> => {
+    const hash = (await hashOf(newToken()))!;
+    assert.equal(signIn(db, { account: A, session: newId(), hash, label: "Chrome on Windows", owner: false }, Date.now(), cfg.gate), "ok");
+    return hash;
+  };
+  const send = async (hash: string, action: string, body: unknown = {}): Promise<{ status: number; json: Record<string, unknown> }> => {
+    const bytes = new TextEncoder().encode(JSON.stringify(body));
+    const answer = await object.fetch(new Request(`https://vault.internal/${action}`, { method: "POST", headers: { "x-ml-account": A, "x-ml-hash": hash, "Content-Length": String(bytes.length) }, body: bytes }));
+    return { status: answer.status, json: (await answer.json()) as Record<string, unknown> };
+  };
+  const [maker, other] = [await enter(), await enter()];
+  const vault = newId();
+  const ways = [way(vault, "passphrase"), way(vault, "recovery")] as const;
+  assert.equal((await send(maker, "vault/start", { vault, ways })).status, 200);
+  assert.deepEqual(set, []);
+  // asked for: set once, for when it is due; read again and again, not set again
+  assert.equal((await send(other, "vault/erase-later", { vault })).status, 200);
+  assert.deepEqual(set, [pendingErase(db)!.due]);
+  for (let i = 0; i < 5; i++) assert.equal((await send(other, "vault")).status, 200);
+  assert.equal(set.length, 1);
+  // put off by wrong proofs that fill the count: the next read of the vault sets it for the new time, once
+  const first = pendingErase(db)!.due;
+  for (let i = 0; i < 10; i++) assert.equal((await send(other, "vault/unlock", { id: ways[0].wrapper.id, proof: newToken() })).status, 422);
+  assert.ok(pendingErase(db)!.due > first);
+  assert.equal(set.length, 1);
+  for (let i = 0; i < 3; i++) await send(other, "vault");
+  assert.deepEqual(set, [first, pendingErase(db)!.due]);
+  // woken early (as at the old time: the platform clears an alarm that fires), it sets itself again for when it is due
+  alarm = null;
+  await object.alarm();
+  assert.deepEqual(set.at(-1), pendingErase(db)!.due);
+  assert.equal(count(db, "vault"), 1);
+  // an alarm that cannot be set is no failure of the request
+  alarm = null;
+  refuse = true;
+  const read = await send(other, "vault");
+  assert.deepEqual([read.status, read.json.vault], [200, vault]);
 });
