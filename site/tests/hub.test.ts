@@ -914,6 +914,17 @@ function fakeStripe(live: boolean) {
   }
 }
 
+// ---- an email change drops waiting handoff codes, even with no other phone signed in ----
+{
+  const { hub } = await hubOn();
+  const gus = await join(hub, "gus@example.test", "gus-phone-0001");
+  const waiting = String((await codeFor(hub, gus.token, "gus-phone-0001")).json.code);
+  const r = await req(hub, "POST", "/me/email", { email: "gus-new@example.test", lang: "zh" }, gus.token, "gus-phone-0001");
+  assert.equal((await req(hub, "POST", "/me/email/confirm", { code: r.json.dev, oldCode: r.json.devNow }, gus.token, "gus-phone-0001")).status, 200);
+  assert.equal(await hub.redeemHandoff(waiting, "moneylens"), null);
+  ok("换邮箱: a handoff code asked for just before the change can't be traded after it (one phone, nothing else to sign out)");
+}
+
 console.log(`\nall ${n} passed`);
 // (the first hub in "stopped mid-try" still has its never-answered send on a 30-second timer)
 process.exit(0);

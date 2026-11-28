@@ -1074,6 +1074,8 @@ export class Hub extends DurableObject<HubEnv> {
    */
   private emailMade(id: string, made: { old: string; email: string }, lang: "zh" | "en", keep: string, kick: boolean) {
     this.signOutOthers(id, keep);
+    // (waiting handoff codes go even with no other phone to sign out: one asked for just before the change can't be traded after it)
+    forgetHandoffs(this.sql, id, false);
     this.push(id, { t: "me" });
     queueMail(this.sql, this.changedNote(made.old, made.email));
     if (appsUsed(this.sql, id).includes("money")) noteGone(this.sql, id, ["money-changed"]);
