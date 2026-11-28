@@ -10,13 +10,12 @@ import type { Failed } from "../../../src/app/devices";
 import type { Ask } from "../../../src/app/door";
 import { eraseLater, eraseNow, erasing, keepVault, type Pending } from "../../../src/app/erase";
 import { t, type Key } from "../i18n";
-import { IconBack, Note, Title, dateText, useLang } from "./common";
+import { IconBack, Note, Title, dateText, sentences, useLang } from "./common";
 
 const NOT_DONE: Record<Failed, Key> = { offline: "endOffline", busy: "endBusy", server: "endServer" };
 
 /** What an erasing asked for is, in a line: when it will be, and when and from where it was asked for. */
-const sayPending = (pending: Pending): string =>
-  `${t("erasingDue", { due: dateText(pending.due) })} ${t("erasingAsked", { asked: dateText(pending.asked), who: t(pending.here ? "whoHere" : "whoOther") })}`;
+const sayPending = (pending: Pending): string => sentences(t("erasingDue", { due: dateText(pending.due) }), t("erasingAsked", { asked: dateText(pending.asked), who: t(pending.here ? "whoHere" : "whoOther") }));
 
 /**
  * The notice on a screen of a signed-in device while an erasing is asked for. `open`: this device has the vault open,

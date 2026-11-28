@@ -400,3 +400,19 @@ test("the app's side, against answers that are not what they should be: each is 
   ] as const)
     assert.equal(await keepVault(canned({ "vault/erase-cancel": answer })), said, JSON.stringify(answer));
 });
+
+test("the events are read by kind through an index, made where it is needed on a database made before it", async () => {
+  const { db, maker } = await withVault();
+  const indexed = (): boolean => (db.raw.prepare(`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'events_by_kind'`).all() as unknown[]).length === 1;
+  assert.ok(indexed());
+  // a database as the code before this left it: the events answer, and the next sign-in, make it
+  db.raw.exec(`DROP INDEX events_by_kind`);
+  assert.equal((await maker.ask("events", T0 + 3)).status, 200);
+  assert.ok(indexed());
+  db.raw.exec(`DROP INDEX events_by_kind`);
+  await device(db, T0 + 4);
+  assert.ok(indexed());
+  // and the queries for a kind's newest lines go through it
+  const plan = (db.raw.prepare(`EXPLAIN QUERY PLAN SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 10`).all("unlocked") as { detail: string }[]).map((row) => row.detail).join(" ");
+  assert.match(plan, /events_by_kind/);
+});

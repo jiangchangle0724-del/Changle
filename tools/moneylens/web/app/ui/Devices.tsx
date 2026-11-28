@@ -9,7 +9,7 @@ import { deviceOf, endDevice, endOthers, listing, openedOf, outcomeOf, partsOf, 
 import type { Ask } from "../../../src/app/door";
 import type { Pending } from "../../../src/app/erase";
 import { t, type Key } from "../i18n";
-import { IconBack, Note, Title, dateText, useLang } from "./common";
+import { IconBack, Note, Title, dateText, sentences, useLang } from "./common";
 
 const HAPPENED: Record<Kind, Key> = {
   "sign-in": "evSignIn",
@@ -188,9 +188,7 @@ export function Devices({ ask, back, signedOut }: { ask: Ask; back: () => void; 
           <h2 class="sub" id="erasing-title">
             {t("erasingTitle")}
           </h2>
-          <Note tone="warn">
-            {t("erasingDue", { due: dateText(state.pending.due) })} {t("erasingAsked", { asked: dateText(state.pending.asked), who: askedBy(state.pending, state.devices) })}
-          </Note>
+          <Note tone="warn">{sentences(t("erasingDue", { due: dateText(state.pending.due) }), t("erasingAsked", { asked: dateText(state.pending.asked), who: askedBy(state.pending, state.devices) }))}</Note>
           <p class="hint">{t(state.pending.here ? "erasingOpenHint" : "erasingIfNotYou")}</p>
         </section>
       )}

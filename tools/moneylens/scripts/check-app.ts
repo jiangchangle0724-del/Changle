@@ -5,7 +5,8 @@
  * a wrong passphrase, opens with the right one, opens with the recovery code after the page was
  * loaded afresh, is locked after fifteen quiet minutes and when the page is left, and signs out.
  * It looks at the devices that are signed in and at what has happened, sees a second device and
- * its wrong try at the passphrase, and signs that device out.
+ * its wrong try at the passphrase, and signs that device out. It asks for the vault to be erased
+ * in seven days and calls that off, erases it at once, and makes a new one.
  * On the way it is checked that the page asks nothing of anyone but this origin (T-8), that
  * nothing it was told is left in the browser's storage (T-24), that it says what it says in both
  * languages, and that every screen passes the accessibility checks the main site runs (UX-5).
@@ -468,7 +469,10 @@ try {
   await page.getByRole("button", { name: "让其他设备全部退出" }).click();
   await page.getByText("已经让其他设备退出，一共 1 台。").waitFor();
   assert.equal(await devices.count(), 1);
-  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 0);
+  // that it opened the vault is still said, now of a device that has signed out since (the review of the devices' screen, finding 3)
+  const openedPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: "别的设备打开过保险库", exact: true }) });
+  assert.equal(await page.getByText("打开过保险库的设备拿到过钥匙").count(), 1);
+  assert.match(await openedPanel.locator("li").first().innerText(), /打开了保险库[\s\S]*一台已经退出的设备/);
   assert.equal((await standing(phone)).status, 401);
   await phones.close();
   await page.getByRole("button", { name: "返回" }).click();
@@ -573,6 +577,89 @@ try {
   await title(timed, "打开你的账").waitFor();
   await timed.getByText("15 分钟没有动静，已经锁上了。").waitFor();
   await timed.close();
+
+  // ---- starting over, from the screen that asks for the passphrase: the vault is to be erased in seven days
+  await title(page, "打开你的账").waitFor();
+  await page.getByRole("button", { name: "口令和恢复码都忘了？" }).click();
+  await title(page, "清空重来").waitFor();
+  assert.equal(await page.evaluate("history.state?.moneylens"), "reset");
+  await page.getByText("口令和恢复码都没了的话，谁也找不回这个保险库里的东西，网站的经营者也不行。只能清空它，建一个新的，把账单重新导入。").waitFor();
+  await screen(page, "reset");
+  await page.getByRole("button", { name: "7 天后清空这个保险库" }).click();
+  await page.getByText(/^这个保险库会在 .+ 清空。是这台设备在 .+ 要求的。$/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "7 天后清空这个保险库" }).count(), 0);
+  const erasingAsked = (await page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json())`)) as { erasing: { asked: number; due: number; here: boolean } | null };
+  assert.ok(erasingAsked.erasing && erasingAsked.erasing.here && erasingAsked.erasing.due - erasingAsked.erasing.asked === 7 * 24 * 3_600_000, JSON.stringify(erasingAsked.erasing));
+  await screen(page, "reset-asked");
+  // back on the screen that asks for the passphrase, and on the list of devices, it is said: when, from where, and how to call it off
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "打开你的账").waitFor();
+  await page.getByText(/^这个保险库会在 .+ 清空。/).waitFor();
+  await page.getByText("用口令或恢复码打开保险库，就能取消。").waitFor();
+  await screen(page, "locked-erasing");
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await title(page, "设备和记录").waitFor();
+  const erasingPanel = page.locator("section.panel").filter({ has: page.getByRole("heading", { level: 2, name: "保险库要被清空了", exact: true }) });
+  assert.match(await erasingPanel.innerText(), /是这台设备在 .+ 要求的。/);
+  assert.deepEqual((await page.locator("section.panel h2").allInnerTexts())[0], "保险库要被清空了");
+  await page.locator("li .list-main").filter({ hasText: "要求 7 天后清空保险库" }).first().waitFor();
+  await screen(page, "devices-erasing");
+  await page.getByRole("button", { name: "返回" }).click();
+  // opened, the vault can be kept from being erased, with one press
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "打开", exact: true }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText(/^这个保险库会在 .+ 清空。/).waitFor();
+  await screen(page, "open-erasing");
+  await page.getByRole("button", { name: "不清空了" }).click();
+  await page.getByText("好，不清空了。").waitFor();
+  assert.equal(await page.getByText(/^这个保险库会在 .+ 清空。/).count(), 0);
+  assert.deepEqual(((await page.evaluate(`fetch("/api/vault", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then((r) => r.json())`)) as { erasing: unknown }).erasing, null);
+
+  // ---- erased at once, with the vault open: only once the word is typed
+  await page.getByRole("button", { name: "清空保险库" }).click();
+  await title(page, "清空保险库").waitFor();
+  assert.equal(await page.evaluate("history.state?.moneylens"), "erase");
+  const eraseNow = page.getByRole("button", { name: "现在清空" });
+  const word = page.getByLabel("输入「清空」确认", { exact: true });
+  assert.ok(await eraseNow.isDisabled());
+  await word.fill("清");
+  assert.ok(await eraseNow.isDisabled());
+  await word.fill(" 清空 ");
+  assert.ok(await eraseNow.isEnabled());
+  await screen(page, "erase");
+  // back is back to the vault, open as it was: nothing was erased
+  await page.getByRole("button", { name: "返回" }).click();
+  await title(page, "保险库打开了").waitFor();
+  assert.equal((await standing(page)).unlocked, true);
+  await page.getByRole("button", { name: "清空保险库" }).click();
+  await page.getByLabel("输入「清空」确认", { exact: true }).fill("清空");
+  await page.getByRole("button", { name: "现在清空" }).click();
+  // the screen for a new vault, which says what happened; the step that was the erasing is gone back off
+  await title(page, "先定一个口令").waitFor();
+  await page.getByText("保险库清空了。现在可以建一个新的。").waitFor();
+  await until(page, "history.state === null", "the page went back off the step that was the erasing");
+  assert.deepEqual((await standing(page)).vault, null);
+  // and this device's copy of the vault is emptied: nothing of it is left in the browser
+  await until(page, `${STORED}.then((stored) => stored.entries === 0)`, "this device's copy of the erased vault was emptied");
+  await screen(page, "new-after-erase");
+  // the list says so, and that another device once opened the vault that is gone
+  await page.getByRole("button", { name: "设备和记录" }).click();
+  await page.locator("li .list-main").filter({ hasText: "清空了保险库" }).first().waitFor();
+  await page.getByRole("heading", { level: 2, name: "别的设备打开过保险库", exact: true }).waitFor();
+  await screen(page, "devices-after-erase");
+  await page.getByRole("button", { name: "返回" }).click();
+  // a new vault, with the same passphrase as before, for what follows
+  await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
+  await page.getByLabel("再输一遍", { exact: true }).fill(PASSPHRASE);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await title(page, "把恢复码抄下来").waitFor();
+  await page.getByLabel("我已经把恢复码抄下来，放在安全的地方了").check();
+  await page.getByRole("button", { name: "建好保险库" }).click();
+  await title(page, "保险库打开了").waitFor();
+  await page.getByText("已经和服务器对过。").waitFor();
+  await page.getByRole("button", { name: "锁上" }).click();
+  await title(page, "打开你的账").waitFor();
 
   // ---- English, all the way in
   await page.getByRole("button", { name: "English" }).click();

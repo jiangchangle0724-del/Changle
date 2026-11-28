@@ -82,27 +82,35 @@ function note(db: Db, kind: EventKind, session: string | null, now: number): voi
  * is erased or asked to be. A line of a kind this code does not know is kept for its twelve months, like any other.
  */
 function tidyEvents(db: Db, now: number): void {
+  eventIndex(db);
   db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
   for (const kind of EVENT_KINDS) db.sql.exec(`DELETE FROM events WHERE kind = ? AND n <= (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 1 OFFSET ?)`, kind, kind, EVENTS_MOST);
 }
 
 /**
+ * The lines of each kind by number, so that a kind's newest lines are read without reading the others' (rows read count
+ * toward the plan's daily number, LIM-1). The table is older than the index, so it is made where it is needed.
+ */
+function eventIndex(db: Db): void {
+  db.sql.exec(`CREATE INDEX IF NOT EXISTS events_by_kind ON events (kind, n)`);
+}
+
+/**
  * The lines shown to `session`, newest first, each once: the newest of all, and the newest of each kind shown apart
- * however many lines came after them (above).
+ * however many lines came after them (above). One small query for each, put together here: Cloudflare's SQLite takes
+ * few terms in one compound SELECT.
  */
 function shownEvents(db: Db, session: string): { at: number; kind: string; session: unknown }[] {
-  const apart = SHOWN_APART.map(() => `UNION SELECT n FROM (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT ?)`).join(" ");
-  return db.sql
-    .exec(
-      `SELECT at, kind, session FROM events WHERE n IN (SELECT n FROM (SELECT n FROM events ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlocked' AND (session IS NULL OR session != ?) ORDER BY n DESC LIMIT ?) ${apart}) ORDER BY n DESC`,
-      EVENTS_SHOWN,
-      WRONG_SHOWN,
-      session,
-      APART_SHOWN,
-      ...SHOWN_APART.flatMap((kind) => [kind, APART_SHOWN]),
-    )
-    .toArray()
-    .map((row) => ({ at: Number(row.at), kind: String(row.kind), session: row.session }));
+  eventIndex(db);
+  const sets = [
+    db.sql.exec(`SELECT n, at, kind, session FROM events ORDER BY n DESC LIMIT ?`, EVENTS_SHOWN),
+    db.sql.exec(`SELECT n, at, kind, session FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT ?`, WRONG_SHOWN),
+    db.sql.exec(`SELECT n, at, kind, session FROM events WHERE kind = 'unlocked' AND (session IS NULL OR session != ?) ORDER BY n DESC LIMIT ?`, session, APART_SHOWN),
+    ...SHOWN_APART.map((kind) => db.sql.exec(`SELECT n, at, kind, session FROM events WHERE kind = ? ORDER BY n DESC LIMIT ?`, kind, APART_SHOWN)),
+  ];
+  const lines = new Map<number, { at: number; kind: string; session: unknown }>();
+  for (const set of sets) for (const row of set.toArray()) lines.set(Number(row.n), { at: Number(row.at), kind: String(row.kind), session: row.session });
+  return [...lines.entries()].sort(([a], [b]) => b - a).map(([, line]) => line);
 }
 
 /** An erasing as a session is shown it: when it was asked for and when it is due, and by which session (`here`: this one). Not which vault. */
