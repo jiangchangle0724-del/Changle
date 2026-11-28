@@ -1,3 +1,5 @@
+VERDICT (second look, 4f2c54fb): APPROVE for merging. Before the `MONEY` binding is added, before real statements go in, and before anyone but the owner is let in, finding 7 and the main-site limit must be settled. The first look's verdict, CHANGES at 9bffa8cc, follows as it was written.
+
 VERDICT: CHANGES (findings 1 and 2 block the merge; findings 3 to 6 do not). It applies to 9bffa8cc and to 13bed4e2: nothing under `src/` or `web/` changed between them.
 
 **Independence.** The author and the reviewer are the same model. This slice was written by Claude Opus 5.5 and reviewed by Claude Opus 5.5 (`claude-opus-5-5`), run as a separate agent that took no part in writing the code, the tests or the documents. SEC-9 asks for "a second model or a person". This review is neither, so it does not meet SEC-9 on its own.
@@ -345,5 +347,177 @@ No network was used, nothing was committed, and only my four files were written.
 - The mail sent when an erasing is asked for (section 3).
 - BAK-3 confirmed.
 - A review of the erasing path by another model or a person.
+
+## Second look: 4f2c54fb
+
+**Independence, first again.** The author and the reviewer are still the same model, Claude Opus 5.5. I am a separate agent with no part in the code, its tests or its documents. That is neither "a second model" nor "a person", so this look does not meet SEC-9 on its own.
+
+This time the author asked me to look hardest at the holds, because they are the author's design and we probably share blind spots. So I did not take the author's list of what keeps someone out on trust. I wrote my own model of "kept out" from 1.9 and 1.11, apart from the server's code, and ran random sequences of what someone with only the mailbox can do against it. I also checked that the test can fail. Where I could only read, I say so.
+
+**Reviewed:** commit `4f2c54fb`, in a clean worktree, on 27 November 2026. I read `git diff 13bed4e2 4f2c54fb -- tools/moneylens docs/moneylens`. `ce1b4a6a` holds my first look's four files as I wrote them, unchanged.
+
+### Verdict
+
+**APPROVE** for merging 4f2c54fb.
+- Inside MoneyLens, someone who holds only the mailbox can no longer bring about an erasing that the holder of a way in could have stopped. Nothing they can do there brings one nearer.
+- A right proof of the vault held calls an erasing off. So does the press of a session that has the vault open and names it. Nothing else does.
+- The screens now say what the server does.
+
+Two things remain outside MoneyLens's own code. Both lead to the same result as first-look finding 1, and both matter once the vault holds anything real:
+- the main site's own limits (1.11 admits this);
+- deleting the account (finding 7, new).
+
+They must be settled before the accounts service's `MONEY` binding is added, before the import page lets real statements in, and before anyone but the owner is let in. None of them is a reason not to merge this code. The vault holds no records yet, and without `MONEY` the accounts service's notices only wait in its queue.
+
+### The first look's findings
+
+1. **The count kept the owner from calling an erasing off. Resolved inside MoneyLens.** Each way of keeping someone out now puts the erasing off until seven days after it ends:
+   - a wrong proof that fills the count;
+   - the hour's twelfth sign-in;
+   - a sign-in that pushes a live session out;
+   - a session that signs another out, by its id or all at once.
+
+   An erasing asked for while proofs or sign-ins are being turned away starts its seven days once they are not. `holdErase` only ever moves the due time later. What I ran:
+   - **The first look's case, restated.** Someone guesses every five minutes for two weeks while the owner shows the right code every three hours. He never gets in. The vault and its chunks stay, and the due time never moves nearer. Once the guessing stops, his next right proof calls the erasing off, and the answer says "called-off".
+   - **Random runs.** Three runs of 21 days each, all against my own model of when someone is kept out:
+     - one mostly guessing;
+     - one mostly signing in and signing sessions out;
+     - one sparse.
+
+     In every run the erasing never came nearer. It was done no earlier than seven days after the last time my model says anyone was kept out, and less than an hour after that once the actions stopped. So the server holds for everything my model counts, and for nothing more.
+   - **The test can fail.** I made my model claim that a sign-out keeps someone out three hours longer than it does. The test then failed ("erased 2.77 hours early").
+
+   The same outcome is still reachable through the accounts service: below, and finding 7.
+2. **The English said that opening calls an erasing off. Resolved.** A right proof now calls it off in the same transaction, with its own line and `erasing: "called-off"` in the answer. The app's `open` passes that on, and the open vault says so.
+   - The words are now true in both languages, and the two languages say the same thing.
+   - It holds in every case I could think of:
+     - a wrong proof calls nothing off;
+     - neither does a proof of a way in that is not there, or a right proof turned away because the count is full;
+     - nor the press of a locked session, nor a press that names another vault or none;
+     - the session that asked calls off its own reset when it opens the vault, and is told so;
+     - a right proof with nothing asked for says nothing, and writes no line about an erasing.
+
+     Test: `what calls an erasing off`.
+3. **"Locked" said of a vault that is gone. Resolved.** `vault/erase` and `vault/erase-cancel` now name their vault, and answer "no-vault" and then "another-vault" before "locked". After the phone erases the vault at once, the laptop that still shows it open hears "gone" for "Erase now" and for "Don't erase it". Opening answers "no-way", and asking where things stand answers "no-vault", which is what the passphrase screen now asks on "no-way".
+
+   The first look's second case can no longer happen: "Don't erase it" pressed a second after the seven days. A session counts as unlocked only after a right proof shown within its twelve hours, and while an erasing is asked for that proof calls it off. So no session has the vault open when its seven days come. The restated test says so.
+4. **Openings shown apart: the newest ten, without names. Not resolved, and admitted.** It is an open point in section 3, with the fix I gave. My test stays `todo`.
+5. **What it costs.**
+   - (a) **Resolved.** The alarm is set only when `getAlarm()` is not already that time. Fifty reads of the vault set it once. A hold moves the due time later; the next read then sets the alarm for the new time, and the early alarm, when it fires, sets itself again. Tested on Node with a stand-in that clears the alarm when it runs.
+   - (b) **Resolved.** Each line written lets go of the lines too old through a new index on `at`, and of its own kind past five hundred. The hour's sign-ins are read by time.
+   - (c) **Admitted.** An open point in section 3.
+6. **Words. Resolved.**
+   - "Another sign-in" instead of "another device".
+   - The erase screen names the recovery history's thirty days.
+   - VAULT-5's export is still owed, as before.
+
+The browser check's copy now has an invented chunk beside the meta line on the phone, and it checks that both stores are emptied. That answers my first-look note.
+
+### What I looked for beyond the list
+
+**Anything else that keeps someone out and puts nothing off.** Inside MoneyLens I found nothing:
+- `vault/lock` locks only one's own session.
+- Signing oneself out keeps nobody else out.
+- Ending a session that has already run out, but whose row is still there, also puts the erasing off. That errs on the safe side.
+- The other actions keep no one from showing a proof or signing in.
+
+Outside MoneyLens:
+- **The main site, admitted in 1.11.** Someone with the mailbox, or with a stolen main-site session (valid five years, threat model), can spend the account's hundred handoff codes a day. They can also sign the account's other phones out at changle.ca, or use up the six sign-in codes an hour sent to its address. MoneyLens sees none of this, and the seven days run. A mail sent when an erasing is asked for (section 3's plan) tells the owner, but does not stop the seven days from running while he is kept out. A fuller answer: the accounts service tells MoneyLens, through `MONEY`, whenever it refuses an account a code or sign-in for its limits, or signs its sessions out, and MoneyLens holds on each, as it holds on its own.
+- **An address change.** It does reach MoneyLens (`accountChanged`, once `MONEY` is bound) and ends every session. Yet it puts nothing off, unlike a session signing others out. 1.11's limits say an address change "is not seen here"; it is seen, and it could hold.
+- **The per-address limiter.** The `ASKS` and `TRADES` limits count per address, so they can be spent against someone behind the same address. 1.8 admits that people behind one address share a lid.
+
+**Can a hold bring an erasing nearer?** No. Both by reading `holdErase` (it writes only a later due time) and in the random runs.
+
+**Can a hold keep a reset that should go through from ever going through?** Yes, and 1.11's limits say so: whoever holds the mailbox can put off any erasing, a reset included, for as long as they keep at it. I agree with the choice. A reset that waits keeps the data, and the owner's way out is to take the mailbox back first, as 1.11 says.
+
+The owner who has lost both secrets can also put his own reset off: by guessing to the limit, signing devices out, or signing in on a ninth device. The reset screen and the notices say so (`erasingHolds`), except for the ninth device (finding 8).
+
+### New findings
+
+#### 7. Deleting the changle.ca account erases the vault at once, and whoever holds the mailbox or a stolen main-site session can do it (does not block this merge; blocks adding `MONEY`, real statements, and opening to anyone else)
+
+**Where:**
+- `site/worker/hub.ts`: `DELETE /me` deletes the account with nothing but a session.
+- The accounts service then tells MoneyLens (`goneNotices.ts`).
+- In MoneyLens: `Internal.accountGone` → `flows.ts`, `accountGone` → `VaultDO.erase` → `deleteAll`.
+
+**What goes wrong:**
+- VAULT-7 says a session that has not unlocked the vault can erase it "only after a 7-day delay that is shown on every signed-in device and can be cancelled". Threat 1 in the threat model lists that as its mitigation.
+- Deleting the account skips all of it: no seven days, no notice, no calling it off. It needs no more than the mailbox, or a main-site session stolen within its five years.
+- It is not live yet, because the accounts service's `MONEY` binding is not in place and its notices wait in a queue.
+- But the brief (item 7, and the accounts section: "可以加了") tells the accounts chat that it can add `MONEY` now. Once it is added, a waiting deletion notice is delivered, and from then on any deletion erases the vault at once.
+- Neither 1.11 nor the threat model says so.
+
+**Fix (Steve's decision; it weighs BAK-3's promise to remove live data within 24 hours against VAULT-7):**
+- Either the accounts service makes deleting an account that has used MoneyLens wait seven days, shown and called off from any signed-in phone, as an address change waits three days.
+- Or MoneyLens keeps a deleted account's vault for seven days before it erases it, with BAK-3's 24 hours counted from then and the privacy page saying so.
+- Or accept the risk in writing, in threat 1 and in 1.11.
+- Until one of these is chosen, ask the accounts chat not to add `MONEY`.
+
+**Test:** none of mine. The deletion is the accounts service's code, and either side may fix it. I read the hub's code at this head.
+
+#### 8. Words, small (does not block)
+
+- **`erasingHolds`** (both languages) lists wrong tries and sign-ins reaching their limit, and a device signing others out. It leaves out signing in on another device while eight are signed in, which also puts the erasing off.
+- **The header of `erase.ts`** still says that someone who keeps the holder of a way in out "can never bring one about that the holder could not have stopped". 1.11 qualifies this ("MoneyLens sees only what is done inside it"); the header should too, or it should point to 1.11's limits.
+- **1.11's limits** say that an address change "is not seen here". It is, once `MONEY` is bound (see above).
+
+### Changed under my tests
+
+**`second-erase.test.ts`:**
+- Restated:
+  - calling off now names the vault;
+  - `keepVault` takes the vault;
+  - the stand-in for the object's storage has `getAlarm`, and clears the alarm when it fires;
+  - the alarm test checks: set once, set again when lost or put off, set again when woken early, and a refused alarm is no failure;
+  - the events test writes one line of each kind through the code, since each kind now tidies only itself.
+- The first look's finding 1 test is restated as a plain test of what should hold now: two weeks of guessing, the vault kept, the due time never nearer, and the erasing called off by the owner's next right proof.
+- The tests for findings 2, 3 and 5 are plain.
+- New plain tests:
+  - the random runs against the independent model;
+  - what calls an erasing off.
+- Finding 4 stays `todo`.
+
+**`second-door.test.ts` and `second-devices.test.ts`:** unchanged, and both pass.
+
+### What was run at 4f2c54fb
+
+In `tools/moneylens` of `/home/claude/review-c12b`:
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` | clean |
+| `npx tsc --noEmit -p src/server/tsconfig.json` | clean |
+| `node --import tsx --test tests/second-erase.test.ts` | 12 tests: 11 pass, 0 fail, 1 todo (finding 4) |
+| `second-door.test.ts` and `second-devices.test.ts` | 22 tests, all pass |
+| `npm test` | 565 tests: 564 pass, 0 fail, 0 skipped, 1 todo (finding 4) |
+
+The random runs were also run from a copy in `/tmp/review-c12b-scratch`, with each run's figures printed and with the model made deliberately wrong. That copy also showed that the test fails when it should.
+
+**Not run:**
+- `npm run test:server`, `npm run test:app`, `npm run test:page`, the local runtime, and any browser. The author reports that they pass at this head (19 platform tests, the browser check with 33 screens, the page checks); I did not see those runs.
+- The author's exercise of taking each check out in turn.
+
+Nothing was committed, no network was used, and only my files were written.
+
+### Only a deployment can show (in addition to the first look's list)
+
+- What `getAlarm()` gives on the platform: null once the alarm has run, the time it is set for otherwise. Also whether reading it is billed.
+- The `events_by_at` index made on the owner's existing database at the first write after the deploy, and the rows read by each line written.
+
+### Obligations on the next slices (in addition to the first look's)
+
+**Before the `MONEY` binding is added:**
+- finding 7 decided;
+- `accountChanged` holding an erasing as a sign-out does.
+
+**The import page (real statements go in):**
+- finding 7 settled;
+- the main site's limits answered (the accounts service telling MoneyLens when it keeps an account out, or the risk accepted in writing);
+- BAK-3 confirmed.
+
+These come first, since from then on erasing destroys something.
+
+**Changing the passphrase:** fix (b) of the first look, the count kept apart for known devices, as agreed.
 
 No real account, statement, key or token is in this review or its tests. Every value is invented.
