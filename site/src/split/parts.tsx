@@ -159,3 +159,19 @@ export function KindMark({ kind }: { kind: Category }) {
     </span>
   );
 }
+
+/**
+ * A link that looks like a small quiet Button (ui/Button.tsx): sms: or mailto:, so the phone's own
+ * Messages or Mail opens with what it says. A link, not a button, since that is how a phone takes it.
+ */
+export function SendLink({ href, icon: Icon, children, onSend }: { href: string; icon: LucideIcon; children: ReactNode; onSend?: () => void }) {
+  return (
+    <a className="ui-button ui-button-quiet ui-button-sm split-send-link" href={href} onClick={onSend}>
+      <span className="ui-button-content">
+        <Icon aria-hidden="true" />
+        {children}
+      </span>
+    </a>
+  );
+}
+

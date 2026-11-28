@@ -48,6 +48,7 @@ import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asItemsReply, asMine, asPushed, asReadReply, asSince, asSnapshot } from "../src/split/shape";
 import { hadOf, itemParts } from "../src/split/items";
+import { contactOf, dialOf, isEmail, isPhone, keepContact, mailHref, markReminded, remindedAt, reminderText, smsHref } from "../src/split/remind";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
@@ -1722,6 +1723,50 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     [{ items: { total: "78.60", items: [{ name: "Poutine", amount: "24.00" }] } }, { items: null }, { items: { total: null, items: [{ name: "Tea", amount: "3" }] } }, { items: null }, null],
     "the lines: those with a name and a sum; none; a total that isn't one; no lines at all; not this answer",
   );
+}
+
+// ---------- 29. 催一下: a friendly reminder, its words, where it goes, and what this phone keeps ----------
+{
+  const r = { who: "Koto", ledger: "Ashley 生日", amount: "$41.44" };
+  eq(reminderText(r, "zh"), "Hi Koto，Ashley 生日的账还有 $41.44 没转给我，方便的时候转一下就好，谢谢！", "the reminder: the debt, friendly");
+  eq(
+    reminderText({ ...r, pay: "steve@gmail.com", link: "https://changle.ca/split/abc#v=xyz" }, "en").split("\n"),
+    ["Hi Koto, a friendly reminder about Ashley 生日: $41.44 still to send my way, whenever it suits you. Thanks!", "You can send it to: steve@gmail.com", "All the details: https://changle.ca/split/abc#v=xyz"],
+    "with how to pay and the 查看链接, each on a line of its own, in English",
+  );
+  eq(reminderText({ ...r, link: null }, "zh").includes("\n"), false, "no 收款方式 and no link: the one line");
+  eq(
+    [isPhone("604 555 0123"), isPhone("+1 (604) 555-0123"), isPhone("604.555.0123"), isPhone("12345"), isPhone("604-555-01x3"), isPhone("+1 604 555 0123 4567 89"), isPhone("")],
+    [true, true, true, false, false, false, false],
+    "a phone: seven to fifteen digits, with spaces, dots, dashes, brackets and a + in front; not five digits, a letter, too many, or none",
+  );
+  eq(
+    [isEmail("koto@gmail.com"), isEmail(" Koto.Li+split@mail.co.uk "), isEmail("koto@gmail"), isEmail("koto gmail.com"), isEmail("a@b.com?cc=x@y.com"), isEmail("")],
+    [true, true, false, false, false, false],
+    "an email: the plain kind; not one without a domain, with a space, or with anything an address line could take as more",
+  );
+  eq([dialOf("+1 (604) 555-0123"), dialOf("604.555.0123")], ["+16045550123", "6045550123"], "dialed: the digits, and the + in front");
+  const text = reminderText({ ...r, pay: "e-Transfer & co" }, "zh");
+  eq(smsHref("604 555 0123", text), `sms:6045550123?&body=${encodeURIComponent(text)}`, "a text: to the number, with the reminder written (as iPhone and Android both take it)");
+  eq(decodeURIComponent(smsHref("604 555 0123", text).split("&body=")[1]), text, "and what it carries is the reminder, & and new lines and all");
+  const mail = mailHref(" koto@gmail.com ", "Ashley 生日的账", text);
+  eq([mail.split("?")[0], decodeURIComponent(/subject=([^&]*)/.exec(mail)![1]), decodeURIComponent(/body=([^&]*)/.exec(mail)![1])], ["mailto:koto@gmail.com", "Ashley 生日的账", text], "an email: to the address, with a subject and the reminder");
+  // kept on this phone only, by name
+  const kept = new Map<string, string>();
+  const store = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v) };
+  eq(contactOf("Koto", store), { phone: "", email: "" }, "nobody kept yet: empty");
+  keepContact(" koto ", { phone: " 604 555 0123 ", email: "koto@gmail.com" }, store);
+  eq([contactOf("Koto", store), contactOf("KOTO", store), contactOf("Oscar", store)], [{ phone: "604 555 0123", email: "koto@gmail.com" }, { phone: "604 555 0123", email: "koto@gmail.com" }, { phone: "", email: "" }], "kept by name, however it is spaced or cased (so it carries over to Koto's other ledgers)");
+  keepContact("Koto", { phone: "", email: "" }, store);
+  eq([contactOf("Koto", store), JSON.parse(kept.get("lazysusan.split.contacts.v1")!)], [{ phone: "", email: "" }, {}], "both emptied: forgotten");
+  for (let i = 0; i < 305; i++) keepContact(`p${i}`, { phone: "6045550123", email: "" }, store);
+  eq([Object.keys(JSON.parse(kept.get("lazysusan.split.contacts.v1")!)).length, contactOf("p0", store).phone, contactOf("p304", store).phone], [300, "", "6045550123"], "at most 300 people kept: the oldest go");
+  eq(remindedAt("L1", "k", store), null, "never reminded: nothing to say");
+  markReminded("L1", "k", 1764300000000, store);
+  eq([remindedAt("L1", "k", store), remindedAt("L2", "k", store)], [1764300000000, null], "reminded: when, for that ledger only");
+  kept.set("lazysusan.split.contacts.v1", "not json");
+  eq(contactOf("Koto", store), { phone: "", email: "" }, "kept words that aren't JSON: as if none");
+  eq(contactOf("Koto", null), { phone: "", email: "" }, "and a browser that keeps nothing: none");
 }
 
 if (failed) {

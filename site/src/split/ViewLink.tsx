@@ -46,6 +46,13 @@ type SheetProps = {
  * the same link changes nothing there), and the buttons are there once the server has it, so a link
  * that is sent always opens.
  */
+/** The 查看链接 of a ledger, once the server knows it (the same link every time it is asked), or null when the server can't be told now. */
+export async function makeViewLink(id: string, key: string): Promise<string | null> {
+  const view = await viewKeyOf(key);
+  const got = await viewNet.make(id, key, view);
+  return got.data ? viewLink(window.location.origin, id, view) : null;
+}
+
 export function ViewLinkSheet({ open, onClose, ledger, ledgerKey, made, changing, away, lang }: SheetProps) {
   /** the link, once the server has it, for the key it was made from (a new key makes another) */
   const [ready, setReady] = useState<{ key: string; link: string } | null>(null);
@@ -57,10 +64,9 @@ export function ViewLinkSheet({ open, onClose, ledger, ledgerKey, made, changing
     let live = true;
     setFailed(false);
     void (async () => {
-      const view = await viewKeyOf(ledgerKey);
-      const got = await viewNet.make(ledger.id, ledgerKey, view);
+      const link = await makeViewLink(ledger.id, ledgerKey);
       if (!live) return;
-      if (got.data) setReady({ key: ledgerKey, link: viewLink(window.location.origin, ledger.id, view) });
+      if (link) setReady({ key: ledgerKey, link });
       else setFailed(true);
     })();
     return () => {

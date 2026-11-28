@@ -1943,6 +1943,43 @@ button.split-person {
   outline: none;
 }
 /* a transfer's 收款方式: whose it is, then what it says and the button to copy it */
+/* 催一下 on a transfer still to come to you: what it will say, their phone and email, and the
+   three ways to send it, all from the start of the line (the sheet above it is centered) */
+.split-remind {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: start;
+}
+.split-remind .split-subhead {
+  margin-bottom: 0;
+}
+.split-remind .split-note {
+  margin: 0;
+}
+.split-remind-text {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  color: var(--color-text);
+  background: var(--color-raised);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.split-remind-send {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.split-remind-send .ui-button {
+  min-height: var(--tap-crowded);
+}
+a.split-send-link {
+  text-decoration: none;
+}
 .split-pay {
   display: grid;
   gap: var(--space-1);
