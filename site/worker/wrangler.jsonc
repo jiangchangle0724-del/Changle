@@ -20,8 +20,13 @@
     { "tag": "v1", "new_sqlite_classes": ["Room"] },
     { "tag": "v2", "new_sqlite_classes": ["Hub"] }
   ],
-  // 两清's server (tools/split), the entrypoint only this reaches: an account deleted here is deleted there too
-  "services": [{ "binding": "SPLIT", "service": "split", "entrypoint": "Internal" }],
+  // 两清's server (tools/split) and MoneyLens's (tools/moneylens), the entrypoints only this reaches:
+  // an account deleted here is deleted there too, and MoneyLens hears when its email changes
+  // (worker/goneNotices.ts: told until each has heard)
+  "services": [
+    { "binding": "SPLIT", "service": "split", "entrypoint": "Internal" },
+    { "binding": "MONEY", "service": "moneylens", "entrypoint": "Internal" }
+  ],
   "vars": {
     "ADMIN_EMAILS": "jiangchangle0724@gmail.com,jiangchangle0724@hotmail.com",
     // the owner's account: the back office (#/admin), and the one way in while the site is paused
