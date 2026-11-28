@@ -132,6 +132,8 @@ export function asMine(x: unknown): Mine[] | null {
 
 /** The server saying it is done (`{ ok: true }`); null when it isn't that. */
 export const asDone = (x: unknown): true | null => (isRecord(x) && x.ok === true ? true : null);
+/** 催一下 by mail: the server's "it went out" (tools/split/src/room/protocol.ts, Reminded). */
+export const asReminded = (x: unknown): true | null => (isRecord(x) && x.sent === true ? true : null);
 
 /** Someone on changle.ca as the screens show them: their account, name, and photo (`av`: its version, 0 for none; `ac`: the colour of their letter). */
 export type Person = { id: string; name: string; av: number; ac?: number };

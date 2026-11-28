@@ -4267,6 +4267,11 @@ async function itemizing() {
  * 收款方式 and the 查看链接 in it), their phone and email kept on this phone, a text or an email
  * that opens with it, copied, and when it was sent on the row.
  */
+/** The local 两清 server's stand-in mail door (tools/split/tests/rooms): what it was handed since last asked, and how it answers from now on. */
+const serverTest = async (what: string, body: unknown) => (await fetch(`${base}/split/api/test/${what}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+const mailsSent = async () => (await serverTest("mails", {})) as Record<string, unknown>[];
+const doorSays = (is: "open" | "full" | "down") => serverTest("door", { is });
+
 async function reminding() {
   if (!local) {
     console.log("remind: skipped (it starts a ledger, so it needs the server on this machine)");
@@ -4299,19 +4304,37 @@ async function reminding() {
     `提醒 阿甲: what it says, with your 收款方式 and the 查看链接 (${lines.join(" / ")})`,
   );
   const sms = remind.getByRole("link", { name: t("remindSms") });
-  const mail = remind.getByRole("link", { name: t("remindMail") });
-  ok((await sms.count()) === 0 && (await mail.count()) === 0 && (await remind.getByRole("button", { name: t("remindSms") }).isDisabled()) && (await remind.getByRole("button", { name: t("remindMail") }).isDisabled()), "no phone or email yet: 发短信 and 发邮件 can't be pressed");
+  const mail = remind.getByRole("button", { name: t("remindMail") });
+  ok((await sms.count()) === 0 && (await remind.getByRole("button", { name: t("remindSms") }).isDisabled()) && (await mail.isDisabled()), "no phone or email yet: 发短信 and 发邮件 can't be pressed");
   await remind.getByPlaceholder(t("remindPhoneHint")).fill("604 555 0123");
   const smsHref = (await sms.getAttribute("href")) ?? "";
   ok(smsHref.startsWith("sms:6045550123?&body=") && decodeURIComponent(smsHref.split("&body=")[1]) === text, "a phone typed: 发短信 opens Messages to 6045550123 with the reminder written");
   await remind.getByPlaceholder(t("remindEmailHint")).fill("jia@gmail");
-  ok((await mail.count()) === 0, "an email that isn't one yet: 发邮件 still can't be pressed");
+  ok(await mail.isDisabled(), "an email that isn't one yet: 发邮件 still can't be pressed");
   await remind.getByPlaceholder(t("remindEmailHint")).fill("jia@gmail.com");
-  const mailHref = (await mail.getAttribute("href")) ?? "";
-  ok(mailHref.startsWith("mailto:jia@gmail.com?subject=") && decodeURIComponent(/subject=([^&]*)/.exec(mailHref)?.[1] ?? "") === say("zh", "remindSubject", { ledger: "生日" }) && decodeURIComponent(/body=([^&]*)/.exec(mailHref)?.[1] ?? "") === text, "and 发邮件 opens Mail to jia@gmail.com, with a subject and the reminder");
+  const notes = remind.locator(".split-note");
+  ok((await remind.getByRole("link", { name: t("remindMail") }).count()) === 0 && !(await mail.isDisabled()) && (await notes.last().innerText()) === t("remindNoteSite"), "signed in, the ledger on the server: 发邮件 is the site's to send (not the phone's Mail), and the note says it goes from hello@changle.ca, a reply coming to you");
   const tall = await remind.locator(".split-remind-send > *").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
   ok(tall.length === 3 && tall.every((h) => h >= 48), `the three ways to send it, each a crowded target's height (${tall.map(Math.round).join(", ")})`);
   await pa.screenshot({ path: join(out, "remind-zh-390x664.png"), fullPage: false });
+  // 发邮件: the site sends it (the local server's stand-in mail door keeps what it was handed)
+  await doorSays("open");
+  await mailsSent();
+  const status = remind.getByRole("status");
+  await mail.click();
+  await pa.waitForFunction((want) => document.querySelector("dialog[open] .split-remind [role=status]")?.textContent === want, say("zh", "remindSentTo", { to: "jia@gmail.com" }));
+  const [went, ...more] = await mailsSent();
+  ok(!more.length && went?.app === "split" && went.to === "jia@gmail.com" && went.lang === "zh" && went.subject === say("zh", "remindSubject", { ledger: "生日" }) && String(went.text).startsWith(`${lines[0]}\n${lines[1]}\n\n`) && /^https:\/\/changle\.ca\/split\/[A-Za-z0-9_-]+#v=[A-Za-z0-9_-]+$/.test(String(went.link)), `发邮件: the site sent it, saying what the phone shows, the 查看链接 as its button; said under the buttons (${(await status.innerText()).trim()})`);
+  ok((await pa.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("lazysusan.split.reminded.v1") ?? "{}")).length)) === 1, "and it counts as reminded, on this phone");
+  await pa.screenshot({ path: join(out, "remind-sent-zh-390x664.png"), fullPage: false });
+  // again today: the server says so, and the phone's own Mail is there instead
+  await mail.click();
+  await pa.waitForFunction((want) => document.querySelector("dialog[open] .split-remind [role=status]")?.textContent === want, say("zh", "remindAgain", { who: "阿甲" }));
+  const byPhone = remind.getByRole("link", { name: t("remindByPhone") });
+  const phoneHref = (await byPhone.getAttribute("href")) ?? "";
+  ok(phoneHref.startsWith("mailto:jia@gmail.com?subject=") && decodeURIComponent(/subject=([^&]*)/.exec(phoneHref)?.[1] ?? "") === say("zh", "remindSubject", { ledger: "生日" }) && decodeURIComponent(/body=([^&]*)/.exec(phoneHref)?.[1] ?? "") === text && !(await mailsSent()).length, "again today: the site says it reminded 阿甲 today, and 用手机发邮件 opens Mail to jia@gmail.com with a subject and the reminder");
+  ok(((await byPhone.boundingBox())?.height ?? 0) >= 48, "用手机发邮件 a crowded target's height too");
+  await pa.screenshot({ path: join(out, "remind-again-zh-390x664.png"), fullPage: false });
   await remind.getByRole("button", { name: t("remindCopy") }).click();
   ok((await pa.evaluate(() => navigator.clipboard.readText())) === text, "复制这段话: the reminder, for WeChat or anything else");
   await pa.keyboard.press("Escape");
@@ -4321,10 +4344,29 @@ async function reminding() {
   await row.click();
   await remind.waitFor();
   ok((await remind.getByPlaceholder(t("remindPhoneHint")).inputValue()) === "604 555 0123" && (await remind.getByPlaceholder(t("remindEmailHint")).inputValue()) === "jia@gmail.com", "opened again: 阿甲's phone and email are kept");
+  ok((await remind.locator("[role=status]").innerText()) === "" && (await remind.getByRole("link", { name: t("remindByPhone") }).count()) === 0, "and what came of the email before isn't said again");
   await pa.keyboard.press("Escape");
   await closed(pa);
   const other = pa.locator(".split-rows:not(.split-people) .split-row", { hasText: "阿乙" });
   ok(!/提醒过/.test(await other.innerText()), "阿乙, not reminded: nothing said");
+  // 阿乙: the site's reminders for today used up, then the mail not going out: said, and nothing marked
+  await other.click();
+  await remind.waitFor();
+  await remind.getByPlaceholder(t("remindEmailHint")).fill("yi@gmail.com");
+  await doorSays("full");
+  await mail.click();
+  await pa.waitForFunction((want) => document.querySelector("dialog[open] .split-remind [role=status]")?.textContent === want, say("zh", "remindToday"));
+  ok((await remind.getByRole("link", { name: t("remindByPhone") }).count()) === 1, "the site's reminders for today used up: said so, with 用手机发邮件");
+  await remind.getByPlaceholder(t("remindEmailHint")).fill("yi2@gmail.com");
+  ok((await remind.getByRole("link", { name: t("remindByPhone") }).count()) === 0 && (await remind.locator("[role=status]").innerText()) === "", "another address typed: what came of the last one is said no more");
+  await doorSays("down");
+  await mail.click();
+  await pa.waitForFunction((want) => document.querySelector("dialog[open] .split-remind [role=status]")?.textContent === want, say("zh", "remindFailed"));
+  ok((await remind.getByRole("link", { name: t("remindByPhone") }).count()) === 1, "the mail didn't go out: said so, try again, or 用手机发邮件");
+  await doorSays("open");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok(!/提醒过/.test(await other.innerText()) && !(await mailsSent()).length, "and 阿乙's row still says nothing: none of those went");
   // in English, on the narrowest phone
   await pa.setViewportSize({ width: 320, height: 568 });
   await pa.evaluate(() => {
@@ -4340,6 +4382,16 @@ async function reminding() {
   await pa.screenshot({ path: join(out, "remind-en-320x568.png") });
   const fits = await pa.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll("dialog[open] .split-remind *")].every((e) => e.getBoundingClientRect().right <= window.innerWidth + 0.5));
   ok(fits && (await remind.locator("h3").innerText()) === say("en", "remindTitle", { who: "阿甲" }), "in English on a 320 phone: the reminder, the fields and the three buttons fit");
+  // signed out: the email goes from the phone's own Mail, as it does with the ledger only on this phone
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await pa.evaluate(() => localStorage.removeItem("changle.session"));
+  await pa.reload();
+  await pa.getByRole("tab", { name: say("en", "settle") }).click();
+  await row.click();
+  await remind.waitFor();
+  const outHref = (await remind.getByRole("link", { name: say("en", "remindMail") }).getAttribute("href")) ?? "";
+  ok(outHref.startsWith("mailto:jia@gmail.com?subject=") && (await remind.locator(".split-note").last().innerText()) === say("en", "remindNote"), "signed out: 发邮件 opens the phone's own Mail again, and the note says so");
   await a.close();
 }
 

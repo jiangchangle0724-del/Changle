@@ -46,9 +46,9 @@ import { CATEGORIES, isCategory } from "../src/split/categories";
 import { byKind, categoryOf, guessed } from "../src/split/kinds";
 import { bare as bareText, matches, sumOf } from "../src/split/search";
 import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
-import { asDone, asItemsReply, asMine, asPushed, asReadReply, asSince, asSnapshot } from "../src/split/shape";
+import { asDone, asItemsReply, asMine, asPushed, asReadReply, asReminded, asSince, asSnapshot } from "../src/split/shape";
 import { hadOf, itemParts } from "../src/split/items";
-import { contactOf, dialOf, isEmail, isPhone, keepContact, mailHref, markReminded, remindedAt, reminderText, smsHref } from "../src/split/remind";
+import { contactOf, dialOf, isEmail, isPhone, keepContact, mailHref, mailOf, markReminded, remindedAt, reminderText, smsHref } from "../src/split/remind";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
@@ -1735,6 +1735,14 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     "with how to pay and the 查看链接, each on a line of its own, in English",
   );
   eq(reminderText({ ...r, link: null }, "zh").includes("\n"), false, "no 收款方式 and no link: the one line");
+  // the site's email (tools/split, remind): the subject, the reminder without the link (the mail's button has it), and who it is from
+  eq(
+    mailOf({ ...r, from: "Steve", pay: "steve@gmail.com", link: "https://changle.ca/split/abc#v=xyz" }, "zh"),
+    { subject: "Ashley 生日的账", text: "Hi Koto，Ashley 生日的账还有 $41.44 没转给我，方便的时候转一下就好，谢谢！\n收款方式：steve@gmail.com\n\n这封邮件是 Steve 用 changle.ca 的两清发给你的，直接回复就能联系到 Steve。" },
+    "the site's email: the reminder, then who it is from and that a reply reaches them; the link left to the button",
+  );
+  eq(mailOf({ ...r, from: "Steve" }, "en").text.split("\n\n")[1], "Steve sent you this through All Square on changle.ca. Reply to this email to reach Steve.", "and in English");
+  eq([asReminded({ sent: true }), asReminded({ sent: "yes" }), asReminded({ ok: true }), asReminded(null)], [true, null, null, null], "the server's \"it went out\", and nothing else, is that");
   eq(
     [isPhone("604 555 0123"), isPhone("+1 (604) 555-0123"), isPhone("604.555.0123"), isPhone("12345"), isPhone("604-555-01x3"), isPhone("+1 604 555 0123 4567 89"), isPhone("")],
     [true, true, true, false, false, false, false],
