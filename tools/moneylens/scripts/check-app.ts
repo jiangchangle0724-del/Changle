@@ -74,6 +74,20 @@ const STORED = `(async () => {
   return { databases, entries, keys, local, session, cookies: document.cookie, text: texts.join("\\n") };
 })()`;
 type Stored = { databases: string[]; entries: number; keys: string[]; local: Record<string, string>; session: Record<string, string>; cookies: string; text: string };
+/**
+ * Puts in this device's copy of the vault the line that says whose copy it is, as a device that has used its vault
+ * keeps (src/web/idbcache.ts): a new vault has nothing else to keep yet, and without it there is nothing to empty.
+ */
+const keepCopy = (vault: string): string => `new Promise((done, failed) => {
+  const open = indexedDB.open("moneylens");
+  open.onerror = () => failed(open.error);
+  open.onsuccess = () => {
+    const tx = open.result.transaction("meta", "readwrite");
+    tx.objectStore("meta").put({ vault: ${JSON.stringify(vault)}, cursor: 0 }, "vault");
+    tx.oncomplete = () => (open.result.close(), done(true));
+    tx.onerror = () => failed(tx.error);
+  };
+})`;
 
 try {
   const context = await browser.newContext({ locale: "zh-CN", viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
@@ -627,6 +641,14 @@ try {
   await laptop.getByRole("button", { name: "打开", exact: true }).click();
   await title(laptop, "保险库打开了").waitFor();
   await laptop.getByText("已经和服务器对过。").waitFor();
+  // each device keeps a copy of the vault (here the line saying whose it is): erased, the vault takes it with it, on
+  // the device that erased it and on the other
+  const vaultNow = (await standing(page)).vault;
+  assert.equal(typeof vaultNow, "string");
+  for (const device of [page, laptop]) {
+    await device.evaluate(keepCopy(vaultNow as string));
+    assert.equal(((await device.evaluate(STORED)) as Stored).entries, 1);
+  }
 
   // ---- erased at once, with the vault open: only once the word is typed
   await page.getByRole("button", { name: "清空保险库" }).click();
@@ -644,6 +666,7 @@ try {
   await page.getByRole("button", { name: "返回" }).click();
   await title(page, "保险库打开了").waitFor();
   assert.equal((await standing(page)).unlocked, true);
+  assert.equal(((await page.evaluate(STORED)) as Stored).entries, 1, "this device kept its copy while the vault was open");
   await page.getByRole("button", { name: "清空保险库" }).click();
   await page.getByLabel("输入「清空」确认", { exact: true }).fill("清空");
   await page.getByRole("button", { name: "现在清空" }).click();
@@ -668,6 +691,7 @@ try {
   await title(laptop, "设备和记录").waitFor();
   await laptop.getByRole("button", { name: "返回" }).click();
   await title(laptop, "先定一个口令").waitFor();
+  await until(laptop, `${STORED}.then((stored) => stored.entries === 0)`, "the laptop's copy of the erased vault was emptied");
   await laptops.close();
   // a new vault, with the same passphrase as before, for what follows
   await page.getByLabel("口令", { exact: true }).fill(PASSPHRASE);
