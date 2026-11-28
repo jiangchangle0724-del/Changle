@@ -1463,9 +1463,13 @@ server's code and against answers that are not what they should be. On the local
 events call with its sets of lines. In the browser: starting over from the screen that asks for
 the passphrase, the notice on every screen, calling it off with the vault open, erasing at
 once only once the word is typed, this device's copy emptied, a new vault made after, and
-another device that had the vault open finding out. The share of the code's checks that a test
-fails without is given under 1.10's tests for the devices' screen and in the record of the
-review.
+another device that had the vault open finding out, each device's copy emptied. The code's
+checks were taken out one at a time, in a copy of the tool: of 78 in the server's and the app's
+code, 76 failed a Node test at first; of 20 in the screens, 18 failed the browser check. The four
+that lived came from three gaps, now closed: an erasing row whose session is no text (a test of
+a damaged row), the list of devices knowing the three new kinds (a test against the server's
+code), and a new vault leaving nothing in the device's copy, so that emptying it could not be
+seen (the browser check now gives each device a copy to lose, the one that erased and the other).
 
 **Limits.**
 
