@@ -1523,10 +1523,16 @@ holds more than ten tries); of 11 in the screens, all 11 failed the browser chec
   restore a database from the platform's recovery history for up to 30 days (BAK-3, to
   confirm), which would be the way back then (section 3).
 - MoneyLens sees only what is done inside it. Whatever keeps the owner from reaching it at all,
-  such as the main site's own limits on sign-in codes and handoffs, the account's address
-  changed by whoever holds the mailbox, or the object kept too busy to answer from many
-  addresses at once, is not seen here, and the seven days run. To settle with
-  the mail sent when an erasing is asked for, before anyone but the owner is let in (section 3).
+  such as the main site's own limits (six sign-in codes an hour, a hundred handoff codes a day),
+  the phones signed out at changle.ca, or the object kept too busy to answer from many addresses
+  at once, is not seen here, and the seven days run. An address change, once the accounts
+  service's notices reach MoneyLens (`MONEY`), ends every session and puts an erasing off by
+  nothing. The mail planned for when an erasing is asked for would tell the owner; it would not
+  stop the clock. To settle before anyone but the owner is let in (section 3).
+- Deleting the changle.ca account needs only a main-site session, and once its notice reaches
+  MoneyLens (`MONEY`, `accountGone`) the vault goes at once: no seven days, no notice, no
+  calling it off (the second look at 1.11, finding 7). Not live: the binding is not added. To
+  settle before it is (section 3).
 - Whoever holds the mailbox can put an erasing off for as long as they keep someone out, a
   reset included. The owner who has lost both secrets takes the mailbox back first (a new
   address at changle.ca), then asks. Likewise a vault made by whoever took the mailbox first is
@@ -1620,6 +1626,16 @@ holds more than ten tries); of 11 in the screens, all 11 failed the browser chec
   restoring a vault erased that way (BAK-3 confirmed), are to settle before anyone but the
   owner is let in. So is a review of the erasing path by another model or a person: the
   review of 1.11 was by the author's own model.
+- Deleting the changle.ca account would erase the vault at once once `MONEY` is bound (1.11,
+  limits; the second look's finding 7), against VAULT-7's seven days, while ARCH-10 asks that
+  deleting the account delete everything. To settle, before the binding is added, by the owner:
+  the accounts service makes deleting an account that has used MoneyLens wait seven days,
+  cancellable from any signed-in device; or MoneyLens keeps a deleted account's vault seven
+  days before erasing it (BAK-3's 24 hours counting from then); or the risk is accepted in
+  writing. And what the main site does to keep an account out (codes refused, phones signed
+  out) is not seen by MoneyLens: the reviewer suggests that the accounts service tell
+  MoneyLens, through `MONEY`, whenever it refuses or signs out an account, so that an erasing
+  waits for that too.
 - The wrong-proof count belongs to the account (1.9): whoever holds the mailbox can fill it and
   keep the owner out, which since 1.11 puts an erasing off and destroys nothing, but still keeps
   the owner from his vault for as long as they keep at it. A count kept apart for devices that
