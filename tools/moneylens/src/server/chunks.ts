@@ -103,6 +103,17 @@ export function startVault(db: Db, id: string): boolean {
   return true;
 }
 
+/**
+ * Lets go of every chunk and of the vault's row: the vault is erased (erase.ts). What the vault wrote on its last day
+ * is handed back, so that a vault made after it on the same day goes on from that count.
+ */
+export function forgetChunks(db: Db): { day: string; written: number } | null {
+  const held = vaultRow(db);
+  db.sql.exec(`DELETE FROM chunks`);
+  db.sql.exec(`DELETE FROM vault`);
+  return held ? { day: held.day, written: held.written } : null;
+}
+
 /** What changed since `since`, in pages (`Remote.pull`). */
 export function pullChunks(db: Db, vault: string, since: number, limits: Limits): Pulled {
   const held = vaultRow(db);

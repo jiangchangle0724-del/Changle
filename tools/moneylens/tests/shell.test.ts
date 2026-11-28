@@ -419,20 +419,25 @@ test("the events log keeps twelve months and five hundred lines, and as many wro
   const count = (where = "1"): number => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
   const oldest = (where: string): number => Number((db.raw.prepare(`SELECT MIN(at) AS at FROM events WHERE ${where}`).all()[0] as { at: number }).at);
   assert.equal(count(), 701);
-  // the next sign-in keeps the newest five hundred
+  // the next sign-in keeps the newest five hundred of that kind (and its own line, of another)
   await enter(db, A, T0 + DAY, cfg);
-  assert.equal(count(), 500);
-  assert.equal(oldest("1"), T0 + 202);
-  // Wrong proofs are counted apart from everything else. Thirty of them, and then any number of other lines: the
-  // thirty are all still kept (the review of the door, finding 2). And of wrong proofs too, the newest five hundred.
+  assert.deepEqual([count("kind = 'sign-out'"), count("kind = 'sign-in'"), oldest("kind = 'sign-out'")], [500, 2, T0 + 201]);
+  // Each kind is counted apart. Thirty wrong proofs, and then any number of lines of other kinds: the thirty are all
+  // still kept (the review of the door, finding 2). And of wrong proofs too, the newest five hundred.
   fill(T0 + DAY, 30, "unlock-failed");
   fill(T0 + DAY + 100, 700);
   await enter(db, A, T0 + DAY + 1000, cfg);
-  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind != 'unlock-failed'"), oldest("kind != 'unlock-failed'")], [30, 500, T0 + DAY + 302]);
+  assert.deepEqual([count("kind = 'unlock-failed'"), count("kind = 'sign-out'"), oldest("kind = 'sign-out'")], [30, 500, T0 + DAY + 301]);
   fill(T0 + DAY + 5000, 700, "unlock-failed");
   await enter(db, A, T0 + DAY + 9000, cfg);
-  assert.deepEqual([count("kind = 'unlock-failed'"), oldest("kind = 'unlock-failed'"), count("kind != 'unlock-failed'")], [500, T0 + DAY + 5201, 500]);
-  // and one more than twelve months later keeps nothing older than that, of either
+  assert.deepEqual([count("kind = 'unlock-failed'"), oldest("kind = 'unlock-failed'"), count("kind = 'sign-out'")], [500, T0 + DAY + 5201, 500]);
+  // every kind the log has keeps its own five hundred, and no more; a kind this code does not know keeps its twelve months
+  for (const kind of ["sign-in", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "erase-asked", "erase-cancelled", "vault-erased", "from-a-later-version"]) fill(T0 + DAY + 10_000, 600, kind);
+  // (two hours later: six hundred lines of sign-ins within the hour would be too many sign-ins for this one to be let in)
+  await enter(db, A, T0 + DAY + 120 * MINUTE, cfg);
+  for (const kind of ["sign-out", "unlock-failed", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "erase-asked", "erase-cancelled", "vault-erased"]) assert.equal(count(`kind = '${kind}'`), 500, kind);
+  assert.deepEqual([count("kind = 'sign-in'"), count("kind = 'from-a-later-version'")], [500, 600]);
+  // and one more than twelve months later keeps nothing older than that, of any kind
   const later = await enter(db, A, T0 + 368 * DAY, cfg);
   assert.equal(count(), 1);
   // what is shown is the newest fifty
@@ -489,7 +494,7 @@ test("the vault and its chunks: started once, and synced through the frames", as
   const me = await enter(db, A, T0, cfg);
   const now = T0 + 1000;
   const [vault, other] = [newId(), newId()];
-  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
+  assert.deepEqual(ask(db, A, me.hash, "vault", now, cfg).json, { ok: true, vault: null, unlocked: false, ways: [], erasing: null, limits: { vaultBytes: LIMITS.vaultBytes, writesPerDay: 10 } });
   const made = waysFor(vault);
   const start = (id: unknown, ways: unknown = made.ways): Promise<Answer> => asking(db, A, me.hash, "vault/start", now, cfg, json(JSON.stringify({ vault: id, ways })));
   for (const body of ["", "{}", "[]", `{"vault":5}`, `{"vault":"short"}`, JSON.stringify({ vault })]) assert.deepEqual(why(await asking(db, A, me.hash, "vault/start", now, cfg, json(body))), [400, "bad-request"], body);

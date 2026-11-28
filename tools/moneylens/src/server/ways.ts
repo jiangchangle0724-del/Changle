@@ -187,6 +187,18 @@ export function lock(db: Db, session: unknown): void {
   if (typeof session === "string") db.sql.exec(`DELETE FROM unlocked WHERE session = ?`, session);
 }
 
+/**
+ * Lets go of the ways in and of everything that went with them: the wrong tries counted against them, and which
+ * sessions hold the vault open and which have opened it. The vault is erased (erase.ts).
+ */
+export function forgetWays(db: Db): void {
+  db.sql.exec(`DELETE FROM ways`);
+  db.sql.exec(`DELETE FROM tries`);
+  db.sql.exec(`DELETE FROM unlocked`);
+  openedTable(db);
+  db.sql.exec(`DELETE FROM opened`);
+}
+
 /** Forgets the unlocking, and the having opened, of sessions that are no longer there. */
 export function tidyUnlocked(db: Db): void {
   db.sql.exec(`DELETE FROM unlocked WHERE session NOT IN (SELECT id FROM sessions)`);

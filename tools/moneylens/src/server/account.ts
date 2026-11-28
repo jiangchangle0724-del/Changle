@@ -6,7 +6,8 @@
  * The database holds five things: whose it is and whether the owner signed in to it (one row),
  * the sessions (sessions.ts), the vault's sealed chunks (chunks.ts), the ways into the vault
  * (ways.ts: the wrapped keys, and what a session has to show to be given one), and a log of
- * security events (SEC-17) with no contents: what happened, when, and in which session. A database nobody has
+ * security events (SEC-17) with no contents: what happened, when, and in which session. And,
+ * when one is asked for, an erasing of the vault and when it is due (erase.ts). A database nobody has
  * signed in to has no tables at all, and a request that reaches one writes none (`act` answers
  * that nobody is signed in): an address someone made up costs a read and leaves nothing behind.
  *
@@ -24,7 +25,9 @@
  * the request names is only compared with the one this database belongs to: it is an address,
  * and the token is what is checked (ISO-2).
  */
+import { isId } from "../core/ids";
 import { chunkTables, lastDay, pullChunks, pushChunks, startVault, vaultHeld, type Db } from "./chunks";
+import { askErase, cancelErase, carrySpent, eraseVault, pendingErase, settleErase, type Erasing } from "./erase";
 import { admits, type Config, type Gate } from "./gate";
 import { isAccount } from "./request";
 import { checkSession, endAllSessions, endSession, hashOf, listSessions, openSession, sessionTables, type Session } from "./sessions";
@@ -36,20 +39,27 @@ export const SIGN_INS_PER_HOUR = 12;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 /**
- * Events are kept twelve months (SEC-17), and never more than this many of each of two sorts: wrong proofs, and
- * everything else. The two are counted apart, so that no number of sign-ins, sign-outs or unlockings pushes a wrong
- * proof out of what is kept (the review of the door, finding 2).
+ * Events are kept twelve months (SEC-17), and never more than this many of each kind. Each kind is counted apart, so
+ * that no number of lines of one kind pushes a line of another out of what is kept: not sign-ins and sign-outs a wrong
+ * proof (the review of the door, finding 2), and not a right proof shown over and over the erasing of a vault.
  *
- * What is shown is the newest lines of both together, and with them the newest wrong proofs however many lines came
- * after: as many as can be made in a day (ways.ts). Whoever holds the mailbox can sign in and out all afternoon, and
- * the owner is still shown that the passphrase was guessed at, and how often in the last day.
+ * What is shown is the newest lines of all kinds together and, however many lines came after them, the newest of the
+ * kinds a person must not miss: wrong proofs, as many as can be made in a day (ways.ts); the vault opened by any other
+ * session than the one asking (the review of the devices' screen, finding 3); and the vault made, asked to be erased,
+ * kept from being erased, erased, and the account's email address changed. Whoever holds the mailbox can sign in and out
+ * all afternoon, and the owner is still shown that the passphrase was guessed at, that another device opened the
+ * vault, and that it was asked to be erased.
  */
 const EVENTS_KEPT = 366 * DAY;
 const EVENTS_MOST = 500;
 const EVENTS_SHOWN = 50;
 const WRONG_SHOWN = TRIES_PER_DAY;
+const APART_SHOWN = 10;
 
-export type EventKind = "sign-in" | "sign-out" | "session-ended" | "sessions-ended" | "vault-started" | "email-changed" | "unlocked" | "unlock-failed";
+export const EVENT_KINDS = ["sign-in", "sign-out", "session-ended", "sessions-ended", "vault-started", "email-changed", "unlocked", "unlock-failed", "erase-asked", "erase-cancelled", "vault-erased"] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+/** The kinds shown apart, besides wrong proofs and the vault opened by other sessions. */
+const SHOWN_APART: readonly EventKind[] = ["vault-started", "erase-asked", "erase-cancelled", "vault-erased", "email-changed"];
 export type Event = { at: number; kind: EventKind; session: string | null };
 
 const isTime = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
@@ -67,13 +77,54 @@ function note(db: Db, kind: EventKind, session: string | null, now: number): voi
 }
 
 /**
- * Lets go of the lines that are too old, and of those past the most that are kept. Done wherever lines are written
- * that nothing else counts: at each sign-in, and at each proof shown (a right proof can be shown any number of times).
+ * Lets go of the lines that are too old, and of those past the most that are kept of their kind. Done wherever lines
+ * are written: at each sign-in, at each proof shown (a right proof can be shown any number of times), and where a vault
+ * is erased or asked to be. A line of a kind this code does not know is kept for its twelve months, like any other.
  */
 function tidyEvents(db: Db, now: number): void {
   db.sql.exec(`DELETE FROM events WHERE at < ?`, now - EVENTS_KEPT);
-  db.sql.exec(`DELETE FROM events WHERE kind = 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
-  db.sql.exec(`DELETE FROM events WHERE kind != 'unlock-failed' AND n <= (SELECT n FROM events WHERE kind != 'unlock-failed' ORDER BY n DESC LIMIT 1 OFFSET ?)`, EVENTS_MOST);
+  for (const kind of EVENT_KINDS) db.sql.exec(`DELETE FROM events WHERE kind = ? AND n <= (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT 1 OFFSET ?)`, kind, kind, EVENTS_MOST);
+}
+
+/**
+ * The lines shown to `session`, newest first, each once: the newest of all, and the newest of each kind shown apart
+ * however many lines came after them (above).
+ */
+function shownEvents(db: Db, session: string): { at: number; kind: string; session: unknown }[] {
+  const apart = SHOWN_APART.map(() => `UNION SELECT n FROM (SELECT n FROM events WHERE kind = ? ORDER BY n DESC LIMIT ?)`).join(" ");
+  return db.sql
+    .exec(
+      `SELECT at, kind, session FROM events WHERE n IN (SELECT n FROM (SELECT n FROM events ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlocked' AND (session IS NULL OR session != ?) ORDER BY n DESC LIMIT ?) ${apart}) ORDER BY n DESC`,
+      EVENTS_SHOWN,
+      WRONG_SHOWN,
+      session,
+      APART_SHOWN,
+      ...SHOWN_APART.flatMap((kind) => [kind, APART_SHOWN]),
+    )
+    .toArray()
+    .map((row) => ({ at: Number(row.at), kind: String(row.kind), session: row.session }));
+}
+
+/** An erasing as a session is shown it: when it was asked for and when it is due, and by which session (`here`: this one). Not which vault. */
+const shownErase = (erasing: Erasing, session: string) => ({ asked: erasing.asked, due: erasing.due, session: erasing.session, here: erasing.session === session });
+
+/**
+ * Erases the vault when its erasing is due, with its line in the events log (in no session's name: the delay did it),
+ * all in one transaction. Done before every request is answered, and by the object's alarm (worker.ts): the alarm is
+ * what keeps the seven days whether or not anyone comes back, and the check before every request is what keeps them
+ * if an alarm is lost. Returns when the erasing asked for is due, for the alarm, or null when none is.
+ */
+export function dueErase(db: Db, now: number): number | null {
+  if (!isSetUp(db) || !isTime(now)) return null;
+  return db.atomically(() => {
+    const settled = settleErase(db, now, () => vaultHeld(db));
+    if ("due" in settled) return settled.due;
+    if (settled.did === "erased") {
+      note(db, "vault-erased", null, now);
+      tidyEvents(db, now);
+    }
+    return null;
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -157,10 +208,13 @@ export function signEveryoneOut(db: Db, now: number): void {
  * the body as it came, and the hashes of the proofs in that body, in the body's order (`proofsIn`).
  */
 export type Asked = { account: string; hash: string; action: string; body: Uint8Array; proofs?: readonly string[] };
-/** What is answered: a status with JSON, or with a frame (wire.ts). `signedOut`: the cookie is to be cleared. */
-export type Answer = { status: number; json?: Record<string, unknown>; bytes?: Uint8Array; signedOut?: boolean };
+/**
+ * What is answered: a status with JSON, or with a frame (wire.ts). `signedOut`: the cookie is to be cleared. `wake`:
+ * an erasing is asked for, and the object's alarm is to be set for when it is due (worker.ts).
+ */
+export type Answer = { status: number; json?: Record<string, unknown>; bytes?: Uint8Array; signedOut?: boolean; wake?: number };
 
-export const ACTIONS: readonly string[] = ["session/end", "sessions", "sessions/end", "vault", "vault/start", "vault/way", "vault/unlock", "vault/lock", "sync/pull", "sync/push", "events"];
+export const ACTIONS: readonly string[] = ["session/end", "sessions", "sessions/end", "vault", "vault/start", "vault/way", "vault/unlock", "vault/lock", "vault/erase", "vault/erase-later", "vault/erase-cancel", "sync/pull", "sync/push", "events"];
 
 const no = (status: number, why: string, signedOut = false): Answer => ({ status, json: { ok: false, why }, ...(signedOut ? { signedOut } : {}) });
 
@@ -213,6 +267,8 @@ export function sessionFor(db: Db, asked: Pick<Asked, "account" | "hash">, now: 
 export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
   const session = sessionFor(db, asked, now, config.gate);
   if ("status" in session) return session;
+  // (an erasing that is due is done before anything is answered: after its seven days, nobody is shown that vault again)
+  dueErase(db, now);
   switch (asked.action) {
     case "session/end":
       endSession(db, session.id);
@@ -239,8 +295,15 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       note(db, "session-ended", session.id, now);
       return { status: 200, json: { ok: true, ended: 1 }, ...(body.id === session.id ? { signedOut: true } : {}) };
     }
-    case "vault":
-      return { status: 200, json: { ok: true, vault: vaultHeld(db), unlocked: isUnlocked(db, session.id), ways: listWays(db), limits: { vaultBytes: config.limits.vaultBytes, writesPerDay: config.limits.writesPerDay } } };
+    case "vault": {
+      // (an erasing asked for is shown to every signed-in device, VAULT-7; and its alarm is set again, should it have been lost)
+      const erasing = pendingErase(db);
+      return {
+        status: 200,
+        json: { ok: true, vault: vaultHeld(db), unlocked: isUnlocked(db, session.id), ways: listWays(db), limits: { vaultBytes: config.limits.vaultBytes, writesPerDay: config.limits.writesPerDay }, erasing: erasing && shownErase(erasing, session.id) },
+        ...(erasing ? { wake: erasing.due } : {}),
+      };
+    }
     case "vault/start": {
       const body = said(asked.body);
       if (!body || typeof body.vault !== "string" || !Array.isArray(body.ways)) return no(400, "bad-request");
@@ -254,8 +317,11 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
       try {
         db.atomically(() => {
           if (!startVault(db, vault) || !startWays(db, vault, ways, now)) throw REFUSED;
+          // (a vault made after one was erased goes on from the day's writes of the one before: erase.ts)
+          carrySpent(db);
           unlockMaker(db, session.id, now);
           note(db, "vault-started", session.id, now);
+          tidyEvents(db, now);
         });
       } catch (error) {
         if (error === REFUSED) return no(400, "bad-request");
@@ -290,6 +356,49 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
     case "vault/lock":
       lock(db, session.id);
       return { status: 200, json: { ok: true } };
+    case "vault/erase": {
+      // At once, by a session that has the vault open (VAULT-7), and only the vault it names: a device erases the vault
+      // it has open, never one made since.
+      const body = said(asked.body);
+      if (!body || !isId(body.vault)) return no(400, "bad-request");
+      if (!isUnlocked(db, session.id)) return no(423, "locked");
+      const held = vaultHeld(db);
+      if (held === null) return no(404, "no-vault");
+      if (held !== body.vault) return no(409, "another-vault");
+      db.atomically(() => {
+        eraseVault(db);
+        note(db, "vault-erased", session.id, now);
+        tidyEvents(db, now);
+      });
+      return { status: 200, json: { ok: true } };
+    }
+    case "vault/erase-later": {
+      // By any signed-in session: in seven days, shown on every device meanwhile, and called off by one that has the vault open.
+      const body = said(asked.body);
+      if (!body || !isId(body.vault)) return no(400, "bad-request");
+      const held = vaultHeld(db);
+      if (held === null) return no(404, "no-vault");
+      if (held !== body.vault) return no(409, "another-vault");
+      const erasing = db.atomically(() => {
+        const made = askErase(db, held, session.id, now);
+        if (made.made) {
+          note(db, "erase-asked", session.id, now);
+          tidyEvents(db, now);
+        }
+        return made.erasing;
+      });
+      return { status: 200, json: { ok: true, erasing: shownErase(erasing, session.id) }, wake: erasing.due };
+    }
+    case "vault/erase-cancel": {
+      if (!isUnlocked(db, session.id)) return no(423, "locked");
+      const cancelled = db.atomically(() => {
+        if (!cancelErase(db)) return false;
+        note(db, "erase-cancelled", session.id, now);
+        tidyEvents(db, now);
+        return true;
+      });
+      return cancelled ? { status: 200, json: { ok: true } } : no(404, "no-erase");
+    }
     case "sync/pull": {
       // (sync is for a session that has shown it can open the vault: no other reads anything, ciphertext included)
       if (!isUnlocked(db, session.id)) return no(423, "locked");
@@ -308,16 +417,9 @@ export function act(db: Db, asked: Asked, now: number, config: Config): Answer {
         status: 200,
         json: {
           ok: true,
-          // (the newest lines, and the newest wrong proofs wherever they stand among them: one list, newest first.
-          // `session` is the id of the session a line is about, for naming the device when it is still in the list.)
-          events: db.sql
-            .exec(
-              `SELECT at, kind, session FROM events WHERE n IN (SELECT n FROM (SELECT n FROM events ORDER BY n DESC LIMIT ?) UNION SELECT n FROM (SELECT n FROM events WHERE kind = 'unlock-failed' ORDER BY n DESC LIMIT ?)) ORDER BY n DESC`,
-              EVENTS_SHOWN,
-              WRONG_SHOWN,
-            )
-            .toArray()
-            .map((row) => ({ at: Number(row.at), kind: String(row.kind), here: row.session === session.id, session: typeof row.session === "string" ? row.session : null })),
+          // (the newest lines, and the newest of the kinds shown apart wherever they stand among them: one list, newest
+          // first. `session` is the id of the session a line is about, for naming the device when it is still in the list.)
+          events: shownEvents(db, session.id).map((row) => ({ at: row.at, kind: row.kind, here: row.session === session.id, session: typeof row.session === "string" ? row.session : null })),
           // (how many wrong proofs in the last day, of those that are kept)
           wrong: Number(db.sql.exec(`SELECT COUNT(*) AS n FROM events WHERE kind = 'unlock-failed' AND at > ?`, now - DAY).toArray()[0]?.n ?? 0),
         },
