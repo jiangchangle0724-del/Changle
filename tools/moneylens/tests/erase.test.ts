@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { newId } from "../src/core/ids";
 import { act, dueErase, proofsIn, signIn, type Answer } from "../src/server/account";
+import { listing } from "../src/app/devices";
 import { eraseLater, eraseNow, erasing, keepVault, pendingOf } from "../src/app/erase";
 import type { Ask } from "../src/app/door";
 import { ERASE_DELAY, pendingErase } from "../src/server/erase";
@@ -325,6 +326,11 @@ test("the app's side, against the server's own code: asking, seeing, calling off
   assert.deepEqual(await eraseLater(theirs, vault), { ok: false, why: "gone" });
   assert.deepEqual(await erasing(theirs), { ok: true, vault: null, pending: null });
   assert.equal(await keepVault(mine), "locked");
+  // the list of devices reads each of the new lines as what it is, and says there is no vault
+  const read = await listing(mine);
+  assert.ok(read.ok);
+  assert.deepEqual(read.lines.slice(0, 3).map((line) => [line.kind, line.here]), [["vault-erased", true], ["erase-cancelled", true], ["erase-asked", false]]);
+  assert.deepEqual([read.vault, read.pending], [false, null]);
 });
 
 test("the app's side, against answers that are not what they should be: each is trouble, never a date or a vault", async () => {
